@@ -7,30 +7,31 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
-        <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
-        <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased">
-        <div class="min-h-screen bg-gray-100 dark:bg-gray-900">
-            @include('layouts.navigation')
+    <body class="font-sans antialiased bg-gray-100 dark:bg-gray-900">
+        
+        @include('layouts.navigation')
 
-            <!-- Page Heading -->
+        <div class="sm:pl-64 min-h-screen flex flex-col">
+            
             @isset($header)
-                <header class="bg-white dark:bg-gray-800 shadow">
+                <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         {{ $header }}
                     </div>
                 </header>
             @endisset
 
-            <!-- Page Content -->
-            <main>
-                {{ $slot }}
+            <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
+                <div class="max-w-7xl mx-auto">
+                    {{ $slot }}
+                </div>
             </main>
+
         </div>
     </body>
 </html>
