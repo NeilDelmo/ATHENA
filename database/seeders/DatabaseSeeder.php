@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
         $facultyRole = Role::create([ 'name' => 'faculty'
         ]);
 
-        $head = User::where('email',     '23-78498@g.batstate-u.edu.ph')->first();
+        $head = User::where('email','23-78498@g.batstate-u.edu.ph')->first();
         if($head){
             $head -> assignRole($researchHeadRole);
         }
