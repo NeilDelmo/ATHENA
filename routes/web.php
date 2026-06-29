@@ -4,7 +4,7 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\TopicController;
-use App\Http\Controllers\AdminTopicController;
+use App\Http\Controllers\ResearchHeadTopicController;
 use Illuminate\Support\Facades\Auth;
 Route::get('/', function () {
     return view('welcome');
@@ -15,7 +15,7 @@ Route::get('/dashboard', function () {
         $user = Auth::user();
 
         if ($user->hasRole('research_head')) {
-            return redirect()->route('admin.dashboard');
+            return redirect()->route('research_head.dashboard');
         }
     }
     
@@ -28,10 +28,14 @@ Route::middleware(['auth', 'role:faculty'])->group(function () {
     Route::post('/faculty/topics', [TopicController::class, 'store'])-> name('faculty.topics');
 });
 
+Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
+    ->middleware(['auth'])
+    ->name('topics.download');
+
 //RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'role:research_head'])->group(function () {
-    Route::get('/admin/dashboard', [AdminTopicController::class, 'index'])->name('admin.dashboard');
-    Route::patch('/admin/topics/{topic}/status', [AdminTopicController::class, 'updateStatus'])->name('admin.topics.updateStatus');
+    Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
+    Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
 });
 
 

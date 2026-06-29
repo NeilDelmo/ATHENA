@@ -1,44 +1,54 @@
 <?php
 
 namespace App\Http\Controllers;
-use App\Models\TopicProposal
+
+use App\Models\TopicProposal;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 
 class TopicController extends Controller
 {
-   public function index()
+    public function index()
     {
-        // Fetch only the logged-in user's submitted topics
         $topics = Auth::user()->proposals()->latest()->get();
 
         return view('dashboard', compact('topics')); 
     }
+
     public function store(Request $request)
     {
-        // 1. Validate incoming data (including the document)
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'document' => 'required|file|mimes:pdf,doc,docx|max:10240', // Max 10MB PDF/Word docs
+            'description' => 'nullable|string|max:5000',
+            'document' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ]);
 
-        // 2. Handle the file upload securely
-        if ($request->hasFile('document')) {
-            // Stores it in storage/app/private/proposals or storage/app/public/proposals
-            $path = $request->file('document')->store('proposals');
-            $validated['initial_file_path'] = $path;
+        $path = $request->file('document')->store('proposals');
+
+        if (! $path) {
+            return back()
+                ->withInput()
+                ->withErrors(['document' => 'The proposal document could not be uploaded. Please try again.']);
         }
 
-        // 3. Save the proposal via the user's relationship
         Auth::user()->proposals()->create([
             'title' => $validated['title'],
-            'description' => $validated['description'],
-            'initial_file_path' => $validated['initial_file_path'],
-            'status' => 'pending', // Explicitly setting it, though migration handles default
+            'description' => $validated['description'] ?? null,
+            'initial_file_path' => $path,
+            'status' => 'pending',
         ]);
 
-        // 4. Kick back to the dashboard with a success session banner
-        return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully!');
+        return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully and sent to the Research Head.');
+    }
+
+    public function download(TopicProposal $topic)
+    {
+        $user = Auth::user();
+
+        abort_unless($user->hasRole('research_head') || $topic->user_id === $user->id, 403);
+        abort_unless(Storage::exists($topic->initial_file_path), 404);
+
+        return Storage::download($topic->initial_file_path, basename($topic->initial_file_path));
     }
 }
