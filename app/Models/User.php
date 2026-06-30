@@ -7,10 +7,9 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
 use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'email', 'password', 'google_id', 'avatar'])]
@@ -18,7 +17,7 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -32,9 +31,15 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-    //for the proposal
+
+    // for the proposal
     public function proposals(): HasMany
     {
         return $this->hasMany(TopicProposal::class);
+    }
+
+    public function topicReviews(): HasMany
+    {
+        return $this->hasMany(TopicReview::class, 'reviewer_id');
     }
 }

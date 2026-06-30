@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->string('title');
             $table->string('description')->nullable();
+            $table->decimal('estimated_budget', 12, 2)->nullable();
             $table->string('initial_file_path');
             $table->string('final_file_path')->nullable();
             $table->string('status')->default('pending'); //pending, approved, rejected

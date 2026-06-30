@@ -23,9 +23,10 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 //FACULTY ROUTES
-Route::middleware(['auth', 'role:faculty'])->group(function () {
+Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])-> name('faculty.dashboard');
     Route::post('/faculty/topics', [TopicController::class, 'store'])-> name('faculty.topics');
+    Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });
 
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])

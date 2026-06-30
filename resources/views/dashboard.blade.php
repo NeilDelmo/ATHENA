@@ -28,11 +28,11 @@
             </div>
         @endif
 
-        @if ($errors->any())
+        @if ($errors->submission->any() || $errors->resubmission->any())
             <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <p class="font-bold">Please review your submission.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach ($errors->all() as $error)
+                    @foreach (array_merge($errors->submission->all(), $errors->resubmission->all()) as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
@@ -80,7 +80,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <div class="bg-white p-6 rounded-2xl border border-gray-200/60 shadow-sm flex items-center justify-between">
                 <div>
                     <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Active Proposals</span>
@@ -101,13 +101,23 @@
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-2xl border border-gray-200/60 shadow-sm flex items-center justify-between sm:col-span-2 lg:col-span-1">
+            <div class="bg-white p-6 rounded-2xl border border-gray-200/60 shadow-sm flex items-center justify-between">
                 <div>
                     <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Under Evaluation</span>
-                    <span class="text-3xl font-black text-gray-900 block mt-1">{{ $topics->where('status', 'pending')->count() }}</span>
+                    <span class="text-3xl font-black text-gray-900 block mt-1">{{ $topics->whereIn('status', ['pending', 'resubmitted'])->count() }}</span>
                 </div>
                 <div class="p-3 bg-amber-50 rounded-xl text-amber-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-blue-200/60 shadow-sm flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Action Required</span>
+                    <span class="text-3xl font-black text-blue-700 block mt-1">{{ $topics->where('status', 'revision_requested')->count() }}</span>
+                </div>
+                <div class="p-3 bg-blue-50 rounded-xl text-blue-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 4.5h.008v.008H12V16.5z" /></svg>
                 </div>
             </div>
         </div>
@@ -120,23 +130,107 @@
                 </div>
             </div>
             @forelse ($topics as $topic)
-                <div class="flex flex-col gap-4 border-b border-gray-100 p-5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="min-w-0">
+                @php
+                    $latestReview = $topic->reviews->last();
+                    $isCurrentResubmission = (string) old('resubmitting_topic_id') === (string) $topic->id;
+                @endphp
+                <div class="border-b border-gray-100 p-5 last:border-b-0">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-2">
                             <h4 class="text-sm font-bold text-gray-900">{{ $topic->title }}</h4>
                             <span class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider
                                 {{ $topic->status === 'approved' ? 'bg-green-50 text-green-700' : '' }}
                                 {{ $topic->status === 'rejected' ? 'bg-red-50 text-red-700' : '' }}
-                                {{ $topic->status === 'pending' ? 'bg-amber-50 text-amber-700' : '' }}">
+                                {{ $topic->status === 'pending' ? 'bg-amber-50 text-amber-700' : '' }}
+                                {{ $topic->status === 'revision_requested' ? 'bg-blue-50 text-blue-700' : '' }}
+                                {{ $topic->status === 'resubmitted' ? 'bg-purple-50 text-purple-700' : '' }}">
                                 {{ str_replace('_', ' ', $topic->status) }}
                             </span>
                         </div>
                         <p class="mt-1 text-xs text-gray-500">{{ $topic->description ?: 'No description provided.' }}</p>
+                        <p class="mt-1 text-[11px] font-bold text-gray-500">
+                            Estimated Budget: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
+                        </p>
                         <p class="mt-1 text-[11px] font-medium text-gray-400">Submitted {{ $topic->created_at->diffForHumans() }}</p>
+
+                        @if ($latestReview)
+                            <div class="mt-3 rounded-xl border {{ $topic->status === 'revision_requested' ? 'border-blue-200 bg-blue-50' : 'border-gray-100 bg-gray-50' }} p-3">
+                                <p class="text-[11px] font-black uppercase tracking-wider {{ $topic->status === 'revision_requested' ? 'text-blue-700' : 'text-gray-500' }}">
+                                    Latest review: {{ str_replace('_', ' ', $latestReview->decision) }}
+                                </p>
+                                @if ($latestReview->comment)
+                                    <p class="mt-1 whitespace-pre-line text-xs leading-relaxed text-gray-700">{{ $latestReview->comment }}</p>
+                                @endif
+                                <p class="mt-1 text-[11px] text-gray-400">
+                                    {{ $latestReview->reviewer?->name ?? 'Research Head' }} · {{ $latestReview->created_at->format('M d, Y h:i A') }}
+                                </p>
+                            </div>
+                        @endif
+
+                        @if ($topic->reviews->count() > 1)
+                            <details class="mt-2 text-xs text-gray-500">
+                                <summary class="cursor-pointer font-bold">View all review history</summary>
+                                <div class="mt-2 space-y-2 border-l-2 border-gray-100 pl-3">
+                                    @foreach ($topic->reviews as $review)
+                                        <div>
+                                            <p class="text-[11px] font-bold uppercase tracking-wider">{{ str_replace('_', ' ', $review->decision) }}</p>
+                                            @if ($review->comment)
+                                                <p class="mt-0.5 whitespace-pre-line leading-relaxed">{{ $review->comment }}</p>
+                                            @endif
+                                            <p class="mt-0.5 text-[10px] text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</p>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </details>
+                        @endif
+                        </div>
+
+                        <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
+                            Download latest
+                        </a>
                     </div>
-                    <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
-                        Download
-                    </a>
+
+                    @if ($topic->status === 'revision_requested')
+                        <details class="mt-4 rounded-2xl border border-blue-200 bg-blue-50/50 p-4" @if ($isCurrentResubmission && $errors->resubmission->any()) open @endif>
+                            <summary class="cursor-pointer text-sm font-bold text-blue-800">Revise and resubmit proposal</summary>
+                            <form action="{{ route('faculty.topics.resubmit', $topic) }}" method="POST" enctype="multipart/form-data" class="mt-4 grid gap-4 sm:grid-cols-2">
+                                @csrf
+                                @method('PATCH')
+                                <input type="hidden" name="resubmitting_topic_id" value="{{ $topic->id }}">
+
+                                @if ($isCurrentResubmission && $errors->resubmission->any())
+                                    <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 sm:col-span-2">
+                                        <ul class="list-disc space-y-1 pl-4">
+                                            @foreach ($errors->resubmission->all() as $error)
+                                                <li>{{ $error }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_title_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Proposal title</label>
+                                    <input id="revision_title_{{ $topic->id }}" name="title" type="text" value="{{ $isCurrentResubmission ? old('title') : $topic->title }}" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
+                                </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_description_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Description</label>
+                                    <textarea id="revision_description_{{ $topic->id }}" name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">{{ $isCurrentResubmission ? old('description') : $topic->description }}</textarea>
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated budget (PHP)</label>
+                                    <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_document_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revised document</label>
+                                    <input id="revision_document_{{ $topic->id }}" name="document" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="sm:col-span-2 sm:text-right">
+                                    <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">Submit revision</button>
+                                </div>
+                            </form>
+                        </details>
+                    @endif
                 </div>
             @empty
                 <div class="p-12 text-center max-w-sm mx-auto flex flex-col items-center">
@@ -149,7 +243,7 @@
             @endforelse
         </div>
 
-        <div id="submitProposalModal" class="{{ $errors->any() ? '' : 'hidden' }} fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
+        <div id="submitProposalModal" class="{{ $errors->submission->any() ? '' : 'hidden' }} fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
             <div id="closeModalBackdrop" class="fixed inset-0 bg-gray-950/60 backdrop-blur-sm transition-opacity cursor-pointer"></div>
 
             <div class="relative bg-white rounded-3xl border border-gray-200/80 shadow-2xl w-full max-w-lg overflow-hidden transform transition-all z-10">
@@ -176,6 +270,17 @@
                     </div>
 
                     <div class="space-y-2">
+                        <label for="estimated_budget" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Proposal Budget</label>
+                        <div class="relative">
+                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">PHP</span>
+                            <input id="estimated_budget" name="estimated_budget" type="number" value="{{ old('estimated_budget') }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 pl-12 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="0.00">
+                        </div>
+                        @error('estimated_budget', 'submission')
+                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div class="space-y-2">
                         <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Target Template</label>
                         <div class="p-4 bg-gray-50 border border-gray-200/60 rounded-2xl flex items-center justify-between gap-4">
                             <div class="flex items-center gap-3">
@@ -192,17 +297,20 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Document File Copy</label>
-                        <div class="border-2 border-dashed border-gray-200 hover:border-red-500/50 rounded-2xl p-8 text-center bg-white transition relative group">
+                        <label for="document" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Document File Copy</label>
+                        <div id="documentDropzone" class="border-2 border-dashed border-gray-200 hover:border-red-500/50 rounded-2xl p-8 text-center bg-white transition relative group">
                             <input type="file" name="document" id="document" accept=".doc,.docx,.pdf" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                             <div class="flex flex-col items-center pointer-events-none">
                                 <div class="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 mb-3 group-hover:scale-110 transition duration-200">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
                                 </div>
                                 <p class="text-sm font-bold text-gray-800">Drag & drop completed copy here</p>
-                                <p class="text-xs text-gray-400 mt-1">Accepts document extensions (.docx, .pdf) up to 25MB</p>
+                                <p id="documentFileName" class="text-xs text-gray-400 mt-1">Accepts document extensions (.doc, .docx, .pdf) up to 25MB</p>
                             </div>
                         </div>
+                        @error('document', 'submission')
+                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
+                        @enderror
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
@@ -222,6 +330,9 @@
             const backdrop = document.getElementById('closeModalBackdrop');
             const crossBtn = document.getElementById('closeModalCrossBtn');
             const cancelBtn = document.getElementById('closeModalCancelBtn');
+            const documentInput = document.getElementById('document');
+            const documentDropzone = document.getElementById('documentDropzone');
+            const documentFileName = document.getElementById('documentFileName');
 
             // Toggle function locked inside scope
             function setModalVisibility(visible) {
@@ -238,6 +349,54 @@
             if (backdrop) backdrop.onclick = () => setModalVisibility(false);
             if (crossBtn) crossBtn.onclick = () => setModalVisibility(false);
             if (cancelBtn) cancelBtn.onclick = () => setModalVisibility(false);
+
+            function updateDocumentFileName() {
+                if (!documentInput || !documentFileName) return;
+
+                const file = documentInput.files && documentInput.files[0];
+                documentFileName.textContent = file
+                    ? `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`
+                    : 'Accepts document extensions (.doc, .docx, .pdf) up to 25MB';
+
+                documentFileName.classList.toggle('text-gray-800', Boolean(file));
+                documentFileName.classList.toggle('font-bold', Boolean(file));
+                documentFileName.classList.toggle('text-gray-400', !file);
+            }
+
+            if (documentInput) {
+                documentInput.onchange = updateDocumentFileName;
+                updateDocumentFileName();
+            }
+
+            if (documentDropzone && documentInput) {
+                documentDropzone.ondragenter = (event) => {
+                    event.preventDefault();
+                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
+                };
+
+                documentDropzone.ondragover = (event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
+                };
+
+                documentDropzone.ondragleave = (event) => {
+                    event.preventDefault();
+                    if (!documentDropzone.contains(event.relatedTarget)) {
+                        documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
+                    }
+                };
+
+                documentDropzone.ondrop = (event) => {
+                    event.preventDefault();
+                    documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
+
+                    if (event.dataTransfer.files.length) {
+                        documentInput.files = event.dataTransfer.files;
+                        updateDocumentFileName();
+                    }
+                };
+            }
 
             // --- 🎞️ Carousel Logic Implementation ---
             let currentSlide = 0;

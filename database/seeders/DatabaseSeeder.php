@@ -2,11 +2,11 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
-use Illuminate\Support\Facades\Hash;
+use App\Models\User;
+use App\Models\TopicProposal;
 
 class DatabaseSeeder extends Seeder
 {
@@ -17,19 +17,31 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $researchHeadRole = Role::create(['name' => 'research_head']);
-        $facultyRole = Role::create([ 'name' => 'faculty'
-        ]);
+        $researchHeadRole = Role::firstOrCreate(['name' => 'research_head']);
+        $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
+        $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
 
-        $head = User::where('email','23-78498@g.batstate-u.edu.ph')->first();
-        if($head){
-            $head -> assignRole($researchHeadRole);
+        $researchHeadEmail = '23-78498@g.batstate-u.edu.ph';
+
+        $head = User::where('email', $researchHeadEmail)->first();
+
+        if ($head) {
+            $head->syncRoles([$researchHeadRole]);
         }
 
-        User::where('email', '!=', '23-78498@g.batstate-u.edu.ph')
-        ->get()
-        ->each(function ($user) use ($facultyRole) {
-            $user->assignRole($facultyRole);
-        });
+        User::where('email', '!=', $researchHeadEmail)
+            ->get()
+            ->each(function (User $user) use ($facultyRole) {
+                if (! $user->hasRole('faculty')) {
+                    $user->assignRole($facultyRole);
+                }
+            });
+
+        TopicProposal::with('user')
+            ->where('status', 'approved')
+            ->get()
+            ->each(function (TopicProposal $topic) use ($facultyRole, $facultyResearcherRole) {
+                $topic->user?->assignRole([$facultyRole, $facultyResearcherRole]);
+            });
     }
 }

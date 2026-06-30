@@ -19,7 +19,7 @@
             
             @endrole
 
-        @role('faculty')
+        @hasanyrole('faculty|faculty_researcher')
             <a href="{{ route('faculty.dashboard') }}" 
                class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('faculty.dashboard') ? 'bg-red-50 text-red-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -28,7 +28,7 @@
                 Faculty Dashboard
             </a>
             
-            @endrole
+            @endhasanyrole
 
     </div>
 </aside>
