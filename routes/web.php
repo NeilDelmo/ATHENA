@@ -33,6 +33,11 @@ Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
     ->middleware(['auth'])
     ->name('topics.download');
 
+Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
+    Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
+    Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
+});
+
 //RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');

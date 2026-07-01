@@ -9,6 +9,7 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     Role::firstOrCreate(['name' => 'faculty']);
+    Role::firstOrCreate(['name' => 'faculty_researcher']);
     Role::firstOrCreate(['name' => 'research_head']);
 });
 
@@ -199,4 +200,63 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
         ->assertSee('Waiting for faculty revision');
+});
+
+test('faculty researchers can browse and open only their own research records', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole(['faculty', 'faculty_researcher']);
+
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole(['faculty', 'faculty_researcher']);
+
+    $ownTopic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'My catalogued research',
+        'description' => 'A visible research record.',
+        'estimated_budget' => 14500,
+        'initial_file_path' => 'proposals/own.pdf',
+        'status' => 'revision_requested',
+    ]);
+
+    $otherTopic = TopicProposal::create([
+        'user_id' => $otherFaculty->id,
+        'title' => 'Another faculty research',
+        'estimated_budget' => 9000,
+        'initial_file_path' => 'proposals/other.pdf',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get('/research')
+        ->assertOk()
+        ->assertSee('My catalogued research')
+        ->assertDontSee('Another faculty research');
+
+    $this->actingAs($faculty)
+        ->get("/research/{$ownTopic->id}")
+        ->assertOk()
+        ->assertSee('revision requested')
+        ->assertSee('PHP 14,500.00');
+
+    $this->actingAs($faculty)
+        ->get("/research/{$otherTopic->id}")
+        ->assertForbidden();
+});
+
+test('the research catalog is unavailable to regular faculty and the research head', function () {
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($head)
+        ->get('/research')
+        ->assertForbidden();
+
+    $this->actingAs($faculty)
+        ->get('/research')
+        ->assertForbidden();
 });

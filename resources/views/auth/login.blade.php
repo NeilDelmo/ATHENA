@@ -11,10 +11,10 @@
 
             <div class="relative z-10 max-w-md my-auto">
                 <h1 class="text-4xl font-extrabold tracking-tight leading-none mb-4 bg-gradient-to-r from-white via-slate-200 to-red-200 bg-clip-text text-transparent">
-                    Academic Tracking & Higher Education Network Asset.
+                    An Automated Research Management and Monitoring System with Analytics and Research Support Tools
                 </h1>
                 <p class="text-slate-400 text-lg leading-relaxed">
-                    Secure access for Batangas State University students and faculty members.
+                    Secure access for Batangas State University faculty members.
                 </p>
             </div>
 

@@ -21,6 +21,40 @@ class TopicController extends Controller
         return view('dashboard', compact('topics'));
     }
 
+    public function researchIndex(Request $request)
+    {
+        $status = $request->string('status')->toString();
+        $search = trim($request->string('search')->toString());
+        $allowedStatuses = ['pending', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
+
+        $topics = TopicProposal::query()
+            ->where('user_id', $request->user()->id)
+            ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            })
+            ->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('research.index', compact('topics', 'status', 'search'));
+    }
+
+    public function researchShow(Request $request, TopicProposal $topic)
+    {
+        $this->ensureCanViewTopic($request, $topic);
+
+        $topic->load([
+            'user',
+            'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+        ]);
+
+        return view('research.show', compact('topic'));
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validateWithBag('submission', [
@@ -136,13 +170,19 @@ class TopicController extends Controller
 
     public function download(TopicProposal $topic)
     {
-        $user = Auth::user();
+        $this->ensureCanViewTopic(request(), $topic);
 
-        abort_unless($user->hasRole('research_head') || $topic->user_id === $user->id, 403);
         $path = $topic->final_file_path ?: $topic->initial_file_path;
 
         abort_unless(Storage::disk('local')->exists($path), 404);
 
         return Storage::disk('local')->download($path, basename($path));
+    }
+
+    private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
+    {
+        $user = $request->user();
+
+        abort_unless($user->hasRole('research_head') || $topic->user_id === $user->id, 403);
     }
 }
