@@ -1,3 +1,140 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    html {
+        color-scheme: light;
+    }
+
+    html.dark {
+        color-scheme: dark;
+    }
+}
+
+/*
+ * Authenticated application theme bridge.
+ * Existing screens use the original gray utility palette; these scoped
+ * mappings let every shared role screen participate in dark mode without
+ * leaking into the independently themed authentication experience.
+ */
+html.dark [data-app-shell] .bg-white {
+    background-color: rgb(15 23 42);
+}
+
+html.dark [data-app-shell] .bg-gray-50,
+html.dark [data-app-shell] .bg-gray-100,
+html.dark [data-app-shell] [class~="bg-gray-50/70"] {
+    background-color: rgb(30 41 59);
+}
+
+html.dark [data-app-shell] .text-gray-900 {
+    color: rgb(248 250 252);
+}
+
+html.dark [data-app-shell] .text-gray-800,
+html.dark [data-app-shell] .text-gray-700 {
+    color: rgb(226 232 240);
+}
+
+html.dark [data-app-shell] .text-gray-600 {
+    color: rgb(203 213 225);
+}
+
+html.dark [data-app-shell] .text-gray-500 {
+    color: rgb(148 163 184);
+}
+
+html.dark [data-app-shell] .text-gray-400 {
+    color: rgb(100 116 139);
+}
+
+html.dark [data-app-shell] .border-gray-100,
+html.dark [data-app-shell] .border-gray-200,
+html.dark [data-app-shell] .border-gray-300,
+html.dark [data-app-shell] [class~="border-gray-200/30"],
+html.dark [data-app-shell] [class~="border-gray-200/60"],
+html.dark [data-app-shell] [class~="border-gray-200/80"] {
+    border-color: rgb(51 65 85);
+}
+
+html.dark [data-app-shell] .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgb(30 41 59);
+}
+
+html.dark [data-app-shell] .bg-red-50,
+html.dark [data-app-shell] [class~="bg-red-500/10"] {
+    background-color: rgb(69 10 10 / 0.65);
+}
+
+html.dark [data-app-shell] .bg-green-50 {
+    background-color: rgb(5 46 22 / 0.65);
+}
+
+html.dark [data-app-shell] .bg-blue-50,
+html.dark [data-app-shell] [class~="bg-blue-50/50"] {
+    background-color: rgb(23 37 84 / 0.7);
+}
+
+html.dark [data-app-shell] .bg-amber-50 {
+    background-color: rgb(69 26 3 / 0.7);
+}
+
+html.dark [data-app-shell] .bg-purple-50,
+html.dark [data-app-shell] [class~="bg-purple-50/50"] {
+    background-color: rgb(59 7 100 / 0.65);
+}
+
+html.dark [data-app-shell] .text-red-700 {
+    color: rgb(252 165 165);
+}
+
+html.dark [data-app-shell] .text-green-700,
+html.dark [data-app-shell] .text-green-800,
+html.dark [data-app-shell] .text-green-900 {
+    color: rgb(134 239 172);
+}
+
+html.dark [data-app-shell] .text-blue-700,
+html.dark [data-app-shell] .text-blue-800,
+html.dark [data-app-shell] .text-blue-900 {
+    color: rgb(147 197 253);
+}
+
+html.dark [data-app-shell] .text-amber-700 {
+    color: rgb(253 230 138);
+}
+
+html.dark [data-app-shell] .text-purple-700 {
+    color: rgb(216 180 254);
+}
+
+html.dark [data-app-shell] .border-red-200,
+html.dark [data-app-shell] .border-green-200,
+html.dark [data-app-shell] .border-blue-200,
+html.dark [data-app-shell] .border-purple-100,
+html.dark [data-app-shell] .border-purple-200 {
+    border-color: rgb(71 85 105);
+}
+
+html.dark [data-app-shell] input:not([type="checkbox"]):not([type="radio"]),
+html.dark [data-app-shell] select,
+html.dark [data-app-shell] textarea {
+    border-color: rgb(51 65 85);
+    background-color: rgb(15 23 42);
+    color: rgb(226 232 240);
+}
+
+html.dark [data-app-shell] input::placeholder,
+html.dark [data-app-shell] textarea::placeholder {
+    color: rgb(100 116 139);
+}
+
+html.dark [data-app-shell] .hover\:bg-gray-50:hover,
+html.dark [data-app-shell] .hover\:bg-gray-100:hover {
+    background-color: rgb(30 41 59);
+}
+
+html.dark [data-app-shell] .hover\:bg-red-50:hover {
+    background-color: rgb(69 10 10 / 0.65);
+}

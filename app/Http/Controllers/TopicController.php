@@ -30,7 +30,7 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        return view('dashboard', compact('topics', 'activeCalls'));
+        return view('faculty.dashboard', compact('topics', 'activeCalls'));
     }
 
     public function researchIndex(Request $request)

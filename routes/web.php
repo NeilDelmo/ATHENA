@@ -48,7 +48,7 @@ Route::get('/research-calls', [ResearchCallController::class, 'index'])
 Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
-    Route::view('/research-support', 'research_support.index')->name('research-support.index');
+    Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
 });
 
 //RESEARCH HEAD ROUTES

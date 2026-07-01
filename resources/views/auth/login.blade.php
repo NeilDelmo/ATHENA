@@ -78,7 +78,8 @@
     <script>
         document.getElementById('auth-theme-toggle')?.addEventListener('click', () => {
             const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('athena-auth-theme', isDark ? 'dark' : 'light');
+            localStorage.setItem('athena-theme', isDark ? 'dark' : 'light');
+            localStorage.removeItem('athena-auth-theme');
         });
     </script>
 </x-guest-layout>

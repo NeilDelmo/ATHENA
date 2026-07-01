@@ -9,9 +9,10 @@
 
         <script>
             (() => {
-                const savedTheme = localStorage.getItem('athena-auth-theme');
+                const savedTheme = localStorage.getItem('athena-theme') || localStorage.getItem('athena-auth-theme');
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
+                if (savedTheme) localStorage.setItem('athena-theme', savedTheme);
             })();
         </script>
 
