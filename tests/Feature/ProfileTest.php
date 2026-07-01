@@ -18,6 +18,10 @@ test('authenticated users can view their Google managed profile', function () {
         ->assertSee('faculty@g.batstate-u.edu.ph')
         ->assertSee('BatStateU Google Workspace')
         ->assertSee('managed by Batangas State University')
+        ->assertSee('Account activity')
+        ->assertSee('Access and permissions')
+        ->assertSee('Recent proposals')
+        ->assertSee('Sign out securely')
         ->assertSee('Profile')
         ->assertSee(route('profile.edit'), false);
 });
