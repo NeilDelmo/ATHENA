@@ -62,8 +62,8 @@
                                 <p class="text-xs font-bold text-gray-800 truncate mt-0.5">{{ Auth::user()->email }}</p>
                             </div>
                             
-                            <a href="#settings" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                                Settings
+                            <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                Account Profile
                             </a>
                             
                             <form method="POST" action="{{ route('logout') }}">

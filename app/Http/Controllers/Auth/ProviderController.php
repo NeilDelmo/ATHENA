@@ -4,22 +4,26 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\InstitutionalEmail;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
-use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 class ProviderController extends Controller
 {
-    public function redirectToGoogle()
+    public function redirectToGoogle(): RedirectResponse
     {
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')
+            ->with(['hd' => config('services.google.allowed_domains.0')])
+            ->redirect();
     }
 
-    public function handleGoogleCallback()
+    public function handleGoogleCallback(Request $request): RedirectResponse
     {
         try {
             try {
@@ -28,13 +32,24 @@ class ProviderController extends Controller
                 $googleUser = Socialite::driver('google')->stateless()->user();
             }
 
-            $user = $this->findOrCreateGoogleUser($googleUser);
+            $email = strtolower(trim((string) $googleUser->getEmail()));
 
-            if (! $user->roles()->exists() && Role::where('name', 'faculty')->exists()) {
-                $user->assignRole('faculty');
+            if (! InstitutionalEmail::isAllowed($email, config('services.google.allowed_domains', []))) {
+                return redirect()
+                    ->route('login')
+                    ->withErrors([
+                        'google' => 'Use your official @g.batstate-u.edu.ph Google account to access ATHENA.',
+                    ]);
+            }
+
+            $user = $this->findOrCreateGoogleUser($googleUser, $email);
+
+            if (! $user->roles()->exists()) {
+                $user->assignRole(Role::firstOrCreate(['name' => 'faculty']));
             }
 
             Auth::login($user);
+            $request->session()->regenerate();
 
             return redirect()->intended('/dashboard');
         } catch (\Exception $e) {
@@ -49,17 +64,15 @@ class ProviderController extends Controller
         }
     }
 
-    private function findOrCreateGoogleUser(SocialiteUser $googleUser): User
+    private function findOrCreateGoogleUser(SocialiteUser $googleUser, string $email): User
     {
-        $existingUser = User::where('email', $googleUser->getEmail())->first();
-
         return User::updateOrCreate([
-            'email' => $googleUser->getEmail(),
+            'email' => $email,
         ], [
             'name' => $googleUser->getName(),
             'google_id' => $googleUser->getId(),
             'avatar' => $googleUser->getAvatar(),
-            'password' => $existingUser ? $existingUser->password : bcrypt(Str::random(16)),
+            'email_verified_at' => now(),
         ]);
     }
 }

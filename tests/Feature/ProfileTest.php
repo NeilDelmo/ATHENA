@@ -2,84 +2,27 @@
 
 use App\Models\User;
 
-test('profile page is displayed', function () {
-    $user = User::factory()->create();
+test('authenticated users can view their Google managed profile', function () {
+    $this->withoutVite();
 
-    $response = $this
-        ->actingAs($user)
-        ->get('/profile');
+    $user = User::factory()->create([
+        'name' => 'Red Spartan Faculty',
+        'email' => 'faculty@g.batstate-u.edu.ph',
+        'google_id' => 'google-user-123',
+    ]);
 
-    $response->assertOk();
+    $this->actingAs($user)
+        ->get('/profile')
+        ->assertOk()
+        ->assertSee('Red Spartan Faculty')
+        ->assertSee('faculty@g.batstate-u.edu.ph')
+        ->assertSee('BatStateU Google Workspace')
+        ->assertSee('managed by Batangas State University');
 });
 
-test('profile information can be updated', function () {
+test('profile credentials cannot be changed or deleted locally', function () {
     $user = User::factory()->create();
 
-    $response = $this
-        ->actingAs($user)
-        ->patch('/profile', [
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-
-    $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect('/profile');
-
-    $user->refresh();
-
-    $this->assertSame('Test User', $user->name);
-    $this->assertSame('test@example.com', $user->email);
-    $this->assertNull($user->email_verified_at);
-});
-
-test('email verification status is unchanged when the email address is unchanged', function () {
-    $user = User::factory()->create();
-
-    $response = $this
-        ->actingAs($user)
-        ->patch('/profile', [
-            'name' => 'Test User',
-            'email' => $user->email,
-        ]);
-
-    $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect('/profile');
-
-    $this->assertNotNull($user->refresh()->email_verified_at);
-});
-
-test('user can delete their account', function () {
-    $user = User::factory()->create();
-
-    $response = $this
-        ->actingAs($user)
-        ->delete('/profile', [
-            'password' => 'password',
-        ]);
-
-    $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect('/');
-
-    $this->assertGuest();
-    $this->assertNull($user->fresh());
-});
-
-test('correct password must be provided to delete account', function () {
-    $user = User::factory()->create();
-
-    $response = $this
-        ->actingAs($user)
-        ->from('/profile')
-        ->delete('/profile', [
-            'password' => 'wrong-password',
-        ]);
-
-    $response
-        ->assertSessionHasErrorsIn('userDeletion', 'password')
-        ->assertRedirect('/profile');
-
-    $this->assertNotNull($user->fresh());
+    $this->actingAs($user)->patch('/profile', [])->assertMethodNotAllowed();
+    $this->actingAs($user)->delete('/profile')->assertMethodNotAllowed();
 });

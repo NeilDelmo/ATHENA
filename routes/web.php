@@ -25,7 +25,7 @@ Route::get('/dashboard', function () {
     }
     
     return redirect()->route('faculty.dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware('auth')->name('dashboard');
 
 //FACULTY ROUTES
 Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
@@ -68,14 +68,12 @@ Route::middleware(['auth', 'role:expert'])->group(function () {
 //PROFILE ROUTES
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 //GOOGLE AUTHENTICATION ROUTES
-//route to redirect the user to google
-Route::get('/auth/google', [ProviderController::class, 'redirectToGoogle']);
-//route to handle the callback from google
-Route::get('/auth/google/callback', [ProviderController::class, 'handleGoogleCallback']);
+Route::middleware(['guest', 'throttle:20,1'])->group(function () {
+    Route::get('/auth/google', [ProviderController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+    Route::get('/auth/google/callback', [ProviderController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+});
 
 require __DIR__.'/auth.php';
