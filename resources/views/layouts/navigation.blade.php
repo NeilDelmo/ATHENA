@@ -6,7 +6,7 @@
         <span class="text-[10px] px-1.5 py-0.5 bg-red-500/10 text-red-600 rounded font-bold uppercase tracking-wider">Portal</span>
     </div>
 
-    <div class="px-4 py-6 space-y-1 overflow-y-auto grow">
+    <div class="grow space-y-1 overflow-y-auto px-4 py-6">
         
         @role('research_head')
             <a href="{{ route('research_head.dashboard') }}" 
@@ -61,4 +61,5 @@
         </a>
 
     </div>
+
 </aside>

@@ -17,7 +17,9 @@ test('authenticated users can view their Google managed profile', function () {
         ->assertSee('Red Spartan Faculty')
         ->assertSee('faculty@g.batstate-u.edu.ph')
         ->assertSee('BatStateU Google Workspace')
-        ->assertSee('managed by Batangas State University');
+        ->assertSee('managed by Batangas State University')
+        ->assertSee('Profile')
+        ->assertSee(route('profile.edit'), false);
 });
 
 test('profile credentials cannot be changed or deleted locally', function () {
