@@ -17,6 +17,8 @@
                 <select id="research_status" name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold text-gray-700 shadow-sm focus:border-red-600 focus:ring-red-600">
                     <option value="">All statuses</option>
                     <option value="pending" @selected($status === 'pending')>Pending</option>
+                    <option value="expert_review" @selected($status === 'expert_review')>Expert review</option>
+                    <option value="for_final_decision" @selected($status === 'for_final_decision')>For final decision</option>
                     <option value="revision_requested" @selected($status === 'revision_requested')>Revision requested</option>
                     <option value="resubmitted" @selected($status === 'resubmitted')>Resubmitted</option>
                     <option value="approved" @selected($status === 'approved')>Approved</option>
@@ -66,6 +68,7 @@
                                     <a href="{{ route('research.show', $topic) }}" class="block max-w-md">
                                         <span class="block text-sm font-bold text-gray-900 hover:text-red-600">{{ $topic->title }}</span>
                                         <span class="mt-1 block truncate text-xs text-gray-400">{{ $topic->description ?: 'No description provided.' }}</span>
+                                        <span class="mt-1 block text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</span>
                                     </a>
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4">

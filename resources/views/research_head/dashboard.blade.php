@@ -1,145 +1,71 @@
 <x-app-layout>
-    <x-slot name="header">
-        <div>
-            <h2 class="font-black text-2xl text-gray-900 tracking-tight">
-                Research Head Dashboard
-            </h2>
-            <p class="text-xs text-gray-500 mt-1">
-                Review incoming faculty proposals and update their evaluation status.
-            </p>
-        </div>
-    </x-slot>
+    <x-slot name="header"><div><h2 class="text-2xl font-black tracking-tight text-gray-900">Research Head Dashboard</h2><p class="mt-1 text-xs text-gray-500">Screen proposals, coordinate subject-expert review, and issue signed decisions.</p></div></x-slot>
 
     <div class="space-y-6">
-        @if (session('success'))
-            <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                {{ $errors->first() }}
-            </div>
-        @endif
+        @if (session('success'))<div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>@endif
+        @if ($errors->any())<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><p class="font-bold">The review could not be submitted.</p><p class="mt-1 text-xs">{{ $errors->first() }}</p></div>@endif
 
         @php
-            $reviewableTopics = $topics->whereIn('status', ['pending', 'resubmitted']);
-            $revisionTopics = $topics->where('status', 'revision_requested');
-            $approvedTopics = $topics->where('status', 'approved');
-            $rejectedTopics = $topics->where('status', 'rejected');
+            $screening = $topics->whereIn('status', ['pending', 'resubmitted'])->count();
+            $expertReview = $topics->where('status', 'expert_review')->count();
+            $finalDecision = $topics->where('status', 'for_final_decision')->count();
+            $approved = $topics->where('status', 'approved')->count();
         @endphp
-
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-2xl border border-gray-200/60 bg-white p-6 shadow-sm">
-                <span class="block text-xs font-bold uppercase tracking-wider text-gray-400">Ready for Review</span>
-                <span class="mt-1 block text-3xl font-black text-amber-700">{{ $reviewableTopics->count() }}</span>
-            </div>
-            <div class="rounded-2xl border border-gray-200/60 bg-white p-6 shadow-sm">
-                <span class="block text-xs font-bold uppercase tracking-wider text-gray-400">Awaiting Revision</span>
-                <span class="mt-1 block text-3xl font-black text-blue-700">{{ $revisionTopics->count() }}</span>
-            </div>
-            <div class="rounded-2xl border border-gray-200/60 bg-white p-6 shadow-sm">
-                <span class="block text-xs font-bold uppercase tracking-wider text-gray-400">Approved</span>
-                <span class="mt-1 block text-3xl font-black text-green-700">{{ $approvedTopics->count() }}</span>
-            </div>
-            <div class="rounded-2xl border border-gray-200/60 bg-white p-6 shadow-sm">
-                <span class="block text-xs font-bold uppercase tracking-wider text-gray-400">Rejected</span>
-                <span class="mt-1 block text-3xl font-black text-red-700">{{ $rejectedTopics->count() }}</span>
-            </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            @foreach ([['Initial screening', $screening, 'text-amber-700 bg-amber-50'], ['With experts', $expertReview, 'text-purple-700 bg-purple-50'], ['Final decision', $finalDecision, 'text-blue-700 bg-blue-50'], ['Approved', $approved, 'text-green-700 bg-green-50']] as [$label, $count, $style])
+                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p></div>
+            @endforeach
         </div>
 
-        <div class="overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-sm">
-            <div class="border-b border-gray-100 p-6">
-                <h3 class="text-base font-bold text-gray-900">All Topic Proposals</h3>
-                <p class="mt-0.5 text-xs text-gray-400">Review each topic and estimated proposal budget before finalizing a decision.</p>
-            </div>
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            <div class="border-b border-gray-100 p-5"><h3 class="text-base font-black text-gray-900">Proposal pipeline</h3><p class="mt-1 text-xs text-gray-400">Expert recommendations are advisory; the Research Head retains the final decision.</p></div>
+            <div class="divide-y divide-gray-100">
+                @forelse ($topics as $topic)
+                    @php
+                        $canDecide = in_array($topic->status, ['pending', 'resubmitted', 'for_final_decision'], true);
+                        $isCurrent = (string) old('reviewing_topic_id') === (string) $topic->id;
+                    @endphp
+                    <article class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2"><h4 class="text-sm font-black text-gray-900">{{ $topic->title }}</h4><span class="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">{{ str_replace('_', ' ', $topic->status) }}</span></div>
+                            <p class="mt-1 text-xs font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</p>
+                            <p class="mt-3 text-xs leading-5 text-gray-600">{{ $topic->description ?: 'No proposal summary provided.' }}</p>
+                            <div class="mt-3 flex flex-wrap gap-4 text-xs font-bold text-gray-600"><span>Budget: PHP {{ number_format((float) $topic->estimated_budget, 2) }}</span><span>Duration: {{ $topic->estimated_duration_months }} months</span><span>Faculty: {{ $topic->user->name }}</span></div>
+                            <a href="{{ route('topics.download', $topic) }}" class="mt-4 inline-flex rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">Download latest proposal</a>
 
-            @forelse ($topics as $topic)
-                <div class="grid gap-4 border-b border-gray-100 p-5 last:border-b-0 lg:grid-cols-[1fr_auto] lg:items-center">
-                    <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <h4 class="text-sm font-bold text-gray-900">{{ $topic->title }}</h4>
-                            <span class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider
-                                {{ $topic->status === 'approved' ? 'bg-green-50 text-green-700' : '' }}
-                                {{ $topic->status === 'rejected' ? 'bg-red-50 text-red-700' : '' }}
-                                {{ $topic->status === 'pending' ? 'bg-amber-50 text-amber-700' : '' }}
-                                {{ $topic->status === 'revision_requested' ? 'bg-blue-50 text-blue-700' : '' }}
-                                {{ $topic->status === 'resubmitted' ? 'bg-purple-50 text-purple-700' : '' }}">
-                                {{ str_replace('_', ' ', $topic->status) }}
-                            </span>
+                            @if ($topic->expertAssignments->isNotEmpty())
+                                <div class="mt-4 rounded-xl border border-purple-100 bg-purple-50/50 p-4"><p class="text-[11px] font-black uppercase tracking-wider text-purple-700">Subject expert reviews</p><div class="mt-3 space-y-3">@foreach ($topic->expertAssignments as $assignment)<div class="border-l-2 border-purple-200 pl-3"><p class="text-xs font-bold text-gray-800">{{ $assignment->expert->name }} · {{ $assignment->status }}</p>@if ($assignment->recommendation)<p class="mt-1 text-[11px] font-black uppercase text-purple-700">{{ str_replace('_', ' ', $assignment->recommendation) }}</p><p class="mt-1 whitespace-pre-line text-xs leading-5 text-gray-600">{{ $assignment->comment }}</p>@endif</div>@endforeach</div></div>
+                            @endif
+
+                            @if ($topic->reviews->isNotEmpty())
+                                <details class="mt-3 rounded-xl bg-gray-50 p-3"><summary class="cursor-pointer text-xs font-bold text-gray-600">Research Head review history ({{ $topic->reviews->count() }})</summary><div class="mt-3 space-y-2">@foreach ($topic->reviews as $review)<div class="border-l-2 border-gray-200 pl-3"><p class="text-[11px] font-bold uppercase text-gray-600">{{ str_replace('_', ' ', $review->decision) }}</p>@if ($review->comment)<p class="mt-1 whitespace-pre-line text-xs text-gray-600">{{ $review->comment }}</p>@endif</div>@endforeach</div></details>
+                            @endif
                         </div>
-                        <p class="mt-1 text-xs text-gray-500">{{ $topic->description ?: 'No description provided.' }}</p>
-                        <p class="mt-2 text-xs font-bold text-gray-700">
-                            Estimated Budget: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
-                        </p>
-                        <p class="mt-2 text-[11px] font-medium text-gray-400">
-                            Submitted by {{ $topic->user->name }} on {{ $topic->created_at->format('M d, Y h:i A') }}
-                        </p>
 
-                        @if ($topic->reviews->isNotEmpty())
-                            <details class="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
-                                <summary class="cursor-pointer text-xs font-bold text-gray-600">
-                                    Review history ({{ $topic->reviews->count() }})
-                                </summary>
-                                <div class="mt-3 space-y-3">
-                                    @foreach ($topic->reviews as $review)
-                                        <div class="border-l-2 border-gray-200 pl-3">
-                                            <p class="text-[11px] font-bold uppercase tracking-wider text-gray-600">
-                                                {{ str_replace('_', ' ', $review->decision) }}
-                                            </p>
-                                            <p class="mt-0.5 text-[11px] text-gray-400">
-                                                {{ $review->reviewer?->name ?? 'Former research head' }} · {{ $review->created_at->format('M d, Y h:i A') }}
-                                            </p>
-                                            @if ($review->comment)
-                                                <p class="mt-1 whitespace-pre-line text-xs leading-relaxed text-gray-600">{{ $review->comment }}</p>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </details>
-                        @endif
-                    </div>
-
-                    <div class="flex flex-col gap-2 lg:w-96">
-                        <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
-                            Download latest document
-                        </a>
-
-                        @if (in_array($topic->status, ['pending', 'resubmitted'], true))
-                            @php($isCurrentReviewForm = (string) old('reviewing_topic_id') === (string) $topic->id)
-                            <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                                @csrf
-                                @method('PATCH')
-                                <input type="hidden" name="reviewing_topic_id" value="{{ $topic->id }}">
-                                <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold text-gray-700 shadow-sm focus:border-red-600 focus:ring-red-600">
-                                    <option value="" selected disabled>Choose decision</option>
-                                    <option value="approved" @selected($isCurrentReviewForm && old('status') === 'approved')>Approve topic and budget</option>
-                                    <option value="revision_requested" @selected($isCurrentReviewForm && old('status') === 'revision_requested')>Request revision</option>
-                                    <option value="rejected" @selected($isCurrentReviewForm && old('status') === 'rejected')>Reject proposal</option>
-                                </select>
-                                <textarea name="comment" rows="3" maxlength="5000" class="block w-full rounded-xl border-gray-200 text-xs text-gray-700 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Review comments (required for revision or rejection)">{{ $isCurrentReviewForm ? old('comment') : '' }}</textarea>
-                                <button type="submit" class="w-full rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700">
-                                    Submit review
-                                </button>
-                            </form>
-                        @elseif ($topic->status === 'revision_requested')
-                            <span class="inline-flex items-center justify-center rounded-xl bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700">
-                                Waiting for faculty revision
-                            </span>
-                        @else
-                            <span class="inline-flex items-center justify-center rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500">
-                                Finalized
-                            </span>
-                        @endif
-                    </div>
-                </div>
-            @empty
-                <div class="p-12 text-center">
-                    <h4 class="text-sm font-bold text-gray-800">No proposals submitted yet</h4>
-                    <p class="mt-1 text-xs text-gray-400">Faculty proposal uploads will appear here.</p>
-                </div>
-            @endforelse
+                        <div>
+                            @if ($canDecide)
+                                <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" enctype="multipart/form-data" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">@csrf @method('PATCH')<input type="hidden" name="reviewing_topic_id" value="{{ $topic->id }}">
+                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-500">Next action</label>
+                                    <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review" @selected($isCurrent && old('status') === 'expert_review')>Send to subject expert(s)</option>@endif<option value="approved" @selected($isCurrent && old('status') === 'approved')>Approve and sign</option><option value="revision_requested" @selected($isCurrent && old('status') === 'revision_requested')>Request revision</option><option value="rejected" @selected($isCurrent && old('status') === 'rejected')>Reject proposal</option></select>
+                                    <div><label class="text-[11px] font-bold text-gray-500">Experts (required when sending for expert review)</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} — {{ $expert->email }}</option>@endforeach</select>@if ($experts->isEmpty())<p class="mt-1 text-[11px] text-red-600">No users currently have the expert role.</p>@endif</div>
+                                    <div><label class="text-[11px] font-bold text-gray-500">Signed approval PDF (required for approval)</label><input type="file" name="signed_approval" accept=".pdf" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs"></div>
+                                    <textarea name="comment" rows="4" maxlength="5000" placeholder="Screening notes or decision rationale (required for revision/rejection)" class="block w-full rounded-xl border-gray-200 text-xs">{{ $isCurrent ? old('comment') : '' }}</textarea>
+                                    <button class="w-full rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white">Submit action</button>
+                                </form>
+                            @elseif ($topic->status === 'expert_review')
+                                <div class="rounded-xl bg-purple-50 p-4 text-center text-xs font-bold text-purple-700">Waiting for all assigned experts</div>
+                            @elseif ($topic->status === 'revision_requested')
+                                <div class="rounded-xl bg-blue-50 p-4 text-center text-xs font-bold text-blue-700">Waiting for faculty revision</div>
+                            @else
+                                <div class="rounded-xl bg-gray-100 p-4 text-center text-xs font-bold text-gray-600">Finalized: {{ str_replace('_', ' ', $topic->status) }}</div>
+                                @if ($topic->signed_approval_path)<a href="{{ route('topics.approval', $topic) }}" class="mt-2 flex justify-center rounded-xl bg-green-700 px-4 py-2.5 text-xs font-bold text-white">Download signed approval</a>@endif
+                            @endif
+                        </div>
+                    </article>
+                @empty
+                    <div class="p-12 text-center"><p class="text-sm font-bold text-gray-700">No proposals submitted yet</p></div>
+                @endforelse
+            </div>
         </div>
     </div>
 </x-app-layout>

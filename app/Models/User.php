@@ -42,4 +42,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(TopicReview::class, 'reviewer_id');
     }
+
+    public function expertAssignments(): HasMany
+    {
+        return $this->hasMany(TopicExpertAssignment::class, 'expert_id');
+    }
 }

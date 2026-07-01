@@ -14,14 +14,20 @@ return new class extends Migration
         Schema::create('topics', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('research_call_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('research_category_id')->constrained()->restrictOnDelete();
             $table->string('title');
-            $table->string('description')->nullable();
-            $table->decimal('estimated_budget', 12, 2)->nullable();
+            $table->text('description')->nullable();
+            $table->decimal('estimated_budget', 12, 2);
+            $table->unsignedSmallInteger('estimated_duration_months');
             $table->string('initial_file_path');
             $table->string('final_file_path')->nullable();
-            $table->string('status')->default('pending'); //pending, approved, rejected
+            $table->string('signed_approval_path')->nullable();
+            $table->string('status')->default('pending');
             $table->timestamps();
 
+            $table->index(['research_call_id', 'user_id']);
+            $table->index(['status', 'research_category_id']);
         });
     }
 

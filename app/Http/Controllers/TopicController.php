@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TopicProposal;
+use App\Models\ResearchCall;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,20 +15,32 @@ class TopicController extends Controller
     public function index()
     {
         $topics = Auth::user()->proposals()
-            ->with(['reviews' => fn ($query) => $query->with('reviewer')->oldest()])
+            ->with([
+                'researchCall', 'category',
+                'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+                'expertAssignments.expert',
+            ])
             ->latest()
             ->get();
 
-        return view('dashboard', compact('topics'));
+        $activeCalls = ResearchCall::with('categories')
+            ->where('status', 'open')
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>=', now())
+            ->orderBy('closes_at')
+            ->get();
+
+        return view('dashboard', compact('topics', 'activeCalls'));
     }
 
     public function researchIndex(Request $request)
     {
         $status = $request->string('status')->toString();
         $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['pending', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
+        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
 
         $topics = TopicProposal::query()
+            ->with(['researchCall', 'category'])
             ->where('user_id', $request->user()->id)
             ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
@@ -48,7 +61,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user',
+            'user', 'researchCall', 'category', 'expertAssignments.expert',
             'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
         ]);
 
@@ -59,13 +72,42 @@ class TopicController extends Controller
     {
         $validated = $request->validateWithBag('submission', [
             'title' => 'required|string|max:255',
+            'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
+            'research_category_id' => ['required', 'integer', 'exists:research_categories,id'],
             'description' => 'nullable|string|max:5000',
             'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
+            'estimated_duration_months' => 'required|integer|min:1|max:120',
             'document' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
             'estimated_budget' => 'estimated proposal budget',
             'document' => 'proposal document',
         ]);
+
+        $call = ResearchCall::with('categories')->findOrFail($validated['research_call_id']);
+
+        if (! $call->isAcceptingSubmissions()) {
+            return back()->withInput()->withErrors([
+                'research_call_id' => 'This research call is not accepting submissions.',
+            ], 'submission');
+        }
+
+        if (! $call->categories->contains('id', (int) $validated['research_category_id'])) {
+            return back()->withInput()->withErrors([
+                'research_category_id' => 'Select a category offered by this research call.',
+            ], 'submission');
+        }
+
+        if ($call->maximum_budget !== null && (float) $validated['estimated_budget'] > (float) $call->maximum_budget) {
+            return back()->withInput()->withErrors([
+                'estimated_budget' => 'The estimated budget exceeds this call\'s maximum budget.',
+            ], 'submission');
+        }
+
+        if (Auth::user()->proposals()->where('research_call_id', $call->id)->count() >= $call->max_proposals_per_faculty) {
+            return back()->withInput()->withErrors([
+                'research_call_id' => "You have reached the {$call->max_proposals_per_faculty}-proposal limit for this research call.",
+            ], 'submission');
+        }
 
         try {
             $path = $request->file('document')->store('proposals', 'local');
@@ -81,8 +123,11 @@ class TopicController extends Controller
 
         Auth::user()->proposals()->create([
             'title' => $validated['title'],
+            'research_call_id' => $call->id,
+            'research_category_id' => $validated['research_category_id'],
             'description' => $validated['description'] ?? null,
             'estimated_budget' => $validated['estimated_budget'],
+            'estimated_duration_months' => $validated['estimated_duration_months'],
             'initial_file_path' => $path,
             'status' => 'pending',
         ]);
@@ -104,6 +149,7 @@ class TopicController extends Controller
             'title' => 'required|string|max:255',
             'description' => 'nullable|string|max:5000',
             'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
+            'estimated_duration_months' => 'required|integer|min:1|max:120',
             'document' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
             'estimated_budget' => 'estimated proposal budget',
@@ -141,6 +187,7 @@ class TopicController extends Controller
                     'title' => $validated['title'],
                     'description' => $validated['description'] ?? null,
                     'estimated_budget' => $validated['estimated_budget'],
+                    'estimated_duration_months' => $validated['estimated_duration_months'],
                     'final_file_path' => $path,
                     'status' => 'resubmitted',
                 ]);
@@ -179,10 +226,22 @@ class TopicController extends Controller
         return Storage::disk('local')->download($path, basename($path));
     }
 
+    public function downloadApproval(TopicProposal $topic)
+    {
+        $this->ensureCanViewTopic(request(), $topic);
+        abort_unless($topic->signed_approval_path, 404);
+        abort_unless(Storage::disk('local')->exists($topic->signed_approval_path), 404);
+
+        return Storage::disk('local')->download($topic->signed_approval_path, 'signed-approval-'.$topic->id.'.pdf');
+    }
+
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
     {
         $user = $request->user();
 
-        abort_unless($user->hasRole('research_head') || $topic->user_id === $user->id, 403);
+        $canExpertView = $user->hasRole('expert')
+            && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
+
+        abort_unless($user->hasRole('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
     }
 }

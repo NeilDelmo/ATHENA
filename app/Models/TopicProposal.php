@@ -12,12 +12,16 @@ class TopicProposal extends Model
 
     protected $fillable = [
         'user_id',
+        'research_call_id',
+        'research_category_id',
         'title',
         'description',
         'estimated_budget',
+        'estimated_duration_months',
         'initial_file_path',
         'final_file_path',
-        'status', // 'pending', 'revision_requested', 'resubmitted', 'approved', 'rejected'
+        'signed_approval_path',
+        'status',
     ];
 
     protected function casts(): array
@@ -35,5 +39,20 @@ class TopicProposal extends Model
     public function reviews(): HasMany
     {
         return $this->hasMany(TopicReview::class, 'topic_id');
+    }
+
+    public function researchCall(): BelongsTo
+    {
+        return $this->belongsTo(ResearchCall::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(ResearchCategory::class, 'research_category_id');
+    }
+
+    public function expertAssignments(): HasMany
+    {
+        return $this->hasMany(TopicExpertAssignment::class, 'topic_id');
     }
 }

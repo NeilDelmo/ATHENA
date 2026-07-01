@@ -11,11 +11,11 @@
             </div>
 
             <div>
-                <button id="openSubmitModalBtn" class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition duration-150 shadow-sm shadow-red-600/10 cursor-pointer">
+                <button id="openSubmitModalBtn" @disabled($activeCalls->isEmpty()) class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-xl transition duration-150 shadow-sm shadow-red-600/10 cursor-pointer">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
-                    Submit Proposal
+                    {{ $activeCalls->isEmpty() ? 'No Open Research Call' : 'Submit Proposal' }}
                 </button>
             </div>
         </div>
@@ -152,6 +152,7 @@
                         <p class="mt-1 text-[11px] font-bold text-gray-500">
                             Estimated Budget: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
                         </p>
+                        <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</p>
                         <p class="mt-1 text-[11px] font-medium text-gray-400">Submitted {{ $topic->created_at->diffForHumans() }}</p>
 
                         @if ($latestReview)
@@ -222,6 +223,10 @@
                                     <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                                 </div>
                                 <div class="space-y-1">
+                                    <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated duration (months)</label>
+                                    <input id="revision_duration_{{ $topic->id }}" name="estimated_duration_months" type="number" value="{{ $isCurrentResubmission ? old('estimated_duration_months') : $topic->estimated_duration_months }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
+                                </div>
+                                <div class="space-y-1">
                                     <label for="revision_document_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revised document</label>
                                     <input id="revision_document_{{ $topic->id }}" name="document" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
@@ -260,6 +265,23 @@
                 <form action="{{ route('faculty.topics') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
                     @csrf
                     <div class="space-y-2">
+                        <label for="research_call_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Call</label>
+                        <select id="research_call_id" name="research_call_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <option value="">Select an open call</option>
+                            @foreach ($activeCalls as $call)<option value="{{ $call->id }}" @selected(old('research_call_id') == $call->id)>{{ $call->title }} (limit: {{ $call->max_proposals_per_faculty }})</option>@endforeach
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="research_category_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Category</label>
+                        <select id="research_category_id" name="research_category_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <option value="">Select the most relevant category</option>
+                            @foreach ($activeCalls as $call)
+                                <optgroup label="{{ $call->title }}">@foreach ($call->categories as $category)<option value="{{ $category->id }}" data-call-id="{{ $call->id }}" @selected(old('research_category_id') == $category->id)>{{ $category->name }}</option>@endforeach</optgroup>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="space-y-2">
                         <label for="title" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Proposal Title</label>
                         <input id="title" name="title" type="text" value="{{ old('title') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter your research title">
                     </div>
@@ -278,6 +300,11 @@
                         @error('estimated_budget', 'submission')
                             <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
                         @enderror
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="estimated_duration_months" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Completion Time</label>
+                        <div class="relative"><input id="estimated_duration_months" name="estimated_duration_months" type="number" value="{{ old('estimated_duration_months') }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="12"><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">months</span></div>
                     </div>
 
                     <div class="space-y-2">

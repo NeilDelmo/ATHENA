@@ -3,6 +3,8 @@
 use App\Models\TopicProposal;
 use App\Models\TopicReview;
 use App\Models\User;
+use App\Models\ResearchCall;
+use App\Models\ResearchCategory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -11,6 +13,24 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'faculty']);
     Role::firstOrCreate(['name' => 'faculty_researcher']);
     Role::firstOrCreate(['name' => 'research_head']);
+    Role::firstOrCreate(['name' => 'expert']);
+
+    $this->category = ResearchCategory::create(['name' => 'Environment']);
+    $this->researchCall = ResearchCall::create([
+        'title' => 'Test Research Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_proposals_per_faculty' => 2,
+        'status' => 'open',
+    ]);
+    $this->researchCall->categories()->attach($this->category);
+
+    TopicProposal::creating(function (TopicProposal $topic) {
+        $topic->research_call_id ??= $this->researchCall->id;
+        $topic->research_category_id ??= $this->category->id;
+        $topic->estimated_duration_months ??= 12;
+    });
 });
 
 test('a research head can request a revision with comments', function () {
@@ -91,6 +111,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'title' => 'Revised proposal',
         'description' => 'Updated methodology',
         'estimated_budget' => 8500,
+        'estimated_duration_months' => 10,
         'document' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
     ]);
 
@@ -108,6 +129,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
 });
 
 test('a research head can approve a resubmitted proposal', function () {
+    Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
 
@@ -132,6 +154,7 @@ test('a research head can approve a resubmitted proposal', function () {
     $response = $this->actingAs($head)->patch("/research-head/topics/{$topic->id}/status", [
         'status' => 'approved',
         'comment' => 'The requested changes have been addressed.',
+        'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
     ]);
 
     $response->assertRedirect(route('research_head.dashboard'));
@@ -142,6 +165,7 @@ test('a research head can approve a resubmitted proposal', function () {
 });
 
 test('a rejected proposal remains final', function () {
+    Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
 
@@ -158,7 +182,10 @@ test('a rejected proposal remains final', function () {
 
     $response = $this->actingAs($head)->from('/research-head/dashboard')->patch(
         "/research-head/topics/{$topic->id}/status",
-        ['status' => 'approved'],
+        [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ],
     );
 
     $response->assertRedirect(route('research_head.dashboard'));
@@ -259,4 +286,25 @@ test('the research catalog is unavailable to regular faculty and the research he
     $this->actingAs($faculty)
         ->get('/research')
         ->assertForbidden();
+});
+
+test('research support is available only to faculty researchers', function () {
+    $this->withoutVite();
+
+    $researcher = User::factory()->create();
+    $researcher->assignRole(['faculty', 'faculty_researcher']);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+
+    $this->actingAs($researcher)
+        ->get('/research-support')
+        ->assertOk()
+        ->assertSee('Research Support');
+
+    $this->actingAs($faculty)->get('/research-support')->assertForbidden();
+    $this->actingAs($head)->get('/research-support')->assertForbidden();
 });

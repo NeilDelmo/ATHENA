@@ -13,6 +13,8 @@
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
             'resubmitted' => 'The revised proposal is waiting for another review.',
+            'expert_review' => 'Subject experts are evaluating whether the project is needed and feasible.',
+            'for_final_decision' => 'Expert review is complete and the Research Head is preparing the final decision.',
             default => 'This proposal is waiting for its initial review.',
         };
     @endphp
@@ -82,6 +84,11 @@
                         <dd class="mt-1 text-lg font-black text-gray-900">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}</dd>
                     </div>
                     <div class="border-t border-gray-100 pt-4">
+                        <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Research call and category</dt>
+                        <dd class="mt-1 text-sm font-bold text-gray-700">{{ $topic->researchCall->title }}</dd>
+                        <dd class="mt-0.5 text-xs text-gray-400">{{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</dd>
+                    </div>
+                    <div class="border-t border-gray-100 pt-4">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Researcher</dt>
                         <dd class="mt-1 text-sm font-bold text-gray-700">{{ $topic->user->name }}</dd>
                         <dd class="mt-0.5 text-xs text-gray-400">{{ $topic->user->email }}</dd>
@@ -104,6 +111,14 @@
                 <p class="mt-2 text-xs leading-5 text-gray-500">Downloads the latest submitted version of this proposal.</p>
                 <a href="{{ route('topics.download', $topic) }}" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800">Download latest document</a>
             </section>
+
+            @if ($topic->signed_approval_path)
+                <section class="rounded-2xl border border-green-200 bg-green-50 p-5">
+                    <h3 class="text-xs font-black uppercase tracking-wider text-green-700">Signed approval</h3>
+                    <p class="mt-2 text-xs leading-5 text-green-800">The Research Head has issued the signed authorization to proceed.</p>
+                    <a href="{{ route('topics.approval', $topic) }}" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-green-700 px-4 py-2.5 text-xs font-bold text-white">Download signed approval</a>
+                </section>
+            @endif
 
             @if ($topic->status === 'revision_requested' && $topic->user_id === Auth::id())
                 <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5">
