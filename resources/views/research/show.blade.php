@@ -41,6 +41,8 @@
                 <p class="mt-3 whitespace-pre-line text-sm leading-6 text-gray-600">{{ $topic->description ?: 'No description was provided for this proposal.' }}</p>
             </section>
 
+            @include('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])
+
             <section class="rounded-2xl border border-gray-200/60 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <h3 class="text-sm font-bold text-gray-900">Review history</h3>

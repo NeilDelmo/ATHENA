@@ -20,7 +20,8 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->decimal('estimated_budget', 12, 2);
             $table->unsignedSmallInteger('estimated_duration_months');
-            $table->string('initial_file_path');
+            // Legacy pointers retained temporarily for compatibility; proposal_versions is authoritative.
+            $table->string('initial_file_path')->nullable();
             $table->string('final_file_path')->nullable();
             $table->string('signed_approval_path')->nullable();
             $table->string('status')->default('pending');

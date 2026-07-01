@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TopicProposal extends Model
 {
@@ -54,5 +55,15 @@ class TopicProposal extends Model
     public function expertAssignments(): HasMany
     {
         return $this->hasMany(TopicExpertAssignment::class, 'topic_id');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ProposalVersion::class, 'topic_id')->orderBy('version_number');
+    }
+
+    public function latestVersion(): HasOne
+    {
+        return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');
     }
 }

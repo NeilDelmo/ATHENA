@@ -15,7 +15,7 @@ class ResearchHeadTopicController extends Controller
     public function index()
     {
         $topics = TopicProposal::with([
-            'user', 'researchCall', 'category', 'expertAssignments.expert',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter',
             'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
         ])
             ->latest()

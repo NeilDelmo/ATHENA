@@ -52,6 +52,12 @@ test('faculty submissions capture call category budget and duration and obey the
 
     expect($this->faculty->proposals()->count())->toBe(2)
         ->and($this->faculty->proposals()->first()->estimated_duration_months)->toBe(12);
+
+    $firstProposal = $this->faculty->proposals()->oldest()->firstOrFail();
+    expect($firstProposal->versions()->count())->toBe(1)
+        ->and($firstProposal->latestVersion->version_number)->toBe(1)
+        ->and($firstProposal->latestVersion->submission_type)->toBe('initial')
+        ->and($firstProposal->latestVersion->checksum)->toHaveLength(64);
 });
 
 test('expert recommendations return a proposal to the research head for a signed final approval', function () {

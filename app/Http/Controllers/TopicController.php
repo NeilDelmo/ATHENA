@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\TopicProposal;
 use App\Models\ResearchCall;
+use App\Models\ProposalVersion;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +21,7 @@ class TopicController extends Controller
                 'researchCall', 'category',
                 'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
                 'expertAssignments.expert',
+                'versions.submitter',
             ])
             ->latest()
             ->get();
@@ -40,7 +43,7 @@ class TopicController extends Controller
         $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
 
         $topics = TopicProposal::query()
-            ->with(['researchCall', 'category'])
+            ->with(['researchCall', 'category', 'latestVersion'])
             ->where('user_id', $request->user()->id)
             ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
@@ -61,7 +64,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'expertAssignments.expert',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter',
             'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
         ]);
 
@@ -109,8 +112,11 @@ class TopicController extends Controller
             ], 'submission');
         }
 
+        $document = $request->file('document');
+        $fileMetadata = $this->fileMetadata($document);
+
         try {
-            $path = $request->file('document')->store('proposals', 'local');
+            $path = $document->store('proposals', 'local');
         } catch (Throwable) {
             $path = false;
         }
@@ -121,16 +127,32 @@ class TopicController extends Controller
                 ->withErrors(['document' => 'The proposal document could not be uploaded. Please try again.']);
         }
 
-        Auth::user()->proposals()->create([
-            'title' => $validated['title'],
-            'research_call_id' => $call->id,
-            'research_category_id' => $validated['research_category_id'],
-            'description' => $validated['description'] ?? null,
-            'estimated_budget' => $validated['estimated_budget'],
-            'estimated_duration_months' => $validated['estimated_duration_months'],
-            'initial_file_path' => $path,
-            'status' => 'pending',
-        ]);
+        try {
+            DB::transaction(function () use ($validated, $call, $path, $fileMetadata) {
+                $topic = Auth::user()->proposals()->create([
+                    'title' => $validated['title'],
+                    'research_call_id' => $call->id,
+                    'research_category_id' => $validated['research_category_id'],
+                    'description' => $validated['description'] ?? null,
+                    'estimated_budget' => $validated['estimated_budget'],
+                    'estimated_duration_months' => $validated['estimated_duration_months'],
+                    'status' => 'pending',
+                ]);
+
+                $topic->versions()->create($this->versionAttributes(
+                    $validated,
+                    $path,
+                    $fileMetadata,
+                    1,
+                    'initial',
+                    Auth::id(),
+                ));
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+
+            throw $exception;
+        }
 
         return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully and sent to the Research Head.');
     }
@@ -156,8 +178,11 @@ class TopicController extends Controller
             'document' => 'revised proposal document',
         ]);
 
+        $document = $request->file('document');
+        $fileMetadata = $this->fileMetadata($document);
+
         try {
-            $path = $request->file('document')->store('proposals/revisions', 'local');
+            $path = $document->store('proposals/revisions', 'local');
         } catch (Throwable) {
             $path = false;
         }
@@ -168,10 +193,10 @@ class TopicController extends Controller
                 ->withErrors(['document' => 'The revised proposal could not be uploaded. Please try again.'], 'resubmission');
         }
 
-        $result = ['updated' => false, 'old_path' => null];
+        $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $path, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $path, $fileMetadata, &$result) {
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -181,16 +206,24 @@ class TopicController extends Controller
                     return;
                 }
 
-                $result['old_path'] = $revisedTopic->final_file_path;
+                $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
 
                 $revisedTopic->update([
                     'title' => $validated['title'],
                     'description' => $validated['description'] ?? null,
                     'estimated_budget' => $validated['estimated_budget'],
                     'estimated_duration_months' => $validated['estimated_duration_months'],
-                    'final_file_path' => $path,
                     'status' => 'resubmitted',
                 ]);
+
+                $revisedTopic->versions()->create($this->versionAttributes(
+                    $validated,
+                    $path,
+                    $fileMetadata,
+                    $nextVersion,
+                    'revision',
+                    $request->user()->id,
+                ));
 
                 $result['updated'] = true;
             });
@@ -208,10 +241,6 @@ class TopicController extends Controller
                 ->withErrors(['status' => 'This proposal is no longer awaiting a revision.'], 'resubmission');
         }
 
-        if ($result['old_path'] && $result['old_path'] !== $path) {
-            Storage::disk('local')->delete($result['old_path']);
-        }
-
         return redirect()->route('faculty.dashboard')->with('success', 'Revised proposal submitted for another review.');
     }
 
@@ -219,11 +248,21 @@ class TopicController extends Controller
     {
         $this->ensureCanViewTopic(request(), $topic);
 
-        $path = $topic->final_file_path ?: $topic->initial_file_path;
+        $version = $topic->latestVersion()->first();
+        $path = $version?->file_path ?: ($topic->final_file_path ?: $topic->initial_file_path);
 
-        abort_unless(Storage::disk('local')->exists($path), 404);
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
 
-        return Storage::disk('local')->download($path, basename($path));
+        return Storage::disk('local')->download($path, $version?->original_filename ?: basename($path));
+    }
+
+    public function downloadVersion(Request $request, TopicProposal $topic, ProposalVersion $version)
+    {
+        $this->ensureCanViewTopic($request, $topic);
+        abort_unless($version->topic_id === $topic->id, 404);
+        abort_unless(Storage::disk('local')->exists($version->file_path), 404);
+
+        return Storage::disk('local')->download($version->file_path, $version->original_filename);
     }
 
     public function downloadApproval(TopicProposal $topic)
@@ -243,5 +282,46 @@ class TopicController extends Controller
             && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
 
         abort_unless($user->hasRole('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
+    }
+
+    /**
+     * @return array{original_filename: string, mime_type: ?string, file_size: ?int, checksum: ?string}
+     */
+    private function fileMetadata(UploadedFile $document): array
+    {
+        $realPath = $document->getRealPath();
+
+        return [
+            'original_filename' => $document->getClientOriginalName(),
+            'mime_type' => $document->getClientMimeType(),
+            'file_size' => $document->getSize() ?: null,
+            'checksum' => $realPath ? hash_file('sha256', $realPath) ?: null : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $validated
+     * @param  array{original_filename: string, mime_type: ?string, file_size: ?int, checksum: ?string}  $fileMetadata
+     * @return array<string, mixed>
+     */
+    private function versionAttributes(
+        array $validated,
+        string $path,
+        array $fileMetadata,
+        int $versionNumber,
+        string $submissionType,
+        int $submittedBy,
+    ): array {
+        return [
+            'submitted_by' => $submittedBy,
+            'version_number' => $versionNumber,
+            'submission_type' => $submissionType,
+            'file_path' => $path,
+            ...$fileMetadata,
+            'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
+            'estimated_budget' => $validated['estimated_budget'],
+            'estimated_duration_months' => $validated['estimated_duration_months'],
+        ];
     }
 }

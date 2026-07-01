@@ -107,6 +107,21 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'status' => 'revision_requested',
     ]);
 
+    $originalVersion = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/original.pdf',
+        'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 17,
+        'checksum' => hash('sha256', 'original document'),
+        'title' => 'Original proposal',
+        'description' => 'Original description',
+        'estimated_budget' => 10000,
+        'estimated_duration_months' => 12,
+    ]);
+
     $response = $this->actingAs($faculty)->patch("/faculty/topics/{$topic->id}/resubmit", [
         'title' => 'Revised proposal',
         'description' => 'Updated methodology',
@@ -122,10 +137,19 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
     expect($topic->status)->toBe('resubmitted')
         ->and($topic->title)->toBe('Revised proposal')
         ->and($topic->estimated_budget)->toBe('8500.00')
-        ->and($topic->final_file_path)->not->toBeNull();
+        ->and($topic->versions()->count())->toBe(2)
+        ->and($topic->latestVersion->version_number)->toBe(2)
+        ->and($topic->latestVersion->title)->toBe('Revised proposal')
+        ->and($topic->latestVersion->estimated_budget)->toBe('8500.00')
+        ->and($topic->latestVersion->checksum)->toHaveLength(64);
 
     Storage::disk('local')->assertExists('proposals/original.pdf');
-    Storage::disk('local')->assertExists($topic->final_file_path);
+    Storage::disk('local')->assertExists($topic->latestVersion->file_path);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.versions.download', [$topic, $originalVersion]))
+        ->assertOk()
+        ->assertDownload('original.pdf');
 });
 
 test('a research head can approve a resubmitted proposal', function () {
@@ -247,6 +271,21 @@ test('faculty researchers can browse and open only their own research records', 
         'status' => 'revision_requested',
     ]);
 
+    $ownTopic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/own.pdf',
+        'original_filename' => 'own.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $ownTopic->title,
+        'description' => $ownTopic->description,
+        'estimated_budget' => $ownTopic->estimated_budget,
+        'estimated_duration_months' => $ownTopic->estimated_duration_months,
+    ]);
+
     $otherTopic = TopicProposal::create([
         'user_id' => $otherFaculty->id,
         'title' => 'Another faculty research',
@@ -265,7 +304,9 @@ test('faculty researchers can browse and open only their own research records', 
         ->get("/research/{$ownTopic->id}")
         ->assertOk()
         ->assertSee('revision requested')
-        ->assertSee('PHP 14,500.00');
+        ->assertSee('PHP 14,500.00')
+        ->assertSee('Proposal version history')
+        ->assertSee('Version 1');
 
     $this->actingAs($faculty)
         ->get("/research/{$otherTopic->id}")
@@ -307,4 +348,50 @@ test('research support is available only to faculty researchers', function () {
 
     $this->actingAs($faculty)->get('/research-support')->assertForbidden();
     $this->actingAs($head)->get('/research-support')->assertForbidden();
+});
+
+test('proposal versions are downloadable only by authorized topic participants', function () {
+    Storage::fake('local');
+
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty');
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+
+    $topic = TopicProposal::create([
+        'user_id' => $owner->id,
+        'title' => 'Audited proposal',
+        'estimated_budget' => 20000,
+        'initial_file_path' => 'proposals/audited.pdf',
+        'status' => 'pending',
+    ]);
+
+    Storage::disk('local')->put('proposals/audited.pdf', 'audited document');
+    $version = $topic->versions()->create([
+        'submitted_by' => $owner->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/audited.pdf',
+        'original_filename' => 'audited-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 16,
+        'checksum' => hash('sha256', 'audited document'),
+        'title' => $topic->title,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('topics.versions.download', [$topic, $version]))
+        ->assertDownload('audited-proposal.pdf');
+
+    $this->actingAs($head)
+        ->get(route('topics.versions.download', [$topic, $version]))
+        ->assertDownload('audited-proposal.pdf');
+
+    $this->actingAs($otherFaculty)
+        ->get(route('topics.versions.download', [$topic, $version]))
+        ->assertForbidden();
 });

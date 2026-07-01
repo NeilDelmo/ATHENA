@@ -37,6 +37,9 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
     ->middleware(['auth'])
     ->name('topics.download');
+Route::get('/topics/{topic}/versions/{version}/download', [TopicController::class, 'downloadVersion'])
+    ->middleware('auth')
+    ->name('topics.versions.download');
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
     ->name('topics.approval');

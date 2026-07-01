@@ -40,6 +40,8 @@
                             @if ($topic->reviews->isNotEmpty())
                                 <details class="mt-3 rounded-xl bg-gray-50 p-3"><summary class="cursor-pointer text-xs font-bold text-gray-600">Research Head review history ({{ $topic->reviews->count() }})</summary><div class="mt-3 space-y-2">@foreach ($topic->reviews as $review)<div class="border-l-2 border-gray-200 pl-3"><p class="text-[11px] font-bold uppercase text-gray-600">{{ str_replace('_', ' ', $review->decision) }}</p>@if ($review->comment)<p class="mt-1 whitespace-pre-line text-xs text-gray-600">{{ $review->comment }}</p>@endif</div>@endforeach</div></details>
                             @endif
+
+                            @include('topics.partials.version-history', ['topic' => $topic])
                         </div>
 
                         <div>
