@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TopicExpertAssignment;
+use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -12,7 +13,7 @@ class ExpertReviewController extends Controller
     public function index(Request $request)
     {
         $assignments = $request->user()->expertAssignments()
-            ->with(['topic.user', 'topic.category', 'topic.researchCall'])
+            ->with(['topic.user', 'topic.category', 'topic.researchCall', 'topic.versions.submitter'])
             ->latest()
             ->get();
 
@@ -28,11 +29,11 @@ class ExpertReviewController extends Controller
             'comment' => ['required', 'string', 'max:5000'],
         ]);
 
-        DB::transaction(function () use ($assignment, $validated) {
+        $submitted = DB::transaction(function () use ($assignment, $validated) {
             $review = TopicExpertAssignment::query()->whereKey($assignment->id)->lockForUpdate()->firstOrFail();
 
             if ($review->status !== 'pending') {
-                return;
+                return false;
             }
 
             $review->update([
@@ -45,7 +46,19 @@ class ExpertReviewController extends Controller
             if ($topic->expertAssignments()->where('status', 'pending')->doesntExist()) {
                 $topic->update(['status' => 'for_final_decision']);
             }
+
+            return true;
         });
+
+        if ($submitted) {
+            $assignment->assigner()->first()?->notify(new ProposalActivityNotification(
+                'Expert review completed',
+                $request->user()->name.' submitted a recommendation for “'.$assignment->topic()->firstOrFail()->title.'”.',
+                route('research_head.dashboard'),
+                'info',
+                $assignment->topic_id,
+            ));
+        }
 
         return back()->with('success', 'Your expert recommendation was submitted to the Research Head.');
     }

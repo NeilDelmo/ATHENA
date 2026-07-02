@@ -51,13 +51,42 @@ test('faculty submissions capture call category budget and duration and obey the
         ->assertSessionHasErrors('research_call_id', null, 'submission');
 
     expect($this->faculty->proposals()->count())->toBe(2)
-        ->and($this->faculty->proposals()->first()->estimated_duration_months)->toBe(12);
+        ->and($this->faculty->proposals()->first()->estimated_duration_months)->toBe(12)
+        ->and($this->head->notifications()->count())->toBe(2);
 
     $firstProposal = $this->faculty->proposals()->oldest()->firstOrFail();
     expect($firstProposal->versions()->count())->toBe(1)
         ->and($firstProposal->latestVersion->version_number)->toBe(1)
         ->and($firstProposal->latestVersion->submission_type)->toBe('initial')
         ->and($firstProposal->latestVersion->checksum)->toHaveLength(64);
+});
+
+test('faculty can securely download configured proposal templates', function () {
+    config()->set('proposal_templates.test-work-plan', [
+        'name' => 'Test Work Plan',
+        'description' => 'A test-only proposal template',
+        'path' => 'proposals/templates/test-work-plan.docx',
+    ]);
+
+    Storage::disk('local')->put('proposals/templates/test-work-plan.docx', 'template contents');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Test Work Plan')
+        ->assertSee(route('proposal-templates.download', 'test-work-plan'));
+
+    $this->actingAs($this->faculty)
+        ->get(route('proposal-templates.download', 'test-work-plan'))
+        ->assertDownload('test-work-plan.docx');
+
+    $this->actingAs($this->faculty)
+        ->get(route('proposal-templates.download', 'not-configured'))
+        ->assertNotFound();
+
+    $this->actingAs($this->head)
+        ->get(route('proposal-templates.download', 'test-work-plan'))
+        ->assertForbidden();
 });
 
 test('expert recommendations return a proposal to the research head for a signed final approval', function () {
@@ -79,14 +108,16 @@ test('expert recommendations return a proposal to the research head for a signed
     ])->assertRedirect(route('research_head.dashboard'));
 
     $assignment = $topic->expertAssignments()->firstOrFail();
-    expect($topic->fresh()->status)->toBe('expert_review');
+    expect($topic->fresh()->status)->toBe('expert_review')
+        ->and($this->expert->notifications()->count())->toBe(1);
 
     $this->actingAs($this->expert)->patch("/expert/assignments/{$assignment->id}", [
         'recommendation' => 'recommend_approval',
         'comment' => 'The project addresses a documented coastal need and is feasible.',
     ])->assertRedirect();
 
-    expect($topic->fresh()->status)->toBe('for_final_decision');
+    expect($topic->fresh()->status)->toBe('for_final_decision')
+        ->and($this->head->notifications()->count())->toBe(1);
 
     $this->actingAs($this->head)->patch("/research-head/topics/{$topic->id}/status", [
         'status' => 'approved',

@@ -1,13 +1,15 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\ProviderController;
-use App\Http\Controllers\TopicController;
-use App\Http\Controllers\ResearchHeadTopicController;
-use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ExpertReviewController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ResearchCallController;
+use App\Http\Controllers\ResearchHeadTopicController;
+use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
 Route::get('/', function () {
     return view('welcome');
 });
@@ -23,15 +25,18 @@ Route::get('/dashboard', function () {
             return redirect()->route('expert.dashboard');
         }
     }
-    
+
     return redirect()->route('faculty.dashboard');
 })->middleware('auth')->name('dashboard');
 
-//FACULTY ROUTES
+// FACULTY ROUTES
 Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
-    Route::get('/faculty/dashboard', [TopicController::class, 'index'])-> name('faculty.dashboard');
-    Route::post('/faculty/topics', [TopicController::class, 'store'])-> name('faculty.topics');
+    Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
+    Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
+    Route::get('/proposal-templates/{template}/download', [TopicController::class, 'downloadTemplate'])
+        ->where('template', '[a-z0-9-]+')
+        ->name('proposal-templates.download');
 });
 
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
@@ -48,13 +53,19 @@ Route::get('/research-calls', [ResearchCallController::class, 'index'])
     ->middleware('auth')
     ->name('research-calls.index');
 
+Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
+    Route::get('/', [NotificationController::class, 'index'])->name('index');
+    Route::patch('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+    Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+});
+
 Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
 });
 
-//RESEARCH HEAD ROUTES
+// RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
@@ -67,13 +78,12 @@ Route::middleware(['auth', 'role:expert'])->group(function () {
     Route::patch('/expert/assignments/{assignment}', [ExpertReviewController::class, 'submit'])->name('expert.assignments.submit');
 });
 
-
-//PROFILE ROUTES
+// PROFILE ROUTES
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
 });
 
-//GOOGLE AUTHENTICATION ROUTES
+// GOOGLE AUTHENTICATION ROUTES
 Route::middleware(['guest', 'throttle:20,1'])->group(function () {
     Route::get('/auth/google', [ProviderController::class, 'redirectToGoogle'])->name('auth.google.redirect');
     Route::get('/auth/google/callback', [ProviderController::class, 'handleGoogleCallback'])->name('auth.google.callback');

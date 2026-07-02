@@ -253,7 +253,7 @@
         <div id="submitProposalModal" class="{{ $errors->submission->any() ? '' : 'hidden' }} fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
             <div id="closeModalBackdrop" class="fixed inset-0 bg-gray-950/60 backdrop-blur-sm transition-opacity cursor-pointer"></div>
 
-            <div class="relative bg-white rounded-3xl border border-gray-200/80 shadow-2xl w-full max-w-lg overflow-hidden transform transition-all z-10">
+            <div class="relative max-h-[calc(100vh-3rem)] overflow-y-auto bg-white rounded-3xl border border-gray-200/80 shadow-2xl w-full max-w-lg transform transition-all z-10">
                 <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
                     <div>
                         <h3 class="text-lg font-black text-gray-900 tracking-tight">Submit Research Manuscript</h3>
@@ -310,18 +310,20 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Target Template</label>
-                        <div class="p-4 bg-gray-50 border border-gray-200/60 rounded-2xl flex items-center justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                        <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Proposal Templates</label>
+                        <p class="text-xs leading-5 text-gray-500">Complete the forms relevant to your proposal before uploading the primary proposal document.</p>
+                        <div class="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200/60 bg-gray-50">
+                            @forelse ($proposalTemplates as $template)
+                                <div class="flex items-center justify-between gap-3 p-3">
+                                    <div class="min-w-0">
+                                        <p class="truncate text-xs font-bold text-gray-800" title="{{ $template['name'] }}">{{ $template['name'] }}</p>
+                                        <p class="mt-0.5 text-[10px] leading-4 text-gray-400">{{ $template['description'] }} · {{ $template['extension'] }} · {{ number_format($template['size'] / 1024, 1) }} KB</p>
+                                    </div>
+                                    <a href="{{ route('proposal-templates.download', $template['key']) }}" class="inline-flex shrink-0 items-center bg-gray-900 hover:bg-gray-800 text-white text-[11px] font-bold px-3 py-2 rounded-xl transition duration-150 shadow-sm">Download</a>
                                 </div>
-                                <div>
-                                    <p class="text-sm font-bold text-gray-800">ATHENA_Proposal_Form.docx</p>
-                                    <p class="text-[11px] text-gray-400 font-medium">Standardized Layout</p>
-                                </div>
-                            </div>
-                            <a href="#download-dummy-file" class="inline-flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition duration-150 shadow-sm cursor-pointer">Download</a>
+                            @empty
+                                <div class="p-4 text-xs font-semibold text-amber-700">Proposal templates are temporarily unavailable. Please contact the Research Office.</div>
+                            @endforelse
                         </div>
                     </div>
 

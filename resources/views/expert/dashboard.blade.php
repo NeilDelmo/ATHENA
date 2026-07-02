@@ -14,6 +14,7 @@
                         @endif
                     </div>
                 </div>
+                @include('topics.partials.version-history', ['topic' => $assignment->topic])
             </article>
         @empty
             <div class="rounded-2xl border border-gray-200 bg-white p-12 text-center"><p class="text-sm font-bold text-gray-700">No expert reviews assigned</p><p class="mt-1 text-xs text-gray-400">New assignments from the Research Head will appear here.</p></div>

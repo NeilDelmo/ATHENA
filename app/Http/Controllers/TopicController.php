@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TopicProposal;
-use App\Models\ResearchCall;
 use App\Models\ProposalVersion;
-use Illuminate\Http\UploadedFile;
+use App\Models\ResearchCall;
+use App\Models\TopicProposal;
+use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -33,7 +36,19 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        return view('faculty.dashboard', compact('topics', 'activeCalls'));
+        $proposalTemplates = collect(config('proposal_templates', []))
+            ->filter(fn (array $template) => Storage::disk('local')->exists($template['path']))
+            ->map(function (array $template, string $key) {
+                return [
+                    ...$template,
+                    'key' => $key,
+                    'size' => Storage::disk('local')->size($template['path']),
+                    'extension' => strtoupper(pathinfo($template['path'], PATHINFO_EXTENSION)),
+                ];
+            })
+            ->values();
+
+        return view('faculty.dashboard', compact('topics', 'activeCalls', 'proposalTemplates'));
     }
 
     public function researchIndex(Request $request)
@@ -128,7 +143,7 @@ class TopicController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($validated, $call, $path, $fileMetadata) {
+            $topic = DB::transaction(function () use ($validated, $call, $path, $fileMetadata) {
                 $topic = Auth::user()->proposals()->create([
                     'title' => $validated['title'],
                     'research_call_id' => $call->id,
@@ -147,12 +162,25 @@ class TopicController extends Controller
                     'initial',
                     Auth::id(),
                 ));
+
+                return $topic;
             });
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);
 
             throw $exception;
         }
+
+        Notification::send(
+            User::role('research_head')->get(),
+            new ProposalActivityNotification(
+                'New proposal submitted',
+                Auth::user()->name.' submitted “'.$topic->title.'” for review.',
+                route('research_head.dashboard'),
+                'info',
+                $topic->id,
+            ),
+        );
 
         return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully and sent to the Research Head.');
     }
@@ -241,6 +269,17 @@ class TopicController extends Controller
                 ->withErrors(['status' => 'This proposal is no longer awaiting a revision.'], 'resubmission');
         }
 
+        Notification::send(
+            User::role('research_head')->get(),
+            new ProposalActivityNotification(
+                'Proposal revision submitted',
+                $request->user()->name.' submitted a new version of “'.$topic->fresh()->title.'”.',
+                route('research_head.dashboard'),
+                'info',
+                $topic->id,
+            ),
+        );
+
         return redirect()->route('faculty.dashboard')->with('success', 'Revised proposal submitted for another review.');
     }
 
@@ -272,6 +311,19 @@ class TopicController extends Controller
         abort_unless(Storage::disk('local')->exists($topic->signed_approval_path), 404);
 
         return Storage::disk('local')->download($topic->signed_approval_path, 'signed-approval-'.$topic->id.'.pdf');
+    }
+
+    public function downloadTemplate(string $template)
+    {
+        $templateDetails = config("proposal_templates.{$template}");
+
+        abort_unless(is_array($templateDetails) && isset($templateDetails['path']), 404);
+        abort_unless(Storage::disk('local')->exists($templateDetails['path']), 404);
+
+        return Storage::disk('local')->download(
+            $templateDetails['path'],
+            basename($templateDetails['path']),
+        );
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
