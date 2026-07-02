@@ -1,10 +1,10 @@
 <?php
 
+use App\Models\ResearchCall;
+use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\TopicReview;
 use App\Models\User;
-use App\Models\ResearchCall;
-use App\Models\ResearchCategory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -382,6 +382,16 @@ test('proposal versions are downloadable only by authorized topic participants',
         'estimated_budget' => $topic->estimated_budget,
         'estimated_duration_months' => $topic->estimated_duration_months,
     ]);
+    $packageFile = $version->files()->create([
+        'document_type' => 'detailed_proposal',
+        'position' => 0,
+        'file_path' => 'proposals/audited.pdf',
+        'original_filename' => 'audited-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 16,
+        'checksum' => hash('sha256', 'audited document'),
+        'is_carried_forward' => false,
+    ]);
 
     $this->actingAs($owner)
         ->get(route('topics.versions.download', [$topic, $version]))
@@ -391,7 +401,15 @@ test('proposal versions are downloadable only by authorized topic participants',
         ->get(route('topics.versions.download', [$topic, $version]))
         ->assertDownload('audited-proposal.pdf');
 
+    $this->actingAs($head)
+        ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
+        ->assertDownload('audited-proposal.pdf');
+
     $this->actingAs($otherFaculty)
         ->get(route('topics.versions.download', [$topic, $version]))
+        ->assertForbidden();
+
+    $this->actingAs($otherFaculty)
+        ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
         ->assertForbidden();
 });

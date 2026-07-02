@@ -82,7 +82,7 @@
                 <h3 class="text-xs font-black uppercase tracking-wider text-gray-400">Research details</h3>
                 <dl class="mt-4 space-y-4">
                     <div>
-                        <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Estimated budget</dt>
+                        <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Total project cost</dt>
                         <dd class="mt-1 text-lg font-black text-gray-900">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}</dd>
                     </div>
                     <div class="border-t border-gray-100 pt-4">

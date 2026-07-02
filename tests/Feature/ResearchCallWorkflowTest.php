@@ -42,7 +42,11 @@ test('faculty submissions capture call category budget and duration and obey the
         'description' => 'An environmental research proposal.',
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,
-        'document' => UploadedFile::fake()->create($title.'.pdf', 100, 'application/pdf'),
+        'detailed_proposal' => UploadedFile::fake()->create($title.'-proposal.pdf', 100, 'application/pdf'),
+        'work_plan' => UploadedFile::fake()->create($title.'-work-plan.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'line_item_budget' => UploadedFile::fake()->create($title.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'expense_breakdown' => UploadedFile::fake()->create($title.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'curricula_vitae' => [UploadedFile::fake()->create($title.'-cv.pdf', 50, 'application/pdf')],
     ];
 
     $this->actingAs($this->faculty)->post('/faculty/topics', $payload('First'))->assertRedirect(route('faculty.dashboard'));
@@ -58,7 +62,60 @@ test('faculty submissions capture call category budget and duration and obey the
     expect($firstProposal->versions()->count())->toBe(1)
         ->and($firstProposal->latestVersion->version_number)->toBe(1)
         ->and($firstProposal->latestVersion->submission_type)->toBe('initial')
-        ->and($firstProposal->latestVersion->checksum)->toHaveLength(64);
+        ->and($firstProposal->latestVersion->checksum)->toHaveLength(64)
+        ->and($firstProposal->latestVersion->files()->count())->toBe(5);
+
+    $firstProposal->latestVersion->files->each(
+        fn ($file) => Storage::disk('local')->assertExists($file->file_path),
+    );
+});
+
+test('a revision snapshots the package and carries forward unchanged files', function () {
+    $this->actingAs($this->faculty)->post('/faculty/topics', [
+        'research_call_id' => $this->call->id,
+        'research_category_id' => $this->category->id,
+        'title' => 'Versioned package',
+        'description' => 'Initial package.',
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 12,
+        'detailed_proposal' => UploadedFile::fake()->create('proposal.pdf', 100, 'application/pdf'),
+        'work_plan' => UploadedFile::fake()->create('work-plan.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'line_item_budget' => UploadedFile::fake()->create('budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'expense_breakdown' => UploadedFile::fake()->create('expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'curricula_vitae' => [UploadedFile::fake()->create('leader-cv.pdf', 50, 'application/pdf')],
+    ])->assertRedirect(route('faculty.dashboard'));
+
+    $topic = $this->faculty->proposals()->firstOrFail();
+    $firstVersion = $topic->latestVersion()->with('files')->firstOrFail();
+    $originalDetailedProposal = $firstVersion->files->firstWhere('document_type', 'detailed_proposal');
+    $originalWorkPlan = $firstVersion->files->firstWhere('document_type', 'work_plan');
+    $topic->update(['status' => 'revision_requested']);
+
+    $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => 'Versioned package - revised',
+        'description' => 'Updated schedule.',
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 14,
+        'change_summary' => 'Extended the schedule and replaced the work plan.',
+        'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])->assertRedirect(route('faculty.dashboard'));
+
+    $secondVersion = $topic->fresh()->latestVersion()->with('files')->firstOrFail();
+    $revisedWorkPlan = $secondVersion->files->firstWhere('document_type', 'work_plan');
+    $carriedDetailedProposal = $secondVersion->files->firstWhere('document_type', 'detailed_proposal');
+
+    expect($secondVersion->version_number)->toBe(2)
+        ->and($secondVersion->change_summary)->toBe('Extended the schedule and replaced the work plan.')
+        ->and($secondVersion->files)->toHaveCount(5)
+        ->and($revisedWorkPlan->is_carried_forward)->toBeFalse()
+        ->and($revisedWorkPlan->file_path)->not->toBe($originalWorkPlan->file_path)
+        ->and($carriedDetailedProposal->is_carried_forward)->toBeTrue()
+        ->and($carriedDetailedProposal->source_version_file_id)->toBe($originalDetailedProposal->id)
+        ->and($carriedDetailedProposal->file_path)->toBe($originalDetailedProposal->file_path);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.versions.files.download', [$topic, $secondVersion, $revisedWorkPlan]))
+        ->assertDownload('work-plan-v2.docx');
 });
 
 test('faculty can securely download configured proposal templates', function () {

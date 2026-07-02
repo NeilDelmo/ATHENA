@@ -13,7 +13,7 @@ class ExpertReviewController extends Controller
     public function index(Request $request)
     {
         $assignments = $request->user()->expertAssignments()
-            ->with(['topic.user', 'topic.category', 'topic.researchCall', 'topic.versions.submitter'])
+            ->with(['topic.user', 'topic.category', 'topic.researchCall', 'topic.versions.submitter', 'topic.versions.files'])
             ->latest()
             ->get();
 

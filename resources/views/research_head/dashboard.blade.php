@@ -30,7 +30,7 @@
                             <div class="flex flex-wrap items-center gap-2"><h4 class="text-sm font-black text-gray-900">{{ $topic->title }}</h4><span class="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">{{ str_replace('_', ' ', $topic->status) }}</span></div>
                             <p class="mt-1 text-xs font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</p>
                             <p class="mt-3 text-xs leading-5 text-gray-600">{{ $topic->description ?: 'No proposal summary provided.' }}</p>
-                            <div class="mt-3 flex flex-wrap gap-4 text-xs font-bold text-gray-600"><span>Budget: PHP {{ number_format((float) $topic->estimated_budget, 2) }}</span><span>Duration: {{ $topic->estimated_duration_months }} months</span><span>Faculty: {{ $topic->user->name }}</span></div>
+                            <div class="mt-3 flex flex-wrap gap-4 text-xs font-bold text-gray-600"><span>Total cost: PHP {{ number_format((float) $topic->estimated_budget, 2) }}</span><span>Duration: {{ $topic->estimated_duration_months }} months</span><span>Faculty: {{ $topic->user->name }}</span></div>
                             <a href="{{ route('topics.download', $topic) }}" class="mt-4 inline-flex rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">Download latest proposal</a>
 
                             @if ($topic->expertAssignments->isNotEmpty())

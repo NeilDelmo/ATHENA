@@ -150,7 +150,7 @@
                         </div>
                         <p class="mt-1 text-xs text-gray-500">{{ $topic->description ?: 'No description provided.' }}</p>
                         <p class="mt-1 text-[11px] font-bold text-gray-500">
-                            Estimated Budget: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
+                            Total Project Cost: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
                         </p>
                         <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</p>
                         <p class="mt-1 text-[11px] font-medium text-gray-400">Submitted {{ $topic->created_at->diffForHumans() }}</p>
@@ -221,16 +221,39 @@
                                     <textarea id="revision_description_{{ $topic->id }}" name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">{{ $isCurrentResubmission ? old('description') : $topic->description }}</textarea>
                                 </div>
                                 <div class="space-y-1">
-                                    <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated budget (PHP)</label>
+                                    <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Total project cost (PHP)</label>
                                     <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                                 </div>
                                 <div class="space-y-1">
-                                    <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated duration (months)</label>
+                                    <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Total project duration (months)</label>
                                     <input id="revision_duration_{{ $topic->id }}" name="estimated_duration_months" type="number" value="{{ $isCurrentResubmission ? old('estimated_duration_months') : $topic->estimated_duration_months }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                                 </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="change_summary_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revision summary</label>
+                                    <textarea id="change_summary_{{ $topic->id }}" name="change_summary" rows="2" maxlength="2000" class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600" placeholder="Briefly explain what changed in this version.">{{ $isCurrentResubmission ? old('change_summary') : '' }}</textarea>
+                                </div>
+                                <div class="rounded-xl border border-blue-200 bg-white/70 p-3 text-xs leading-5 text-blue-800 sm:col-span-2">
+                                    Upload only the files you changed. Files left empty will be carried forward from the previous version; uploading CVs replaces the previous CV set.
+                                </div>
                                 <div class="space-y-1">
-                                    <label for="revision_document_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revised document</label>
-                                    <input id="revision_document_{{ $topic->id }}" name="document" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <label for="revision_detailed_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Detailed proposal</label>
+                                    <input id="revision_detailed_{{ $topic->id }}" name="detailed_proposal" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_work_plan_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Work plan</label>
+                                    <input id="revision_work_plan_{{ $topic->id }}" name="work_plan" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_budget_file_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Line-item budget</label>
+                                    <input id="revision_budget_file_{{ $topic->id }}" name="line_item_budget" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_expenses_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Expense breakdown</label>
+                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".xls,.xlsx" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_cv_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Curriculum vitae files</label>
+                                    <input id="revision_cv_{{ $topic->id }}" name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="sm:col-span-2 sm:text-right">
                                     <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">Submit revision</button>
@@ -294,7 +317,7 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label for="estimated_budget" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Proposal Budget</label>
+                        <label for="estimated_budget" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Total Project Cost</label>
                         <div class="relative">
                             <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">PHP</span>
                             <input id="estimated_budget" name="estimated_budget" type="number" value="{{ old('estimated_budget') }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 pl-12 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="0.00">
@@ -302,16 +325,17 @@
                         @error('estimated_budget', 'submission')
                             <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
                         @enderror
+                        <p class="text-[11px] leading-4 text-gray-400">Enter the TOTAL PROJECT COST shown in Attachment B.</p>
                     </div>
 
                     <div class="space-y-2">
-                        <label for="estimated_duration_months" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Completion Time</label>
+                        <label for="estimated_duration_months" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Total Project Duration</label>
                         <div class="relative"><input id="estimated_duration_months" name="estimated_duration_months" type="number" value="{{ old('estimated_duration_months') }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="12"><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">months</span></div>
                     </div>
 
                     <div class="space-y-2">
                         <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Proposal Templates</label>
-                        <p class="text-xs leading-5 text-gray-500">Complete the forms relevant to your proposal before uploading the primary proposal document.</p>
+                        <p class="text-xs leading-5 text-gray-500">Complete the required forms before uploading them together as one proposal package.</p>
                         <div class="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200/60 bg-gray-50">
                             @forelse ($proposalTemplates as $template)
                                 <div class="flex items-center justify-between gap-3 p-3">
@@ -327,21 +351,27 @@
                         </div>
                     </div>
 
-                    <div class="space-y-2">
-                        <label for="document" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Document File Copy</label>
-                        <div id="documentDropzone" class="border-2 border-dashed border-gray-200 hover:border-red-500/50 rounded-2xl p-8 text-center bg-white transition relative group">
-                            <input type="file" name="document" id="document" accept=".doc,.docx,.pdf" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                            <div class="flex flex-col items-center pointer-events-none">
-                                <div class="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 mb-3 group-hover:scale-110 transition duration-200">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
-                                </div>
-                                <p class="text-sm font-bold text-gray-800">Drag & drop completed copy here</p>
-                                <p id="documentFileName" class="text-xs text-gray-400 mt-1">Accepts document extensions (.doc, .docx, .pdf) up to 25MB</p>
-                            </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Completed Proposal Package</label>
+                            <p class="mt-1 text-xs leading-5 text-gray-500">Each file is retained in this version. CV supports multiple project-team files.</p>
                         </div>
-                        @error('document', 'submission')
-                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
+
+                        @foreach ([
+                            ['name' => 'detailed_proposal', 'label' => 'Detailed Research Proposal', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
+                            ['name' => 'work_plan', 'label' => 'Attachment A - Work Plan', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
+                            ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
+                            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'accept' => '.xls,.xlsx', 'multiple' => false],
+                            ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'accept' => '.doc,.docx,.pdf', 'multiple' => true],
+                        ] as $packageInput)
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                                <label for="{{ $packageInput['name'] }}" class="block text-xs font-bold text-gray-700">{{ $packageInput['label'] }} <span class="text-red-600">Required</span></label>
+                                <input id="{{ $packageInput['name'] }}" name="{{ $packageInput['name'] }}{{ $packageInput['multiple'] ? '[]' : '' }}" type="file" accept="{{ $packageInput['accept'] }}" @if ($packageInput['multiple']) multiple @endif required class="mt-2 block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-bold file:text-gray-700">
+                                @error($packageInput['multiple'] ? $packageInput['name'].'.*' : $packageInput['name'], 'submission')
+                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        @endforeach
                     </div>
 
                     <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
@@ -361,9 +391,6 @@
             const backdrop = document.getElementById('closeModalBackdrop');
             const crossBtn = document.getElementById('closeModalCrossBtn');
             const cancelBtn = document.getElementById('closeModalCancelBtn');
-            const documentInput = document.getElementById('document');
-            const documentDropzone = document.getElementById('documentDropzone');
-            const documentFileName = document.getElementById('documentFileName');
 
             // Toggle function locked inside scope
             function setModalVisibility(visible) {
@@ -380,54 +407,6 @@
             if (backdrop) backdrop.onclick = () => setModalVisibility(false);
             if (crossBtn) crossBtn.onclick = () => setModalVisibility(false);
             if (cancelBtn) cancelBtn.onclick = () => setModalVisibility(false);
-
-            function updateDocumentFileName() {
-                if (!documentInput || !documentFileName) return;
-
-                const file = documentInput.files && documentInput.files[0];
-                documentFileName.textContent = file
-                    ? `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`
-                    : 'Accepts document extensions (.doc, .docx, .pdf) up to 25MB';
-
-                documentFileName.classList.toggle('text-gray-800', Boolean(file));
-                documentFileName.classList.toggle('font-bold', Boolean(file));
-                documentFileName.classList.toggle('text-gray-400', !file);
-            }
-
-            if (documentInput) {
-                documentInput.onchange = updateDocumentFileName;
-                updateDocumentFileName();
-            }
-
-            if (documentDropzone && documentInput) {
-                documentDropzone.ondragenter = (event) => {
-                    event.preventDefault();
-                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
-                };
-
-                documentDropzone.ondragover = (event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
-                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
-                };
-
-                documentDropzone.ondragleave = (event) => {
-                    event.preventDefault();
-                    if (!documentDropzone.contains(event.relatedTarget)) {
-                        documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
-                    }
-                };
-
-                documentDropzone.ondrop = (event) => {
-                    event.preventDefault();
-                    documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
-
-                    if (event.dataTransfer.files.length) {
-                        documentInput.files = event.dataTransfer.files;
-                        updateDocumentFileName();
-                    }
-                };
-            }
 
             // --- 🎞️ Carousel Logic Implementation ---
             let currentSlide = 0;

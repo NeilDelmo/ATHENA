@@ -45,6 +45,9 @@ Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
 Route::get('/topics/{topic}/versions/{version}/download', [TopicController::class, 'downloadVersion'])
     ->middleware('auth')
     ->name('topics.versions.download');
+Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicController::class, 'downloadVersionFile'])
+    ->middleware('auth')
+    ->name('topics.versions.files.download');
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
     ->name('topics.approval');
