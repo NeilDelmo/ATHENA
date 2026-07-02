@@ -9,7 +9,8 @@ Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,
     unreadCount: config.unreadCount,
-    toast: null,
+    toasts: [],
+    knownNotificationIds: config.notifications.map((item) => item.id),
     poller: null,
 
     init() {
@@ -27,8 +28,17 @@ Alpine.data('notificationMenu', (config) => ({
             if (!response.ok) return;
 
             const payload = await response.json();
+            const newNotifications = payload.notifications
+                .filter((item) => !this.knownNotificationIds.includes(item.id))
+                .reverse();
+
             this.notifications = payload.notifications;
             this.unreadCount = payload.unread_count;
+
+            newNotifications.forEach((item) => {
+                this.knownNotificationIds.push(item.id);
+                this.showToast(item);
+            });
         } catch {
             // Reverb or a temporary network failure should never break the app shell.
         }
@@ -52,12 +62,24 @@ Alpine.data('notificationMenu', (config) => ({
             this.notifications.unshift(item);
             this.notifications = this.notifications.slice(0, 15);
             this.unreadCount += 1;
+            this.knownNotificationIds.push(item.id);
+            this.showToast(item);
         }
+    },
 
-        this.toast = item.data;
-        window.setTimeout(() => {
-            if (this.toast === item.data) this.toast = null;
-        }, 6000);
+    showToast(item) {
+        if (this.toasts.some((toast) => toast.id === item.id)) return;
+
+        this.toasts.push({
+            id: item.id,
+            item,
+        });
+
+        window.setTimeout(() => this.dismissToast(item.id), 7000);
+    },
+
+    dismissToast(id) {
+        this.toasts = this.toasts.filter((toast) => toast.id !== id);
     },
 
     async request(url) {

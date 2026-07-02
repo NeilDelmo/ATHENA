@@ -73,8 +73,31 @@
         </div>
     </div>
 
-    <div x-cloak x-show="toast" x-transition class="fixed right-5 top-20 z-[60] w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-        <p class="text-xs font-black text-gray-900 dark:text-white" x-text="toast?.title"></p>
-        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="toast?.message"></p>
+    <div x-cloak class="pointer-events-none fixed right-4 top-20 z-[60] flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-3" aria-live="polite" aria-atomic="false">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div
+                x-transition:enter="transition duration-300 ease-out"
+                x-transition:enter-start="translate-x-6 opacity-0"
+                x-transition:enter-end="translate-x-0 opacity-100"
+                x-transition:leave="transition duration-200 ease-in"
+                x-transition:leave-start="translate-x-0 opacity-100"
+                x-transition:leave-end="translate-x-6 opacity-0"
+                class="pointer-events-auto overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                role="status"
+            >
+                <div class="flex gap-3 p-4">
+                    <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="levelClass(toast.item.data.level)"></span>
+                    <button type="button" @click="openNotification(toast.item); dismissToast(toast.id)" class="min-w-0 flex-1 text-left">
+                        <span class="block text-xs font-black text-gray-900 dark:text-white" x-text="toast.item.data.title"></span>
+                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="toast.item.data.message"></span>
+                        <span class="mt-2 block text-[10px] font-bold uppercase tracking-wider text-red-600">Open notification</span>
+                    </button>
+                    <button type="button" @click="dismissToast(toast.id)" class="-mr-1 -mt-1 h-7 w-7 shrink-0 rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800" aria-label="Dismiss notification">
+                        <svg class="mx-auto h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div class="h-1 origin-left animate-[shrink_7s_linear_forwards] bg-red-600"></div>
+            </div>
+        </template>
     </div>
 </div>
