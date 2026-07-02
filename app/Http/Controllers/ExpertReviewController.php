@@ -27,6 +27,7 @@ class ExpertReviewController extends Controller
         $validated = $request->validate([
             'recommendation' => ['required', Rule::in(['recommend_approval', 'recommend_revision', 'recommend_rejection'])],
             'comment' => ['required', 'string', 'max:5000'],
+            'redirect_to' => ['nullable', Rule::in(['topic'])],
         ]);
 
         $submitted = DB::transaction(function () use ($assignment, $validated) {
@@ -54,10 +55,15 @@ class ExpertReviewController extends Controller
             $assignment->assigner()->first()?->notify(new ProposalActivityNotification(
                 'Expert review completed',
                 $request->user()->name.' submitted a recommendation for “'.$assignment->topic()->firstOrFail()->title.'”.',
-                route('research_head.dashboard'),
+                route('topics.show', $assignment->topic_id),
                 'info',
                 $assignment->topic_id,
             ));
+        }
+
+        if (($validated['redirect_to'] ?? null) === 'topic') {
+            return redirect()->route('topics.show', $assignment->topic_id)
+                ->with('success', 'Your expert recommendation was submitted to the Research Head.');
         }
 
         return back()->with('success', 'Your expert recommendation was submitted to the Research Head.');

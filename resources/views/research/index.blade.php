@@ -65,7 +65,7 @@
                             @endphp
                             <tr class="transition hover:bg-gray-50/70">
                                 <td class="px-5 py-4">
-                                    <a href="{{ route('research.show', $topic) }}" class="block max-w-md">
+                                    <a href="{{ route('topics.show', $topic) }}" class="block max-w-md">
                                         <span class="block text-sm font-bold text-gray-900 hover:text-red-600">{{ $topic->title }}</span>
                                         <span class="mt-1 block truncate text-xs text-gray-400">{{ $topic->description ?: 'No description provided.' }}</span>
                                         <span class="mt-1 block text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</span>
@@ -79,7 +79,7 @@
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-xs text-gray-500">{{ $topic->updated_at->format('M d, Y') }}</td>
                                 <td class="whitespace-nowrap px-5 py-4 text-right">
-                                    <a href="{{ route('research.show', $topic) }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">View details</a>
+                                    <a href="{{ route('topics.show', $topic) }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">View details</a>
                                 </td>
                             </tr>
                         @empty

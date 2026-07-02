@@ -51,6 +51,9 @@ Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicCon
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
     ->name('topics.approval');
+Route::get('/topics/{topic}', [TopicController::class, 'show'])
+    ->middleware('auth')
+    ->name('topics.show');
 
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
     ->middleware('auth')

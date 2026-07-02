@@ -79,6 +79,11 @@ class TopicController extends Controller
 
     public function researchShow(Request $request, TopicProposal $topic)
     {
+        return $this->show($request, $topic);
+    }
+
+    public function show(Request $request, TopicProposal $topic)
+    {
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
@@ -86,7 +91,75 @@ class TopicController extends Controller
             'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
         ]);
 
-        return view('research.show', compact('topic'));
+        $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+        $previousVersion = $topic->versions
+            ->where('version_number', '<', $latestVersion?->version_number ?? 0)
+            ->sortByDesc('version_number')
+            ->first();
+
+        $requiredDocuments = [
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => 'Detailed Research Proposal',
+            ProposalVersionFile::TYPE_WORK_PLAN => 'Attachment A - Work Plan',
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => 'Attachment B - Line-Item Budget',
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => 'Estimated Expense Breakdown',
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE => 'Attachment C - Curriculum Vitae',
+        ];
+
+        $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
+            $files = $latestVersion?->files->where('document_type', $type) ?? collect();
+
+            if ($type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && $files->isEmpty()) {
+                $legacyPath = $latestVersion?->file_path ?: ($topic->final_file_path ?: $topic->initial_file_path);
+                $available = $legacyPath && Storage::disk('local')->exists($legacyPath);
+
+                return [
+                    'type' => $type,
+                    'label' => $label,
+                    'count' => $available ? 1 : 0,
+                    'status' => $available ? 'complete' : 'missing',
+                ];
+            }
+
+            $availableCount = $files->filter(
+                fn (ProposalVersionFile $file) => Storage::disk('local')->exists($file->file_path),
+            )->count();
+
+            return [
+                'type' => $type,
+                'label' => $label,
+                'count' => $files->count(),
+                'status' => match (true) {
+                    $files->isEmpty() => 'missing',
+                    $availableCount !== $files->count() => 'file_missing',
+                    default => 'complete',
+                },
+            ];
+        })->values();
+
+        $comparisonRows = collect([
+            ['label' => 'Project title', 'previous' => $previousVersion?->title, 'latest' => $latestVersion?->title],
+            ['label' => 'Total project cost', 'previous' => $previousVersion ? 'PHP '.number_format((float) $previousVersion->estimated_budget, 2) : null, 'latest' => $latestVersion ? 'PHP '.number_format((float) $latestVersion->estimated_budget, 2) : null],
+            ['label' => 'Project duration', 'previous' => $previousVersion ? $previousVersion->estimated_duration_months.' months' : null, 'latest' => $latestVersion ? $latestVersion->estimated_duration_months.' months' : null],
+            ['label' => 'Description', 'previous' => $previousVersion?->description ?: 'Not provided', 'latest' => $latestVersion?->description ?: 'Not provided'],
+        ])->map(fn (array $row) => [
+            ...$row,
+            'changed' => $previousVersion && $row['previous'] !== $row['latest'],
+        ]);
+
+        $experts = $request->user()->hasRole('research_head')
+            ? User::role('expert')->orderBy('name')->get()
+            : collect();
+        $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
+
+        return view('topics.show', compact(
+            'topic',
+            'latestVersion',
+            'previousVersion',
+            'packageChecklist',
+            'comparisonRows',
+            'experts',
+            'expertAssignment',
+        ));
     }
 
     public function store(Request $request, ProposalPackageService $packageService)
@@ -188,7 +261,7 @@ class TopicController extends Controller
             new ProposalActivityNotification(
                 'New proposal submitted',
                 Auth::user()->name.' submitted “'.$topic->title.'” for review.',
-                route('research_head.dashboard'),
+                route('topics.show', $topic),
                 'info',
                 $topic->id,
             ),
@@ -209,6 +282,7 @@ class TopicController extends Controller
 
         $validated = $request->validateWithBag('resubmission', [
             'title' => 'required|string|max:255',
+            'redirect_to' => 'nullable|in:topic',
             'description' => 'nullable|string|max:5000',
             'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
             'estimated_duration_months' => 'required|integer|min:1|max:120',
@@ -297,13 +371,15 @@ class TopicController extends Controller
             new ProposalActivityNotification(
                 'Proposal revision submitted',
                 $request->user()->name.' submitted a new version of “'.$topic->fresh()->title.'”.',
-                route('research_head.dashboard'),
+                route('topics.show', $topic),
                 'info',
                 $topic->id,
             ),
         );
 
-        return redirect()->route('faculty.dashboard')->with('success', 'Revised proposal submitted for another review.');
+        $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'faculty.dashboard';
+
+        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', 'Revised proposal submitted for another review.');
     }
 
     public function download(TopicProposal $topic)

@@ -32,6 +32,7 @@ class ResearchHeadTopicController extends Controller
     {
         $validated = $request->validate([
             'status' => ['required', Rule::in(['expert_review', 'approved', 'revision_requested', 'rejected'])],
+            'redirect_to' => ['nullable', Rule::in(['topic'])],
             'comment' => ['nullable', 'required_if:status,revision_requested,rejected', 'string', 'max:5000'],
             'expert_ids' => ['nullable', 'required_if:status,expert_review', 'array', 'min:1'],
             'expert_ids.*' => ['integer', 'distinct', 'exists:users,id'],
@@ -124,7 +125,7 @@ class ResearchHeadTopicController extends Controller
                 new ProposalActivityNotification(
                     'Expert review assigned',
                     'You were assigned to review “'.$topic->title.'”.',
-                    route('expert.dashboard'),
+                    route('topics.show', $topic),
                     'info',
                     $topic->id,
                 ),
@@ -139,7 +140,7 @@ class ResearchHeadTopicController extends Controller
             $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
                 $notificationDetails[0],
                 $notificationDetails[1],
-                route('faculty.dashboard'),
+                route('topics.show', $topic),
                 $notificationDetails[2],
                 $topic->id,
             ));
@@ -152,6 +153,8 @@ class ResearchHeadTopicController extends Controller
             'rejected' => 'Proposal rejected and your comments were recorded.',
         };
 
-        return redirect()->route('research_head.dashboard')->with('success', $message);
+        $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
+
+        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', $message);
     }
 }

@@ -189,6 +189,7 @@
                         @include('topics.partials.version-history', ['topic' => $topic])
                         </div>
 
+                        <a href="{{ route('topics.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800">Open workspace</a>
                         <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
                             Download latest
                         </a>

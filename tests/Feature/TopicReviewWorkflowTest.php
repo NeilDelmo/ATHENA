@@ -413,3 +413,96 @@ test('proposal versions are downloadable only by authorized topic participants',
         ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
         ->assertForbidden();
 });
+
+test('the proposal workspace is complete role-aware and private', function () {
+    $this->withoutVite();
+    Storage::fake('local');
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $expert = User::factory()->create();
+    $expert->assignRole('expert');
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Workspace proposal',
+        'description' => 'A complete package for review.',
+        'estimated_budget' => 30000,
+        'status' => 'pending',
+    ]);
+
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'packages/proposal.pdf',
+        'original_filename' => 'proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'description' => $topic->description,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+
+    foreach ([
+        'detailed_proposal' => 'proposal.pdf',
+        'work_plan' => 'work-plan.docx',
+        'line_item_budget' => 'budget.docx',
+        'expense_breakdown' => 'expenses.xlsx',
+        'curriculum_vitae' => 'cv.pdf',
+    ] as $type => $filename) {
+        $path = 'packages/'.$filename;
+        Storage::disk('local')->put($path, $type);
+        $version->files()->create([
+            'document_type' => $type,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $filename,
+            'file_size' => strlen($type),
+            'checksum' => hash('sha256', $type),
+            'is_carried_forward' => false,
+        ]);
+    }
+
+    $topic->expertAssignments()->create([
+        'expert_id' => $expert->id,
+        'assigned_by' => $head->id,
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Proposal package checklist')
+        ->assertSee('5/5 complete');
+
+    $this->actingAs($head)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Research Head action');
+
+    $this->actingAs($expert)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Expert recommendation');
+
+    $this->actingAs($outsider)
+        ->get(route('topics.show', $topic))
+        ->assertForbidden();
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested',
+            'comment' => 'Please clarify the implementation schedule.',
+            'redirect_to' => 'topic',
+        ])
+        ->assertRedirect(route('topics.show', $topic));
+
+    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic));
+});
