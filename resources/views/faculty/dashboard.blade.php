@@ -133,6 +133,8 @@
                 @php
                     $latestReview = $topic->reviews->last();
                     $isCurrentResubmission = (string) old('resubmitting_topic_id') === (string) $topic->id;
+                    $pendingFileRevisions = $topic->reviews->flatMap->fileRevisions->whereNull('resolved_at')->values();
+                    $requiredRevisionTypes = $pendingFileRevisions->pluck('document_type')->unique();
                 @endphp
                 <div class="border-b border-gray-100 p-5 last:border-b-0">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -236,25 +238,31 @@
                                 <div class="rounded-xl border border-blue-200 bg-white/70 p-3 text-xs leading-5 text-blue-800 sm:col-span-2">
                                     Upload only the files you changed. Files left empty will be carried forward from the previous version; uploading CVs replaces the previous CV set.
                                 </div>
+                                @if ($pendingFileRevisions->isNotEmpty())
+                                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:col-span-2">
+                                        <p class="font-black uppercase tracking-wider">Files specifically marked for revision</p>
+                                        <div class="mt-2 space-y-2">@foreach ($pendingFileRevisions as $fileRevision)<div><span class="font-bold">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="pl-2 text-[11px] text-amber-700">{{ $fileRevision->revision_note }}</p>@endif</div>@endforeach</div>
+                                    </div>
+                                @endif
                                 <div class="space-y-1">
                                     <label for="revision_detailed_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Detailed proposal</label>
-                                    <input id="revision_detailed_{{ $topic->id }}" name="detailed_proposal" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <input id="revision_detailed_{{ $topic->id }}" name="detailed_proposal" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('detailed_proposal')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_work_plan_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Work plan</label>
-                                    <input id="revision_work_plan_{{ $topic->id }}" name="work_plan" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <input id="revision_work_plan_{{ $topic->id }}" name="work_plan" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('work_plan')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_budget_file_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Line-item budget</label>
-                                    <input id="revision_budget_file_{{ $topic->id }}" name="line_item_budget" type="file" accept=".doc,.docx,.pdf" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <input id="revision_budget_file_{{ $topic->id }}" name="line_item_budget" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('line_item_budget')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_expenses_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Expense breakdown</label>
-                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".xls,.xlsx" class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".xls,.xlsx" @required($requiredRevisionTypes->contains('expense_breakdown')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="space-y-1 sm:col-span-2">
                                     <label for="revision_cv_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Curriculum vitae files</label>
-                                    <input id="revision_cv_{{ $topic->id }}" name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <input id="revision_cv_{{ $topic->id }}" name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple @required($requiredRevisionTypes->contains('curriculum_vitae')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="sm:col-span-2 sm:text-right">
                                     <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">Submit revision</button>

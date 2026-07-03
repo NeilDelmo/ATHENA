@@ -7,6 +7,7 @@ use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
+use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalPackageService;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TopicController extends Controller
@@ -25,7 +27,7 @@ class TopicController extends Controller
         $topics = Auth::user()->proposals()
             ->with([
                 'researchCall', 'category',
-                'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+                'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
                 'expertAssignments.expert',
                 'versions.submitter',
                 'versions.files',
@@ -94,7 +96,7 @@ class TopicController extends Controller
 
         $topic->load([
             'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files',
-            'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ]);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
@@ -156,6 +158,10 @@ class TopicController extends Controller
             ? User::role('expert')->orderBy('name')->get()
             : collect();
         $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
+        $pendingFileRevisions = $topic->reviews
+            ->flatMap->fileRevisions
+            ->whereNull('resolved_at')
+            ->values();
 
         return view('topics.show', compact(
             'topic',
@@ -165,6 +171,7 @@ class TopicController extends Controller
             'comparisonRows',
             'experts',
             'expertAssignment',
+            'pendingFileRevisions',
         ));
     }
 
@@ -310,6 +317,27 @@ class TopicController extends Controller
             'curricula_vitae.*' => 'curriculum vitae file',
         ]);
 
+        $pendingFileRevisions = TopicReviewFileRevision::query()
+            ->with('file')
+            ->whereNull('resolved_at')
+            ->whereHas('review', fn ($query) => $query->where('topic_id', $topic->id))
+            ->get();
+        $requiredDocumentTypes = $pendingFileRevisions->pluck('document_type')->unique();
+        $revisionErrors = collect([
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => ['input' => 'detailed_proposal', 'provided' => $request->hasFile('detailed_proposal') || $request->hasFile('document'), 'message' => 'Upload a revised detailed proposal as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_WORK_PLAN => ['input' => 'work_plan', 'provided' => $request->hasFile('work_plan'), 'message' => 'Upload a revised work plan as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['input' => 'line_item_budget', 'provided' => $request->hasFile('line_item_budget'), 'message' => 'Upload a revised line-item budget as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => ['input' => 'expense_breakdown', 'provided' => $request->hasFile('expense_breakdown'), 'message' => 'Upload a revised expense breakdown as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE => ['input' => 'curricula_vitae', 'provided' => $request->hasFile('curricula_vitae'), 'message' => 'Upload the revised curriculum vitae file(s) requested by the Research Head.'],
+        ])->only($requiredDocumentTypes->all())
+            ->reject(fn (array $requirement) => $requirement['provided'])
+            ->mapWithKeys(fn (array $requirement) => [$requirement['input'] => $requirement['message']])
+            ->all();
+
+        if ($revisionErrors !== []) {
+            return back()->withInput()->withErrors($revisionErrors, 'resubmission');
+        }
+
         try {
             $replacementFiles = $packageService->storeFromRequest(
                 $request,
@@ -355,6 +383,33 @@ class TopicController extends Controller
                     $request->user()->id,
                 ));
                 $version->files()->createMany($snapshotFiles);
+
+                $newVersionFiles = $version->files()->get();
+                $pendingRevisions = TopicReviewFileRevision::query()
+                    ->with('file')
+                    ->whereNull('resolved_at')
+                    ->whereHas('review', fn ($query) => $query->where('topic_id', $revisedTopic->id))
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($pendingRevisions as $pendingRevision) {
+                    $replacementCandidates = $newVersionFiles
+                        ->where('document_type', $pendingRevision->document_type)
+                        ->where('is_carried_forward', false);
+                    $resolutionFile = $replacementCandidates->firstWhere('position', $pendingRevision->file?->position)
+                        ?: $replacementCandidates->first();
+
+                    if (! $resolutionFile) {
+                        throw ValidationException::withMessages([
+                            'document' => 'Every file marked for revision must be replaced before resubmission.',
+                        ]);
+                    }
+
+                    $pendingRevision->update([
+                        'resolved_by_version_file_id' => $resolutionFile->id,
+                        'resolved_at' => now(),
+                    ]);
+                }
 
                 $result['updated'] = true;
             });

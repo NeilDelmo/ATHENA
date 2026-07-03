@@ -18,7 +18,7 @@ class ResearchHeadTopicController extends Controller
     {
         $topics = TopicProposal::with([
             'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files',
-            'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ])
             ->latest()
             ->get();
@@ -37,6 +37,10 @@ class ResearchHeadTopicController extends Controller
             'expert_ids' => ['nullable', 'required_if:status,expert_review', 'array', 'min:1'],
             'expert_ids.*' => ['integer', 'distinct', 'exists:users,id'],
             'signed_approval' => ['nullable', 'required_if:status,approved', 'file', 'mimes:pdf', 'max:25600'],
+            'revision_file_ids' => ['nullable', 'array'],
+            'revision_file_ids.*' => ['integer', 'distinct', 'exists:proposal_version_files,id'],
+            'revision_file_notes' => ['nullable', 'array'],
+            'revision_file_notes.*' => ['nullable', 'string', 'max:2000'],
         ], [
             'comment.required_if' => 'Review comments are required when requesting a revision or rejecting a proposal.',
         ]);
@@ -53,13 +57,34 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
+        $selectedRevisionFiles = collect();
+
+        if ($validated['status'] === 'revision_requested') {
+            $latestVersion = $topic->latestVersion()->with('files')->first();
+            $latestFiles = $latestVersion?->files ?? collect();
+            $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
+            $selectedRevisionFiles = $latestFiles->whereIn('id', $selectedIds)->values();
+
+            if ($latestFiles->isNotEmpty() && $selectedIds->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'revision_file_ids' => 'Select at least one proposal file that requires revision.',
+                ]);
+            }
+
+            if ($selectedRevisionFiles->count() !== $selectedIds->count()) {
+                throw ValidationException::withMessages([
+                    'revision_file_ids' => 'Every selected file must belong to the latest proposal version.',
+                ]);
+            }
+        }
+
         $approvalPath = null;
         if ($request->hasFile('signed_approval')) {
             $approvalPath = $request->file('signed_approval')->store('approvals', 'local');
         }
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $approvalPath) {
+            DB::transaction(function () use ($request, $topic, $validated, $approvalPath, $selectedRevisionFiles) {
                 $reviewedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -99,11 +124,20 @@ class ResearchHeadTopicController extends Controller
                     'signed_approval_path' => $validated['status'] === 'approved' ? $approvalPath : null,
                 ]);
 
-                $reviewedTopic->reviews()->create([
+                $review = $reviewedTopic->reviews()->create([
                     'reviewer_id' => $request->user()->id,
                     'decision' => $validated['status'],
                     'comment' => $validated['comment'] ?? null,
                 ]);
+
+                if ($validated['status'] === 'revision_requested') {
+                    $review->fileRevisions()->createMany($selectedRevisionFiles->map(fn ($file) => [
+                        'proposal_version_file_id' => $file->id,
+                        'document_type' => $file->document_type,
+                        'original_filename' => $file->original_filename,
+                        'revision_note' => $validated['revision_file_notes'][$file->id] ?? null,
+                    ])->all());
+                }
 
                 if ($validated['status'] === 'approved') {
                     $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
@@ -133,7 +167,11 @@ class ResearchHeadTopicController extends Controller
         } else {
             $notificationDetails = match ($validated['status']) {
                 'approved' => ['Proposal approved', 'Your proposal “'.$topic->title.'” was approved.', 'success'],
-                'revision_requested' => ['Revision requested', 'Changes were requested for “'.$topic->title.'”. Review the comments and submit a new version.', 'warning'],
+                'revision_requested' => [
+                    'Revision requested',
+                    ($selectedRevisionFiles->isNotEmpty() ? $selectedRevisionFiles->count().' proposal file(s) require changes in ' : 'Changes were requested for ').'“'.$topic->title.'”. Review the comments and submit a new version.',
+                    'warning',
+                ],
                 'rejected' => ['Proposal rejected', 'Your proposal “'.$topic->title.'” was not approved. Review the decision comments.', 'danger'],
             };
 

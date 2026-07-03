@@ -496,13 +496,66 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->get(route('topics.show', $topic))
         ->assertForbidden();
 
+    $workPlanFile = $version->files()->where('document_type', 'work_plan')->firstOrFail();
+
+    $this->actingAs($head)
+        ->from(route('topics.show', $topic))
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested',
+            'comment' => 'Please revise the package.',
+        ])
+        ->assertSessionHasErrors('revision_file_ids');
+
     $this->actingAs($head)
         ->patch(route('research_head.topics.updateStatus', $topic), [
             'status' => 'revision_requested',
             'comment' => 'Please clarify the implementation schedule.',
+            'revision_file_ids' => [$workPlanFile->id],
+            'revision_file_notes' => [$workPlanFile->id => 'Extend the activities through the second year.'],
             'redirect_to' => 'topic',
         ])
         ->assertRedirect(route('topics.show', $topic));
 
-    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic));
+    $fileRevision = $topic->reviews()->latest()->firstOrFail()->fileRevisions()->firstOrFail();
+
+    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic))
+        ->and($fileRevision->proposal_version_file_id)->toBe($workPlanFile->id)
+        ->and($fileRevision->revision_note)->toContain('second year')
+        ->and($fileRevision->resolved_at)->toBeNull();
+
+    $this->actingAs($faculty)
+        ->from(route('topics.show', $topic))
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title,
+            'description' => $topic->description,
+            'estimated_budget' => $topic->estimated_budget,
+            'estimated_duration_months' => 18,
+            'change_summary' => 'Updated the implementation schedule.',
+        ])
+        ->assertSessionHasErrors('work_plan', null, 'resubmission');
+
+    $this->actingAs($faculty)
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title,
+            'description' => $topic->description,
+            'estimated_budget' => $topic->estimated_budget,
+            'estimated_duration_months' => 18,
+            'change_summary' => 'Updated the implementation schedule.',
+            'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        ])
+        ->assertRedirect(route('faculty.dashboard'));
+
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($fileRevision->fresh()->resolved_at)->not->toBeNull()
+        ->and($fileRevision->fresh()->resolutionFile?->original_filename)->toBe('work-plan-v2.docx');
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('research_head.dashboard'));
+
+    expect($topic->fresh()->status)->toBe('approved')
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
 });

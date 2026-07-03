@@ -94,7 +94,22 @@
                     <div class="border-b border-gray-100 px-6 py-4"><h3 class="text-sm font-black text-gray-900">Review and decision timeline</h3><p class="mt-1 text-xs text-gray-500">Research Head decisions and subject-expert recommendations.</p></div>
                     <div class="space-y-5 p-6">
                         @forelse ($topic->reviews as $review)
-                            <div class="border-l-2 border-red-200 pl-4"><div class="flex flex-wrap justify-between gap-2"><p class="text-xs font-black uppercase text-gray-700">{{ str_replace('_', ' ', $review->decision) }}</p><time class="text-[11px] text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</time></div><p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>@if ($review->comment)<p class="mt-2 whitespace-pre-line rounded-xl bg-gray-50 p-3 text-xs leading-5 text-gray-600">{{ $review->comment }}</p>@endif</div>
+                            <div class="border-l-2 border-red-200 pl-4">
+                                <div class="flex flex-wrap justify-between gap-2"><p class="text-xs font-black uppercase text-gray-700">{{ str_replace('_', ' ', $review->decision) }}</p><time class="text-[11px] text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</time></div>
+                                <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>
+                                @if ($review->comment)<p class="mt-2 whitespace-pre-line rounded-xl bg-gray-50 p-3 text-xs leading-5 text-gray-600">{{ $review->comment }}</p>@endif
+                                @if ($review->fileRevisions->isNotEmpty())
+                                    <div class="mt-2 space-y-2">
+                                        @foreach ($review->fileRevisions as $fileRevision)
+                                            <div class="rounded-xl border px-3 py-2 text-xs {{ $fileRevision->resolved_at ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900' }}">
+                                                <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-[9px] font-black uppercase">{{ $fileRevision->resolved_at ? 'Resolved' : 'Revision required' }}</span></div>
+                                                <p class="mt-0.5 text-[10px] opacity-75">{{ $fileRevision->original_filename }}</p>
+                                                @if ($fileRevision->revision_note)<p class="mt-1 leading-5">{{ $fileRevision->revision_note }}</p>@endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
                         @empty
                             <p class="text-center text-xs text-gray-400">No Research Head decision has been recorded.</p>
                         @endforelse
@@ -119,6 +134,7 @@
                         <input type="hidden" name="redirect_to" value="topic">
                         <h3 class="text-sm font-black text-gray-900">Research Head action</h3>
                         <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review">Send to subject experts</option>@endif<option value="approved">Approve and sign</option><option value="revision_requested">Request revision</option><option value="rejected">Reject proposal</option></select>
+                        @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
                         <div><label class="text-[11px] font-bold text-gray-500">Subject experts</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} - {{ $expert->email }}</option>@endforeach</select></div>
                         <div><label class="text-[11px] font-bold text-gray-500">Signed approval PDF</label><input type="file" name="signed_approval" accept=".pdf" class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></div>
                         <textarea name="comment" rows="4" maxlength="5000" placeholder="Decision rationale (required for revision or rejection)" class="block w-full rounded-xl border-gray-200 text-xs"></textarea>
@@ -145,15 +161,26 @@
                         <input type="hidden" name="redirect_to" value="topic">
                         <h3 class="text-sm font-black text-gray-900">Submit revision</h3>
                         <p class="text-xs leading-5 text-gray-500">Update the metadata and upload only changed files. Unchanged files carry forward.</p>
+                        @if ($pendingFileRevisions->isNotEmpty())
+                            <div class="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                                <p class="text-[11px] font-black uppercase tracking-wider text-amber-800">Required replacements</p>
+                                <div class="mt-2 space-y-2">
+                                    @foreach ($pendingFileRevisions as $fileRevision)
+                                        <div class="text-xs text-amber-900"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="mt-0.5 pl-2 text-[11px] text-amber-700">{{ $fileRevision->revision_note }}</p>@endif</div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endif
+                        @php($requiredRevisionTypes = $pendingFileRevisions->pluck('document_type')->unique())
                         <input name="title" value="{{ old('title', $topic->title) }}" required class="block w-full rounded-xl border-gray-200 text-xs" placeholder="Project title">
                         <textarea name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-xs" placeholder="Description">{{ old('description', $topic->description) }}</textarea>
                         <input name="estimated_budget" type="number" min="0" max="9999999999.99" step="0.01" value="{{ old('estimated_budget', $topic->estimated_budget) }}" required class="block w-full rounded-xl border-gray-200 text-xs" placeholder="Total project cost">
                         <input name="estimated_duration_months" type="number" min="1" max="120" value="{{ old('estimated_duration_months', $topic->estimated_duration_months) }}" required class="block w-full rounded-xl border-gray-200 text-xs" placeholder="Duration in months">
                         <textarea name="change_summary" rows="2" maxlength="2000" class="block w-full rounded-xl border-gray-200 text-xs" placeholder="What changed in this version?"></textarea>
                         @foreach ([['detailed_proposal', 'Detailed proposal', '.doc,.docx,.pdf'], ['work_plan', 'Work plan', '.doc,.docx,.pdf'], ['line_item_budget', 'Line-item budget', '.doc,.docx,.pdf'], ['expense_breakdown', 'Expense breakdown', '.xls,.xlsx']] as [$name, $label, $accept])
-                            <label class="block text-[11px] font-bold text-gray-500">{{ $label }}<input name="{{ $name }}" type="file" accept="{{ $accept }}" class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
+                            <label class="block text-[11px] font-bold text-gray-500">{{ $label }} @if ($requiredRevisionTypes->contains($name))<span class="text-red-600">Required</span>@endif<input name="{{ $name }}" type="file" accept="{{ $accept }}" @required($requiredRevisionTypes->contains($name)) class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
                         @endforeach
-                        <label class="block text-[11px] font-bold text-gray-500">Curriculum vitae files<input name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
+                        <label class="block text-[11px] font-bold text-gray-500">Curriculum vitae files @if ($requiredRevisionTypes->contains('curriculum_vitae'))<span class="text-red-600">Required</span>@endif<input name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple @required($requiredRevisionTypes->contains('curriculum_vitae')) class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
                         <button class="w-full rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white">Submit new version</button>
                     </form>
                 @endif

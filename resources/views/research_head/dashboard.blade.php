@@ -24,6 +24,7 @@
                     @php
                         $canDecide = in_array($topic->status, ['pending', 'resubmitted', 'for_final_decision'], true);
                         $isCurrent = (string) old('reviewing_topic_id') === (string) $topic->id;
+                        $latestFiles = $topic->versions->sortByDesc('version_number')->first()?->files ?? collect();
                     @endphp
                     <article class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_380px]">
                         <div class="min-w-0">
@@ -49,6 +50,7 @@
                                 <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" enctype="multipart/form-data" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">@csrf @method('PATCH')<input type="hidden" name="reviewing_topic_id" value="{{ $topic->id }}">
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-500">Next action</label>
                                     <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review" @selected($isCurrent && old('status') === 'expert_review')>Send to subject expert(s)</option>@endif<option value="approved" @selected($isCurrent && old('status') === 'approved')>Approve and sign</option><option value="revision_requested" @selected($isCurrent && old('status') === 'revision_requested')>Request revision</option><option value="rejected" @selected($isCurrent && old('status') === 'rejected')>Reject proposal</option></select>
+                                    @include('topics.partials.revision-file-selector', ['files' => $latestFiles])
                                     <div><label class="text-[11px] font-bold text-gray-500">Experts (required when sending for expert review)</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} — {{ $expert->email }}</option>@endforeach</select>@if ($experts->isEmpty())<p class="mt-1 text-[11px] text-red-600">No users currently have the expert role.</p>@endif</div>
                                     <div><label class="text-[11px] font-bold text-gray-500">Signed approval PDF (required for approval)</label><input type="file" name="signed_approval" accept=".pdf" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs"></div>
                                     <textarea name="comment" rows="4" maxlength="5000" placeholder="Screening notes or decision rationale (required for revision/rejection)" class="block w-full rounded-xl border-gray-200 text-xs">{{ $isCurrent ? old('comment') : '' }}</textarea>
