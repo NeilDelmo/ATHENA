@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -39,14 +40,19 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        $proposalTemplates = collect(config('proposal_templates', []))
-            ->filter(fn (array $template) => Storage::disk('local')->exists($template['path']))
-            ->map(function (array $template, string $key) {
+        $proposalTemplates = ProposalTemplate::active()
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
+            ->map(function (ProposalTemplate $template) {
                 return [
-                    ...$template,
-                    'key' => $key,
-                    'size' => Storage::disk('local')->size($template['path']),
-                    'extension' => strtoupper(pathinfo($template['path'], PATHINFO_EXTENSION)),
+                    'name' => $template->name,
+                    'description' => $template->description,
+                    'instructions' => $template->instructions,
+                    'revision_label' => $template->revision_label,
+                    'key' => $template->slug,
+                    'size' => Storage::disk('local')->size($template->file_path),
+                    'extension' => strtoupper(pathinfo($template->file_path, PATHINFO_EXTENSION)),
                 ];
             })
             ->values();
@@ -424,19 +430,6 @@ class TopicController extends Controller
         abort_unless(Storage::disk('local')->exists($topic->signed_approval_path), 404);
 
         return Storage::disk('local')->download($topic->signed_approval_path, 'signed-approval-'.$topic->id.'.pdf');
-    }
-
-    public function downloadTemplate(string $template)
-    {
-        $templateDetails = config("proposal_templates.{$template}");
-
-        abort_unless(is_array($templateDetails) && isset($templateDetails['path']), 404);
-        abort_unless(Storage::disk('local')->exists($templateDetails['path']), 404);
-
-        return Storage::disk('local')->download(
-            $templateDetails['path'],
-            basename($templateDetails['path']),
-        );
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void

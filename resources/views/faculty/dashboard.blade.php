@@ -341,8 +341,9 @@
                             @forelse ($proposalTemplates as $template)
                                 <div class="flex items-center justify-between gap-3 p-3">
                                     <div class="min-w-0">
-                                        <p class="truncate text-xs font-bold text-gray-800" title="{{ $template['name'] }}">{{ $template['name'] }}</p>
+                                        <p class="truncate text-xs font-bold text-gray-800" title="{{ $template['name'] }}">{{ $template['name'] }} @if ($template['revision_label'])<span class="text-red-600">({{ $template['revision_label'] }})</span>@endif</p>
                                         <p class="mt-0.5 text-[10px] leading-4 text-gray-400">{{ $template['description'] }} · {{ $template['extension'] }} · {{ number_format($template['size'] / 1024, 1) }} KB</p>
+                                        @if ($template['instructions'])<p class="mt-1 text-[10px] leading-4 text-gray-500">{{ $template['instructions'] }}</p>@endif
                                     </div>
                                     <a href="{{ route('proposal-templates.download', $template['key']) }}" class="inline-flex shrink-0 items-center bg-gray-900 hover:bg-gray-800 text-white text-[11px] font-bold px-3 py-2 rounded-xl transition duration-150 shadow-sm">Download</a>
                                 </div>

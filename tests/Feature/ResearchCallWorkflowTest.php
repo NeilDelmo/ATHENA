@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalTemplate;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
@@ -119,10 +120,13 @@ test('a revision snapshots the package and carries forward unchanged files', fun
 });
 
 test('faculty can securely download configured proposal templates', function () {
-    config()->set('proposal_templates.test-work-plan', [
+    ProposalTemplate::create([
+        'slug' => 'test-work-plan',
         'name' => 'Test Work Plan',
         'description' => 'A test-only proposal template',
-        'path' => 'proposals/templates/test-work-plan.docx',
+        'file_path' => 'proposals/templates/test-work-plan.docx',
+        'original_filename' => 'test-work-plan.docx',
+        'is_active' => true,
     ]);
 
     Storage::disk('local')->put('proposals/templates/test-work-plan.docx', 'template contents');
@@ -143,7 +147,7 @@ test('faculty can securely download configured proposal templates', function () 
 
     $this->actingAs($this->head)
         ->get(route('proposal-templates.download', 'test-work-plan'))
-        ->assertForbidden();
+        ->assertDownload('test-work-plan.docx');
 });
 
 test('expert recommendations return a proposal to the research head for a signed final approval', function () {

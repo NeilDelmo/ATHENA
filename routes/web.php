@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ExpertReviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\TopicController;
@@ -34,10 +35,11 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
-    Route::get('/proposal-templates/{template}/download', [TopicController::class, 'downloadTemplate'])
-        ->where('template', '[a-z0-9-]+')
-        ->name('proposal-templates.download');
 });
+
+Route::get('/proposal-templates/{proposalTemplate}/download', [ProposalTemplateController::class, 'download'])
+    ->middleware('auth')
+    ->name('proposal-templates.download');
 
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
     ->middleware(['auth'])
@@ -77,6 +79,10 @@ Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::patch('/research-calls/{researchCall}/status', [ResearchCallController::class, 'updateStatus'])->name('research-calls.update-status');
+    Route::get('/research-head/proposal-templates', [ProposalTemplateController::class, 'index'])->name('research_head.proposal-templates.index');
+    Route::post('/research-head/proposal-templates', [ProposalTemplateController::class, 'store'])->name('research_head.proposal-templates.store');
+    Route::put('/research-head/proposal-templates/{proposalTemplate}', [ProposalTemplateController::class, 'update'])->name('research_head.proposal-templates.update');
+    Route::patch('/research-head/proposal-templates/{proposalTemplate}/status', [ProposalTemplateController::class, 'updateStatus'])->name('research_head.proposal-templates.status');
 });
 
 Route::middleware(['auth', 'role:expert'])->group(function () {
