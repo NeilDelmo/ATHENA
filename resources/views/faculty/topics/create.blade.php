@@ -119,7 +119,7 @@
                                         <p id="{{ $packageInput['name'] }}_help" class="mt-1 text-[11px] leading-4 text-gray-500">{{ $packageInput['help'] }}</p>
                                         @if ($proposalSamples->contains($packageInput['sample']))
                                             <a href="{{ route('proposal-samples.show', $packageInput['sample']) }}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-700 transition hover:text-blue-900">
-                                                View completed sample <span aria-hidden="true">&nearr;</span>
+                                                View sample <span aria-hidden="true">&nearr;</span>
                                             </a>
                                         @endif
                                     </div>

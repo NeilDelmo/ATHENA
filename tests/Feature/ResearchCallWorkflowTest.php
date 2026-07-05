@@ -307,7 +307,7 @@ test('faculty can securely download configured proposal templates', function () 
         ->assertOk()
         ->assertSee('Test Work Plan')
         ->assertSee(route('proposal-templates.download', 'test-work-plan'))
-        ->assertSee('View completed sample')
+        ->assertSee('View sample')
         ->assertSee(route('proposal-samples.show', 'detailed-proposal'));
 
     $this->actingAs($this->faculty)
