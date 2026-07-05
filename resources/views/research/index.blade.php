@@ -68,7 +68,7 @@
                                     <a href="{{ route('topics.show', $topic) }}" class="block max-w-md">
                                         <span class="block text-sm font-bold text-gray-900 hover:text-red-600">{{ $topic->title }}</span>
                                         <span class="mt-1 block truncate text-xs text-gray-400">{{ $topic->description ?: 'No description provided.' }}</span>
-                                        <span class="mt-1 block text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</span>
+                                        <span class="mt-1 block text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }}@if ($topic->category) · {{ $topic->category->name }}@endif</span>
                                     </a>
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4">

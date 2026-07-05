@@ -35,7 +35,7 @@ class TopicController extends Controller
             ->latest()
             ->get();
 
-        $activeCalls = ResearchCall::with('categories')
+        $activeCalls = ResearchCall::query()
             ->where('status', 'open')
             ->where('opens_at', '<=', now())
             ->where('closes_at', '>=', now())
@@ -180,10 +180,6 @@ class TopicController extends Controller
         $validated = $request->validateWithBag('submission', [
             'title' => 'required|string|max:255',
             'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
-            'research_category_id' => ['required', 'integer', 'exists:research_categories,id'],
-            'description' => 'nullable|string|max:5000',
-            'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
-            'estimated_duration_months' => 'required|integer|min:1|max:120',
             'detailed_proposal' => 'required_without:document|file|mimes:pdf,doc,docx|max:25600',
             'document' => 'nullable|required_without:detailed_proposal|file|mimes:pdf,doc,docx|max:25600',
             'work_plan' => 'required|file|mimes:pdf,doc,docx|max:25600',
@@ -192,7 +188,6 @@ class TopicController extends Controller
             'curricula_vitae' => 'required|array|min:1|max:10',
             'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
-            'estimated_budget' => 'total project cost',
             'detailed_proposal' => 'detailed proposal',
             'document' => 'detailed proposal',
             'work_plan' => 'work plan',
@@ -202,23 +197,11 @@ class TopicController extends Controller
             'curricula_vitae.*' => 'curriculum vitae file',
         ]);
 
-        $call = ResearchCall::with('categories')->findOrFail($validated['research_call_id']);
+        $call = ResearchCall::findOrFail($validated['research_call_id']);
 
         if (! $call->isAcceptingSubmissions()) {
             return back()->withInput()->withErrors([
                 'research_call_id' => 'This research call is not accepting submissions.',
-            ], 'submission');
-        }
-
-        if (! $call->categories->contains('id', (int) $validated['research_category_id'])) {
-            return back()->withInput()->withErrors([
-                'research_category_id' => 'Select a category offered by this research call.',
-            ], 'submission');
-        }
-
-        if ($call->maximum_budget !== null && (float) $validated['estimated_budget'] > (float) $call->maximum_budget) {
-            return back()->withInput()->withErrors([
-                'estimated_budget' => 'The total project cost exceeds this call\'s maximum budget.',
             ], 'submission');
         }
 
@@ -239,10 +222,6 @@ class TopicController extends Controller
                 $topic = Auth::user()->proposals()->create([
                     'title' => $validated['title'],
                     'research_call_id' => $call->id,
-                    'research_category_id' => $validated['research_category_id'],
-                    'description' => $validated['description'] ?? null,
-                    'estimated_budget' => $validated['estimated_budget'],
-                    'estimated_duration_months' => $validated['estimated_duration_months'],
                     'status' => 'pending',
                 ]);
 
@@ -515,8 +494,8 @@ class TopicController extends Controller
             'checksum' => $primaryFile['checksum'],
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
-            'estimated_budget' => $validated['estimated_budget'],
-            'estimated_duration_months' => $validated['estimated_duration_months'],
+            'estimated_budget' => $validated['estimated_budget'] ?? null,
+            'estimated_duration_months' => $validated['estimated_duration_months'] ?? null,
         ];
     }
 }

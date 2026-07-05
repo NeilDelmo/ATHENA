@@ -128,7 +128,7 @@
                 <div class="divide-y divide-gray-100">
                     @forelse ($recentProposals as $topic)
                         <div class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                            <div class="min-w-0"><p class="truncate text-sm font-black text-gray-800">{{ $topic->title }}</p><p class="mt-1 text-xs text-gray-500">{{ $topic->researchCall->title }} · {{ $topic->category->name }}</p></div>
+                            <div class="min-w-0"><p class="truncate text-sm font-black text-gray-800">{{ $topic->title }}</p><p class="mt-1 text-xs text-gray-500">{{ $topic->researchCall->title }}@if ($topic->category) · {{ $topic->category->name }}@endif</p></div>
                             <span class="self-start whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusClass($topic->status) }}">{{ str_replace('_', ' ', $topic->status) }}</span>
                         </div>
                     @empty

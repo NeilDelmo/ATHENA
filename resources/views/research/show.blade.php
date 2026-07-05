@@ -88,7 +88,7 @@
                     <div class="border-t border-gray-100 pt-4">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Research call and category</dt>
                         <dd class="mt-1 text-sm font-bold text-gray-700">{{ $topic->researchCall->title }}</dd>
-                        <dd class="mt-0.5 text-xs text-gray-400">{{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</dd>
+                        <dd class="mt-0.5 text-xs text-gray-400">@if ($topic->category){{ $topic->category->name }} · @endif{{ $topic->estimated_duration_months }} months</dd>
                     </div>
                     <div class="border-t border-gray-100 pt-4">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Researcher</dt>

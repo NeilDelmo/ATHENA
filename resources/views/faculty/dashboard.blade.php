@@ -154,7 +154,7 @@
                         <p class="mt-1 text-[11px] font-bold text-gray-500">
                             Total Project Cost: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
                         </p>
-                        <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</p>
+                        <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }}@if ($topic->category) · {{ $topic->category->name }}@endif · {{ $topic->estimated_duration_months }} months</p>
                         <p class="mt-1 text-[11px] font-medium text-gray-400">Submitted {{ $topic->created_at->diffForHumans() }}</p>
 
                         @if ($latestReview)
@@ -307,39 +307,8 @@
                     </div>
 
                     <div class="space-y-2">
-                        <label for="research_category_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Category</label>
-                        <select id="research_category_id" name="research_category_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                            <option value="">Select the most relevant category</option>
-                            @foreach ($activeCalls as $call)
-                                <optgroup label="{{ $call->title }}">@foreach ($call->categories as $category)<option value="{{ $category->id }}" data-call-id="{{ $call->id }}" @selected(old('research_category_id') == $category->id)>{{ $category->name }}</option>@endforeach</optgroup>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="space-y-2">
                         <label for="title" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Proposal Title</label>
                         <input id="title" name="title" type="text" value="{{ old('title') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter your research title">
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="description" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Short Description</label>
-                        <textarea id="description" name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Optional summary for the research head">{{ old('description') }}</textarea>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="estimated_budget" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Total Project Cost</label>
-                        <div class="relative">
-                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">PHP</span>
-                            <input id="estimated_budget" name="estimated_budget" type="number" value="{{ old('estimated_budget') }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 pl-12 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="0.00">
-                        </div>
-                        @error('estimated_budget', 'submission')
-                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
-                        <p class="text-[11px] leading-4 text-gray-400">Enter the TOTAL PROJECT COST shown in Attachment B.</p>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="estimated_duration_months" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Total Project Duration</label>
-                        <div class="relative"><input id="estimated_duration_months" name="estimated_duration_months" type="number" value="{{ old('estimated_duration_months') }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="12"><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">months</span></div>
                     </div>
 
                     <div class="space-y-2">
