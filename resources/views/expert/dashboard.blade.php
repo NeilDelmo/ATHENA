@@ -1,5 +1,5 @@
 <x-app-layout>
-    <x-slot name="header"><div><h2 class="text-2xl font-black tracking-tight text-gray-900">Expert Review Workspace</h2><p class="mt-1 text-xs text-gray-500">Evaluate proposals assigned to your area of expertise.</p></div></x-slot>
+    <x-slot name="header"><div><h2 class="text-2xl font-black tracking-tight text-gray-900">Initial Screening Workspace</h2><p class="mt-1 text-xs text-gray-500">Complete the assigned co-evaluation and return your recommendation to the Research Head.</p></div></x-slot>
     <div class="space-y-5">
         @if (session('success'))<div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>@endif
         @forelse ($assignments as $assignment)

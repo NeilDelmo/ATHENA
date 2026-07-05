@@ -36,6 +36,15 @@ beforeEach(function () {
 });
 
 test('faculty submissions only require core proposal details and have no application limit', function () {
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.topics.create'))
+        ->assertOk()
+        ->assertSee('Faculty guide')
+        ->assertSee('Required documents')
+        ->assertSee('Submit Proposal')
+        ->assertDontSee('Short Description')
+        ->assertDontSee('Research Category');
+
     $payload = fn (string $title) => [
         'research_call_id' => $this->call->id,
         'title' => $title,
@@ -67,7 +76,8 @@ test('faculty submissions only require core proposal details and have no applica
     $this->actingAs($this->faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertDontSee('Research Category');
+        ->assertSee(route('faculty.topics.create'), false)
+        ->assertDontSee('submitProposalModal');
 });
 
 test('faculty research workload is limited to two approved projects per academic year', function () {
@@ -83,9 +93,22 @@ test('faculty research workload is limited to two approved projects per academic
         ]);
     };
 
+    $completeScreening = function (TopicProposal $topic): void {
+        $topic->update(['status' => 'for_final_decision']);
+        $topic->expertAssignments()->create([
+            'expert_id' => $this->expert->id,
+            'assigned_by' => $this->head->id,
+            'status' => 'completed',
+            'recommendation' => 'recommend_approval',
+            'comment' => 'Initial Screening requirements are satisfied.',
+            'reviewed_at' => now(),
+        ]);
+    };
+
     $createProposal($this->call, 'Approved project one', 'approved');
     $createProposal($this->call, 'Approved project two', 'approved');
     $thirdProposal = $createProposal($this->call, 'Third project in the same year', 'pending');
+    $completeScreening($thirdProposal);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $thirdProposal), [
@@ -94,7 +117,7 @@ test('faculty research workload is limited to two approved projects per academic
         ])
         ->assertSessionHasErrors('status');
 
-    expect($thirdProposal->fresh()->status)->toBe('pending');
+    expect($thirdProposal->fresh()->status)->toBe('for_final_decision');
 
     $nextYearCall = ResearchCall::create([
         'title' => 'Next Academic Year Call',
@@ -107,6 +130,7 @@ test('faculty research workload is limited to two approved projects per academic
     ]);
     $nextYearCall->categories()->attach($this->category);
     $nextYearProposal = $createProposal($nextYearCall, 'Project for the next academic year', 'pending');
+    $completeScreening($nextYearProposal);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
@@ -179,7 +203,7 @@ test('faculty can securely download configured proposal templates', function () 
     Storage::disk('local')->put('proposals/templates/test-work-plan.docx', 'template contents');
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.dashboard'))
+        ->get(route('faculty.topics.create'))
         ->assertOk()
         ->assertSee('Test Work Plan')
         ->assertSee(route('proposal-templates.download', 'test-work-plan'));
@@ -197,7 +221,7 @@ test('faculty can securely download configured proposal templates', function () 
         ->assertDownload('test-work-plan.docx');
 });
 
-test('expert recommendations return a proposal to the research head for a signed final approval', function () {
+test('co-evaluator recommendations complete Initial Screening before final approval', function () {
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'research_call_id' => $this->call->id,

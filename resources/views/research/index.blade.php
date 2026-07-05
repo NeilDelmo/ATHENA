@@ -17,8 +17,8 @@
                 <select id="research_status" name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold text-gray-700 shadow-sm focus:border-red-600 focus:ring-red-600">
                     <option value="">All statuses</option>
                     <option value="pending" @selected($status === 'pending')>Pending</option>
-                    <option value="expert_review" @selected($status === 'expert_review')>Expert review</option>
-                    <option value="for_final_decision" @selected($status === 'for_final_decision')>For final decision</option>
+                    <option value="expert_review" @selected($status === 'expert_review')>Initial screening</option>
+                    <option value="for_final_decision" @selected($status === 'for_final_decision')>Screening complete</option>
                     <option value="revision_requested" @selected($status === 'revision_requested')>Revision requested</option>
                     <option value="resubmitted" @selected($status === 'resubmitted')>Resubmitted</option>
                     <option value="approved" @selected($status === 'approved')>Approved</option>

@@ -91,7 +91,7 @@
                 @include('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])
 
                 <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                    <div class="border-b border-gray-100 px-6 py-4"><h3 class="text-sm font-black text-gray-900">Review and decision timeline</h3><p class="mt-1 text-xs text-gray-500">Research Head decisions and subject-expert recommendations.</p></div>
+                    <div class="border-b border-gray-100 px-6 py-4"><h3 class="text-sm font-black text-gray-900">Review and decision timeline</h3><p class="mt-1 text-xs text-gray-500">Research Head decisions and assigned co-evaluator recommendations.</p></div>
                     <div class="space-y-5 p-6">
                         @forelse ($topic->reviews as $review)
                             <div class="border-l-2 border-red-200 pl-4">
@@ -115,7 +115,7 @@
                         @endforelse
 
                         @foreach ($topic->expertAssignments as $assignment)
-                            <div class="border-l-2 border-purple-200 pl-4"><div class="flex flex-wrap justify-between gap-2"><p class="text-xs font-black uppercase text-purple-700">Expert review · {{ str_replace('_', ' ', $assignment->status) }}</p><time class="text-[11px] text-gray-400">{{ ($assignment->reviewed_at ?: $assignment->created_at)->format('M d, Y h:i A') }}</time></div><p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $assignment->expert->name }}</p>@if ($assignment->recommendation)<p class="mt-2 text-[11px] font-black uppercase text-purple-700">{{ str_replace('_', ' ', $assignment->recommendation) }}</p><p class="mt-1 whitespace-pre-line rounded-xl bg-purple-50/50 p-3 text-xs leading-5 text-gray-600">{{ $assignment->comment }}</p>@endif</div>
+                            <div class="border-l-2 border-purple-200 pl-4"><div class="flex flex-wrap justify-between gap-2"><p class="text-xs font-black uppercase text-purple-700">Co-evaluation · {{ str_replace('_', ' ', $assignment->status) }}</p><time class="text-[11px] text-gray-400">{{ ($assignment->reviewed_at ?: $assignment->created_at)->format('M d, Y h:i A') }}</time></div><p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $assignment->expert->name }}</p>@if ($assignment->recommendation)<p class="mt-2 text-[11px] font-black uppercase text-purple-700">{{ str_replace('_', ' ', $assignment->recommendation) }}</p><p class="mt-1 whitespace-pre-line rounded-xl bg-purple-50/50 p-3 text-xs leading-5 text-gray-600">{{ $assignment->comment }}</p>@endif</div>
                         @endforeach
                     </div>
                 </section>
@@ -133,9 +133,9 @@
                         @csrf @method('PATCH')
                         <input type="hidden" name="redirect_to" value="topic">
                         <h3 class="text-sm font-black text-gray-900">Research Head action</h3>
-                        <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review">Send to subject experts</option>@endif<option value="approved">Approve and sign</option><option value="revision_requested">Request revision</option><option value="rejected">Reject proposal</option></select>
+                        <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review">Send to co-evaluator(s)</option>@endif @if ($topic->status === 'for_final_decision')<option value="approved">Approve after Initial Screening</option>@endif<option value="revision_requested">Request revision</option><option value="rejected">Reject proposal</option></select>
                         @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
-                        <div><label class="text-[11px] font-bold text-gray-500">Subject experts</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} - {{ $expert->email }}</option>@endforeach</select></div>
+                        <div><label class="text-[11px] font-bold text-gray-500">Assigned co-evaluator(s)</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} - {{ $expert->email }}</option>@endforeach</select></div>
                         <div><label class="text-[11px] font-bold text-gray-500">Signed approval PDF</label><input type="file" name="signed_approval" accept=".pdf" class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></div>
                         <textarea name="comment" rows="4" maxlength="5000" placeholder="Decision rationale (required for revision or rejection)" class="block w-full rounded-xl border-gray-200 text-xs"></textarea>
                         <button class="w-full rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white">Submit action</button>

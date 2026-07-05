@@ -152,7 +152,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         ->assertDownload('original.pdf');
 });
 
-test('a research head can approve a resubmitted proposal', function () {
+test('a research head cannot approve a resubmitted proposal before Initial Screening', function () {
     Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
@@ -175,17 +175,54 @@ test('a research head can approve a resubmitted proposal', function () {
         'comment' => 'Make a small methodology revision.',
     ]);
 
-    $response = $this->actingAs($head)->patch("/research-head/topics/{$topic->id}/status", [
-        'status' => 'approved',
-        'comment' => 'The requested changes have been addressed.',
-        'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
-    ]);
+    $response = $this->actingAs($head)
+        ->from(route('research_head.dashboard'))
+        ->patch("/research-head/topics/{$topic->id}/status", [
+            'status' => 'approved',
+            'comment' => 'The requested changes have been addressed.',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ]);
 
     $response->assertRedirect(route('research_head.dashboard'));
+    $response->assertSessionHasErrors('status');
 
-    expect($topic->fresh()->status)->toBe('approved')
-        ->and($topic->reviews()->count())->toBe(2)
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($topic->reviews()->count())->toBe(1)
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+});
+
+test('a proposal with unresolved co-evaluator comments cannot receive final approval', function () {
+    Storage::fake('local');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $expert = User::factory()->create();
+    $expert->assignRole('expert');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Proposal with screening comments',
+        'status' => 'for_final_decision',
+    ]);
+    $topic->expertAssignments()->create([
+        'expert_id' => $expert->id,
+        'assigned_by' => $head->id,
+        'status' => 'completed',
+        'recommendation' => 'recommend_revision',
+        'comment' => 'Revise the methodology before final evaluation.',
+        'reviewed_at' => now(),
+    ]);
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors('status');
+
+    expect($topic->fresh()->status)->toBe('for_final_decision')
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
 
 test('a rejected proposal remains final', function () {
@@ -548,6 +585,23 @@ test('the proposal workspace is complete role-aware and private', function () {
     expect($topic->fresh()->status)->toBe('resubmitted')
         ->and($fileRevision->fresh()->resolved_at)->not->toBeNull()
         ->and($fileRevision->fresh()->resolutionFile?->original_filename)->toBe('work-plan-v2.docx');
+
+    $this->actingAs($head)
+        ->from(route('research_head.dashboard'))
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'expert_review',
+            'expert_ids' => [$expert->id],
+        ])
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    $screening = $topic->expertAssignments()->latest('id')->firstOrFail();
+    $this->actingAs($expert)
+        ->patch(route('expert.assignments.submit', $screening), [
+            'recommendation' => 'recommend_approval',
+            'comment' => 'The revised work plan addresses the Initial Screening comments.',
+        ])
+        ->assertRedirect();
 
     $this->actingAs($head)
         ->patch(route('research_head.topics.updateStatus', $topic), [

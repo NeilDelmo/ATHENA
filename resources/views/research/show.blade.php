@@ -13,8 +13,8 @@
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
             'resubmitted' => 'The revised proposal is waiting for another review.',
-            'expert_review' => 'Subject experts are evaluating whether the project is needed and feasible.',
-            'for_final_decision' => 'Expert review is complete and the Research Head is preparing the final decision.',
+            'expert_review' => 'The assigned co-evaluator is completing Initial Screening.',
+            'for_final_decision' => 'Initial Screening is complete and the Research Head is preparing the decision.',
             default => 'This proposal is waiting for its initial review.',
         };
     @endphp

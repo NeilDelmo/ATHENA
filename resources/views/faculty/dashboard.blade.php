@@ -11,12 +11,14 @@
             </div>
 
             <div>
-                <button id="openSubmitModalBtn" @disabled($activeCalls->isEmpty()) class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-xl transition duration-150 shadow-sm shadow-red-600/10 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    {{ $activeCalls->isEmpty() ? 'No Open Research Call' : 'Submit Proposal' }}
-                </button>
+                @if ($activeCalls->isEmpty())
+                    <span class="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-gray-300 px-4 py-2.5 text-xs font-bold text-white">No Open Research Call</span>
+                @else
+                    <a href="{{ route('faculty.topics.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-red-600/10 transition hover:bg-red-700">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        Submit Proposal
+                    </a>
+                @endif
             </div>
         </div>
     </x-slot>
@@ -28,11 +30,11 @@
             </div>
         @endif
 
-        @if ($errors->submission->any() || $errors->resubmission->any())
+        @if ($errors->resubmission->any())
             <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <p class="font-bold">Please review your submission.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach (array_merge($errors->submission->all(), $errors->resubmission->all()) as $error)
+                    @foreach ($errors->resubmission->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
@@ -282,111 +284,10 @@
             @endforelse
         </div>
 
-        <div id="submitProposalModal" class="{{ $errors->submission->any() ? '' : 'hidden' }} fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
-            <div id="closeModalBackdrop" class="fixed inset-0 bg-gray-950/60 backdrop-blur-sm transition-opacity cursor-pointer"></div>
-
-            <div class="relative max-h-[calc(100vh-3rem)] overflow-y-auto bg-white rounded-3xl border border-gray-200/80 shadow-2xl w-full max-w-lg transform transition-all z-10">
-                <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-lg font-black text-gray-900 tracking-tight">Submit Research Manuscript</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">Download template guidelines and upload your copy.</p>
-                    </div>
-                    <button id="closeModalCrossBtn" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition cursor-pointer">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <form action="{{ route('faculty.topics') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
-                    @csrf
-                    <div class="space-y-2">
-                        <label for="research_call_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Call</label>
-                        <select id="research_call_id" name="research_call_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                            <option value="">Select an open call</option>
-                            @foreach ($activeCalls as $call)<option value="{{ $call->id }}" @selected(old('research_call_id') == $call->id)>{{ $call->title }} ({{ $call->academic_year }})</option>@endforeach
-                        </select>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="title" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Proposal Title</label>
-                        <input id="title" name="title" type="text" value="{{ old('title') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter your research title">
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Proposal Templates</label>
-                        <p class="text-xs leading-5 text-gray-500">Complete the required forms before uploading them together as one proposal package.</p>
-                        <div class="divide-y divide-gray-200 overflow-hidden rounded-2xl border border-gray-200/60 bg-gray-50">
-                            @forelse ($proposalTemplates as $template)
-                                <div class="flex items-center justify-between gap-3 p-3">
-                                    <div class="min-w-0">
-                                        <p class="truncate text-xs font-bold text-gray-800" title="{{ $template['name'] }}">{{ $template['name'] }} @if ($template['revision_label'])<span class="text-red-600">({{ $template['revision_label'] }})</span>@endif</p>
-                                        <p class="mt-0.5 text-[10px] leading-4 text-gray-400">{{ $template['description'] }} · {{ $template['extension'] }} · {{ number_format($template['size'] / 1024, 1) }} KB</p>
-                                        @if ($template['instructions'])<p class="mt-1 text-[10px] leading-4 text-gray-500">{{ $template['instructions'] }}</p>@endif
-                                    </div>
-                                    <a href="{{ route('proposal-templates.download', $template['key']) }}" class="inline-flex shrink-0 items-center bg-gray-900 hover:bg-gray-800 text-white text-[11px] font-bold px-3 py-2 rounded-xl transition duration-150 shadow-sm">Download</a>
-                                </div>
-                            @empty
-                                <div class="p-4 text-xs font-semibold text-amber-700">Proposal templates are temporarily unavailable. Please contact the Research Office.</div>
-                            @endforelse
-                        </div>
-                    </div>
-
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Completed Proposal Package</label>
-                            <p class="mt-1 text-xs leading-5 text-gray-500">Each file is retained in this version. CV supports multiple project-team files.</p>
-                        </div>
-
-                        @foreach ([
-                            ['name' => 'detailed_proposal', 'label' => 'Detailed Research Proposal', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-                            ['name' => 'work_plan', 'label' => 'Attachment A - Work Plan', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-                            ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-                            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'accept' => '.xls,.xlsx', 'multiple' => false],
-                            ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'accept' => '.doc,.docx,.pdf', 'multiple' => true],
-                        ] as $packageInput)
-                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                                <label for="{{ $packageInput['name'] }}" class="block text-xs font-bold text-gray-700">{{ $packageInput['label'] }} <span class="text-red-600">Required</span></label>
-                                <input id="{{ $packageInput['name'] }}" name="{{ $packageInput['name'] }}{{ $packageInput['multiple'] ? '[]' : '' }}" type="file" accept="{{ $packageInput['accept'] }}" @if ($packageInput['multiple']) multiple @endif required class="mt-2 block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-bold file:text-gray-700">
-                                @error($packageInput['multiple'] ? $packageInput['name'].'.*' : $packageInput['name'], 'submission')
-                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
-                        @endforeach
-                    </div>
-
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                        <button id="closeModalCancelBtn" type="button" class="px-4 py-2.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition cursor-pointer">Cancel</button>
-                        <button id="submitManuscriptFormBtn" type="submit" class="px-5 py-2.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-sm transition cursor-pointer">Submit Manuscript</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
     </div>
 
     <script>
         function initializeWorkspaceEngine() {
-            const modal = document.getElementById('submitProposalModal');
-            const openBtn = document.getElementById('openSubmitModalBtn');
-            const backdrop = document.getElementById('closeModalBackdrop');
-            const crossBtn = document.getElementById('closeModalCrossBtn');
-            const cancelBtn = document.getElementById('closeModalCancelBtn');
-
-            // Toggle function locked inside scope
-            function setModalVisibility(visible) {
-                if (!modal) return;
-                if (visible) {
-                    modal.classList.remove('hidden');
-                } else {
-                    modal.classList.add('hidden');
-                }
-            }
-
-            // Bind click nodes cleanly
-            if (openBtn) openBtn.onclick = () => setModalVisibility(true);
-            if (backdrop) backdrop.onclick = () => setModalVisibility(false);
-            if (crossBtn) crossBtn.onclick = () => setModalVisibility(false);
-            if (cancelBtn) cancelBtn.onclick = () => setModalVisibility(false);
-
             // --- 🎞️ Carousel Logic Implementation ---
             let currentSlide = 0;
             const slides = document.querySelectorAll('.slide-item');

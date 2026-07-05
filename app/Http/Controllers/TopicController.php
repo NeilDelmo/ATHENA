@@ -42,6 +42,18 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
+        return view('faculty.dashboard', compact('topics', 'activeCalls'));
+    }
+
+    public function create()
+    {
+        $activeCalls = ResearchCall::query()
+            ->where('status', 'open')
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>=', now())
+            ->orderBy('closes_at')
+            ->get();
+
         $proposalTemplates = ProposalTemplate::active()
             ->orderBy('name')
             ->get()
@@ -59,7 +71,7 @@ class TopicController extends Controller
             })
             ->values();
 
-        return view('faculty.dashboard', compact('topics', 'activeCalls', 'proposalTemplates'));
+        return view('faculty.topics.create', compact('activeCalls', 'proposalTemplates'));
     }
 
     public function researchIndex(Request $request)

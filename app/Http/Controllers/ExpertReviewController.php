@@ -53,8 +53,8 @@ class ExpertReviewController extends Controller
 
         if ($submitted) {
             $assignment->assigner()->first()?->notify(new ProposalActivityNotification(
-                'Expert review completed',
-                $request->user()->name.' submitted a recommendation for “'.$assignment->topic()->firstOrFail()->title.'”.',
+                'Co-evaluation completed',
+                $request->user()->name.' submitted an Initial Screening recommendation for “'.$assignment->topic()->firstOrFail()->title.'”.',
                 route('topics.show', $assignment->topic_id),
                 'info',
                 $assignment->topic_id,
@@ -63,9 +63,9 @@ class ExpertReviewController extends Controller
 
         if (($validated['redirect_to'] ?? null) === 'topic') {
             return redirect()->route('topics.show', $assignment->topic_id)
-                ->with('success', 'Your expert recommendation was submitted to the Research Head.');
+                ->with('success', 'Your Initial Screening recommendation was submitted to the Research Head.');
         }
 
-        return back()->with('success', 'Your expert recommendation was submitted to the Research Head.');
+        return back()->with('success', 'Your Initial Screening recommendation was submitted to the Research Head.');
     }
 }

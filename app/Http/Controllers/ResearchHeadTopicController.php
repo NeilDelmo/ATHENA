@@ -97,12 +97,28 @@ class ResearchHeadTopicController extends Controller
                 }
 
                 if ($validated['status'] === 'approved') {
+                    $this->ensureInitialScreeningCompleted($reviewedTopic);
                     $this->ensureResearchWorkloadAvailable($reviewedTopic);
                 }
 
                 if ($validated['status'] === 'expert_review') {
                     if ($reviewedTopic->status === 'for_final_decision') {
-                        throw ValidationException::withMessages(['status' => 'Expert review has already been completed.']);
+                        throw ValidationException::withMessages(['status' => 'Initial screening has already been completed.']);
+                    }
+
+                    if ($reviewedTopic->status === 'resubmitted') {
+                        $previousEvaluatorIds = $reviewedTopic->expertAssignments()
+                            ->pluck('expert_id')
+                            ->unique()
+                            ->sort()
+                            ->values();
+                        $selectedEvaluatorIds = collect($validated['expert_ids'])->map(fn ($id) => (int) $id)->sort()->values();
+
+                        if ($previousEvaluatorIds->isNotEmpty() && $previousEvaluatorIds->all() !== $selectedEvaluatorIds->all()) {
+                            throw ValidationException::withMessages([
+                                'expert_ids' => 'A revised proposal must repeat Initial Screening with the same assigned co-evaluator(s).',
+                            ]);
+                        }
                     }
 
                     $reviewedTopic->expertAssignments()->createMany(
@@ -127,6 +143,18 @@ class ResearchHeadTopicController extends Controller
                     'status' => $validated['status'],
                     'signed_approval_path' => $validated['status'] === 'approved' ? $approvalPath : null,
                 ]);
+
+                if ($validated['status'] === 'revision_requested') {
+                    $reviewedTopic->expertAssignments()
+                        ->whereIn('status', ['pending', 'completed'])
+                        ->update(['status' => 'superseded']);
+                }
+
+                if ($validated['status'] === 'rejected') {
+                    $reviewedTopic->expertAssignments()
+                        ->where('status', 'pending')
+                        ->update(['status' => 'cancelled']);
+                }
 
                 $review = $reviewedTopic->reviews()->create([
                     'reviewer_id' => $request->user()->id,
@@ -161,8 +189,8 @@ class ResearchHeadTopicController extends Controller
         if ($validated['status'] === 'expert_review') {
             User::query()->whereKey($validated['expert_ids'])->get()->each->notify(
                 new ProposalActivityNotification(
-                    'Expert review assigned',
-                    'You were assigned to review “'.$topic->title.'”.',
+                    'Co-evaluation assigned',
+                    'You were assigned as a co-evaluator for “'.$topic->title.'”.',
                     route('topics.show', $topic),
                     'info',
                     $topic->id,
@@ -190,7 +218,7 @@ class ResearchHeadTopicController extends Controller
 
         $message = match ($validated['status']) {
             'approved' => 'Proposal approved successfully.',
-            'expert_review' => 'Proposal sent to the selected subject experts.',
+            'expert_review' => 'Proposal sent to the selected co-evaluator(s) for Initial Screening.',
             'revision_requested' => 'Revision requested and your comments were sent to the faculty member.',
             'rejected' => 'Proposal rejected and your comments were recorded.',
         };
@@ -198,6 +226,24 @@ class ResearchHeadTopicController extends Controller
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
 
         return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', $message);
+    }
+
+    private function ensureInitialScreeningCompleted(TopicProposal $topic): void
+    {
+        $assignments = $topic->expertAssignments()->get();
+        $completedAssignments = $assignments->where('status', 'completed');
+
+        if ($topic->status !== 'for_final_decision' || $completedAssignments->isEmpty() || $assignments->contains('status', 'pending')) {
+            throw ValidationException::withMessages([
+                'status' => 'Initial Screening must be completed by the Research/RDES Head and every assigned co-evaluator before final approval.',
+            ]);
+        }
+
+        if ($completedAssignments->contains(fn ($assignment) => $assignment->recommendation !== 'recommend_approval')) {
+            throw ValidationException::withMessages([
+                'status' => 'Outstanding co-evaluator comments must be resolved through revision and Initial Screening before final approval.',
+            ]);
+        }
     }
 
     private function ensureResearchWorkloadAvailable(TopicProposal $topic): void
