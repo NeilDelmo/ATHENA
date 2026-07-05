@@ -128,6 +128,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'estimated_budget' => 8500,
         'estimated_duration_months' => 10,
         'document' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
+        'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ]);
 
     $response->assertRedirect(route('faculty.dashboard'));
@@ -493,6 +494,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         'line_item_budget' => 'budget.docx',
         'expense_breakdown' => 'expenses.xlsx',
         'curriculum_vitae' => 'cv.pdf',
+        'gad_checklist' => 'gad-checklist.docx',
     ] as $type => $filename) {
         $path = 'packages/'.$filename;
         Storage::disk('local')->put($path, $type);
@@ -517,7 +519,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Proposal package checklist')
-        ->assertSee('5/5 complete');
+        ->assertSee('6/6 complete');
 
     $this->actingAs($head)
         ->get(route('topics.show', $topic))
@@ -527,7 +529,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($expert)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Expert recommendation');
+        ->assertSee('Co-evaluator recommendation');
 
     $this->actingAs($outsider)
         ->get(route('topics.show', $topic))
@@ -568,6 +570,7 @@ test('the proposal workspace is complete role-aware and private', function () {
             'estimated_budget' => $topic->estimated_budget,
             'estimated_duration_months' => 18,
             'change_summary' => 'Updated the implementation schedule.',
+            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ])
         ->assertSessionHasErrors('work_plan', null, 'resubmission');
 
@@ -579,6 +582,7 @@ test('the proposal workspace is complete role-aware and private', function () {
             'estimated_duration_months' => 18,
             'change_summary' => 'Updated the implementation schedule.',
             'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ])
         ->assertRedirect(route('faculty.dashboard'));
 

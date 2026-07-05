@@ -6,6 +6,7 @@
             ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'help' => 'The detailed project budget document.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
             ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'help' => 'Upload the completed spreadsheet.', 'accept' => '.xls,.xlsx', 'multiple' => false],
             ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'help' => 'You may select multiple files for the project team.', 'accept' => '.doc,.docx,.pdf', 'multiple' => true],
+            ['name' => 'gad_checklist', 'label' => 'GAD Generic Checklist', 'help' => 'Complete the gender-responsiveness checklist and include it with the initial package.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
         ];
     @endphp
 
@@ -104,10 +105,100 @@
 
                     <div class="mt-4 grid gap-4 lg:grid-cols-2">
                         @foreach ($packageInputs as $packageInput)
-                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-4 {{ $packageInput['multiple'] ? 'lg:col-span-2' : '' }}">
-                                <label for="{{ $packageInput['name'] }}" class="block text-xs font-black text-gray-800">{{ $packageInput['label'] }} <span class="text-red-600">Required</span></label>
-                                <p class="mt-1 text-[11px] leading-4 text-gray-500">{{ $packageInput['help'] }}</p>
-                                <input id="{{ $packageInput['name'] }}" name="{{ $packageInput['name'] }}{{ $packageInput['multiple'] ? '[]' : '' }}" type="file" accept="{{ $packageInput['accept'] }}" @if ($packageInput['multiple']) multiple @endif required class="mt-3 block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-bold file:text-gray-700">
+                            <div
+                                x-data="fileDropzone({
+                                    accept: @js($packageInput['accept']),
+                                    multiple: @js($packageInput['multiple']),
+                                    maxBytes: 26214400,
+                                })"
+                                class="rounded-2xl border border-gray-200 bg-gray-50 p-4"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <label for="{{ $packageInput['name'] }}" class="block text-xs font-black text-gray-800">{{ $packageInput['label'] }} <span class="text-red-600">Required</span></label>
+                                        <p id="{{ $packageInput['name'] }}_help" class="mt-1 text-[11px] leading-4 text-gray-500">{{ $packageInput['help'] }}</p>
+                                    </div>
+                                    <span x-show="files.length" x-cloak class="shrink-0 rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black text-green-700" x-text="`${files.length} file${files.length === 1 ? '' : 's'}`"></span>
+                                </div>
+
+                                <input
+                                    x-ref="input"
+                                    @change="syncFiles(true)"
+                                    id="{{ $packageInput['name'] }}"
+                                    name="{{ $packageInput['name'] }}{{ $packageInput['multiple'] ? '[]' : '' }}"
+                                    type="file"
+                                    accept="{{ $packageInput['accept'] }}"
+                                    aria-describedby="{{ $packageInput['name'] }}_help {{ $packageInput['name'] }}_formats"
+                                    @if ($packageInput['multiple']) multiple @endif
+                                    required
+                                    class="sr-only"
+                                >
+
+                                <div
+                                    role="button"
+                                    tabindex="0"
+                                    @click="browse()"
+                                    @keydown.enter.prevent="browse()"
+                                    @keydown.space.prevent="browse()"
+                                    @dragenter.prevent="dragEnter()"
+                                    @dragover.prevent
+                                    @dragleave.prevent="dragLeave()"
+                                    @drop.prevent.stop="drop($event)"
+                                    :class="dragging
+                                        ? 'flex min-h-28 flex-col items-center justify-center border-red-500 bg-red-50 px-5 py-5 text-center ring-4 ring-red-100'
+                                        : files.length
+                                            ? 'border-green-300 bg-green-50/60 px-3 py-3'
+                                            : 'flex min-h-28 flex-col items-center justify-center border-gray-300 bg-white px-5 py-5 text-center hover:border-red-400 hover:bg-red-50/40'"
+                                    class="mt-4 cursor-pointer rounded-xl border-2 border-dashed outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-100"
+                                >
+                                    <div x-show="!files.length || dragging" class="flex flex-col items-center">
+                                        <span :class="dragging ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'" class="flex h-10 w-10 items-center justify-center rounded-full transition">
+                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3" />
+                                            </svg>
+                                        </span>
+                                        <p class="mt-2.5 text-xs font-bold text-gray-700">
+                                            <span x-show="!dragging">Drag and drop {{ $packageInput['multiple'] ? 'files' : 'a file' }} here, or <span class="text-red-600">choose {{ $packageInput['multiple'] ? 'files' : 'a file' }}</span></span>
+                                            <span x-show="dragging" x-cloak class="text-red-700">Drop {{ $packageInput['multiple'] ? 'the files' : 'the file' }} to attach</span>
+                                        </p>
+                                        <p id="{{ $packageInput['name'] }}_formats" class="mt-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                            <span x-text="acceptedTypes()"></span> &middot; up to 25 MB
+                                        </p>
+                                    </div>
+
+                                    <div x-show="files.length && !dragging" x-cloak class="flex w-full items-center gap-3 text-left">
+                                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 text-green-700">
+                                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" />
+                                            </svg>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block text-xs font-black text-gray-800">{{ $packageInput['multiple'] ? 'Files ready' : 'File ready' }}</span>
+                                            <span class="mt-0.5 block text-[10px] text-gray-500">Drop {{ $packageInput['multiple'] ? 'more files' : 'another file' }} here or click to {{ $packageInput['multiple'] ? 'add more' : 'replace it' }}.</span>
+                                        </span>
+                                        <span class="shrink-0 rounded-lg border border-green-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-green-700">{{ $packageInput['multiple'] ? 'Add files' : 'Replace' }}</span>
+                                    </div>
+                                </div>
+
+                                <p x-show="message" x-cloak x-text="message" class="mt-2 text-xs font-semibold leading-5 text-amber-700"></p>
+
+                                <ul x-show="files.length" x-cloak class="mt-3 space-y-2" aria-live="polite">
+                                    <template x-for="(file, index) in files" :key="`${file.name}-${file.size}-${file.lastModified}`">
+                                        <li class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+                                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-[9px] font-black text-gray-600" x-text="extension(file.name)"></span>
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block truncate text-xs font-bold text-gray-800" x-text="file.name"></span>
+                                                <span class="mt-0.5 block text-[10px] text-gray-400" x-text="formatSize(file.size)"></span>
+                                            </span>
+                                            <button type="button" @click.stop="remove(index)" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-500" :aria-label="`Remove ${file.name}`">
+                                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                                    <path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" />
+                                                </svg>
+                                            </button>
+                                        </li>
+                                    </template>
+                                </ul>
+
                                 @error($packageInput['multiple'] ? $packageInput['name'].'.*' : $packageInput['name'], 'submission')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
                         @endforeach

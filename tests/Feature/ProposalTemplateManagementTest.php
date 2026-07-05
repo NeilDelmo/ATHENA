@@ -39,6 +39,7 @@ test('a research head can upload replace and archive a proposal template', funct
             'description' => 'Official ethics preparation form.',
             'instructions' => 'Complete this when human participants are involved.',
             'revision_label' => 'Revision 01',
+            'workflow_stage' => ProposalTemplate::STAGE_INITIAL_SUBMISSION,
             'document' => UploadedFile::fake()->create('ethics-guide.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ])
         ->assertRedirect();
@@ -51,7 +52,7 @@ test('a research head can upload replace and archive a proposal template', funct
         ->and($template->instructions)->toContain('human participants');
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.dashboard'))
+        ->get(route('faculty.topics.create'))
         ->assertOk()
         ->assertSee('Ethics Clearance Guide');
 
@@ -65,6 +66,7 @@ test('a research head can upload replace and archive a proposal template', funct
             'description' => 'Updated ethics preparation form.',
             'instructions' => 'Use the current institutional ethics process.',
             'revision_label' => 'Revision 02',
+            'workflow_stage' => ProposalTemplate::STAGE_INITIAL_SCREENING,
             'document' => UploadedFile::fake()->create('ethics-guide-v2.pdf', 60, 'application/pdf'),
         ])
         ->assertRedirect();
@@ -72,7 +74,8 @@ test('a research head can upload replace and archive a proposal template', funct
     $template->refresh();
     Storage::disk('local')->assertMissing($originalPath);
     Storage::disk('local')->assertExists($template->file_path);
-    expect($template->revision_label)->toBe('Revision 02');
+    expect($template->revision_label)->toBe('Revision 02')
+        ->and($template->workflow_stage)->toBe(ProposalTemplate::STAGE_INITIAL_SCREENING);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.proposal-templates.status', $template), ['is_active' => false])

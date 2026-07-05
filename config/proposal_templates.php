@@ -31,4 +31,25 @@ return [
         'description' => 'Additional work-plan format for longer projects',
         'path' => 'proposals/Sample Template of Work Plan for above 12 months.docx',
     ],
+    'gad-generic-checklist' => [
+        'name' => 'GAD Generic Checklist',
+        'description' => 'Required gender-responsiveness checklist for the initial proposal package',
+        'instructions' => 'Faculty proponents must complete and include this checklist with the initial submission.',
+        'workflow_stage' => 'initial_submission',
+        'path' => 'proposals/Box 7a GAD Generic Checklist.docx',
+    ],
+    'initial-screening-form' => [
+        'name' => 'Initial Screening Form',
+        'description' => 'Official screening form for the Research/RDES Head and assigned co-evaluator',
+        'instructions' => 'Prepare two copies: one for the Research/RDES Head and one for the assigned co-evaluator.',
+        'workflow_stage' => 'initial_screening',
+        'path' => 'proposals/BatStateU-FO-RES-03_Initial Screening Form_Rev. 02.doc',
+    ],
+    'lrec-comment-response-form' => [
+        'name' => 'Comment-Response Form (Institutional) - LREC',
+        'description' => 'Form for documenting responses and exact locations of changes made after evaluation',
+        'instructions' => 'Use during revision to answer each comment and identify the corresponding page and paragraph.',
+        'workflow_stage' => 'revision_response',
+        'path' => 'proposals/Comment-Response Form (Institutional) - LREC.docx',
+    ],
 ];

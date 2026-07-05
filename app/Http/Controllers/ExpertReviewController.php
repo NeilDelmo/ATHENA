@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProposalTemplate;
 use App\Models\TopicExpertAssignment;
 use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ExpertReviewController extends Controller
@@ -16,8 +18,13 @@ class ExpertReviewController extends Controller
             ->with(['topic.user', 'topic.category', 'topic.researchCall', 'topic.versions.submitter', 'topic.versions.files'])
             ->latest()
             ->get();
+        $screeningTemplates = ProposalTemplate::active()
+            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SCREENING)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path));
 
-        return view('expert.dashboard', compact('assignments'));
+        return view('expert.dashboard', compact('assignments', 'screeningTemplates'));
     }
 
     public function submit(Request $request, TopicExpertAssignment $assignment)

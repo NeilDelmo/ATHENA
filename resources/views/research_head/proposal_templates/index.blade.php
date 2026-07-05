@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div>
             <h2 class="text-2xl font-black tracking-tight text-gray-900">Proposal Template Administration</h2>
-            <p class="mt-1 text-xs text-gray-500">Maintain the official forms shown during topic-proposal submission.</p>
+            <p class="mt-1 text-xs text-gray-500">Maintain official forms and assign each one to its correct workflow stage.</p>
         </div>
     </x-slot>
 
@@ -19,11 +19,12 @@
         </div>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div class="mb-5"><h3 class="text-base font-black text-gray-900">Upload an additional template</h3><p class="mt-1 text-xs text-gray-500">New active templates immediately appear in the faculty submission instructions.</p></div>
+            <div class="mb-5"><h3 class="text-base font-black text-gray-900">Upload an additional template</h3><p class="mt-1 text-xs text-gray-500">Active templates appear only at the workflow stage selected below.</p></div>
             <form method="POST" action="{{ route('research_head.proposal-templates.store') }}" enctype="multipart/form-data" class="grid gap-4 md:grid-cols-2">
                 @csrf
                 <div><label for="template_name" class="text-xs font-bold text-gray-600">Template name</label><input id="template_name" name="name" value="{{ old('name') }}" required maxlength="255" class="mt-1 block w-full rounded-xl border-gray-200 text-sm"></div>
                 <div><label for="template_revision" class="text-xs font-bold text-gray-600">Revision or effectivity label</label><input id="template_revision" name="revision_label" value="{{ old('revision_label') }}" maxlength="100" placeholder="Example: Revision 05 · Effective July 2026" class="mt-1 block w-full rounded-xl border-gray-200 text-sm"></div>
+                <div><label for="template_stage" class="text-xs font-bold text-gray-600">Workflow stage</label><select id="template_stage" name="workflow_stage" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm">@foreach (App\Models\ProposalTemplate::workflowStages() as $value => $label)<option value="{{ $value }}" @selected(old('workflow_stage') === $value)>{{ $label }}</option>@endforeach</select></div>
                 <div class="md:col-span-2"><label for="template_description" class="text-xs font-bold text-gray-600">Short description</label><textarea id="template_description" name="description" rows="2" maxlength="1000" class="mt-1 block w-full rounded-xl border-gray-200 text-sm">{{ old('description') }}</textarea></div>
                 <div class="md:col-span-2"><label for="template_instructions" class="text-xs font-bold text-gray-600">Completion instructions</label><textarea id="template_instructions" name="instructions" rows="3" maxlength="2000" placeholder="Explain when and how faculty should complete this form." class="mt-1 block w-full rounded-xl border-gray-200 text-sm">{{ old('instructions') }}</textarea></div>
                 <div><label for="template_document" class="text-xs font-bold text-gray-600">Template file</label><input id="template_document" name="document" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" required class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></div>
@@ -41,6 +42,7 @@
                                 <div class="flex flex-wrap items-center gap-2">
                                     <h4 class="text-sm font-black text-gray-900">{{ $template->name }}</h4>
                                     <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase {{ $template->is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500' }}">{{ $template->is_active ? 'Active' : 'Archived' }}</span>
+                                    <span class="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-blue-700">{{ App\Models\ProposalTemplate::workflowStages()[$template->workflow_stage] ?? str($template->workflow_stage)->replace('_', ' ') }}</span>
                                     @if (! $template->file_available)<span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase text-red-700">File missing</span>@endif
                                 </div>
                                 @if ($template->revision_label)<p class="mt-1 text-[11px] font-bold uppercase tracking-wider text-red-600">{{ $template->revision_label }}</p>@endif
@@ -61,6 +63,7 @@
                                 <input type="hidden" name="editing_template" value="{{ $template->slug }}">
                                 <div><label class="text-[11px] font-bold text-gray-500">Name</label><input name="name" value="{{ old('editing_template') === $template->slug ? old('name') : $template->name }}" required maxlength="255" class="mt-1 block w-full rounded-xl border-gray-200 text-xs"></div>
                                 <div><label class="text-[11px] font-bold text-gray-500">Revision label</label><input name="revision_label" value="{{ old('editing_template') === $template->slug ? old('revision_label') : $template->revision_label }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs"></div>
+                                <div><label class="text-[11px] font-bold text-gray-500">Workflow stage</label><select name="workflow_stage" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach (App\Models\ProposalTemplate::workflowStages() as $value => $label)<option value="{{ $value }}" @selected((old('editing_template') === $template->slug ? old('workflow_stage') : $template->workflow_stage) === $value)>{{ $label }}</option>@endforeach</select></div>
                                 <div class="md:col-span-2"><label class="text-[11px] font-bold text-gray-500">Description</label><textarea name="description" rows="2" maxlength="1000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">{{ old('editing_template') === $template->slug ? old('description') : $template->description }}</textarea></div>
                                 <div class="md:col-span-2"><label class="text-[11px] font-bold text-gray-500">Instructions</label><textarea name="instructions" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">{{ old('editing_template') === $template->slug ? old('instructions') : $template->instructions }}</textarea></div>
                                 <div><label class="text-[11px] font-bold text-gray-500">Replacement file (optional)</label><input name="document" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs"></div>

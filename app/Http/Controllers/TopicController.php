@@ -42,7 +42,9 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        return view('faculty.dashboard', compact('topics', 'activeCalls'));
+        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
+
+        return view('faculty.dashboard', compact('topics', 'activeCalls', 'revisionResponseTemplates'));
     }
 
     public function create()
@@ -55,6 +57,7 @@ class TopicController extends Controller
             ->get();
 
         $proposalTemplates = ProposalTemplate::active()
+            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SUBMISSION)
             ->orderBy('name')
             ->get()
             ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
@@ -123,6 +126,7 @@ class TopicController extends Controller
             ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => 'Attachment B - Line-Item Budget',
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => 'Estimated Expense Breakdown',
             ProposalVersionFile::TYPE_CURRICULUM_VITAE => 'Attachment C - Curriculum Vitae',
+            ProposalVersionFile::TYPE_GAD_CHECKLIST => 'GAD Generic Checklist',
         ];
 
         $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
@@ -174,6 +178,8 @@ class TopicController extends Controller
             ->flatMap->fileRevisions
             ->whereNull('resolved_at')
             ->values();
+        $screeningTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_INITIAL_SCREENING);
+        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
 
         return view('topics.show', compact(
             'topic',
@@ -184,6 +190,8 @@ class TopicController extends Controller
             'experts',
             'expertAssignment',
             'pendingFileRevisions',
+            'screeningTemplates',
+            'revisionResponseTemplates',
         ));
     }
 
@@ -199,6 +207,7 @@ class TopicController extends Controller
             'expense_breakdown' => 'required|file|mimes:xls,xlsx|max:25600',
             'curricula_vitae' => 'required|array|min:1|max:10',
             'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'gad_checklist' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
             'detailed_proposal' => 'detailed proposal',
             'document' => 'detailed proposal',
@@ -207,6 +216,7 @@ class TopicController extends Controller
             'expense_breakdown' => 'expense breakdown',
             'curricula_vitae' => 'curriculum vitae files',
             'curricula_vitae.*' => 'curriculum vitae file',
+            'gad_checklist' => 'GAD checklist',
         ]);
 
         $call = ResearchCall::findOrFail($validated['research_call_id']);
@@ -292,6 +302,8 @@ class TopicController extends Controller
             'expense_breakdown' => 'nullable|file|mimes:xls,xlsx|max:25600',
             'curricula_vitae' => 'nullable|array|min:1|max:10',
             'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'comment_response' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
             'estimated_budget' => 'total project cost',
             'detailed_proposal' => 'detailed proposal',
@@ -300,6 +312,8 @@ class TopicController extends Controller
             'line_item_budget' => 'line-item budget',
             'expense_breakdown' => 'expense breakdown',
             'curricula_vitae.*' => 'curriculum vitae file',
+            'gad_checklist' => 'GAD checklist',
+            'comment_response' => 'comment-response form',
         ]);
 
         $pendingFileRevisions = TopicReviewFileRevision::query()
@@ -314,6 +328,7 @@ class TopicController extends Controller
             ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['input' => 'line_item_budget', 'provided' => $request->hasFile('line_item_budget'), 'message' => 'Upload a revised line-item budget as requested by the Research Head.'],
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => ['input' => 'expense_breakdown', 'provided' => $request->hasFile('expense_breakdown'), 'message' => 'Upload a revised expense breakdown as requested by the Research Head.'],
             ProposalVersionFile::TYPE_CURRICULUM_VITAE => ['input' => 'curricula_vitae', 'provided' => $request->hasFile('curricula_vitae'), 'message' => 'Upload the revised curriculum vitae file(s) requested by the Research Head.'],
+            ProposalVersionFile::TYPE_GAD_CHECKLIST => ['input' => 'gad_checklist', 'provided' => $request->hasFile('gad_checklist'), 'message' => 'Upload the revised GAD checklist requested by the Research Head.'],
         ])->only($requiredDocumentTypes->all())
             ->reject(fn (array $requirement) => $requirement['provided'])
             ->mapWithKeys(fn (array $requirement) => [$requirement['input'] => $requirement['message']])
@@ -509,5 +524,15 @@ class TopicController extends Controller
             'estimated_budget' => $validated['estimated_budget'] ?? null,
             'estimated_duration_months' => $validated['estimated_duration_months'] ?? null,
         ];
+    }
+
+    private function availableTemplatesFor(string $stage)
+    {
+        return ProposalTemplate::active()
+            ->where('workflow_stage', $stage)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
+            ->values();
     }
 }

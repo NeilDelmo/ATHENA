@@ -2,6 +2,13 @@
     <x-slot name="header"><div><h2 class="text-2xl font-black tracking-tight text-gray-900">Initial Screening Workspace</h2><p class="mt-1 text-xs text-gray-500">Complete the assigned co-evaluation and return your recommendation to the Research Head.</p></div></x-slot>
     <div class="space-y-5">
         @if (session('success'))<div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>@endif
+        @if ($screeningTemplates->isNotEmpty())
+            <section class="rounded-2xl border border-purple-200 bg-purple-50 p-5">
+                <h3 class="text-sm font-black text-purple-900">Official Initial Screening form</h3>
+                <p class="mt-1 text-xs leading-5 text-purple-700">Download and accomplish the official form while evaluating the assigned proposal.</p>
+                <div class="mt-3 flex flex-wrap gap-2">@foreach ($screeningTemplates as $template)<a href="{{ route('proposal-templates.download', $template) }}" class="rounded-xl bg-purple-700 px-4 py-2.5 text-xs font-bold text-white">Download {{ $template->name }}</a>@endforeach</div>
+            </section>
+        @endif
         @forelse ($assignments as $assignment)
             <article class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div class="flex flex-col gap-4 lg:flex-row lg:justify-between">

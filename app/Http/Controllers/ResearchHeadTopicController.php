@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProposalTemplate;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -24,8 +25,13 @@ class ResearchHeadTopicController extends Controller
             ->get();
 
         $experts = User::role('expert')->orderBy('name')->get();
+        $screeningTemplates = ProposalTemplate::active()
+            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SCREENING)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path));
 
-        return view('research_head.dashboard', compact('topics', 'experts'));
+        return view('research_head.dashboard', compact('topics', 'experts', 'screeningTemplates'));
     }
 
     public function updateStatus(Request $request, TopicProposal $topic)

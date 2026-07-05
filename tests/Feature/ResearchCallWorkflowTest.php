@@ -41,6 +41,8 @@ test('faculty submissions only require core proposal details and have no applica
         ->assertOk()
         ->assertSee('Faculty guide')
         ->assertSee('Required documents')
+        ->assertSee('Drag and drop')
+        ->assertSee('choose a file')
         ->assertSee('Submit Proposal')
         ->assertDontSee('Short Description')
         ->assertDontSee('Research Category');
@@ -53,7 +55,14 @@ test('faculty submissions only require core proposal details and have no applica
         'line_item_budget' => UploadedFile::fake()->create($title.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         'expense_breakdown' => UploadedFile::fake()->create($title.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
         'curricula_vitae' => [UploadedFile::fake()->create($title.'-cv.pdf', 50, 'application/pdf')],
+        'gad_checklist' => UploadedFile::fake()->create($title.'-gad.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ];
+
+    $incompletePayload = $payload('Missing GAD checklist');
+    unset($incompletePayload['gad_checklist']);
+    $this->actingAs($this->faculty)
+        ->post('/faculty/topics', $incompletePayload)
+        ->assertSessionHasErrors('gad_checklist', null, 'submission');
 
     $this->actingAs($this->faculty)->post('/faculty/topics', $payload('First'))->assertRedirect(route('faculty.dashboard'));
     $this->actingAs($this->faculty)->post('/faculty/topics', $payload('Second'))->assertRedirect(route('faculty.dashboard'));
@@ -67,7 +76,7 @@ test('faculty submissions only require core proposal details and have no applica
         ->and($firstProposal->latestVersion->version_number)->toBe(1)
         ->and($firstProposal->latestVersion->submission_type)->toBe('initial')
         ->and($firstProposal->latestVersion->checksum)->toHaveLength(64)
-        ->and($firstProposal->latestVersion->files()->count())->toBe(5);
+        ->and($firstProposal->latestVersion->files()->count())->toBe(6);
 
     $firstProposal->latestVersion->files->each(
         fn ($file) => Storage::disk('local')->assertExists($file->file_path),
@@ -155,6 +164,7 @@ test('a revision snapshots the package and carries forward unchanged files', fun
         'line_item_budget' => UploadedFile::fake()->create('budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         'expense_breakdown' => UploadedFile::fake()->create('expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
         'curricula_vitae' => [UploadedFile::fake()->create('leader-cv.pdf', 50, 'application/pdf')],
+        'gad_checklist' => UploadedFile::fake()->create('gad-checklist.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ])->assertRedirect(route('faculty.dashboard'));
 
     $topic = $this->faculty->proposals()->firstOrFail();
@@ -170,6 +180,7 @@ test('a revision snapshots the package and carries forward unchanged files', fun
         'estimated_duration_months' => 14,
         'change_summary' => 'Extended the schedule and replaced the work plan.',
         'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ])->assertRedirect(route('faculty.dashboard'));
 
     $secondVersion = $topic->fresh()->latestVersion()->with('files')->firstOrFail();
@@ -178,7 +189,7 @@ test('a revision snapshots the package and carries forward unchanged files', fun
 
     expect($secondVersion->version_number)->toBe(2)
         ->and($secondVersion->change_summary)->toBe('Extended the schedule and replaced the work plan.')
-        ->and($secondVersion->files)->toHaveCount(5)
+        ->and($secondVersion->files)->toHaveCount(7)
         ->and($revisedWorkPlan->is_carried_forward)->toBeFalse()
         ->and($revisedWorkPlan->file_path)->not->toBe($originalWorkPlan->file_path)
         ->and($carriedDetailedProposal->is_carried_forward)->toBeTrue()

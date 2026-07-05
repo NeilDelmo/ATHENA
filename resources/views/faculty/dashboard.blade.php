@@ -240,6 +240,17 @@
                                 <div class="rounded-xl border border-blue-200 bg-white/70 p-3 text-xs leading-5 text-blue-800 sm:col-span-2">
                                     Upload only the files you changed. Files left empty will be carried forward from the previous version; uploading CVs replaces the previous CV set.
                                 </div>
+                                @if ($revisionResponseTemplates->isNotEmpty())
+                                    <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800 sm:col-span-2">
+                                        <p class="font-black">Comment-response form</p>
+                                        <p class="mt-1">Answer every evaluator comment and identify the exact page and paragraph changed.</p>
+                                        <div class="mt-2 flex flex-wrap gap-2">@foreach ($revisionResponseTemplates as $template)<a href="{{ route('proposal-templates.download', $template) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download {{ $template->name }}</a>@endforeach</div>
+                                    </div>
+                                @endif
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_response_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Completed comment-response form <span class="text-red-600">Required</span></label>
+                                    <input id="revision_response_{{ $topic->id }}" name="comment_response" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
                                 @if ($pendingFileRevisions->isNotEmpty())
                                     <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:col-span-2">
                                         <p class="font-black uppercase tracking-wider">Files specifically marked for revision</p>
@@ -265,6 +276,10 @@
                                 <div class="space-y-1 sm:col-span-2">
                                     <label for="revision_cv_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Curriculum vitae files</label>
                                     <input id="revision_cv_{{ $topic->id }}" name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple @required($requiredRevisionTypes->contains('curriculum_vitae')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_gad_{{ $topic->id }}" class="text-xs font-bold text-gray-600">GAD checklist</label>
+                                    <input id="revision_gad_{{ $topic->id }}" name="gad_checklist" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('gad_checklist')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="sm:col-span-2 sm:text-right">
                                     <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">Submit revision</button>

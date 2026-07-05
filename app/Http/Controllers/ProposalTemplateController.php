@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class ProposalTemplateController extends Controller
@@ -120,6 +121,7 @@ class ProposalTemplateController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'instructions' => ['nullable', 'string', 'max:2000'],
             'revision_label' => ['nullable', 'string', 'max:100'],
+            'workflow_stage' => ['required', Rule::in(array_keys(ProposalTemplate::workflowStages()))],
             'document' => [$documentRequired ? 'required' : 'nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx', 'max:25600'],
         ]);
     }

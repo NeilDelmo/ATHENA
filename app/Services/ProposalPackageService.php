@@ -36,6 +36,8 @@ class ProposalPackageService
                 'work_plan' => ProposalVersionFile::TYPE_WORK_PLAN,
                 'line_item_budget' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
                 'expense_breakdown' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+                'gad_checklist' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                'comment_response' => ProposalVersionFile::TYPE_COMMENT_RESPONSE,
             ] as $input => $documentType) {
                 $file = $request->file($input);
 
@@ -80,6 +82,8 @@ class ProposalPackageService
             ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
             ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_COMMENT_RESPONSE,
         ] as $documentType) {
             $replacementFiles = collect($replacements)
                 ->where('document_type', $documentType)
