@@ -26,7 +26,7 @@ beforeEach(function () {
         'academic_year' => '2026-2027',
         'opens_at' => now()->subDay(),
         'closes_at' => now()->addMonth(),
-        'max_proposals_per_faculty' => 2,
+        'max_active_research_per_faculty' => 2,
         'maximum_budget' => 100000,
         'status' => 'open',
         'created_by' => $this->head->id,
@@ -35,7 +35,7 @@ beforeEach(function () {
     Storage::fake('local');
 });
 
-test('faculty submissions capture call category budget and duration and obey the per-call limit', function () {
+test('faculty submissions capture call category budget and duration without an application limit', function () {
     $payload = fn (string $title) => [
         'research_call_id' => $this->call->id,
         'research_category_id' => $this->category->id,
@@ -52,12 +52,11 @@ test('faculty submissions capture call category budget and duration and obey the
 
     $this->actingAs($this->faculty)->post('/faculty/topics', $payload('First'))->assertRedirect(route('faculty.dashboard'));
     $this->actingAs($this->faculty)->post('/faculty/topics', $payload('Second'))->assertRedirect(route('faculty.dashboard'));
-    $this->actingAs($this->faculty)->post('/faculty/topics', $payload('Third'))
-        ->assertSessionHasErrors('research_call_id', null, 'submission');
+    $this->actingAs($this->faculty)->post('/faculty/topics', $payload('Third'))->assertRedirect(route('faculty.dashboard'));
 
-    expect($this->faculty->proposals()->count())->toBe(2)
+    expect($this->faculty->proposals()->count())->toBe(3)
         ->and($this->faculty->proposals()->first()->estimated_duration_months)->toBe(12)
-        ->and($this->head->notifications()->count())->toBe(2);
+        ->and($this->head->notifications()->count())->toBe(3);
 
     $firstProposal = $this->faculty->proposals()->oldest()->firstOrFail();
     expect($firstProposal->versions()->count())->toBe(1)
@@ -69,6 +68,54 @@ test('faculty submissions capture call category budget and duration and obey the
     $firstProposal->latestVersion->files->each(
         fn ($file) => Storage::disk('local')->assertExists($file->file_path),
     );
+});
+
+test('faculty research workload is limited to two approved projects per academic year', function () {
+    $createProposal = function (ResearchCall $call, string $title, string $status): TopicProposal {
+        return TopicProposal::create([
+            'user_id' => $this->faculty->id,
+            'research_call_id' => $call->id,
+            'research_category_id' => $this->category->id,
+            'title' => $title,
+            'estimated_budget' => 50000,
+            'estimated_duration_months' => 12,
+            'status' => $status,
+        ]);
+    };
+
+    $createProposal($this->call, 'Approved project one', 'approved');
+    $createProposal($this->call, 'Approved project two', 'approved');
+    $thirdProposal = $createProposal($this->call, 'Third project in the same year', 'pending');
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $thirdProposal), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('third-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors('status');
+
+    expect($thirdProposal->fresh()->status)->toBe('pending');
+
+    $nextYearCall = ResearchCall::create([
+        'title' => 'Next Academic Year Call',
+        'academic_year' => '2027-2028',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'status' => 'open',
+        'created_by' => $this->head->id,
+    ]);
+    $nextYearCall->categories()->attach($this->category);
+    $nextYearProposal = $createProposal($nextYearCall, 'Project for the next academic year', 'pending');
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('next-year-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('research_head.dashboard'));
+
+    expect($nextYearProposal->fresh()->status)->toBe('approved');
 });
 
 test('a revision snapshots the package and carries forward unchanged files', function () {

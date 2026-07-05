@@ -12,7 +12,7 @@ class ResearchCall extends Model
 {
     protected $fillable = [
         'title', 'academic_year', 'term', 'description', 'opens_at', 'closes_at',
-        'max_proposals_per_faculty', 'maximum_budget', 'status', 'created_by',
+        'max_active_research_per_faculty', 'maximum_budget', 'status', 'created_by',
     ];
 
     protected function casts(): array

@@ -302,7 +302,7 @@
                         <label for="research_call_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Call</label>
                         <select id="research_call_id" name="research_call_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
                             <option value="">Select an open call</option>
-                            @foreach ($activeCalls as $call)<option value="{{ $call->id }}" @selected(old('research_call_id') == $call->id)>{{ $call->title }} (limit: {{ $call->max_proposals_per_faculty }})</option>@endforeach
+                            @foreach ($activeCalls as $call)<option value="{{ $call->id }}" @selected(old('research_call_id') == $call->id)>{{ $call->title }} ({{ $call->academic_year }})</option>@endforeach
                         </select>
                     </div>
 

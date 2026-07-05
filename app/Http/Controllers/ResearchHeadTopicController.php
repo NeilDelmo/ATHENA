@@ -96,6 +96,10 @@ class ResearchHeadTopicController extends Controller
                     ]);
                 }
 
+                if ($validated['status'] === 'approved') {
+                    $this->ensureResearchWorkloadAvailable($reviewedTopic);
+                }
+
                 if ($validated['status'] === 'expert_review') {
                     if ($reviewedTopic->status === 'for_final_decision') {
                         throw ValidationException::withMessages(['status' => 'Expert review has already been completed.']);
@@ -194,5 +198,23 @@ class ResearchHeadTopicController extends Controller
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
 
         return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', $message);
+    }
+
+    private function ensureResearchWorkloadAvailable(TopicProposal $topic): void
+    {
+        $researchCall = $topic->researchCall()->firstOrFail();
+        $approvedProjectIds = TopicProposal::query()
+            ->where('user_id', $topic->user_id)
+            ->whereKeyNot($topic->getKey())
+            ->where('status', 'approved')
+            ->whereHas('researchCall', fn ($query) => $query->where('academic_year', $researchCall->academic_year))
+            ->lockForUpdate()
+            ->pluck('id');
+
+        if ($approvedProjectIds->count() >= $researchCall->max_active_research_per_faculty) {
+            throw ValidationException::withMessages([
+                'status' => "This faculty researcher already has the maximum of {$researchCall->max_active_research_per_faculty} approved research projects for academic year {$researchCall->academic_year}. Applications remain unlimited, but another project cannot be approved for that year.",
+            ]);
+        }
     }
 }

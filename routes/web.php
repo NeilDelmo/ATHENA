@@ -16,18 +16,25 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', function () {
-    if (Auth::check()) {
-        $user = Auth::user();
+    $user = Auth::user();
 
-        if ($user->hasRole('research_head')) {
-            return redirect()->route('research_head.dashboard');
-        }
-        if ($user->hasRole('expert')) {
-            return redirect()->route('expert.dashboard');
-        }
+    if ($user->hasRole('research_head')) {
+        return redirect()->route('research_head.dashboard');
     }
 
-    return redirect()->route('faculty.dashboard');
+    if ($user->hasRole('expert')) {
+        return redirect()->route('expert.dashboard');
+    }
+
+    if ($user->hasAnyRole(['faculty', 'faculty_researcher'])) {
+        return redirect()->route('faculty.dashboard');
+    }
+
+    Auth::logout();
+
+    return redirect()->route('login')->withErrors([
+        'google' => 'Your account does not have an ATHENA role yet. Please contact the system administrator.',
+    ]);
 })->middleware('auth')->name('dashboard');
 
 // FACULTY ROUTES

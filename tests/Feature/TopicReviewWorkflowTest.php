@@ -21,7 +21,7 @@ beforeEach(function () {
         'academic_year' => '2026-2027',
         'opens_at' => now()->subDay(),
         'closes_at' => now()->addMonth(),
-        'max_proposals_per_faculty' => 2,
+        'max_active_research_per_faculty' => 2,
         'status' => 'open',
     ]);
     $this->researchCall->categories()->attach($this->category);

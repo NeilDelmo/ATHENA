@@ -32,7 +32,7 @@ class ResearchCallController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'opens_at' => ['required', 'date'],
             'closes_at' => ['required', 'date', 'after:opens_at'],
-            'max_proposals_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
+            'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
             'maximum_budget' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
             'categories' => ['required', 'string', 'max:1000'],
             'status' => ['required', Rule::in(['draft', 'open'])],

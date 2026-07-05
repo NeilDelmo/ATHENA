@@ -71,6 +71,20 @@ test('an existing institutional user keeps their assigned system role', function
         ->and($head->fresh()->google_id)->toBe('google-user-123');
 });
 
+test('Google sign in ignores a saved page for another role', function () {
+    Role::firstOrCreate(['name' => 'faculty']);
+    $faculty = User::factory()->create(['email' => 'faculty@g.batstate-u.edu.ph']);
+    $faculty->assignRole('faculty');
+
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    mockGoogleUser('faculty@g.batstate-u.edu.ph');
+
+    $this->withSession(['url.intended' => route('research_head.dashboard')])
+        ->get('/auth/google/callback')
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionMissing('url.intended');
+});
+
 test('users can logout', function () {
     $user = User::factory()->create();
 

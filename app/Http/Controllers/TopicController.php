@@ -222,12 +222,6 @@ class TopicController extends Controller
             ], 'submission');
         }
 
-        if (Auth::user()->proposals()->where('research_call_id', $call->id)->count() >= $call->max_proposals_per_faculty) {
-            return back()->withInput()->withErrors([
-                'research_call_id' => "You have reached the {$call->max_proposals_per_faculty}-proposal limit for this research call.",
-            ], 'submission');
-        }
-
         try {
             $packageFiles = $packageService->storeFromRequest(
                 $request,
