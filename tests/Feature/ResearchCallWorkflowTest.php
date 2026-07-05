@@ -89,6 +89,84 @@ test('faculty submissions only require core proposal details and have no applica
         ->assertDontSee('submitProposalModal');
 });
 
+test('research heads can close and reopen calls while faculty cannot change call status', function () {
+    $this->actingAs($this->head)
+        ->get(route('research-calls.index'))
+        ->assertOk()
+        ->assertSee('Close early')
+        ->assertSee('Submission starts')
+        ->assertSee('Submission ends');
+
+    $this->actingAs($this->head)
+        ->patch(route('research-calls.update-status', $this->call), ['status' => 'closed'])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Research call closed. New proposal submissions are no longer accepted.');
+
+    expect($this->call->fresh()->status)->toBe('closed')
+        ->and($this->call->fresh()->isAcceptingSubmissions())->toBeFalse();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.topics.create'))
+        ->assertOk()
+        ->assertDontSee($this->call->title);
+
+    $this->actingAs($this->faculty)
+        ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
+        ->assertForbidden();
+
+    $this->actingAs($this->head)
+        ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
+        ->assertRedirect();
+
+    expect($this->call->fresh()->status)->toBe('open');
+});
+
+test('published research calls follow their configured start and end dates automatically', function () {
+    $this->call->update([
+        'opens_at' => now()->addWeek(),
+        'closes_at' => now()->addMonth(),
+        'status' => 'open',
+    ]);
+
+    expect($this->call->fresh()->lifecycleStatus())->toBe('scheduled')
+        ->and($this->call->fresh()->isAcceptingSubmissions())->toBeFalse();
+
+    $this->call->update([
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subDay(),
+    ]);
+
+    expect($this->call->fresh()->lifecycleStatus())->toBe('ended')
+        ->and($this->call->fresh()->isAcceptingSubmissions())->toBeFalse();
+
+    $this->actingAs($this->head)
+        ->get(route('research-calls.index'))
+        ->assertOk()
+        ->assertSee('The submission period ended automatically.');
+});
+
+test('research call budgets cannot exceed the PHP 150000 institutional ceiling', function () {
+    $payload = [
+        'title' => 'Budget-controlled call',
+        'academic_year' => '2027-2028',
+        'opens_at' => now()->addDay()->format('Y-m-d H:i:s'),
+        'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
+        'max_active_research_per_faculty' => 2,
+        'categories' => 'Technology',
+        'status' => 'draft',
+    ];
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [...$payload, 'maximum_budget' => 150000.01])
+        ->assertSessionHasErrors('maximum_budget');
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [...$payload, 'maximum_budget' => 150000])
+        ->assertRedirect(route('research-calls.index'));
+
+    expect(ResearchCall::where('title', 'Budget-controlled call')->value('maximum_budget'))->toBe('150000.00');
+});
+
 test('faculty research workload is limited to two approved projects per academic year', function () {
     $createProposal = function (ResearchCall $call, string $title, string $status): TopicProposal {
         return TopicProposal::create([
@@ -172,6 +250,15 @@ test('a revision snapshots the package and carries forward unchanged files', fun
     $originalDetailedProposal = $firstVersion->files->firstWhere('document_type', 'detailed_proposal');
     $originalWorkPlan = $firstVersion->files->firstWhere('document_type', 'work_plan');
     $topic->update(['status' => 'revision_requested']);
+
+    $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => 'Versioned package - over budget',
+        'estimated_budget' => 100000.01,
+        'estimated_duration_months' => 14,
+        'comment_response' => UploadedFile::fake()->create('over-budget-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])->assertSessionHasErrors('estimated_budget', null, 'resubmission');
+
+    expect($topic->fresh()->versions()->count())->toBe(1);
 
     $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $topic), [
         'title' => 'Versioned package - revised',

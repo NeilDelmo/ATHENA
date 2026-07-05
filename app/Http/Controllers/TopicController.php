@@ -288,11 +288,13 @@ class TopicController extends Controller
                 ->withErrors(['status' => 'Only proposals with a requested revision can be resubmitted.'], 'resubmission');
         }
 
+        $maximumBudget = $topic->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
+
         $validated = $request->validateWithBag('resubmission', [
             'title' => 'required|string|max:255',
             'redirect_to' => 'nullable|in:topic',
             'description' => 'nullable|string|max:5000',
-            'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
+            'estimated_budget' => ['required', 'numeric', 'min:0', 'max:'.$maximumBudget],
             'estimated_duration_months' => 'required|integer|min:1|max:120',
             'change_summary' => 'nullable|string|max:2000',
             'detailed_proposal' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
@@ -304,7 +306,9 @@ class TopicController extends Controller
             'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
             'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
             'comment_response' => 'required|file|mimes:pdf,doc,docx|max:25600',
-        ], [], [
+        ], [
+            'estimated_budget.max' => 'The total project cost may not exceed PHP '.number_format($maximumBudget, 2).'.',
+        ], [
             'estimated_budget' => 'total project cost',
             'detailed_proposal' => 'detailed proposal',
             'document' => 'detailed proposal',

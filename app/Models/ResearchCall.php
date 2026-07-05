@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ResearchCall extends Model
 {
+    public const MAXIMUM_BUDGET = 150000;
+
     protected $fillable = [
         'title', 'academic_year', 'term', 'description', 'opens_at', 'closes_at',
         'max_active_research_per_faculty', 'maximum_budget', 'status', 'created_by',
@@ -46,5 +48,35 @@ class ResearchCall extends Model
             $this->opens_at,
             $this->closes_at,
         );
+    }
+
+    public function lifecycleStatus(): string
+    {
+        if ($this->status === 'draft') {
+            return 'draft';
+        }
+
+        if ($this->status === 'closed') {
+            return 'closed';
+        }
+
+        if (now()->lt($this->opens_at)) {
+            return 'scheduled';
+        }
+
+        if (now()->gt($this->closes_at)) {
+            return 'ended';
+        }
+
+        return 'open';
+    }
+
+    public function budgetCeiling(): float
+    {
+        $configuredBudget = $this->maximum_budget === null
+            ? self::MAXIMUM_BUDGET
+            : (float) $this->maximum_budget;
+
+        return min($configuredBudget, self::MAXIMUM_BUDGET);
     }
 }

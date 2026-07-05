@@ -58,7 +58,7 @@ class DatabaseSeeder extends Seeder
             'opens_at' => now()->subWeek(),
             'closes_at' => now()->addMonths(2),
             'max_active_research_per_faculty' => 2,
-            'maximum_budget' => 500000,
+            'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
             'status' => 'open',
             'created_by' => $head->id,
         ]);
