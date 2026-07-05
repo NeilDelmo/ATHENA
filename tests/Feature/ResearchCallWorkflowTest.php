@@ -299,12 +299,16 @@ test('faculty can securely download configured proposal templates', function () 
     ]);
 
     Storage::disk('local')->put('proposals/templates/test-work-plan.docx', 'template contents');
+    $samplePath = config('proposal_samples.detailed-proposal.path');
+    Storage::disk('local')->put($samplePath, '%PDF-1.4 sample contents');
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.topics.create'))
         ->assertOk()
         ->assertSee('Test Work Plan')
-        ->assertSee(route('proposal-templates.download', 'test-work-plan'));
+        ->assertSee(route('proposal-templates.download', 'test-work-plan'))
+        ->assertSee('View completed sample')
+        ->assertSee(route('proposal-samples.show', 'detailed-proposal'));
 
     $this->actingAs($this->faculty)
         ->get(route('proposal-templates.download', 'test-work-plan'))
@@ -317,6 +321,16 @@ test('faculty can securely download configured proposal templates', function () 
     $this->actingAs($this->head)
         ->get(route('proposal-templates.download', 'test-work-plan'))
         ->assertDownload('test-work-plan.docx');
+
+    $this->actingAs($this->faculty)
+        ->get(route('proposal-samples.show', 'detailed-proposal'))
+        ->assertOk()
+        ->assertHeader('content-disposition', 'inline; filename="Online Journal - Detailed Research Proposal.pdf"');
+
+    auth()->logout();
+
+    $this->get(route('proposal-samples.show', 'detailed-proposal'))
+        ->assertRedirect(route('login'));
 });
 
 test('co-evaluator recommendations complete Initial Screening before final approval', function () {

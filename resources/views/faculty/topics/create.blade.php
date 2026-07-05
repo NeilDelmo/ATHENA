@@ -1,12 +1,12 @@
 <x-app-layout>
     @php
         $packageInputs = [
-            ['name' => 'detailed_proposal', 'label' => 'Detailed Research Proposal', 'help' => 'The complete proposal manuscript.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-            ['name' => 'work_plan', 'label' => 'Attachment A - Work Plan', 'help' => 'The activities, schedule, and expected outputs.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-            ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'help' => 'The detailed project budget document.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
-            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'help' => 'Upload the completed spreadsheet.', 'accept' => '.xls,.xlsx', 'multiple' => false],
-            ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'help' => 'You may select multiple files for the project team.', 'accept' => '.doc,.docx,.pdf', 'multiple' => true],
-            ['name' => 'gad_checklist', 'label' => 'GAD Generic Checklist', 'help' => 'Complete the gender-responsiveness checklist and include it with the initial package.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false],
+            ['name' => 'detailed_proposal', 'label' => 'Detailed Research Proposal', 'help' => 'The complete proposal manuscript.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'detailed-proposal'],
+            ['name' => 'work_plan', 'label' => 'Attachment A - Work Plan', 'help' => 'The activities, schedule, and expected outputs.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'work-plan'],
+            ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'help' => 'The detailed project budget document.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'line-item-budget'],
+            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'help' => 'Upload the completed spreadsheet.', 'accept' => '.xls,.xlsx', 'multiple' => false, 'sample' => 'expense-breakdown'],
+            ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'help' => 'You may select multiple files for the project team.', 'accept' => '.doc,.docx,.pdf', 'multiple' => true, 'sample' => 'curriculum-vitae'],
+            ['name' => 'gad_checklist', 'label' => 'GAD Generic Checklist', 'help' => 'Complete the gender-responsiveness checklist and include it with the initial package.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'gad-checklist'],
         ];
     @endphp
 
@@ -114,9 +114,14 @@
                                 class="rounded-2xl border border-gray-200 bg-gray-50 p-4"
                             >
                                 <div class="flex items-start justify-between gap-3">
-                                    <div>
+                                    <div class="min-w-0">
                                         <label for="{{ $packageInput['name'] }}" class="block text-xs font-black text-gray-800">{{ $packageInput['label'] }} <span class="text-red-600">Required</span></label>
                                         <p id="{{ $packageInput['name'] }}_help" class="mt-1 text-[11px] leading-4 text-gray-500">{{ $packageInput['help'] }}</p>
+                                        @if ($proposalSamples->contains($packageInput['sample']))
+                                            <a href="{{ route('proposal-samples.show', $packageInput['sample']) }}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-blue-700 transition hover:text-blue-900">
+                                                View completed sample <span aria-hidden="true">&nearr;</span>
+                                            </a>
+                                        @endif
                                     </div>
                                     <span x-show="files.length" x-cloak class="shrink-0 rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black text-green-700" x-text="`${files.length} file${files.length === 1 ? '' : 's'}`"></span>
                                 </div>

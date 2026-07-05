@@ -77,7 +77,7 @@ class ProposalTemplateController extends Controller
             throw $exception;
         }
 
-        if ($storedFile && $oldPath !== $storedFile['file_path'] && str_starts_with($oldPath, 'proposal-templates/')) {
+        if ($storedFile && $oldPath !== $storedFile['file_path'] && (str_starts_with($oldPath, 'proposal-templates/') || str_starts_with($oldPath, 'proposals/templates/'))) {
             Storage::disk('local')->delete($oldPath);
         }
 
@@ -111,6 +111,20 @@ class ProposalTemplateController extends Controller
         );
     }
 
+    public function showSample(string $sample)
+    {
+        $definition = config('proposal_samples.'.$sample);
+
+        abort_unless(is_array($definition) && isset($definition['path']), 404);
+        abort_unless(Storage::disk('local')->exists($definition['path']), 404);
+
+        return Storage::disk('local')->response(
+            $definition['path'],
+            basename($definition['path']),
+            ['Content-Disposition' => 'inline; filename="'.basename($definition['path']).'"'],
+        );
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -131,7 +145,7 @@ class ProposalTemplateController extends Controller
      */
     private function storeFile(UploadedFile $file, string $slug): array
     {
-        $path = $file->store('proposal-templates/'.$slug, 'local');
+        $path = $file->store('proposals/templates/'.$slug, 'local');
         abort_unless($path, 500, 'The proposal template could not be stored.');
 
         $realPath = $file->getRealPath();

@@ -48,6 +48,10 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 Route::get('/proposal-templates/{proposalTemplate}/download', [ProposalTemplateController::class, 'download'])
     ->middleware('auth')
     ->name('proposal-templates.download');
+Route::get('/proposal-samples/{sample}', [ProposalTemplateController::class, 'showSample'])
+    ->middleware('auth')
+    ->where('sample', '[a-z0-9-]+')
+    ->name('proposal-samples.show');
 
 Route::get('/topics/{topic}/download', [TopicController::class, 'download'])
     ->middleware(['auth'])

@@ -74,7 +74,11 @@ class TopicController extends Controller
             })
             ->values();
 
-        return view('faculty.topics.create', compact('activeCalls', 'proposalTemplates'));
+        $proposalSamples = collect(config('proposal_samples', []))
+            ->filter(fn (array $sample) => Storage::disk('local')->exists($sample['path']))
+            ->keys();
+
+        return view('faculty.topics.create', compact('activeCalls', 'proposalTemplates', 'proposalSamples'));
     }
 
     public function researchIndex(Request $request)

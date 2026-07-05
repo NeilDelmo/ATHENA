@@ -49,6 +49,7 @@ test('a research head can upload replace and archive a proposal template', funct
 
     Storage::disk('local')->assertExists($originalPath);
     expect($template->is_active)->toBeTrue()
+        ->and($template->file_path)->toStartWith('proposals/templates/')
         ->and($template->instructions)->toContain('human participants');
 
     $this->actingAs($this->faculty)
