@@ -11,12 +11,14 @@
             </div>
 
             <div>
-                <button id="openSubmitModalBtn" @disabled($activeCalls->isEmpty()) class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2.5 rounded-xl transition duration-150 shadow-sm shadow-red-600/10 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    {{ $activeCalls->isEmpty() ? 'No Open Research Call' : 'Submit Proposal' }}
-                </button>
+                @if ($activeCalls->isEmpty())
+                    <span class="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-gray-300 px-4 py-2.5 text-xs font-bold text-white">No Open Research Call</span>
+                @else
+                    <a href="{{ route('faculty.topics.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-red-600/10 transition hover:bg-red-700">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        Submit Proposal
+                    </a>
+                @endif
             </div>
         </div>
     </x-slot>
@@ -28,11 +30,11 @@
             </div>
         @endif
 
-        @if ($errors->submission->any() || $errors->resubmission->any())
+        @if ($errors->resubmission->any())
             <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <p class="font-bold">Please review your submission.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach (array_merge($errors->submission->all(), $errors->resubmission->all()) as $error)
+                    @foreach ($errors->resubmission->all() as $error)
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
@@ -133,6 +135,8 @@
                 @php
                     $latestReview = $topic->reviews->last();
                     $isCurrentResubmission = (string) old('resubmitting_topic_id') === (string) $topic->id;
+                    $pendingFileRevisions = $topic->reviews->flatMap->fileRevisions->whereNull('resolved_at')->values();
+                    $requiredRevisionTypes = $pendingFileRevisions->pluck('document_type')->unique();
                 @endphp
                 <div class="border-b border-gray-100 p-5 last:border-b-0">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -150,9 +154,9 @@
                         </div>
                         <p class="mt-1 text-xs text-gray-500">{{ $topic->description ?: 'No description provided.' }}</p>
                         <p class="mt-1 text-[11px] font-bold text-gray-500">
-                            Estimated Budget: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
+                            Total Project Cost: {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
                         </p>
-                        <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }} · {{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</p>
+                        <p class="mt-1 text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }}@if ($topic->category) · {{ $topic->category->name }}@endif · {{ $topic->estimated_duration_months }} months</p>
                         <p class="mt-1 text-[11px] font-medium text-gray-400">Submitted {{ $topic->created_at->diffForHumans() }}</p>
 
                         @if ($latestReview)
@@ -189,6 +193,7 @@
                         @include('topics.partials.version-history', ['topic' => $topic])
                         </div>
 
+                        <a href="{{ route('topics.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800">Open workspace</a>
                         <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
                             Download latest
                         </a>
@@ -221,16 +226,61 @@
                                     <textarea id="revision_description_{{ $topic->id }}" name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">{{ $isCurrentResubmission ? old('description') : $topic->description }}</textarea>
                                 </div>
                                 <div class="space-y-1">
-                                    <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated budget (PHP)</label>
-                                    <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
+                                    <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Total project cost (PHP)</label>
+                                    <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="{{ $topic->researchCall->budgetCeiling() }}" step="0.01" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
+                                    <p class="text-[10px] text-gray-400">Maximum: PHP {{ number_format($topic->researchCall->budgetCeiling(), 2) }}</p>
                                 </div>
                                 <div class="space-y-1">
-                                    <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Estimated duration (months)</label>
+                                    <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Total project duration (months)</label>
                                     <input id="revision_duration_{{ $topic->id }}" name="estimated_duration_months" type="number" value="{{ $isCurrentResubmission ? old('estimated_duration_months') : $topic->estimated_duration_months }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                                 </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="change_summary_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revision summary</label>
+                                    <textarea id="change_summary_{{ $topic->id }}" name="change_summary" rows="2" maxlength="2000" class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600" placeholder="Briefly explain what changed in this version.">{{ $isCurrentResubmission ? old('change_summary') : '' }}</textarea>
+                                </div>
+                                <div class="rounded-xl border border-blue-200 bg-white/70 p-3 text-xs leading-5 text-blue-800 sm:col-span-2">
+                                    Upload only the files you changed. Files left empty will be carried forward from the previous version; uploading CVs replaces the previous CV set.
+                                </div>
+                                @if ($revisionResponseTemplates->isNotEmpty())
+                                    <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800 sm:col-span-2">
+                                        <p class="font-black">Comment-response form</p>
+                                        <p class="mt-1">Answer every evaluator comment and identify the exact page and paragraph changed.</p>
+                                        <div class="mt-2 flex flex-wrap gap-2">@foreach ($revisionResponseTemplates as $template)<a href="{{ route('proposal-templates.download', $template) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download {{ $template->name }}</a>@endforeach</div>
+                                    </div>
+                                @endif
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_response_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Completed comment-response form <span class="text-red-600">Required</span></label>
+                                    <input id="revision_response_{{ $topic->id }}" name="comment_response" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                @if ($pendingFileRevisions->isNotEmpty())
+                                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:col-span-2">
+                                        <p class="font-black uppercase tracking-wider">Files specifically marked for revision</p>
+                                        <div class="mt-2 space-y-2">@foreach ($pendingFileRevisions as $fileRevision)<div><span class="font-bold">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="pl-2 text-[11px] text-amber-700">{{ $fileRevision->revision_note }}</p>@endif</div>@endforeach</div>
+                                    </div>
+                                @endif
                                 <div class="space-y-1">
-                                    <label for="revision_document_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Revised document</label>
-                                    <input id="revision_document_{{ $topic->id }}" name="document" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                    <label for="revision_detailed_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Detailed proposal</label>
+                                    <input id="revision_detailed_{{ $topic->id }}" name="detailed_proposal" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('detailed_proposal')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_work_plan_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Work plan</label>
+                                    <input id="revision_work_plan_{{ $topic->id }}" name="work_plan" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('work_plan')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_budget_file_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Line-item budget</label>
+                                    <input id="revision_budget_file_{{ $topic->id }}" name="line_item_budget" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('line_item_budget')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1">
+                                    <label for="revision_expenses_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Expense breakdown</label>
+                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".xls,.xlsx" @required($requiredRevisionTypes->contains('expense_breakdown')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_cv_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Curriculum vitae files</label>
+                                    <input id="revision_cv_{{ $topic->id }}" name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple @required($requiredRevisionTypes->contains('curriculum_vitae')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
+                                </div>
+                                <div class="space-y-1 sm:col-span-2">
+                                    <label for="revision_gad_{{ $topic->id }}" class="text-xs font-bold text-gray-600">GAD checklist</label>
+                                    <input id="revision_gad_{{ $topic->id }}" name="gad_checklist" type="file" accept=".doc,.docx,.pdf" @required($requiredRevisionTypes->contains('gad_checklist')) class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">
                                 </div>
                                 <div class="sm:col-span-2 sm:text-right">
                                     <button type="submit" class="rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-blue-800">Submit revision</button>
@@ -250,183 +300,10 @@
             @endforelse
         </div>
 
-        <div id="submitProposalModal" class="{{ $errors->submission->any() ? '' : 'hidden' }} fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
-            <div id="closeModalBackdrop" class="fixed inset-0 bg-gray-950/60 backdrop-blur-sm transition-opacity cursor-pointer"></div>
-
-            <div class="relative bg-white rounded-3xl border border-gray-200/80 shadow-2xl w-full max-w-lg overflow-hidden transform transition-all z-10">
-                <div class="px-6 pt-6 pb-4 border-b border-gray-100 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-lg font-black text-gray-900 tracking-tight">Submit Research Manuscript</h3>
-                        <p class="text-xs text-gray-400 mt-0.5">Download template guidelines and upload your copy.</p>
-                    </div>
-                    <button id="closeModalCrossBtn" class="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition cursor-pointer">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-
-                <form action="{{ route('faculty.topics') }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-6">
-                    @csrf
-                    <div class="space-y-2">
-                        <label for="research_call_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Call</label>
-                        <select id="research_call_id" name="research_call_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                            <option value="">Select an open call</option>
-                            @foreach ($activeCalls as $call)<option value="{{ $call->id }}" @selected(old('research_call_id') == $call->id)>{{ $call->title }} (limit: {{ $call->max_proposals_per_faculty }})</option>@endforeach
-                        </select>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="research_category_id" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Research Category</label>
-                        <select id="research_category_id" name="research_category_id" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                            <option value="">Select the most relevant category</option>
-                            @foreach ($activeCalls as $call)
-                                <optgroup label="{{ $call->title }}">@foreach ($call->categories as $category)<option value="{{ $category->id }}" data-call-id="{{ $call->id }}" @selected(old('research_category_id') == $category->id)>{{ $category->name }}</option>@endforeach</optgroup>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="space-y-2">
-                        <label for="title" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Proposal Title</label>
-                        <input id="title" name="title" type="text" value="{{ old('title') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter your research title">
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="description" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Short Description</label>
-                        <textarea id="description" name="description" rows="3" class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Optional summary for the research head">{{ old('description') }}</textarea>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="estimated_budget" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Proposal Budget</label>
-                        <div class="relative">
-                            <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">PHP</span>
-                            <input id="estimated_budget" name="estimated_budget" type="number" value="{{ old('estimated_budget') }}" min="0" max="9999999999.99" step="0.01" required class="block w-full rounded-xl border-gray-200 pl-12 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="0.00">
-                        </div>
-                        @error('estimated_budget', 'submission')
-                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="estimated_duration_months" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Estimated Completion Time</label>
-                        <div class="relative"><input id="estimated_duration_months" name="estimated_duration_months" type="number" value="{{ old('estimated_duration_months') }}" min="1" max="120" required class="block w-full rounded-xl border-gray-200 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="12"><span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400">months</span></div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 1: Download Target Template</label>
-                        <div class="p-4 bg-gray-50 border border-gray-200/60 rounded-2xl flex items-center justify-between gap-4">
-                            <div class="flex items-center gap-3">
-                                <div class="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                                </div>
-                                <div>
-                                    <p class="text-sm font-bold text-gray-800">ATHENA_Proposal_Form.docx</p>
-                                    <p class="text-[11px] text-gray-400 font-medium">Standardized Layout</p>
-                                </div>
-                            </div>
-                            <a href="#download-dummy-file" class="inline-flex items-center gap-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-bold px-3 py-2 rounded-xl transition duration-150 shadow-sm cursor-pointer">Download</a>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label for="document" class="text-xs font-black text-gray-400 uppercase tracking-wider block">Step 2: Upload Document File Copy</label>
-                        <div id="documentDropzone" class="border-2 border-dashed border-gray-200 hover:border-red-500/50 rounded-2xl p-8 text-center bg-white transition relative group">
-                            <input type="file" name="document" id="document" accept=".doc,.docx,.pdf" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                            <div class="flex flex-col items-center pointer-events-none">
-                                <div class="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600 mb-3 group-hover:scale-110 transition duration-200">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg>
-                                </div>
-                                <p class="text-sm font-bold text-gray-800">Drag & drop completed copy here</p>
-                                <p id="documentFileName" class="text-xs text-gray-400 mt-1">Accepts document extensions (.doc, .docx, .pdf) up to 25MB</p>
-                            </div>
-                        </div>
-                        @error('document', 'submission')
-                            <p class="text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
-                    </div>
-
-                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                        <button id="closeModalCancelBtn" type="button" class="px-4 py-2.5 text-xs font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition cursor-pointer">Cancel</button>
-                        <button id="submitManuscriptFormBtn" type="submit" class="px-5 py-2.5 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-sm transition cursor-pointer">Submit Manuscript</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
     </div>
 
     <script>
         function initializeWorkspaceEngine() {
-            const modal = document.getElementById('submitProposalModal');
-            const openBtn = document.getElementById('openSubmitModalBtn');
-            const backdrop = document.getElementById('closeModalBackdrop');
-            const crossBtn = document.getElementById('closeModalCrossBtn');
-            const cancelBtn = document.getElementById('closeModalCancelBtn');
-            const documentInput = document.getElementById('document');
-            const documentDropzone = document.getElementById('documentDropzone');
-            const documentFileName = document.getElementById('documentFileName');
-
-            // Toggle function locked inside scope
-            function setModalVisibility(visible) {
-                if (!modal) return;
-                if (visible) {
-                    modal.classList.remove('hidden');
-                } else {
-                    modal.classList.add('hidden');
-                }
-            }
-
-            // Bind click nodes cleanly
-            if (openBtn) openBtn.onclick = () => setModalVisibility(true);
-            if (backdrop) backdrop.onclick = () => setModalVisibility(false);
-            if (crossBtn) crossBtn.onclick = () => setModalVisibility(false);
-            if (cancelBtn) cancelBtn.onclick = () => setModalVisibility(false);
-
-            function updateDocumentFileName() {
-                if (!documentInput || !documentFileName) return;
-
-                const file = documentInput.files && documentInput.files[0];
-                documentFileName.textContent = file
-                    ? `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`
-                    : 'Accepts document extensions (.doc, .docx, .pdf) up to 25MB';
-
-                documentFileName.classList.toggle('text-gray-800', Boolean(file));
-                documentFileName.classList.toggle('font-bold', Boolean(file));
-                documentFileName.classList.toggle('text-gray-400', !file);
-            }
-
-            if (documentInput) {
-                documentInput.onchange = updateDocumentFileName;
-                updateDocumentFileName();
-            }
-
-            if (documentDropzone && documentInput) {
-                documentDropzone.ondragenter = (event) => {
-                    event.preventDefault();
-                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
-                };
-
-                documentDropzone.ondragover = (event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
-                    documentDropzone.classList.add('border-red-500/50', 'bg-red-50');
-                };
-
-                documentDropzone.ondragleave = (event) => {
-                    event.preventDefault();
-                    if (!documentDropzone.contains(event.relatedTarget)) {
-                        documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
-                    }
-                };
-
-                documentDropzone.ondrop = (event) => {
-                    event.preventDefault();
-                    documentDropzone.classList.remove('border-red-500/50', 'bg-red-50');
-
-                    if (event.dataTransfer.files.length) {
-                        documentInput.files = event.dataTransfer.files;
-                        updateDocumentFileName();
-                    }
-                };
-            }
-
             // --- 🎞️ Carousel Logic Implementation ---
             let currentSlide = 0;
             const slides = document.querySelectorAll('.slide-item');

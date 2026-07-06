@@ -4,6 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="app-url" content="{{ url('/') }}">
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
@@ -21,7 +22,7 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body data-app-shell class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+    <body data-app-shell data-auth-user-id="{{ Auth::id() }}" class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
         
         @include('layouts.navigation')
 
@@ -50,12 +51,7 @@
                         </svg>
                     </button>
 
-                    <button type="button" class="relative cursor-pointer rounded-xl p-2 text-gray-500 transition duration-150 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800" title="Notifications">
-                        <span class="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-600 ring-2 ring-white dark:ring-slate-900"></span>
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                        </svg>
-                    </button>
+                    <x-notification-menu />
 
                     <div class="h-6 w-[1px] bg-gray-200 dark:bg-slate-700"></div>
 

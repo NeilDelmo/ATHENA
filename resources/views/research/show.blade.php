@@ -13,8 +13,8 @@
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
             'resubmitted' => 'The revised proposal is waiting for another review.',
-            'expert_review' => 'Subject experts are evaluating whether the project is needed and feasible.',
-            'for_final_decision' => 'Expert review is complete and the Research Head is preparing the final decision.',
+            'expert_review' => 'The assigned co-evaluator is completing Initial Screening.',
+            'for_final_decision' => 'Initial Screening is complete and the Research Head is preparing the decision.',
             default => 'This proposal is waiting for its initial review.',
         };
     @endphp
@@ -82,13 +82,13 @@
                 <h3 class="text-xs font-black uppercase tracking-wider text-gray-400">Research details</h3>
                 <dl class="mt-4 space-y-4">
                     <div>
-                        <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Estimated budget</dt>
+                        <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Total project cost</dt>
                         <dd class="mt-1 text-lg font-black text-gray-900">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}</dd>
                     </div>
                     <div class="border-t border-gray-100 pt-4">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Research call and category</dt>
                         <dd class="mt-1 text-sm font-bold text-gray-700">{{ $topic->researchCall->title }}</dd>
-                        <dd class="mt-0.5 text-xs text-gray-400">{{ $topic->category->name }} · {{ $topic->estimated_duration_months }} months</dd>
+                        <dd class="mt-0.5 text-xs text-gray-400">@if ($topic->category){{ $topic->category->name }} · @endif{{ $topic->estimated_duration_months }} months</dd>
                     </div>
                     <div class="border-t border-gray-100 pt-4">
                         <dt class="text-[11px] font-bold uppercase tracking-wider text-gray-400">Researcher</dt>

@@ -17,9 +17,10 @@ class ResearchCallController extends Controller
             ->get();
 
         return view('research_calls.index', [
-            'activeCalls' => $calls->where('status', 'open'),
-            'upcomingCalls' => $calls->where('status', 'draft'),
-            'previousCalls' => $calls->where('status', 'closed'),
+            'activeCalls' => $calls->filter(fn (ResearchCall $call) => $call->lifecycleStatus() === 'open'),
+            'upcomingCalls' => $calls->filter(fn (ResearchCall $call) => in_array($call->lifecycleStatus(), ['draft', 'scheduled'], true)),
+            'previousCalls' => $calls->filter(fn (ResearchCall $call) => in_array($call->lifecycleStatus(), ['closed', 'ended'], true)),
+            'institutionalBudgetCeiling' => ResearchCall::MAXIMUM_BUDGET,
         ]);
     }
 
@@ -32,8 +33,8 @@ class ResearchCallController extends Controller
             'description' => ['nullable', 'string', 'max:5000'],
             'opens_at' => ['required', 'date'],
             'closes_at' => ['required', 'date', 'after:opens_at'],
-            'max_proposals_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
-            'maximum_budget' => ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
+            'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
+            'maximum_budget' => ['required', 'numeric', 'min:0', 'max:'.ResearchCall::MAXIMUM_BUDGET],
             'categories' => ['required', 'string', 'max:1000'],
             'status' => ['required', Rule::in(['draft', 'open'])],
         ]);
@@ -60,8 +61,20 @@ class ResearchCallController extends Controller
             'status' => ['required', Rule::in(['draft', 'open', 'closed'])],
         ]);
 
+        if ($validated['status'] === 'open' && $researchCall->closes_at->isPast()) {
+            return back()->withErrors([
+                'status' => 'This call cannot be reopened because its submission end date has passed.',
+            ]);
+        }
+
         $researchCall->update(['status' => $validated['status']]);
 
-        return back()->with('success', 'Research call status updated.');
+        $message = match ($validated['status']) {
+            'open' => 'Research call published. It will accept submissions only during its configured date range.',
+            'closed' => 'Research call closed. New proposal submissions are no longer accepted.',
+            default => 'Research call moved to draft.',
+        };
+
+        return back()->with('success', $message);
     }
 }

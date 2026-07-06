@@ -51,7 +51,13 @@ class ProviderController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
 
-            return redirect()->intended('/dashboard');
+            // Always let the application choose the correct dashboard for the
+            // authenticated user's role. An intended URL may point to a page
+            // protected by a different role and would otherwise cause a 403
+            // immediately after a successful sign-in.
+            $request->session()->forget('url.intended');
+
+            return redirect()->route('dashboard');
         } catch (\Exception $e) {
             Log::warning('Google authentication failed.', [
                 'message' => $e->getMessage(),

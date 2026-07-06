@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TopicReview extends Model
 {
@@ -21,5 +22,10 @@ class TopicReview extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewer_id');
+    }
+
+    public function fileRevisions(): HasMany
+    {
+        return $this->hasMany(TopicReviewFileRevision::class);
     }
 }

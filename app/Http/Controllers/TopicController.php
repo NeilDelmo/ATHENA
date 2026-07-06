@@ -2,14 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\TopicProposal;
-use App\Models\ResearchCall;
+use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
-use Illuminate\Http\UploadedFile;
+use App\Models\ProposalVersionFile;
+use App\Models\ResearchCall;
+use App\Models\TopicProposal;
+use App\Models\TopicReviewFileRevision;
+use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
+use App\Services\ProposalPackageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TopicController extends Controller
@@ -19,21 +27,58 @@ class TopicController extends Controller
         $topics = Auth::user()->proposals()
             ->with([
                 'researchCall', 'category',
-                'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+                'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
                 'expertAssignments.expert',
                 'versions.submitter',
+                'versions.files',
             ])
             ->latest()
             ->get();
 
-        $activeCalls = ResearchCall::with('categories')
+        $activeCalls = ResearchCall::query()
             ->where('status', 'open')
             ->where('opens_at', '<=', now())
             ->where('closes_at', '>=', now())
             ->orderBy('closes_at')
             ->get();
 
-        return view('faculty.dashboard', compact('topics', 'activeCalls'));
+        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
+
+        return view('faculty.dashboard', compact('topics', 'activeCalls', 'revisionResponseTemplates'));
+    }
+
+    public function create()
+    {
+        $activeCalls = ResearchCall::query()
+            ->where('status', 'open')
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>=', now())
+            ->orderBy('closes_at')
+            ->get();
+
+        $proposalTemplates = ProposalTemplate::active()
+            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SUBMISSION)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
+            ->map(function (ProposalTemplate $template) {
+                return [
+                    'name' => $template->name,
+                    'description' => $template->description,
+                    'instructions' => $template->instructions,
+                    'revision_label' => $template->revision_label,
+                    'key' => $template->slug,
+                    'size' => Storage::disk('local')->size($template->file_path),
+                    'extension' => strtoupper(pathinfo($template->file_path, PATHINFO_EXTENSION)),
+                ];
+            })
+            ->values();
+
+        $proposalSamples = collect(config('proposal_samples', []))
+            ->filter(fn (array $sample) => Storage::disk('local')->exists($sample['path']))
+            ->keys();
+
+        return view('faculty.topics.create', compact('activeCalls', 'proposalTemplates', 'proposalSamples'));
     }
 
     public function researchIndex(Request $request)
@@ -61,32 +106,124 @@ class TopicController extends Controller
 
     public function researchShow(Request $request, TopicProposal $topic)
     {
+        return $this->show($request, $topic);
+    }
+
+    public function show(Request $request, TopicProposal $topic)
+    {
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter',
-            'reviews' => fn ($query) => $query->with('reviewer')->oldest(),
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files',
+            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ]);
 
-        return view('research.show', compact('topic'));
+        $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+        $previousVersion = $topic->versions
+            ->where('version_number', '<', $latestVersion?->version_number ?? 0)
+            ->sortByDesc('version_number')
+            ->first();
+
+        $requiredDocuments = [
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => 'Detailed Research Proposal',
+            ProposalVersionFile::TYPE_WORK_PLAN => 'Attachment A - Work Plan',
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => 'Attachment B - Line-Item Budget',
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => 'Estimated Expense Breakdown',
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE => 'Attachment C - Curriculum Vitae',
+            ProposalVersionFile::TYPE_GAD_CHECKLIST => 'GAD Generic Checklist',
+        ];
+
+        $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
+            $files = $latestVersion?->files->where('document_type', $type) ?? collect();
+
+            if ($type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && $files->isEmpty()) {
+                $legacyPath = $latestVersion?->file_path ?: ($topic->final_file_path ?: $topic->initial_file_path);
+                $available = $legacyPath && Storage::disk('local')->exists($legacyPath);
+
+                return [
+                    'type' => $type,
+                    'label' => $label,
+                    'count' => $available ? 1 : 0,
+                    'status' => $available ? 'complete' : 'missing',
+                ];
+            }
+
+            $availableCount = $files->filter(
+                fn (ProposalVersionFile $file) => Storage::disk('local')->exists($file->file_path),
+            )->count();
+
+            return [
+                'type' => $type,
+                'label' => $label,
+                'count' => $files->count(),
+                'status' => match (true) {
+                    $files->isEmpty() => 'missing',
+                    $availableCount !== $files->count() => 'file_missing',
+                    default => 'complete',
+                },
+            ];
+        })->values();
+
+        $comparisonRows = collect([
+            ['label' => 'Project title', 'previous' => $previousVersion?->title, 'latest' => $latestVersion?->title],
+            ['label' => 'Total project cost', 'previous' => $previousVersion ? 'PHP '.number_format((float) $previousVersion->estimated_budget, 2) : null, 'latest' => $latestVersion ? 'PHP '.number_format((float) $latestVersion->estimated_budget, 2) : null],
+            ['label' => 'Project duration', 'previous' => $previousVersion ? $previousVersion->estimated_duration_months.' months' : null, 'latest' => $latestVersion ? $latestVersion->estimated_duration_months.' months' : null],
+            ['label' => 'Description', 'previous' => $previousVersion?->description ?: 'Not provided', 'latest' => $latestVersion?->description ?: 'Not provided'],
+        ])->map(fn (array $row) => [
+            ...$row,
+            'changed' => $previousVersion && $row['previous'] !== $row['latest'],
+        ]);
+
+        $experts = $request->user()->hasRole('research_head')
+            ? User::role('expert')->orderBy('name')->get()
+            : collect();
+        $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
+        $pendingFileRevisions = $topic->reviews
+            ->flatMap->fileRevisions
+            ->whereNull('resolved_at')
+            ->values();
+        $screeningTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_INITIAL_SCREENING);
+        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
+
+        return view('topics.show', compact(
+            'topic',
+            'latestVersion',
+            'previousVersion',
+            'packageChecklist',
+            'comparisonRows',
+            'experts',
+            'expertAssignment',
+            'pendingFileRevisions',
+            'screeningTemplates',
+            'revisionResponseTemplates',
+        ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ProposalPackageService $packageService)
     {
         $validated = $request->validateWithBag('submission', [
             'title' => 'required|string|max:255',
             'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
-            'research_category_id' => ['required', 'integer', 'exists:research_categories,id'],
-            'description' => 'nullable|string|max:5000',
-            'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
-            'estimated_duration_months' => 'required|integer|min:1|max:120',
-            'document' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'detailed_proposal' => 'required_without:document|file|mimes:pdf,doc,docx|max:25600',
+            'document' => 'nullable|required_without:detailed_proposal|file|mimes:pdf,doc,docx|max:25600',
+            'work_plan' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'line_item_budget' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'expense_breakdown' => 'required|file|mimes:xls,xlsx|max:25600',
+            'curricula_vitae' => 'required|array|min:1|max:10',
+            'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'gad_checklist' => 'required|file|mimes:pdf,doc,docx|max:25600',
         ], [], [
-            'estimated_budget' => 'estimated proposal budget',
-            'document' => 'proposal document',
+            'detailed_proposal' => 'detailed proposal',
+            'document' => 'detailed proposal',
+            'work_plan' => 'work plan',
+            'line_item_budget' => 'line-item budget',
+            'expense_breakdown' => 'expense breakdown',
+            'curricula_vitae' => 'curriculum vitae files',
+            'curricula_vitae.*' => 'curriculum vitae file',
+            'gad_checklist' => 'GAD checklist',
         ]);
 
-        $call = ResearchCall::with('categories')->findOrFail($validated['research_call_id']);
+        $call = ResearchCall::findOrFail($validated['research_call_id']);
 
         if (! $call->isAcceptingSubmissions()) {
             return back()->withInput()->withErrors([
@@ -94,70 +231,58 @@ class TopicController extends Controller
             ], 'submission');
         }
 
-        if (! $call->categories->contains('id', (int) $validated['research_category_id'])) {
-            return back()->withInput()->withErrors([
-                'research_category_id' => 'Select a category offered by this research call.',
-            ], 'submission');
-        }
-
-        if ($call->maximum_budget !== null && (float) $validated['estimated_budget'] > (float) $call->maximum_budget) {
-            return back()->withInput()->withErrors([
-                'estimated_budget' => 'The estimated budget exceeds this call\'s maximum budget.',
-            ], 'submission');
-        }
-
-        if (Auth::user()->proposals()->where('research_call_id', $call->id)->count() >= $call->max_proposals_per_faculty) {
-            return back()->withInput()->withErrors([
-                'research_call_id' => "You have reached the {$call->max_proposals_per_faculty}-proposal limit for this research call.",
-            ], 'submission');
-        }
-
-        $document = $request->file('document');
-        $fileMetadata = $this->fileMetadata($document);
-
         try {
-            $path = $document->store('proposals', 'local');
+            $packageFiles = $packageService->storeFromRequest(
+                $request,
+                'proposal-packages/'.Auth::id().'/'.Str::uuid(),
+            );
+            $primaryFile = $packageService->primaryFile($packageFiles);
         } catch (Throwable) {
-            $path = false;
-        }
-
-        if (! $path) {
             return back()
                 ->withInput()
-                ->withErrors(['document' => 'The proposal document could not be uploaded. Please try again.']);
+                ->withErrors(['detailed_proposal' => 'The proposal package could not be uploaded. Please try again.'], 'submission');
         }
 
         try {
-            DB::transaction(function () use ($validated, $call, $path, $fileMetadata) {
+            $topic = DB::transaction(function () use ($validated, $call, $packageFiles, $primaryFile) {
                 $topic = Auth::user()->proposals()->create([
                     'title' => $validated['title'],
                     'research_call_id' => $call->id,
-                    'research_category_id' => $validated['research_category_id'],
-                    'description' => $validated['description'] ?? null,
-                    'estimated_budget' => $validated['estimated_budget'],
-                    'estimated_duration_months' => $validated['estimated_duration_months'],
                     'status' => 'pending',
                 ]);
 
-                $topic->versions()->create($this->versionAttributes(
+                $version = $topic->versions()->create($this->versionAttributes(
                     $validated,
-                    $path,
-                    $fileMetadata,
+                    $primaryFile,
                     1,
                     'initial',
                     Auth::id(),
                 ));
+                $version->files()->createMany($packageFiles);
+
+                return $topic;
             });
         } catch (Throwable $exception) {
-            Storage::disk('local')->delete($path);
+            $packageService->deleteStored($packageFiles);
 
             throw $exception;
         }
 
+        Notification::send(
+            User::role('research_head')->get(),
+            new ProposalActivityNotification(
+                'New proposal submitted',
+                Auth::user()->name.' submitted “'.$topic->title.'” for review.',
+                route('topics.show', $topic),
+                'info',
+                $topic->id,
+            ),
+        );
+
         return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully and sent to the Research Head.');
     }
 
-    public function resubmit(Request $request, TopicProposal $topic)
+    public function resubmit(Request $request, TopicProposal $topic, ProposalPackageService $packageService)
     {
         abort_unless($topic->user_id === $request->user()->id, 403);
 
@@ -167,36 +292,75 @@ class TopicController extends Controller
                 ->withErrors(['status' => 'Only proposals with a requested revision can be resubmitted.'], 'resubmission');
         }
 
+        $maximumBudget = $topic->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
+
         $validated = $request->validateWithBag('resubmission', [
             'title' => 'required|string|max:255',
+            'redirect_to' => 'nullable|in:topic',
             'description' => 'nullable|string|max:5000',
-            'estimated_budget' => 'required|numeric|min:0|max:9999999999.99',
+            'estimated_budget' => ['required', 'numeric', 'min:0', 'max:'.$maximumBudget],
             'estimated_duration_months' => 'required|integer|min:1|max:120',
-            'document' => 'required|file|mimes:pdf,doc,docx|max:25600',
-        ], [], [
-            'estimated_budget' => 'estimated proposal budget',
-            'document' => 'revised proposal document',
+            'change_summary' => 'nullable|string|max:2000',
+            'detailed_proposal' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'document' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'work_plan' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'line_item_budget' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'expense_breakdown' => 'nullable|file|mimes:xls,xlsx|max:25600',
+            'curricula_vitae' => 'nullable|array|min:1|max:10',
+            'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
+            'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
+            'comment_response' => 'required|file|mimes:pdf,doc,docx|max:25600',
+        ], [
+            'estimated_budget.max' => 'The total project cost may not exceed PHP '.number_format($maximumBudget, 2).'.',
+        ], [
+            'estimated_budget' => 'total project cost',
+            'detailed_proposal' => 'detailed proposal',
+            'document' => 'detailed proposal',
+            'work_plan' => 'work plan',
+            'line_item_budget' => 'line-item budget',
+            'expense_breakdown' => 'expense breakdown',
+            'curricula_vitae.*' => 'curriculum vitae file',
+            'gad_checklist' => 'GAD checklist',
+            'comment_response' => 'comment-response form',
         ]);
 
-        $document = $request->file('document');
-        $fileMetadata = $this->fileMetadata($document);
+        $pendingFileRevisions = TopicReviewFileRevision::query()
+            ->with('file')
+            ->whereNull('resolved_at')
+            ->whereHas('review', fn ($query) => $query->where('topic_id', $topic->id))
+            ->get();
+        $requiredDocumentTypes = $pendingFileRevisions->pluck('document_type')->unique();
+        $revisionErrors = collect([
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => ['input' => 'detailed_proposal', 'provided' => $request->hasFile('detailed_proposal') || $request->hasFile('document'), 'message' => 'Upload a revised detailed proposal as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_WORK_PLAN => ['input' => 'work_plan', 'provided' => $request->hasFile('work_plan'), 'message' => 'Upload a revised work plan as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['input' => 'line_item_budget', 'provided' => $request->hasFile('line_item_budget'), 'message' => 'Upload a revised line-item budget as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => ['input' => 'expense_breakdown', 'provided' => $request->hasFile('expense_breakdown'), 'message' => 'Upload a revised expense breakdown as requested by the Research Head.'],
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE => ['input' => 'curricula_vitae', 'provided' => $request->hasFile('curricula_vitae'), 'message' => 'Upload the revised curriculum vitae file(s) requested by the Research Head.'],
+            ProposalVersionFile::TYPE_GAD_CHECKLIST => ['input' => 'gad_checklist', 'provided' => $request->hasFile('gad_checklist'), 'message' => 'Upload the revised GAD checklist requested by the Research Head.'],
+        ])->only($requiredDocumentTypes->all())
+            ->reject(fn (array $requirement) => $requirement['provided'])
+            ->mapWithKeys(fn (array $requirement) => [$requirement['input'] => $requirement['message']])
+            ->all();
 
-        try {
-            $path = $document->store('proposals/revisions', 'local');
-        } catch (Throwable) {
-            $path = false;
+        if ($revisionErrors !== []) {
+            return back()->withInput()->withErrors($revisionErrors, 'resubmission');
         }
 
-        if (! $path) {
+        try {
+            $replacementFiles = $packageService->storeFromRequest(
+                $request,
+                'proposal-packages/'.$request->user()->id.'/'.Str::uuid(),
+            );
+        } catch (Throwable) {
             return back()
                 ->withInput()
-                ->withErrors(['document' => 'The revised proposal could not be uploaded. Please try again.'], 'resubmission');
+                ->withErrors(['detailed_proposal' => 'The revised proposal package could not be uploaded. Please try again.'], 'resubmission');
         }
 
         $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $path, $fileMetadata, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, &$result) {
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -207,6 +371,9 @@ class TopicController extends Controller
                 }
 
                 $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
+                $previousVersion = $revisedTopic->latestVersion()->with('files')->first();
+                $snapshotFiles = $packageService->revisionSnapshot($previousVersion, $replacementFiles, $revisedTopic);
+                $primaryFile = $packageService->primaryFile($snapshotFiles);
 
                 $revisedTopic->update([
                     'title' => $validated['title'],
@@ -216,32 +383,72 @@ class TopicController extends Controller
                     'status' => 'resubmitted',
                 ]);
 
-                $revisedTopic->versions()->create($this->versionAttributes(
+                $version = $revisedTopic->versions()->create($this->versionAttributes(
                     $validated,
-                    $path,
-                    $fileMetadata,
+                    $primaryFile,
                     $nextVersion,
                     'revision',
                     $request->user()->id,
                 ));
+                $version->files()->createMany($snapshotFiles);
+
+                $newVersionFiles = $version->files()->get();
+                $pendingRevisions = TopicReviewFileRevision::query()
+                    ->with('file')
+                    ->whereNull('resolved_at')
+                    ->whereHas('review', fn ($query) => $query->where('topic_id', $revisedTopic->id))
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($pendingRevisions as $pendingRevision) {
+                    $replacementCandidates = $newVersionFiles
+                        ->where('document_type', $pendingRevision->document_type)
+                        ->where('is_carried_forward', false);
+                    $resolutionFile = $replacementCandidates->firstWhere('position', $pendingRevision->file?->position)
+                        ?: $replacementCandidates->first();
+
+                    if (! $resolutionFile) {
+                        throw ValidationException::withMessages([
+                            'document' => 'Every file marked for revision must be replaced before resubmission.',
+                        ]);
+                    }
+
+                    $pendingRevision->update([
+                        'resolved_by_version_file_id' => $resolutionFile->id,
+                        'resolved_at' => now(),
+                    ]);
+                }
 
                 $result['updated'] = true;
             });
         } catch (Throwable $exception) {
-            Storage::disk('local')->delete($path);
+            $packageService->deleteStored($replacementFiles);
 
             throw $exception;
         }
 
         if (! $result['updated']) {
-            Storage::disk('local')->delete($path);
+            $packageService->deleteStored($replacementFiles);
 
             return back()
                 ->withInput()
                 ->withErrors(['status' => 'This proposal is no longer awaiting a revision.'], 'resubmission');
         }
 
-        return redirect()->route('faculty.dashboard')->with('success', 'Revised proposal submitted for another review.');
+        Notification::send(
+            User::role('research_head')->get(),
+            new ProposalActivityNotification(
+                'Proposal revision submitted',
+                $request->user()->name.' submitted a new version of “'.$topic->fresh()->title.'”.',
+                route('topics.show', $topic),
+                'info',
+                $topic->id,
+            ),
+        );
+
+        $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'faculty.dashboard';
+
+        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', 'Revised proposal submitted for another review.');
     }
 
     public function download(TopicProposal $topic)
@@ -265,6 +472,20 @@ class TopicController extends Controller
         return Storage::disk('local')->download($version->file_path, $version->original_filename);
     }
 
+    public function downloadVersionFile(
+        Request $request,
+        TopicProposal $topic,
+        ProposalVersion $version,
+        ProposalVersionFile $file,
+    ) {
+        $this->ensureCanViewTopic($request, $topic);
+        abort_unless($version->topic_id === $topic->id, 404);
+        abort_unless($file->proposal_version_id === $version->id, 404);
+        abort_unless(Storage::disk('local')->exists($file->file_path), 404);
+
+        return Storage::disk('local')->download($file->file_path, $file->original_filename);
+    }
+
     public function downloadApproval(TopicProposal $topic)
     {
         $this->ensureCanViewTopic(request(), $topic);
@@ -285,29 +506,13 @@ class TopicController extends Controller
     }
 
     /**
-     * @return array{original_filename: string, mime_type: ?string, file_size: ?int, checksum: ?string}
-     */
-    private function fileMetadata(UploadedFile $document): array
-    {
-        $realPath = $document->getRealPath();
-
-        return [
-            'original_filename' => $document->getClientOriginalName(),
-            'mime_type' => $document->getClientMimeType(),
-            'file_size' => $document->getSize() ?: null,
-            'checksum' => $realPath ? hash_file('sha256', $realPath) ?: null : null,
-        ];
-    }
-
-    /**
      * @param  array<string, mixed>  $validated
-     * @param  array{original_filename: string, mime_type: ?string, file_size: ?int, checksum: ?string}  $fileMetadata
+     * @param  array<string, mixed>  $primaryFile
      * @return array<string, mixed>
      */
     private function versionAttributes(
         array $validated,
-        string $path,
-        array $fileMetadata,
+        array $primaryFile,
         int $versionNumber,
         string $submissionType,
         int $submittedBy,
@@ -316,12 +521,26 @@ class TopicController extends Controller
             'submitted_by' => $submittedBy,
             'version_number' => $versionNumber,
             'submission_type' => $submissionType,
-            'file_path' => $path,
-            ...$fileMetadata,
+            'change_summary' => $validated['change_summary'] ?? null,
+            'file_path' => $primaryFile['file_path'],
+            'original_filename' => $primaryFile['original_filename'],
+            'mime_type' => $primaryFile['mime_type'],
+            'file_size' => $primaryFile['file_size'],
+            'checksum' => $primaryFile['checksum'],
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
-            'estimated_budget' => $validated['estimated_budget'],
-            'estimated_duration_months' => $validated['estimated_duration_months'],
+            'estimated_budget' => $validated['estimated_budget'] ?? null,
+            'estimated_duration_months' => $validated['estimated_duration_months'] ?? null,
         ];
+    }
+
+    private function availableTemplatesFor(string $stage)
+    {
+        return ProposalTemplate::active()
+            ->where('workflow_stage', $stage)
+            ->orderBy('name')
+            ->get()
+            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
+            ->values();
     }
 }

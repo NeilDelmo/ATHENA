@@ -1,10 +1,10 @@
 <?php
 
+use App\Models\ResearchCall;
+use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\TopicReview;
 use App\Models\User;
-use App\Models\ResearchCall;
-use App\Models\ResearchCategory;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -21,7 +21,7 @@ beforeEach(function () {
         'academic_year' => '2026-2027',
         'opens_at' => now()->subDay(),
         'closes_at' => now()->addMonth(),
-        'max_proposals_per_faculty' => 2,
+        'max_active_research_per_faculty' => 2,
         'status' => 'open',
     ]);
     $this->researchCall->categories()->attach($this->category);
@@ -128,6 +128,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'estimated_budget' => 8500,
         'estimated_duration_months' => 10,
         'document' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
+        'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ]);
 
     $response->assertRedirect(route('faculty.dashboard'));
@@ -152,7 +153,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         ->assertDownload('original.pdf');
 });
 
-test('a research head can approve a resubmitted proposal', function () {
+test('a research head cannot approve a resubmitted proposal before Initial Screening', function () {
     Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
@@ -175,17 +176,54 @@ test('a research head can approve a resubmitted proposal', function () {
         'comment' => 'Make a small methodology revision.',
     ]);
 
-    $response = $this->actingAs($head)->patch("/research-head/topics/{$topic->id}/status", [
-        'status' => 'approved',
-        'comment' => 'The requested changes have been addressed.',
-        'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
-    ]);
+    $response = $this->actingAs($head)
+        ->from(route('research_head.dashboard'))
+        ->patch("/research-head/topics/{$topic->id}/status", [
+            'status' => 'approved',
+            'comment' => 'The requested changes have been addressed.',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ]);
 
     $response->assertRedirect(route('research_head.dashboard'));
+    $response->assertSessionHasErrors('status');
 
-    expect($topic->fresh()->status)->toBe('approved')
-        ->and($topic->reviews()->count())->toBe(2)
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($topic->reviews()->count())->toBe(1)
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+});
+
+test('a proposal with unresolved co-evaluator comments cannot receive final approval', function () {
+    Storage::fake('local');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $expert = User::factory()->create();
+    $expert->assignRole('expert');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Proposal with screening comments',
+        'status' => 'for_final_decision',
+    ]);
+    $topic->expertAssignments()->create([
+        'expert_id' => $expert->id,
+        'assigned_by' => $head->id,
+        'status' => 'completed',
+        'recommendation' => 'recommend_revision',
+        'comment' => 'Revise the methodology before final evaluation.',
+        'reviewed_at' => now(),
+    ]);
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasErrors('status');
+
+    expect($topic->fresh()->status)->toBe('for_final_decision')
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
 
 test('a rejected proposal remains final', function () {
@@ -382,6 +420,16 @@ test('proposal versions are downloadable only by authorized topic participants',
         'estimated_budget' => $topic->estimated_budget,
         'estimated_duration_months' => $topic->estimated_duration_months,
     ]);
+    $packageFile = $version->files()->create([
+        'document_type' => 'detailed_proposal',
+        'position' => 0,
+        'file_path' => 'proposals/audited.pdf',
+        'original_filename' => 'audited-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 16,
+        'checksum' => hash('sha256', 'audited document'),
+        'is_carried_forward' => false,
+    ]);
 
     $this->actingAs($owner)
         ->get(route('topics.versions.download', [$topic, $version]))
@@ -391,7 +439,181 @@ test('proposal versions are downloadable only by authorized topic participants',
         ->get(route('topics.versions.download', [$topic, $version]))
         ->assertDownload('audited-proposal.pdf');
 
+    $this->actingAs($head)
+        ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
+        ->assertDownload('audited-proposal.pdf');
+
     $this->actingAs($otherFaculty)
         ->get(route('topics.versions.download', [$topic, $version]))
         ->assertForbidden();
+
+    $this->actingAs($otherFaculty)
+        ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
+        ->assertForbidden();
+});
+
+test('the proposal workspace is complete role-aware and private', function () {
+    $this->withoutVite();
+    Storage::fake('local');
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $expert = User::factory()->create();
+    $expert->assignRole('expert');
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Workspace proposal',
+        'description' => 'A complete package for review.',
+        'estimated_budget' => 30000,
+        'status' => 'pending',
+    ]);
+
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'packages/proposal.pdf',
+        'original_filename' => 'proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'description' => $topic->description,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+
+    foreach ([
+        'detailed_proposal' => 'proposal.pdf',
+        'work_plan' => 'work-plan.docx',
+        'line_item_budget' => 'budget.docx',
+        'expense_breakdown' => 'expenses.xlsx',
+        'curriculum_vitae' => 'cv.pdf',
+        'gad_checklist' => 'gad-checklist.docx',
+    ] as $type => $filename) {
+        $path = 'packages/'.$filename;
+        Storage::disk('local')->put($path, $type);
+        $version->files()->create([
+            'document_type' => $type,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $filename,
+            'file_size' => strlen($type),
+            'checksum' => hash('sha256', $type),
+            'is_carried_forward' => false,
+        ]);
+    }
+
+    $topic->expertAssignments()->create([
+        'expert_id' => $expert->id,
+        'assigned_by' => $head->id,
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Proposal package checklist')
+        ->assertSee('6/6 complete');
+
+    $this->actingAs($head)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Research Head action');
+
+    $this->actingAs($expert)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Co-evaluator recommendation');
+
+    $this->actingAs($outsider)
+        ->get(route('topics.show', $topic))
+        ->assertForbidden();
+
+    $workPlanFile = $version->files()->where('document_type', 'work_plan')->firstOrFail();
+
+    $this->actingAs($head)
+        ->from(route('topics.show', $topic))
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested',
+            'comment' => 'Please revise the package.',
+        ])
+        ->assertSessionHasErrors('revision_file_ids');
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested',
+            'comment' => 'Please clarify the implementation schedule.',
+            'revision_file_ids' => [$workPlanFile->id],
+            'revision_file_notes' => [$workPlanFile->id => 'Extend the activities through the second year.'],
+            'redirect_to' => 'topic',
+        ])
+        ->assertRedirect(route('topics.show', $topic));
+
+    $fileRevision = $topic->reviews()->latest()->firstOrFail()->fileRevisions()->firstOrFail();
+
+    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic))
+        ->and($fileRevision->proposal_version_file_id)->toBe($workPlanFile->id)
+        ->and($fileRevision->revision_note)->toContain('second year')
+        ->and($fileRevision->resolved_at)->toBeNull();
+
+    $this->actingAs($faculty)
+        ->from(route('topics.show', $topic))
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title,
+            'description' => $topic->description,
+            'estimated_budget' => $topic->estimated_budget,
+            'estimated_duration_months' => 18,
+            'change_summary' => 'Updated the implementation schedule.',
+            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        ])
+        ->assertSessionHasErrors('work_plan', null, 'resubmission');
+
+    $this->actingAs($faculty)
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title,
+            'description' => $topic->description,
+            'estimated_budget' => $topic->estimated_budget,
+            'estimated_duration_months' => 18,
+            'change_summary' => 'Updated the implementation schedule.',
+            'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        ])
+        ->assertRedirect(route('faculty.dashboard'));
+
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($fileRevision->fresh()->resolved_at)->not->toBeNull()
+        ->and($fileRevision->fresh()->resolutionFile?->original_filename)->toBe('work-plan-v2.docx');
+
+    $this->actingAs($head)
+        ->from(route('research_head.dashboard'))
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'expert_review',
+            'expert_ids' => [$expert->id],
+        ])
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    $screening = $topic->expertAssignments()->latest('id')->firstOrFail();
+    $this->actingAs($expert)
+        ->patch(route('expert.assignments.submit', $screening), [
+            'recommendation' => 'recommend_approval',
+            'comment' => 'The revised work plan addresses the Initial Screening comments.',
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'approved',
+            'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('research_head.dashboard'));
+
+    expect($topic->fresh()->status)->toBe('approved')
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
 });

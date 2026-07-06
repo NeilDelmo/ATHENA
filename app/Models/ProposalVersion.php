@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProposalVersion extends Model
 {
@@ -11,6 +12,7 @@ class ProposalVersion extends Model
         'submitted_by',
         'version_number',
         'submission_type',
+        'change_summary',
         'file_path',
         'original_filename',
         'mime_type',
@@ -39,5 +41,12 @@ class ProposalVersion extends Model
     public function submitter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by');
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(ProposalVersionFile::class)
+            ->orderBy('document_type')
+            ->orderBy('position');
     }
 }
