@@ -1,58 +1,141 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ATHENA
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+**Automated Research Management and Monitoring System with Analytics and Research Support Tools**
 
-## About Laravel
+ATHENA is a Laravel-based research management portal developed for Batangas State University. It centralizes faculty proposal submission, document versioning, research review workflows, notifications, and AI-assisted research support.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- Role-based workspaces for faculty, faculty researchers, research heads, and expert evaluators
+- Google account authentication with institutional-domain restrictions
+- Research call and proposal-template management
+- Multi-document proposal packages with revision history
+- Initial screening, expert assignment, comments, and approval workflows
+- Database and real-time notifications through Laravel Reverb
+- Groq-powered research assistant restricted to faculty researchers
+- Responsive interface with light and dark themes
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Technology stack
 
-## Learning Laravel
+- PHP 8.3 and Laravel 13
+- MySQL
+- Blade, Alpine.js, Tailwind CSS, and Vite
+- Laravel Reverb and Echo
+- Pest for automated testing
+- Groq API using `openai/gpt-oss-120b` by default
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Requirements
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- PHP 8.3 or newer with the extensions required by Laravel
+- Composer
+- Node.js and npm
+- MySQL
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+ATHENA is not a Python application, so it does not use `requirements.txt`. PHP dependencies are declared in `composer.json`, while frontend dependencies are declared in `package.json`.
 
-## Agentic Development
+## Local installation
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+1. Clone the repository and enter its directory.
 
-```bash
-composer require laravel/boost --dev
+   ```bash
+   git clone https://github.com/NeilDelmo/ATHENA.git
+   cd ATHENA
+   ```
 
-php artisan boost:install
+2. Install PHP and frontend dependencies.
+
+   ```bash
+   composer install
+   npm install
+   ```
+
+3. Create the local environment file and application key.
+
+   On PowerShell:
+
+   ```powershell
+   Copy-Item .env.example .env
+   php artisan key:generate
+   ```
+
+   On macOS or Linux:
+
+   ```bash
+   cp .env.example .env
+   php artisan key:generate
+   ```
+
+4. Configure the database, Google authentication, Reverb, and optional Groq credentials in `.env`.
+
+5. Create the database tables and initial roles/data.
+
+   ```bash
+   php artisan migrate --seed
+   ```
+
+6. Start the development services.
+
+   ```bash
+   composer run dev
+   ```
+
+The `dev` command starts Laravel, the queue worker, application logs, Reverb, and Vite together.
+
+## AI research assistant
+
+To enable the faculty-researcher chatbot, create a Groq API key and configure:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=
+GROQ_MODEL=openai/gpt-oss-120b
+GROQ_BASE_URL=https://api.groq.com/openai/v1
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Never commit a real API key. The `.env` file is intentionally excluded from Git.
+
+## Testing
+
+The test suite expects the separate MySQL database configured in `phpunit.xml`.
+
+```bash
+php artisan test
+```
+
+Run the frontend production build with:
+
+```bash
+npm run build
+```
+
+## Repository structure
+
+ATHENA follows the standard Laravel project structure rather than placing the framework inside a generic `src/` directory.
+
+| Path | Purpose |
+| --- | --- |
+| `app/` | Application controllers, models, services, and domain logic |
+| `bootstrap/` | Laravel application bootstrap |
+| `config/` | Application and service configuration |
+| `database/` | Migrations, factories, and seeders |
+| `docs/` | Project documentation and reports |
+| `public/` | Web entry point and public static files |
+| `resources/` | Blade views, JavaScript, CSS, and source assets |
+| `routes/` | Web, console, and broadcast routes |
+| `storage/` | Runtime files, logs, cache, and private uploads |
+| `tests/` | Pest feature and unit tests |
+
+See [Repository Structure](docs/REPOSITORY_STRUCTURE.md) for the rationale and dependency-file equivalents.
+
+## Documentation
+
+- [Documentation index](docs/README.md)
+- [Project document](docs/TEAM-ATHENA.pdf)
 
 ## Contributing
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Create a focused branch for each change, verify the application locally, and open a pull request into `master`. Do not commit `.env`, API keys, uploaded research files, `vendor/`, or `node_modules/`.
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+ATHENA is available under the [MIT License](LICENSE).
