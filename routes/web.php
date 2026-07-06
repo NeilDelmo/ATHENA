@@ -6,6 +6,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchCallController;
+use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
@@ -83,6 +84,9 @@ Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
+    Route::post('/research-support/chat', ResearchAssistantController::class)
+        ->middleware('throttle:12,1')
+        ->name('research-support.chat');
 });
 
 // RESEARCH HEAD ROUTES
