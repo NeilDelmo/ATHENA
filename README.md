@@ -110,22 +110,23 @@ npm run build
 
 ## Repository structure
 
-ATHENA follows the standard Laravel project structure rather than placing the framework inside a generic `src/` directory.
+This branch groups Laravel's application source beneath `src/` while keeping runtime, dependency, test, and documentation entry points at the repository root.
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | Application controllers, models, services, and domain logic |
-| `bootstrap/` | Laravel application bootstrap |
-| `config/` | Application and service configuration |
-| `database/` | Migrations, factories, and seeders |
+| `src/app/` | Application controllers, models, services, and domain logic |
+| `src/bootstrap/` | Laravel application bootstrap |
+| `src/config/` | Application and service configuration |
+| `src/database/` | Migrations, factories, and seeders |
+| `src/resources/` | Blade views, JavaScript, CSS, and source assets |
+| `src/routes/` | Web, console, and broadcast routes |
+| `assets/` | Design references and non-runtime media |
 | `docs/` | Project documentation and reports |
 | `public/` | Web entry point and public static files |
-| `resources/` | Blade views, JavaScript, CSS, and source assets |
-| `routes/` | Web, console, and broadcast routes |
 | `storage/` | Runtime files, logs, cache, and private uploads |
 | `tests/` | Pest feature and unit tests |
 
-See [Repository Structure](docs/REPOSITORY_STRUCTURE.md) for the rationale and dependency-file equivalents.
+See [Repository Structure](docs/REPOSITORY_STRUCTURE.md) for the path customizations and dependency-file equivalents.
 
 ## Documentation
 

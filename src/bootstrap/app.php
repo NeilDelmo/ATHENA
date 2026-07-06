@@ -8,7 +8,7 @@ use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
@@ -27,3 +27,11 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*'),
         );
     })->create();
+
+$projectRoot = dirname(__DIR__, 2);
+
+$app->useEnvironmentPath($projectRoot);
+$app->usePublicPath($projectRoot.'/public');
+$app->useStoragePath($projectRoot.'/storage');
+
+return $app;

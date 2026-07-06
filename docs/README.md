@@ -7,4 +7,4 @@ This directory contains reports and technical documentation for the ATHENA capst
 - [Project document](TEAM-ATHENA.pdf)
 - [Repository structure](REPOSITORY_STRUCTURE.md)
 
-Place future architecture notes, setup guides, API references, screenshots, and capstone deliverables here. Application images and frontend assets should remain in Laravel's `public/` or `resources/` directories.
+Place future architecture notes, setup guides, API references, screenshots, and capstone deliverables here. Runtime browser assets belong in `public/`, source assets processed by Vite belong in `src/resources/`, and non-runtime design references belong in `assets/`.

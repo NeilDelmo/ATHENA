@@ -1,32 +1,38 @@
 # Repository structure
 
-ATHENA intentionally uses Laravel's conventional project structure. The folders at the repository root are framework entry points, not unorganized files.
+This branch adapts ATHENA to a generic `src/tests/docs/assets` repository layout while retaining Laravel's runtime entry points.
 
-## Why there is no `src/` wrapper
+## Layout
 
-Generic repository examples often place application code in `src/`. Laravel already defines more specific source directories:
+- `src/app/` contains PHP application code.
+- `src/bootstrap/` contains the Laravel bootstrap and provider manifest.
+- `src/config/` contains runtime configuration definitions.
+- `src/database/` contains migrations, factories, and seeders.
+- `src/resources/` contains Blade views, JavaScript, CSS, and uncompiled assets.
+- `src/routes/` contains application route definitions.
+- `tests/` contains Pest and PHPUnit tests.
+- `docs/` contains project reports and technical documentation.
+- `assets/` contains design references and non-runtime images or media.
+- `public/` remains the web-server document root.
+- `storage/` remains outside source control as runtime state.
 
-- `app/` contains PHP application code.
-- `resources/` contains Blade, JavaScript, CSS, and uncompiled assets.
-- `routes/` contains application route definitions.
-- `database/` contains migrations, factories, and seeders.
-- `config/` contains runtime configuration definitions.
-- `public/` contains the web entry point and public assets.
+## Laravel path customizations
 
-Moving these directories beneath `src/` would require custom changes to Composer autoloading, Artisan bootstrap paths, Vite inputs, PHPUnit paths, the web server document root, and deployment instructions. Keeping the standard layout makes the project easier for Laravel developers and hosting platforms to reuse.
+Because Laravel normally expects these directories at the root, this repository updates:
+
+- Composer PSR-4 paths to load `App` and database namespaces from `src/`.
+- Root `artisan` and `public/index.php` to load `src/bootstrap/app.php`.
+- The application base path to `src/`, while keeping `.env`, `public/`, and `storage/` at the project root.
+- Vite and Tailwind inputs to scan `src/resources/`.
+- PHPUnit source coverage to scan `src/app/` while keeping test suites in `tests/`.
+
+The root remains the working directory for Composer, npm, Artisan, and Git commands.
 
 ## Dependency files
 
-ATHENA does not use Python, so a `requirements.txt` file is not included.
+ATHENA does not use Python, so a `requirements.txt` file is intentionally omitted.
 
 - `composer.json` and `composer.lock` define reproducible PHP dependencies.
 - `package.json` and `package-lock.json` define reproducible frontend dependencies.
 
-## Tests, documentation, and assets
-
-- Automated tests live in the root `tests/` directory, as expected by Pest and PHPUnit.
-- Project reports and technical documents live in `docs/`.
-- Public browser assets belong in `public/`.
-- Source assets processed by Vite belong in `resources/`.
-
-This layout provides the same separation intended by a generic `src/tests/docs/assets` template while preserving Laravel compatibility.
+This organization is framework-aware but more customized than a conventional Laravel repository. Any Laravel upgrade should preserve and retest these path overrides.
