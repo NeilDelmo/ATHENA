@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <main class="relative flex min-h-screen bg-slate-50 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-white">
+    <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-5 py-16 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-white sm:px-8">
         <button
             id="auth-theme-toggle"
             type="button"
@@ -15,35 +15,26 @@
             </svg>
         </button>
 
-        <section class="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-red-950 via-slate-950 to-red-900 p-12 text-white lg:flex">
-            <div class="absolute inset-0 opacity-10 [background-image:linear-gradient(to_right,#94a3b8_1px,transparent_1px),linear-gradient(to_bottom,#94a3b8_1px,transparent_1px)] [background-size:24px_24px]"></div>
-            <div class="absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-red-600/20 blur-3xl"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-red-100/90 via-white/75 to-slate-200/80 dark:from-red-950/35 dark:via-slate-950/65 dark:to-red-950/20"></div>
+        <div class="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#7f1d1d_1px,transparent_1px),linear-gradient(to_bottom,#7f1d1d_1px,transparent_1px)] [background-size:24px_24px] [mask-image:linear-gradient(to_bottom,black_0%,rgba(0,0,0,0.35)_48%,transparent_86%)] dark:opacity-[0.06] dark:[background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]"></div>
+        <img
+            src="{{ asset('images/maingatebg-transparent.png') }}"
+            alt=""
+            aria-hidden="true"
+            class="pointer-events-none absolute bottom-0 right-0 z-[1] w-[min(30rem,48vw)] max-w-none opacity-55 contrast-125 brightness-90 dark:opacity-40 dark:brightness-125 sm:bottom-4 sm:right-8"
+        >
 
-            <div class="relative z-10 flex items-center gap-3">
-                <span class="text-2xl font-black tracking-[0.2em] text-red-500">ATHENA</span>
-                <span class="rounded-full border border-red-500/30 bg-red-500/15 px-2 py-0.5 text-xs font-bold text-red-200">Research Portal</span>
+        <section class="relative z-10 grid w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-white/60 bg-white shadow-2xl shadow-red-950/25 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30 md:grid-cols-2">
+            <div class="flex bg-white dark:bg-slate-950 md:min-h-[24rem]">
+                <img
+                    src="{{ asset('images/sidelogin_image.png') }}"
+                    alt="ATHENA and BatStateU gate branding"
+                    class="block h-full w-full object-cover object-left"
+                >
             </div>
 
-            <div class="relative z-10 my-auto max-w-lg">
-                <p class="mb-4 text-xs font-black uppercase tracking-[0.25em] text-red-400">Batangas State University</p>
-                <h1 class="text-4xl font-black leading-tight tracking-tight xl:text-5xl">Research management, review, and support in one secure workspace.</h1>
-                <p class="mt-5 max-w-md text-base leading-7 text-slate-300">Access is tied to your university-managed Google Workspace identity.</p>
-            </div>
-
-            <div class="relative z-10 flex items-center justify-between border-t border-slate-700/60 pt-4 text-xs text-slate-400">
-                <span>&copy; {{ date('Y') }} Project ATHENA</span>
-                <span>Institutional access only</span>
-            </div>
-        </section>
-
-        <section class="flex w-full items-center justify-center px-6 py-20 sm:px-12 lg:w-1/2">
-            <div class="w-full max-w-md">
-                <div class="mb-10 lg:hidden">
-                    <p class="text-2xl font-black tracking-[0.2em] text-red-600 dark:text-red-500">ATHENA</p>
-                    <p class="mt-1 text-xs font-bold uppercase tracking-wider text-slate-400">BatStateU Research Portal</p>
-                </div>
-
-                <div class="rounded-3xl border border-slate-200 bg-white p-7 shadow-xl shadow-slate-200/40 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-9">
+            <div class="flex items-center bg-white p-6 transition-colors dark:bg-slate-900 sm:p-8">
+                <div class="w-full">
                     <div>
                         <span class="inline-flex rounded-full bg-red-50 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-red-700 dark:bg-red-950/50 dark:text-red-300">Secure institutional sign-in</span>
                         <h2 class="mt-5 text-3xl font-black tracking-tight text-slate-900 dark:text-white">Welcome to ATHENA</h2>
