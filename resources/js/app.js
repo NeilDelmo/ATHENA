@@ -1,6 +1,4 @@
 
-
-import './echo';
 import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;
@@ -255,12 +253,3 @@ Alpine.data('fileDropzone', (config = {}) => ({
 }));
 
 Alpine.start();
-
-const authenticatedUserId = document.body.dataset.authUserId;
-
-if (authenticatedUserId && window.Echo) {
-    window.Echo.private(`App.Models.User.${authenticatedUserId}`)
-        .notification((notification) => {
-            window.dispatchEvent(new CustomEvent('athena-notification', { detail: notification }));
-        });
-}

@@ -18,16 +18,22 @@
         <div class="absolute inset-0 bg-gradient-to-br from-red-100/90 via-white/75 to-slate-200/80 dark:from-red-950/35 dark:via-slate-950/65 dark:to-red-950/20"></div>
         <div class="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#7f1d1d_1px,transparent_1px),linear-gradient(to_bottom,#7f1d1d_1px,transparent_1px)] [background-size:24px_24px] [mask-image:linear-gradient(to_bottom,black_0%,rgba(0,0,0,0.35)_48%,transparent_86%)] dark:opacity-[0.06] dark:[background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]"></div>
         <img
+            src="{{ asset('images/logo_athena_gray-transparent.png') }}"
+            alt=""
+            aria-hidden="true"
+            class="pointer-events-none absolute left-0 top-5 z-[1] w-20 opacity-70 contrast-125 brightness-90 dark:opacity-50 dark:brightness-125 sm:left-12 sm:top-8 sm:w-24"
+        >
+        <img
             src="{{ asset('images/maingatebg-transparent.png') }}"
             alt=""
             aria-hidden="true"
-            class="pointer-events-none absolute bottom-0 right-0 z-[1] w-[min(30rem,48vw)] max-w-none opacity-55 contrast-125 brightness-90 dark:opacity-40 dark:brightness-125 sm:bottom-4 sm:right-8"
+            class="pointer-events-none absolute bottom-0 right-0 z-[1] w-[min(28rem,44vw)] max-w-none opacity-55 contrast-125 brightness-90 dark:opacity-40 dark:brightness-125 sm:bottom-2 sm:right-4"
         >
 
         <section class="relative z-10 grid w-full max-w-3xl overflow-hidden rounded-[1.75rem] border border-white/60 bg-white shadow-2xl shadow-red-950/25 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30 md:grid-cols-2">
             <div class="flex bg-white dark:bg-slate-950 md:min-h-[24rem]">
                 <img
-                    src="{{ asset('images/sidelogin_image.png') }}"
+                    src="{{ asset('images/image_at_side.png') }}"
                     alt="ATHENA and BatStateU gate branding"
                     class="block h-full w-full object-cover object-left"
                 >
