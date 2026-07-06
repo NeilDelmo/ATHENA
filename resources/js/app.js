@@ -5,6 +5,178 @@ import Alpine from 'alpinejs';
 
 window.Alpine = Alpine;
 
+Alpine.store('researchAssistant', {
+    drawerOpen: false,
+    draft: '',
+    isLoading: false,
+    error: '',
+    retryAfter: 0,
+    abortController: null,
+    copiedMessageId: null,
+    nextMessageId: 2,
+    quickPrompts: [
+        'Refine my research question',
+        'Recommend a methodology',
+        'Outline my proposal',
+    ],
+    messages: [
+        {
+            id: 1,
+            role: 'assistant',
+            content: 'Hi! I am Athena, your research support assistant. Tell me what you are studying, or choose a prompt below to get started.',
+            context: false,
+        },
+    ],
+
+    openDrawer() {
+        this.drawerOpen = true;
+        document.documentElement.classList.add('overflow-hidden');
+        window.setTimeout(() => document.getElementById('research-assistant-drawer-message')?.focus(), 220);
+    },
+
+    closeDrawer() {
+        this.drawerOpen = false;
+        document.documentElement.classList.remove('overflow-hidden');
+    },
+
+    usePrompt(prompt) {
+        this.draft = prompt;
+
+        window.setTimeout(() => {
+            const input = this.drawerOpen
+                ? document.getElementById('research-assistant-drawer-message')
+                : document.getElementById('research-assistant-message');
+            input?.focus();
+        });
+    },
+
+    async send() {
+        const content = this.draft.trim();
+        if (!content || this.isLoading || this.retryAfter > 0) return;
+
+        this.messages.push({ id: this.nextMessageId++, role: 'user', content });
+        this.draft = '';
+        this.error = '';
+        this.scrollToLatest();
+
+        await this.requestReply();
+    },
+
+    async requestReply() {
+        const chatUrl = document.body.dataset.researchAssistantUrl;
+        if (!chatUrl || this.isLoading) return;
+
+        this.isLoading = true;
+        this.error = '';
+        this.abortController = new AbortController();
+        this.scrollToLatest();
+
+        try {
+            const response = await fetch(chatUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                signal: this.abortController.signal,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ messages: this.contextMessages() }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                if (response.status === 419) {
+                    throw new Error('Your session expired. Refresh the page and try again.');
+                }
+
+                if (response.status === 429) {
+                    this.startRetryCountdown(Number(payload.retry_after) || 10);
+                }
+
+                throw new Error(payload.message || 'Athena could not respond. Please try again.');
+            }
+
+            this.messages.push({
+                id: this.nextMessageId++,
+                role: 'assistant',
+                content: payload.reply,
+                model: payload.model,
+            });
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                this.error = error.message || 'A network error interrupted the request.';
+            }
+        } finally {
+            this.isLoading = false;
+            this.abortController = null;
+            this.scrollToLatest();
+        }
+    },
+
+    contextMessages() {
+        return this.messages
+            .filter((message) => ['user', 'assistant'].includes(message.role) && message.context !== false)
+            .slice(-8)
+            .map(({ role, content }) => ({ role, content }));
+    },
+
+    async retry() {
+        if (this.isLoading || this.retryAfter > 0 || !this.contextMessages().length) return;
+        await this.requestReply();
+    },
+
+    stop() {
+        this.abortController?.abort();
+        this.abortController = null;
+        this.isLoading = false;
+    },
+
+    startRetryCountdown(seconds) {
+        this.retryAfter = Math.max(1, seconds);
+
+        const timer = window.setInterval(() => {
+            this.retryAfter -= 1;
+            if (this.retryAfter <= 0) window.clearInterval(timer);
+        }, 1000);
+    },
+
+    async copyMessage(message) {
+        try {
+            await navigator.clipboard.writeText(message.content);
+            this.copiedMessageId = message.id;
+            window.setTimeout(() => {
+                if (this.copiedMessageId === message.id) this.copiedMessageId = null;
+            }, 1500);
+        } catch {
+            this.error = 'The response could not be copied automatically.';
+        }
+    },
+
+    clearConversation() {
+        this.stop();
+        this.messages = [{
+            id: this.nextMessageId++,
+            role: 'assistant',
+            content: 'New conversation started. What would you like help with?',
+            context: false,
+        }];
+        this.draft = '';
+        this.error = '';
+        this.retryAfter = 0;
+        this.scrollToLatest();
+    },
+
+    scrollToLatest() {
+        window.setTimeout(() => {
+            document.querySelectorAll('[data-assistant-messages]').forEach((container) => {
+                container.scrollTop = container.scrollHeight;
+            });
+        });
+    },
+});
+
 Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,

@@ -22,7 +22,12 @@
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body data-app-shell data-auth-user-id="{{ Auth::id() }}" class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100">
+    <body
+        data-app-shell
+        data-auth-user-id="{{ Auth::id() }}"
+        @role('faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endrole
+        class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    >
         
         @include('layouts.navigation')
 
@@ -41,6 +46,21 @@
                 </div>
 
                 <div class="flex items-center gap-4 ml-auto">
+
+                    @role('faculty_researcher')
+                        <button
+                            type="button"
+                            @click="$store.researchAssistant.openDrawer()"
+                            class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-xs font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                            aria-label="Open Athena AI research assistant"
+                            title="Open Athena AI research assistant"
+                        >
+                            <svg class="h-4 w-4 transition group-hover:rotate-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
+                            </svg>
+                            <span class="hidden sm:inline">Ask Athena</span>
+                        </button>
+                    @endrole
 
                     <button id="app-theme-toggle" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -107,6 +127,10 @@
             </main>
 
         </div>
+
+        @role('faculty_researcher')
+            <x-research-assistant-drawer />
+        @endrole
 
         <script>
             function initializeManilaClock() {
