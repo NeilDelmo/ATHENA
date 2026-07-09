@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Models\TopicProposal;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +22,39 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        View::composer('layouts.app', function ($view): void {
+            $user = request()->user();
+
+            if (! $user || ! $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
+                $view->with('researchAssistantContexts', collect());
+                $view->with('activeResearchAssistantContextId', null);
+
+                return;
+            }
+
+            $contexts = $user->proposals()
+                ->with(['category', 'researchCall', 'latestVersion'])
+                ->latest()
+                ->limit(8)
+                ->get()
+                ->map(fn (TopicProposal $topic) => [
+                    'id' => $topic->id,
+                    'label' => Str::limit($topic->title, 72),
+                    'status' => str_replace('_', ' ', $topic->status),
+                    'meta' => collect([
+                        $topic->category?->name,
+                        $topic->researchCall?->academic_year,
+                        $topic->latestVersion ? 'v'.$topic->latestVersion->version_number : null,
+                    ])->filter()->join(' · '),
+                ]);
+
+            $routeTopic = request()->route('topic');
+            $activeContextId = $routeTopic instanceof TopicProposal && $routeTopic->user_id === $user->id
+                ? $routeTopic->id
+                : null;
+
+            $view->with('researchAssistantContexts', $contexts);
+            $view->with('activeResearchAssistantContextId', $activeContextId);
+        });
     }
 }

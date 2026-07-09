@@ -48,11 +48,32 @@
                         </p>
                     </div>
                 </div>
-                <button type="button" @click="$store.researchAssistant.clearConversation()" class="rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-700">Clear</button>
+                <div class="flex flex-wrap justify-end gap-1.5">
+                    <button type="button" @click="$store.researchAssistant.copyConversation()" class="rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-700" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
+                    <button type="button" @click="$store.researchAssistant.exportConversation()" class="rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-700">Export .txt</button>
+                    <button type="button" @click="$store.researchAssistant.clearConversation()" class="rounded-lg px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-gray-700">Clear</button>
+                </div>
             </div>
 
             <div class="border-b border-blue-100 bg-blue-50 px-5 py-3 text-xs leading-5 text-blue-800">
                 <span class="font-black">Privacy:</span> Only this conversation is sent securely to Groq. Athena does not automatically read your uploaded proposals or save this chat.
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="border-b border-gray-100 bg-white px-5 py-4">
+                <div class="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <label class="inline-flex items-center gap-2 text-xs font-black text-blue-900">
+                            <input type="checkbox" x-model="$store.researchAssistant.contextEnabled" class="rounded border-blue-200 text-red-600 focus:ring-red-500">
+                            Use proposal context
+                        </label>
+                        <select x-model.number="$store.researchAssistant.selectedContextId" :disabled="!$store.researchAssistant.contextEnabled" class="w-full rounded-xl border-blue-100 bg-white text-xs font-bold text-blue-900 shadow-sm focus:border-red-500 focus:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 sm:max-w-sm">
+                            <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id">
+                                <option :value="context.id" x-text="`${context.label} (${context.status})`"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <p class="mt-2 text-[11px] leading-5 text-blue-800" x-text="$store.researchAssistant.contextEnabled ? 'Athena will use the selected proposal title, status, latest summary, and recent reviewer comments. Uploaded files are not read.' : 'Context is off. Athena will only use the messages in this chat.'"></p>
+                </div>
             </div>
 
             <div data-assistant-messages class="flex-1 space-y-5 overflow-y-auto bg-gray-50/70 p-5" aria-live="polite">
@@ -74,14 +95,26 @@
             </div>
 
             <div class="border-t border-gray-100 bg-white p-4">
-                <div x-show="$store.researchAssistant.error" x-cloak class="mb-3 flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
-                    <p x-text="$store.researchAssistant.error"></p>
-                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                <div x-show="$store.researchAssistant.error" x-cloak class="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p>
+                            <p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p>
+                        </div>
+                        <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                    </div>
                 </div>
-                <div class="mb-3 flex flex-wrap gap-2">
-                    <template x-for="prompt in $store.researchAssistant.quickPrompts" :key="prompt">
-                        <button type="button" @click="$store.researchAssistant.usePrompt(prompt)" class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700" x-text="prompt"></button>
-                    </template>
+                <div class="mb-3 space-y-2">
+                    <div class="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Research prompt groups">
+                        <template x-for="group in $store.researchAssistant.promptGroups" :key="group.key">
+                            <button type="button" @click="$store.researchAssistant.setPromptGroup(group.key)" :class="$store.researchAssistant.activePromptGroup === group.key ? 'border-red-600 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-500 hover:border-red-200 hover:text-red-700'" class="shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition" x-text="group.label"></button>
+                        </template>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <template x-for="prompt in $store.researchAssistant.activePrompts()" :key="prompt">
+                            <button type="button" @click="$store.researchAssistant.usePrompt(prompt)" class="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700" x-text="prompt"></button>
+                        </template>
+                    </div>
                 </div>
                 <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-3">
                     <label for="research-assistant-message" class="sr-only">Message Athena Research Assistant</label>

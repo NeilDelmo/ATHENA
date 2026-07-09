@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TopicProposal;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ResearchAssistantController extends Controller
 {
@@ -16,6 +18,8 @@ class ResearchAssistantController extends Controller
             'messages' => ['required', 'array', 'min:1', 'max:8'],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:2000'],
+            'context' => ['nullable', 'array'],
+            'context.topic_id' => ['nullable', 'integer'],
         ]);
 
         $messages = collect($validated['messages'])
@@ -41,9 +45,48 @@ class ResearchAssistantController extends Controller
 
         if ($apiKey === '' || $model === '' || $baseUrl === '') {
             return response()->json([
-                'message' => 'The research assistant is not configured yet.',
+                'message' => 'Athena AI is not configured yet. Ask the administrator to set the Groq API key before using the assistant.',
             ], 503);
         }
+
+        $contextMessage = null;
+        $contextTopicId = $validated['context']['topic_id'] ?? null;
+
+        if ($contextTopicId) {
+            $topic = TopicProposal::query()
+                ->with([
+                    'category',
+                    'researchCall',
+                    'latestVersion',
+                    'reviews' => fn ($query) => $query->with('reviewer')->latest()->limit(3),
+                ])
+                ->where('user_id', $request->user()->id)
+                ->find($contextTopicId);
+
+            if (! $topic) {
+                return response()->json([
+                    'message' => 'That proposal context is unavailable for your account.',
+                ], 403);
+            }
+
+            $contextMessage = $this->proposalContextMessage($topic);
+        }
+
+        $aiMessages = [
+            [
+                'role' => 'system',
+                'content' => $this->systemPrompt(),
+            ],
+        ];
+
+        if ($contextMessage) {
+            $aiMessages[] = [
+                'role' => 'system',
+                'content' => $contextMessage,
+            ];
+        }
+
+        array_push($aiMessages, ...$messages->all());
 
         try {
             $response = Http::baseUrl($baseUrl)
@@ -54,13 +97,7 @@ class ResearchAssistantController extends Controller
                 ->timeout(45)
                 ->post('chat/completions', [
                     'model' => $model,
-                    'messages' => [
-                        [
-                            'role' => 'system',
-                            'content' => $this->systemPrompt(),
-                        ],
-                        ...$messages->all(),
-                    ],
+                    'messages' => $aiMessages,
                     'temperature' => 0.25,
                     'max_completion_tokens' => 700,
                     'stream' => false,
@@ -129,6 +166,38 @@ Important boundaries:
 - Do not make proposal approval, ethics, authorship, or grading decisions.
 - Protect personal and confidential research information; encourage anonymization when sensitive data appears.
 - Keep ordinary answers under 350 words unless the user explicitly asks for more detail.
+PROMPT;
+    }
+
+    private function proposalContextMessage(TopicProposal $topic): string
+    {
+        $latestVersion = $topic->latestVersion;
+        $reviews = $topic->reviews
+            ->take(3)
+            ->map(function ($review) {
+                $reviewer = $review->reviewer?->name ?: 'Reviewer';
+
+                return "- {$reviewer} ({$review->decision}): ".Str::limit((string) $review->comment, 420);
+            })
+            ->filter()
+            ->join("\n");
+
+        $details = collect([
+            'Title: '.$topic->title,
+            'Status: '.str_replace('_', ' ', $topic->status),
+            $topic->category ? 'Category: '.$topic->category->name : null,
+            $topic->researchCall ? 'Research call: '.$topic->researchCall->title.' ('.$topic->researchCall->academic_year.')' : null,
+            $latestVersion ? 'Latest version: '.$latestVersion->version_number.' ('.$latestVersion->submission_type.')' : null,
+            $latestVersion?->estimated_budget ? 'Budget: PHP '.number_format((float) $latestVersion->estimated_budget, 2) : null,
+            $latestVersion?->estimated_duration_months ? 'Duration: '.$latestVersion->estimated_duration_months.' months' : null,
+            $latestVersion?->description ? 'Description: '.Str::limit($latestVersion->description, 900) : ($topic->description ? 'Description: '.Str::limit($topic->description, 900) : null),
+            $reviews !== '' ? "Recent reviewer comments:\n".$reviews : null,
+        ])->filter()->join("\n");
+
+        return <<<PROMPT
+The user selected this proposal as optional context. Use it only to tailor research guidance. Do not claim to have read uploaded files or hidden records.
+
+{$details}
 PROMPT;
     }
 }

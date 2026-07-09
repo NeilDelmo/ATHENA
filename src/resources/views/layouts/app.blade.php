@@ -21,7 +21,13 @@
         @hasanyrole('faculty|faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endhasanyrole
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
-        
+        @hasanyrole('faculty|faculty_researcher')
+            <script>
+                window.athenaResearchAssistantContexts = {{ Illuminate\Support\Js::from($researchAssistantContexts ?? collect()) }};
+                window.athenaResearchAssistantActiveContextId = {{ Illuminate\Support\Js::from($activeResearchAssistantContextId ?? null) }};
+            </script>
+        @endhasanyrole
+
         @include('layouts.navigation')
 
         <div class="flex min-h-screen flex-col bg-white transition-colors duration-300 dark:bg-slate-950 sm:pl-64">

@@ -78,20 +78,73 @@ themeMediaQuery.addEventListener('change', () => {
 initializeThemeToggles();
 document.addEventListener('livewire:navigated', initializeThemeToggles);
 
+const assistantContexts = Array.isArray(window.athenaResearchAssistantContexts)
+    ? window.athenaResearchAssistantContexts
+    : [];
+const activeAssistantContextId = window.athenaResearchAssistantActiveContextId ?? null;
+const defaultAssistantContextId = assistantContexts.some((context) => Number(context.id) === Number(activeAssistantContextId))
+    ? Number(activeAssistantContextId)
+    : Number(assistantContexts[0]?.id || 0);
+const researchAssistantPromptGroups = [
+    {
+        key: 'planning',
+        label: 'Planning',
+        prompts: [
+            'Refine my research question',
+            'Turn my topic into SMART objectives',
+            'Outline my proposal',
+            'Suggest keywords for literature search',
+        ],
+    },
+    {
+        key: 'methods',
+        label: 'Methods',
+        prompts: [
+            'Recommend a methodology',
+            'Identify variables and indicators',
+            'Draft a data collection plan',
+            'Spot ethical considerations',
+        ],
+    },
+    {
+        key: 'revision',
+        label: 'Revision',
+        prompts: [
+            'Summarize reviewer comments into a revision plan',
+            'Draft a response to evaluator comments',
+            'Rewrite this section for clarity',
+            'Check if my objectives match my methods',
+        ],
+    },
+    {
+        key: 'writing',
+        label: 'Writing',
+        prompts: [
+            'Draft significance of the study',
+            'Improve my abstract',
+            'Make my title more specific',
+            'Create a chapter outline',
+        ],
+    },
+];
+
 Alpine.store('researchAssistant', {
     drawerOpen: false,
     draft: '',
     isLoading: false,
     error: '',
+    errorTitle: '',
     retryAfter: 0,
     abortController: null,
     copiedMessageId: null,
+    copiedConversation: false,
     nextMessageId: 2,
-    quickPrompts: [
-        'Refine my research question',
-        'Recommend a methodology',
-        'Outline my proposal',
-    ],
+    contextOptions: assistantContexts,
+    contextEnabled: Boolean(activeAssistantContextId),
+    selectedContextId: defaultAssistantContextId,
+    activePromptGroup: researchAssistantPromptGroups[0].key,
+    promptGroups: researchAssistantPromptGroups,
+    quickPrompts: researchAssistantPromptGroups.flatMap((group) => group.prompts),
     messages: [
         {
             id: 1,
@@ -112,6 +165,31 @@ Alpine.store('researchAssistant', {
         document.documentElement.classList.remove('overflow-hidden');
     },
 
+    openWithContext(contextId) {
+        const normalizedId = Number(contextId);
+
+        if (this.contextOptions.some((context) => Number(context.id) === normalizedId)) {
+            this.selectedContextId = normalizedId;
+            this.contextEnabled = true;
+        }
+
+        this.openDrawer();
+    },
+
+    activePromptGroupData() {
+        return this.promptGroups.find((group) => group.key === this.activePromptGroup) || this.promptGroups[0];
+    },
+
+    activePrompts() {
+        return this.activePromptGroupData()?.prompts || [];
+    },
+
+    setPromptGroup(groupKey) {
+        if (this.promptGroups.some((group) => group.key === groupKey)) {
+            this.activePromptGroup = groupKey;
+        }
+    },
+
     usePrompt(prompt) {
         this.draft = prompt;
 
@@ -123,6 +201,27 @@ Alpine.store('researchAssistant', {
         });
     },
 
+    hasContextOptions() {
+        return this.contextOptions.length > 0;
+    },
+
+    selectedContext() {
+        return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId)) || null;
+    },
+
+    contextPayload() {
+        if (!this.contextEnabled || !this.selectedContextId) return null;
+
+        return {
+            topic_id: Number(this.selectedContextId),
+        };
+    },
+
+    setError(title, message) {
+        this.errorTitle = title;
+        this.error = message;
+    },
+
     async send() {
         const content = this.draft.trim();
         if (!content || this.isLoading || this.retryAfter > 0) return;
@@ -130,6 +229,7 @@ Alpine.store('researchAssistant', {
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
         this.draft = '';
         this.error = '';
+        this.errorTitle = '';
         this.scrollToLatest();
 
         await this.requestReply();
@@ -154,21 +254,43 @@ Alpine.store('researchAssistant', {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                 },
-                body: JSON.stringify({ messages: this.contextMessages() }),
+                body: JSON.stringify({
+                    messages: this.contextMessages(),
+                    context: this.contextPayload(),
+                }),
             });
 
             const payload = await response.json().catch(() => ({}));
 
             if (!response.ok) {
                 if (response.status === 419) {
-                    throw new Error('Your session expired. Refresh the page and try again.');
+                    this.setError('Session expired', 'Refresh the page, then send your message again.');
+                    return;
                 }
 
                 if (response.status === 429) {
                     this.startRetryCountdown(Number(payload.retry_after) || 10);
+                    this.setError('Too many requests', payload.message || 'Athena is receiving too many requests. Wait a moment, then retry.');
+                    return;
                 }
 
-                throw new Error(payload.message || 'Athena could not respond. Please try again.');
+                if (response.status === 503) {
+                    this.setError('Assistant unavailable', payload.message || 'Athena AI is not configured or cannot be reached right now.');
+                    return;
+                }
+
+                if (response.status === 403) {
+                    this.setError('Context unavailable', payload.message || 'That proposal context is not available for your account.');
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.setError('Check your message', payload.message || 'Athena needs a valid message before it can respond.');
+                    return;
+                }
+
+                this.setError('Athena could not respond', payload.message || 'Please try again.');
+                return;
             }
 
             this.messages.push({
@@ -177,9 +299,10 @@ Alpine.store('researchAssistant', {
                 content: payload.reply,
                 model: payload.model,
             });
+            this.copiedConversation = false;
         } catch (error) {
             if (error.name !== 'AbortError') {
-                this.error = error.message || 'A network error interrupted the request.';
+                this.setError('Network interrupted', error.message || 'A network error interrupted the request.');
             }
         } finally {
             this.isLoading = false;
@@ -223,7 +346,56 @@ Alpine.store('researchAssistant', {
                 if (this.copiedMessageId === message.id) this.copiedMessageId = null;
             }, 1500);
         } catch {
-            this.error = 'The response could not be copied automatically.';
+            this.setError('Copy failed', 'The response could not be copied automatically.');
+        }
+    },
+
+    transcriptText() {
+        const selectedContext = this.contextEnabled ? this.selectedContext() : null;
+        const lines = ['Athena Research Assistant transcript'];
+
+        if (selectedContext) {
+            lines.push(`Proposal context: ${selectedContext.label} (${selectedContext.status})`);
+        }
+
+        lines.push('');
+
+        this.messages.forEach((message) => {
+            const speaker = message.role === 'user' ? 'You' : 'Athena';
+            lines.push(`${speaker}:`);
+            lines.push(message.content);
+            lines.push('');
+        });
+
+        return lines.join('\n').trim();
+    },
+
+    async copyConversation() {
+        try {
+            await navigator.clipboard.writeText(this.transcriptText());
+            this.copiedConversation = true;
+            window.setTimeout(() => {
+                this.copiedConversation = false;
+            }, 1500);
+        } catch {
+            this.setError('Copy failed', 'The chat could not be copied automatically.');
+        }
+    },
+
+    exportConversation() {
+        try {
+            const blob = new Blob([this.transcriptText()], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+
+            link.href = url;
+            link.download = `athena-research-assistant-${new Date().toISOString().slice(0, 10)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch {
+            this.setError('Export failed', 'The chat transcript could not be exported.');
         }
     },
 
@@ -237,7 +409,10 @@ Alpine.store('researchAssistant', {
         }];
         this.draft = '';
         this.error = '';
+        this.errorTitle = '';
         this.retryAfter = 0;
+        this.copiedMessageId = null;
+        this.copiedConversation = false;
         this.scrollToLatest();
     },
 
