@@ -3,7 +3,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">Faculty researchers</span>
+                    <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">Faculty support</span>
                     <span class="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">AI ready</span>
                 </div>
                 <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Research Help Facility</h2>
@@ -115,10 +115,17 @@
                 <p class="mt-2 text-xs leading-5 text-purple-800">Do not paste confidential participant data or unpublished sensitive information. The assistant supports your judgment; it does not replace your adviser or ethics review.</p>
             </section>
 
-            <a href="{{ route('research.index') }}" class="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 text-xs font-black text-gray-700 shadow-sm transition hover:border-red-200 hover:text-red-600">
-                View my research
-                <span aria-hidden="true">&rarr;</span>
-            </a>
+            @role('faculty_researcher')
+                <a href="{{ route('research.index') }}" class="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 text-xs font-black text-gray-700 shadow-sm transition hover:border-red-200 hover:text-red-600">
+                    View my research
+                    <span aria-hidden="true">&rarr;</span>
+                </a>
+            @else
+                <a href="{{ route('faculty.dashboard') }}" class="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-5 text-xs font-black text-gray-700 shadow-sm transition hover:border-red-200 hover:text-red-600">
+                    Return to dashboard
+                    <span aria-hidden="true">&rarr;</span>
+                </a>
+            @endrole
         </aside>
     </div>
 </x-app-layout>

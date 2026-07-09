@@ -83,6 +83,9 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
 Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
+});
+
+Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')

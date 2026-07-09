@@ -30,6 +30,22 @@ test('login screen presents institutional Google sign in and theme controls', fu
         ->assertDontSee('or local user');
 });
 
+test('Google sign in asks the user to choose an account', function () {
+    config()->set('services.google.client_id', 'google-client-id');
+    config()->set('services.google.client_secret', 'google-client-secret');
+    config()->set('services.google.redirect', 'http://localhost/auth/google/callback');
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+
+    $location = $this->get('/auth/google')
+        ->assertRedirect()
+        ->headers->get('Location');
+
+    expect($location)
+        ->toContain('accounts.google.com')
+        ->toContain('prompt=select_account')
+        ->toContain('hd=g.batstate-u.edu.ph');
+});
+
 test('a BatStateU Google account is provisioned as faculty and authenticated', function () {
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     mockGoogleUser('faculty@g.batstate-u.edu.ph');

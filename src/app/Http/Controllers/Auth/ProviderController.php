@@ -19,7 +19,10 @@ class ProviderController extends Controller
     public function redirectToGoogle(): RedirectResponse
     {
         return Socialite::driver('google')
-            ->with(['hd' => config('services.google.allowed_domains.0')])
+            ->with([
+                'hd' => config('services.google.allowed_domains.0'),
+                'prompt' => 'select_account',
+            ])
             ->redirect();
     }
 

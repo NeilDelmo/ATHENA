@@ -18,7 +18,7 @@
     <body
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
-        @role('faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endrole
+        @hasanyrole('faculty|faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endhasanyrole
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
         
@@ -40,7 +40,7 @@
 
                 <div class="flex items-center gap-4 ml-auto">
 
-                    @role('faculty_researcher')
+                    @hasanyrole('faculty|faculty_researcher')
                         <button
                             type="button"
                             @click="$store.researchAssistant.openDrawer()"
@@ -53,7 +53,7 @@
                             </svg>
                             <span class="hidden sm:inline">Ask Athena</span>
                         </button>
-                    @endrole
+                    @endhasanyrole
 
                     <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -121,9 +121,9 @@
 
         </div>
 
-        @role('faculty_researcher')
+        @hasanyrole('faculty|faculty_researcher')
             <x-research-assistant-drawer />
-        @endrole
+        @endhasanyrole
 
         <script>
             function initializeManilaClock() {

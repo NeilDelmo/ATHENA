@@ -41,6 +41,14 @@
                 </svg>
                 Submit Proposal
             </a>
+
+            <a href="{{ route('research-support.index') }}"
+               class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research-support.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
+                </svg>
+                Research Help Facility
+            </a>
             
             @endhasanyrole
 
@@ -53,13 +61,6 @@
                 Research
             </a>
 
-            <a href="{{ route('research-support.index') }}"
-               class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research-support.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
-                </svg>
-                Research Help Facility
-            </a>
         @endrole
 
         @role('expert')

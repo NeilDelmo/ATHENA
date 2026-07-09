@@ -367,7 +367,7 @@ test('the research catalog is unavailable to regular faculty and the research he
         ->assertForbidden();
 });
 
-test('research support is available only to faculty researchers', function () {
+test('research support is available to faculty and faculty researchers', function () {
     $this->withoutVite();
 
     $researcher = User::factory()->create();
@@ -382,9 +382,13 @@ test('research support is available only to faculty researchers', function () {
     $this->actingAs($researcher)
         ->get('/research-support')
         ->assertOk()
-        ->assertSee('Research Support');
+        ->assertSee('Research Help Facility');
 
-    $this->actingAs($faculty)->get('/research-support')->assertForbidden();
+    $this->actingAs($faculty)
+        ->get('/research-support')
+        ->assertOk()
+        ->assertSee('Research Help Facility');
+
     $this->actingAs($head)->get('/research-support')->assertForbidden();
 });
 

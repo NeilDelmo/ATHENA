@@ -7,7 +7,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 
 class ResearchAssistantController extends Controller
 {
@@ -28,9 +27,12 @@ class ResearchAssistantController extends Controller
             ->values();
 
         if ($messages->isEmpty() || $messages->last()['role'] !== 'user') {
-            throw ValidationException::withMessages([
-                'messages' => 'The conversation must end with a user message.',
-            ]);
+            return response()->json([
+                'message' => 'The conversation must end with a user message.',
+                'errors' => [
+                    'messages' => ['The conversation must end with a user message.'],
+                ],
+            ], 422);
         }
 
         $apiKey = (string) config('services.groq.key');
@@ -116,7 +118,7 @@ class ResearchAssistantController extends Controller
     private function systemPrompt(): string
     {
         return <<<'PROMPT'
-You are Athena, a concise and supportive research assistant for university faculty researchers.
+You are Athena, a concise and supportive research assistant for university faculty and faculty researchers.
 
 Help with research questions, objectives, methodology, proposal organization, academic writing, and general research planning. Ask a focused clarifying question when essential information is missing. Prefer practical steps, short examples, and clear headings when useful.
 
