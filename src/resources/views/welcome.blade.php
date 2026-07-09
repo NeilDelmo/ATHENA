@@ -5,6 +5,8 @@
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>ATHENA | BatStateU Research Portal</title>
 
+            @include('partials.theme-script')
+
             <link rel="preconnect" href="https://fonts.googleapis.com">
             <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
             <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -92,9 +94,15 @@
 
                             <button
                                 id="theme-toggle"
+                                data-theme-toggle
                                 class="w-11 h-11 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
                                 aria-label="Toggle theme">
-                                🌙
+                                <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15.75A9 9 0 118.25 2.25a7.5 7.5 0 0013.5 13.5z" />
+                                </svg>
+                                <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364 6.364l-1.061-1.061M6.697 6.697L5.636 5.636m12.728 0l-1.061 1.061M6.697 17.303l-1.061 1.061M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -413,26 +421,6 @@
             <script>
             document.addEventListener("DOMContentLoaded", () => {
 
-                const html = document.documentElement;
-                const button = document.getElementById("theme-toggle");
-                if (localStorage.getItem("theme") === "dark") {
-                    html.classList.add("dark");
-                    button.textContent = "☀️";
-                } else {
-                    button.textContent = "🌙";
-                }
-
-                button.addEventListener("click", () => {
-                    html.classList.toggle("dark");
-
-                    if (html.classList.contains("dark")) {
-                        localStorage.setItem("theme", "dark");
-                        button.textContent = "☀️";
-                    } else {
-                        localStorage.setItem("theme", "light");
-                        button.textContent = "🌙";
-                    }
-                });
                 const observer = new IntersectionObserver(
                     (entries) => {
                         entries.forEach((entry) => {
@@ -453,5 +441,4 @@
             </script>
         </body>
     </html>
-
 

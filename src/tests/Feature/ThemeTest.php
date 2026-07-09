@@ -36,3 +36,14 @@ test('the shared application theme toggle is rendered for the research head', fu
         ->assertOk()
         ->assertSee('app-theme-toggle', false);
 });
+
+test('the landing page uses the shared theme controller', function () {
+    $this->withoutVite();
+
+    $this->get('/')
+        ->assertOk()
+        ->assertSee('data-theme-toggle', false)
+        ->assertSee('athena-theme', false)
+        ->assertSee('prefers-color-scheme: dark', false)
+        ->assertDontSee('localStorage.getItem("theme")', false);
+});

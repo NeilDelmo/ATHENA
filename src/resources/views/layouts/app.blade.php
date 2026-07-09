@@ -8,14 +8,7 @@
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 
-        <script>
-            (() => {
-                const savedTheme = localStorage.getItem('athena-theme') || localStorage.getItem('athena-auth-theme');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
-                if (savedTheme) localStorage.setItem('athena-theme', savedTheme);
-            })();
-        </script>
+        @include('partials.theme-script')
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
@@ -62,7 +55,7 @@
                         </button>
                     @endrole
 
-                    <button id="app-theme-toggle" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
+                    <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15.75A9 9 0 118.25 2.25a7.5 7.5 0 0013.5 13.5z" />
                         </svg>
@@ -159,30 +152,8 @@
                 window.manilaClockInterval = setInterval(updateClock, 1000);
             }
 
-            function initializeAppTheme() {
-                const toggle = document.getElementById('app-theme-toggle');
-                if (!toggle) return;
-
-                const updateLabel = () => {
-                    const isDark = document.documentElement.classList.contains('dark');
-                    toggle.setAttribute('aria-pressed', String(isDark));
-                    toggle.title = isDark ? 'Use light theme' : 'Use dark theme';
-                };
-
-                toggle.onclick = () => {
-                    const isDark = document.documentElement.classList.toggle('dark');
-                    localStorage.setItem('athena-theme', isDark ? 'dark' : 'light');
-                    localStorage.removeItem('athena-auth-theme');
-                    updateLabel();
-                };
-
-                updateLabel();
-            }
-
             initializeManilaClock();
-            initializeAppTheme();
             document.addEventListener('livewire:navigated', initializeManilaClock);
-            document.addEventListener('livewire:navigated', initializeAppTheme);
         </script>
     </body>
 </html>

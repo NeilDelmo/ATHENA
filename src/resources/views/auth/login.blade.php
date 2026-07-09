@@ -2,6 +2,7 @@
     <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-5 py-16 text-slate-900 transition-colors duration-300 dark:bg-slate-950 dark:text-white sm:px-8">
         <button
             id="auth-theme-toggle"
+            data-theme-toggle
             type="button"
             class="absolute right-5 top-5 z-30 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-600 shadow-sm backdrop-blur transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:bg-slate-800"
             aria-label="Toggle light and dark theme"
@@ -71,12 +72,4 @@
             </div>
         </section>
     </main>
-
-    <script>
-        document.getElementById('auth-theme-toggle')?.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.toggle('dark');
-            localStorage.setItem('athena-theme', isDark ? 'dark' : 'light');
-            localStorage.removeItem('athena-auth-theme');
-        });
-    </script>
 </x-guest-layout>

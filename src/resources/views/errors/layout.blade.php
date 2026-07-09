@@ -7,13 +7,7 @@
 
         <title>@yield('page_title') | {{ config('app.name', 'ATHENA') }}</title>
 
-        <script>
-            (() => {
-                const savedTheme = localStorage.getItem('athena-theme') || localStorage.getItem('athena-auth-theme');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.classList.toggle('dark', savedTheme ? savedTheme === 'dark' : prefersDark);
-            })();
-        </script>
+        @include('partials.theme-script')
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800,900&display=swap" rel="stylesheet" />

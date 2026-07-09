@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+    Options -MultiViews -Indexes
+
+    RewriteEngine On
+
+    # The Laravel app now lives in /src; do not expose it as a browsable URL.
+    RewriteCond %{THE_REQUEST} \s+/.*src(?:/|\s) [NC]
+    RewriteRule ^src(?:/|$) - [F,L]
+
+    # Redirect the old /public URL shape to the clean local URL.
+    RewriteRule ^public/?(.*)$ /athena-app/$1 [R=302,L]
+
+    # Serve common public assets from Laravel's public directory.
+    RewriteRule ^(build|images|favicon\.ico|robots\.txt)(/.*)?$ src/public/$1$2 [L]
+
+    # Send application routes through the local bridge so Laravel sees the
+    # correct path when the app is opened as /athena-app on localhost.
+    RewriteRule ^(?!index\.php$).*$ index.php [L]
+</IfModule>
