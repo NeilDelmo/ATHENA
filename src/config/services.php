@@ -55,4 +55,8 @@ return [
         'base_url' => rtrim(env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'), '/'),
     ],
 
+    'openalex' => [
+        'key' => env('OPENALEX_API_KEY'),
+    ],
+
 ];

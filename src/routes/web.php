@@ -2,11 +2,12 @@
 
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ExpertReviewController;
+use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProposalTemplateController;
-use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchAssistantController;
+use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
@@ -90,6 +91,9 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.chat');
+    Route::post('/research-support/literature-search', LiteratureSearchController::class)
+        ->middleware('throttle:20,1')
+        ->name('research-support.literature-search');
 });
 
 // RESEARCH HEAD ROUTES

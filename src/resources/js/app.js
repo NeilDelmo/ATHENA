@@ -425,6 +425,190 @@ Alpine.store('researchAssistant', {
     },
 });
 
+Alpine.store('literatureSearch', {
+    query: '',
+    filters: {
+        year_from: '',
+        year_to: '',
+        min_citations: '',
+        open_access: false,
+    },
+    results: [],
+    failedSources: [],
+    isLoading: false,
+    hasSearched: false,
+    error: '',
+
+    async search() {
+        const query = this.query.trim();
+        this.hasSearched = true;
+        this.error = '';
+        this.failedSources = [];
+
+        if (query.length < 3) {
+            this.results = [];
+            this.error = 'Enter at least 3 characters to search for related literature.';
+            return;
+        }
+
+        const searchUrl = document.body.dataset.literatureSearchUrl;
+
+        if (!searchUrl || this.isLoading) return;
+
+        this.isLoading = true;
+
+        try {
+            const response = await fetch(searchUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify(this.searchPayload(query)),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            this.failedSources = Array.isArray(payload.failed_sources) ? payload.failed_sources : [];
+
+            if (!response.ok) {
+                this.results = [];
+
+                if (response.status === 419) {
+                    this.error = 'Refresh the page, then try the search again.';
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.error = payload.errors?.query?.[0]
+                        || payload.errors?.year_from?.[0]
+                        || payload.errors?.year_to?.[0]
+                        || payload.errors?.min_citations?.[0]
+                        || payload.message
+                        || 'Enter a valid topic, title, or filter.';
+                    return;
+                }
+
+                if (response.status === 429) {
+                    this.error = 'Too many searches were sent. Please wait a moment, then retry.';
+                    return;
+                }
+
+                this.error = payload.message || 'The literature search could not be completed right now.';
+                return;
+            }
+
+            this.results = Array.isArray(payload.results) ? payload.results : [];
+        } catch (error) {
+            this.results = [];
+            this.error = error.message || 'A network error interrupted the literature search.';
+        } finally {
+            this.isLoading = false;
+        }
+    },
+
+    searchPayload(query) {
+        const payload = { query };
+        const yearFrom = this.numberOrNull(this.filters.year_from);
+        const yearTo = this.numberOrNull(this.filters.year_to);
+        const minCitations = this.numberOrNull(this.filters.min_citations);
+
+        if (yearFrom !== null) payload.year_from = yearFrom;
+        if (yearTo !== null) payload.year_to = yearTo;
+        if (minCitations !== null) payload.min_citations = minCitations;
+        if (this.filters.open_access) payload.open_access = true;
+
+        return payload;
+    },
+
+    numberOrNull(value) {
+        if (value === '' || value === null || value === undefined) return null;
+
+        const number = Number(value);
+
+        return Number.isFinite(number) ? number : null;
+    },
+
+    filterSummary() {
+        const yearFrom = this.numberOrNull(this.filters.year_from);
+        const yearTo = this.numberOrNull(this.filters.year_to);
+        const minCitations = this.numberOrNull(this.filters.min_citations);
+        const parts = [];
+
+        if (yearFrom !== null || yearTo !== null) {
+            parts.push(`years ${yearFrom ?? 'any'}-${yearTo ?? 'present'}`);
+        }
+
+        if (minCitations !== null) {
+            parts.push(`at least ${minCitations} citations`);
+        }
+
+        if (this.filters.open_access) {
+            parts.push('open access only');
+        }
+
+        return parts.length ? parts.join(', ') : 'no filters';
+    },
+
+    askAthena() {
+        if (!this.results.length) return;
+
+        const assistant = Alpine.store('researchAssistant');
+
+        if (!assistant || assistant.isLoading) return;
+
+        assistant.draft = this.athenaPrompt();
+        assistant.send();
+
+        window.setTimeout(() => {
+            document.getElementById('assistant-heading')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+    },
+
+    athenaPrompt() {
+        const resultLines = this.results.slice(0, 8).map((result, index) => {
+            const year = result.year ? ` (${result.year})` : '';
+            const citations = Number.isInteger(result.citation_count) ? `; citations: ${result.citation_count}` : '';
+            const doi = result.doi ? `; DOI: ${result.doi}` : '';
+
+            return [
+                `${index + 1}. ${result.title}${year}`,
+                `Authors: ${result.authors || 'Authors not listed'}`,
+                `Source: ${result.source}${result.venue ? `, ${result.venue}` : ''}${citations}${doi}`,
+                `Description: ${result.description}`,
+            ].join('\n');
+        }).join('\n\n');
+
+        return [
+            'Help me organize these real RRL search results.',
+            `Search topic/title: ${this.query.trim()}`,
+            `Filters: ${this.filterSummary()}`,
+            '',
+            resultLines,
+            '',
+            'Please identify common themes, possible gaps, and a practical RRL outline. Do not invent additional citations.',
+        ].join('\n');
+    },
+
+    clear() {
+        this.query = '';
+        this.filters = {
+            year_from: '',
+            year_to: '',
+            min_citations: '',
+            open_access: false,
+        };
+        this.results = [];
+        this.failedSources = [];
+        this.error = '';
+        this.hasSearched = false;
+    },
+});
+
 Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,
