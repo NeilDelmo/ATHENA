@@ -18,7 +18,7 @@ class ResearchHeadTopicController extends Controller
     public function index()
     {
         $topics = TopicProposal::with([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ])
             ->latest()
@@ -182,6 +182,7 @@ class ResearchHeadTopicController extends Controller
                     $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
 
                     $reviewedTopic->user()->firstOrFail()->assignRole([$facultyRole, $facultyResearcherRole]);
+                    $reviewedTopic->update(['project_status' => 'ongoing']);
                 }
             });
         } catch (\Throwable $exception) {

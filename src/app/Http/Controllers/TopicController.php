@@ -114,7 +114,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports.submitter', 'progressReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ]);
 

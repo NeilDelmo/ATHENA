@@ -79,7 +79,7 @@
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-xs text-gray-500">{{ $topic->updated_at->format('M d, Y') }}</td>
                                 <td class="whitespace-nowrap px-5 py-4 text-right">
-                                    <a href="{{ route('topics.show', $topic) }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">View details</a>
+                                    <a href="{{ route('topics.show', $topic) }}{{ $topic->status === 'approved' ? '#project-monitoring' : '' }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">{{ $topic->status === 'approved' ? 'Monitor project' : 'View details' }}</a>
                                 </td>
                             </tr>
                         @empty

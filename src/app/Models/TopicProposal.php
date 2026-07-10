@@ -23,6 +23,7 @@ class TopicProposal extends Model
         'final_file_path',
         'signed_approval_path',
         'status',
+        'project_status',
     ];
 
     protected function casts(): array
@@ -65,5 +66,10 @@ class TopicProposal extends Model
     public function latestVersion(): HasOne
     {
         return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');
+    }
+
+    public function progressReports(): HasMany
+    {
+        return $this->hasMany(ProjectProgressReport::class, 'topic_id')->latest('reporting_date');
     }
 }

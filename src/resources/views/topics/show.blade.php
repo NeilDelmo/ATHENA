@@ -130,6 +130,10 @@
                         @endforeach
                     </div>
                 </section>
+
+                @if ($topic->status === 'approved' && (Auth::user()->hasRole('research_head') || $topic->user_id === Auth::id()))
+                    @include('topics.partials.project-monitoring')
+                @endif
             </div>
 
             <aside class="space-y-5">

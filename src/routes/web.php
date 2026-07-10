@@ -7,6 +7,7 @@ use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProposalTemplateController;
+use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchHeadTopicController;
@@ -85,7 +86,12 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
 Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
+    Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
 });
+
+Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController::class, 'download'])
+    ->middleware('auth')
+    ->name('project-progress.download');
 
 Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
@@ -104,6 +110,8 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
+    Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
+    Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::patch('/research-calls/{researchCall}/status', [ResearchCallController::class, 'updateStatus'])->name('research-calls.update-status');
     Route::get('/research-head/proposal-templates', [ProposalTemplateController::class, 'index'])->name('research_head.proposal-templates.index');
