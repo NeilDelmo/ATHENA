@@ -68,6 +68,12 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('From year')
         ->assertSee('Open access only')
         ->assertSee('Ask Athena about results')
+        ->assertSee('Conference Finder')
+        ->assertSee('HTML scraping')
+        ->assertSee('Relevance ranked')
+        ->assertSee('Find conferences for publication')
+        ->assertSee('local and international venues')
+        ->assertSee('Scraped source: WikiCFP')
         ->assertSee('Ask Athena')
         ->assertSee('Privacy:')
         ->assertSee('Research prompt groups')
@@ -491,6 +497,117 @@ test('literature search reports unavailable when every provider fails', function
         ->assertJsonPath('failed_sources.0', 'Semantic Scholar')
         ->assertJsonPath('failed_sources.1', 'Crossref')
         ->assertJsonPath('failed_sources.2', 'OpenAlex');
+});
+
+test('unauthorized roles cannot scrape conference listings', function () {
+    Http::fake();
+
+    Role::firstOrCreate(['name' => 'research_head']);
+    $researchHead = User::factory()->create();
+    $researchHead->assignRole('research_head');
+
+    $this->actingAs($researchHead)
+        ->postJson(route('research-support.conference-search'), [
+            'query' => 'educational technology',
+        ])
+        ->assertForbidden();
+
+    Http::assertNothingSent();
+});
+
+test('conference scraper query must be specific enough', function () {
+    Http::fake();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $response = $this->actingAs($faculty)
+        ->postJson(route('research-support.conference-search'), [
+            'query' => 'ai',
+        ]);
+
+    expect($response->getStatusCode())->toBe(422)
+        ->and($response->json('errors.query.0'))->toBe('The query field must be at least 3 characters.');
+
+    Http::assertNothingSent();
+});
+
+test('faculty can scrape conference listings for publication venues', function () {
+    Http::fake([
+        'www.wikicfp.com/cfp/servlet/tool.search*' => Http::response(<<<'HTML'
+            <html>
+                <body>
+                    <table>
+                        <tr>
+                            <td><a href="/cfp/servlet/event.showcfp?eventid=123&copyownerid=456">ICET 2027: International Conference on Educational Technology Assessment</a></td>
+                            <td>Where: Manila, Philippines When: Jul 21, 2027 Submission Deadline: Jan 15, 2027</td>
+                        </tr>
+                        <tr>
+                            <td><a href="/cfp/servlet/event.showcfp?eventid=789">AIED 2027: Educational Technology and Artificial Intelligence in Education</a></td>
+                            <td>Location: Singapore Event Date: Aug 11, 2027 Deadline: Feb 20, 2027</td>
+                        </tr>
+                        <tr>
+                            <td><a href="/cfp/servlet/event.showcfp?eventid=999">NURSING 2027: Clinical Practice Symposium</a></td>
+                            <td>Location: Tokyo, Japan Event Date: Sep 5, 2027 Deadline: Mar 12, 2027</td>
+                        </tr>
+                    </table>
+                </body>
+            </html>
+            HTML),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.conference-search'), [
+            'query' => 'educational technology assessment',
+        ])
+        ->assertOk()
+        ->assertJsonCount(2, 'results')
+        ->assertJsonPath('results.0.title', 'ICET 2027: International Conference on Educational Technology Assessment')
+        ->assertJsonPath('results.0.location', 'Manila, Philippines')
+        ->assertJsonPath('results.0.scope', 'local')
+        ->assertJsonPath('results.0.scope_label', 'Local')
+        ->assertJsonPath('results.0.relevance_score', 100)
+        ->assertJsonPath('results.0.relevance_label', 'Highly relevant')
+        ->assertJsonPath('results.0.matched_keywords.0', 'educational')
+        ->assertJsonPath('results.0.matched_keywords.1', 'technology')
+        ->assertJsonPath('results.0.matched_keywords.2', 'assessment')
+        ->assertJsonPath('results.0.deadline', 'Jan 15, 2027')
+        ->assertJsonPath('results.0.event_date', 'Jul 21, 2027')
+        ->assertJsonPath('results.0.source', 'WikiCFP')
+        ->assertJsonPath('results.0.url', 'http://www.wikicfp.com/cfp/servlet/event.showcfp?eventid=123&copyownerid=456')
+        ->assertJsonPath('results.1.title', 'AIED 2027: Educational Technology and Artificial Intelligence in Education')
+        ->assertJsonPath('results.1.location', 'Singapore')
+        ->assertJsonPath('results.1.scope', 'international')
+        ->assertJsonPath('results.1.scope_label', 'International')
+        ->assertJsonPath('results.1.relevance_score', 67)
+        ->assertJsonPath('results.1.deadline', 'Feb 20, 2027')
+        ->assertJsonPath('results.1.event_date', 'Aug 11, 2027')
+        ->assertJsonPath('results.1.source', 'WikiCFP')
+        ->assertJsonMissing(['title' => 'NURSING 2027: Clinical Practice Symposium']);
+
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'http://www.wikicfp.com/cfp/servlet/tool.search')
+        && str_contains(urldecode($request->url()), 'q=educational technology assessment')
+        && str_contains($request->url(), 'year=t'));
+});
+
+test('conference scraper reports unavailable when the source fails', function () {
+    Http::fake([
+        'www.wikicfp.com/cfp/servlet/tool.search*' => Http::response('', 503),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.conference-search'), [
+            'query' => 'educational technology assessment',
+        ])
+        ->assertStatus(503)
+        ->assertJsonPath('results', [])
+        ->assertJsonPath('failed_sources.0', 'WikiCFP');
 });
 
 test('chat requests require a final user message', function () {

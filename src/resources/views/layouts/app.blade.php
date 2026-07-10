@@ -20,6 +20,7 @@
         data-auth-user-id="{{ Auth::id() }}"
         @hasanyrole('faculty|faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endhasanyrole
         @hasanyrole('faculty|faculty_researcher') data-literature-search-url="{{ route('research-support.literature-search') }}" @endhasanyrole
+        @hasanyrole('faculty|faculty_researcher') data-conference-search-url="{{ route('research-support.conference-search') }}" @endhasanyrole
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
         @hasanyrole('faculty|faculty_researcher')

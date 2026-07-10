@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\ProviderController;
+use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\ExpertReviewController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
@@ -94,6 +95,9 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
     Route::post('/research-support/literature-search', LiteratureSearchController::class)
         ->middleware('throttle:20,1')
         ->name('research-support.literature-search');
+    Route::post('/research-support/conference-search', ConferenceSearchController::class)
+        ->middleware('throttle:12,1')
+        ->name('research-support.conference-search');
 });
 
 // RESEARCH HEAD ROUTES

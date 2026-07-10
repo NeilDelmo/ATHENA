@@ -609,6 +609,131 @@ Alpine.store('literatureSearch', {
     },
 });
 
+Alpine.store('conferenceSearch', {
+    query: '',
+    results: [],
+    failedSources: [],
+    isLoading: false,
+    hasSearched: false,
+    error: '',
+
+    async search() {
+        const query = this.query.trim();
+        this.hasSearched = true;
+        this.error = '';
+        this.failedSources = [];
+
+        if (query.length < 3) {
+            this.results = [];
+            this.error = 'Enter at least 3 characters to scrape conference listings.';
+            return;
+        }
+
+        const searchUrl = document.body.dataset.conferenceSearchUrl;
+
+        if (!searchUrl || this.isLoading) return;
+
+        this.isLoading = true;
+
+        try {
+            const response = await fetch(searchUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ query }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            this.failedSources = Array.isArray(payload.failed_sources) ? payload.failed_sources : [];
+
+            if (!response.ok) {
+                this.results = [];
+
+                if (response.status === 419) {
+                    this.error = 'Refresh the page, then try the conference search again.';
+                    return;
+                }
+
+                if (response.status === 422) {
+                    this.error = payload.errors?.query?.[0] || payload.message || 'Enter a valid conference topic or title.';
+                    return;
+                }
+
+                if (response.status === 429) {
+                    this.error = 'Too many conference searches were sent. Please wait a moment, then retry.';
+                    return;
+                }
+
+                this.error = payload.message || 'The conference scraper could not be completed right now.';
+                return;
+            }
+
+            this.results = Array.isArray(payload.results) ? payload.results : [];
+        } catch (error) {
+            this.results = [];
+            this.error = error.message || 'A network error interrupted the conference scraper.';
+        } finally {
+            this.isLoading = false;
+        }
+    },
+
+    askAthena() {
+        if (!this.results.length) return;
+
+        const assistant = Alpine.store('researchAssistant');
+
+        if (!assistant || assistant.isLoading) return;
+
+        assistant.draft = this.athenaPrompt();
+        assistant.send();
+
+        window.setTimeout(() => {
+            document.getElementById('assistant-heading')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
+    },
+
+    athenaPrompt() {
+        const resultLines = this.results.slice(0, 8).map((result, index) => {
+            const relevance = Number.isInteger(result.relevance_score) ? `; relevance: ${result.relevance_score}%` : '';
+            const scope = result.scope_label ? `; scope: ${result.scope_label}` : '';
+            const matchedTerms = Array.isArray(result.matched_keywords) && result.matched_keywords.length
+                ? `; matched terms: ${result.matched_keywords.join(', ')}`
+                : '';
+
+            return [
+                `${index + 1}. ${result.title}`,
+                `Source: ${result.source}${scope}${relevance}${matchedTerms}${result.location ? `; location: ${result.location}` : ''}${result.deadline ? `; deadline: ${result.deadline}` : ''}${result.event_date ? `; event date: ${result.event_date}` : ''}`,
+                `Description: ${result.description}`,
+                result.url ? `Link: ${result.url}` : '',
+            ].filter(Boolean).join('\n');
+        }).join('\n\n');
+
+        return [
+            'Help me compare these scraped conference publishing opportunities.',
+            `Research topic/title: ${this.query.trim()}`,
+            '',
+            resultLines,
+            '',
+            'Please suggest which venues look most relevant, what deadline risks to check, and what details I should verify on the official CFP pages. Do not invent conference details.',
+        ].join('\n');
+    },
+
+    clear() {
+        this.query = '';
+        this.results = [];
+        this.failedSources = [];
+        this.error = '';
+        this.hasSearched = false;
+    },
+});
+
 Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,

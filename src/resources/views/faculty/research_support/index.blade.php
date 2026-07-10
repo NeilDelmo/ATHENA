@@ -162,6 +162,113 @@
         </div>
     </section>
 
+    <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">
+        <div class="border-b border-gray-100 px-5 py-4">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">Conference Finder</span>
+                        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-500">HTML scraping</span>
+                        <span class="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Relevance ranked</span>
+                    </div>
+                    <h3 id="conference-finder-heading" class="mt-3 text-base font-black text-gray-900">Find conferences for publication</h3>
+                    <p class="mt-1 text-xs leading-5 text-gray-500">Scrape public call-for-paper listings to discover possible local and international venues for a topic or title.</p>
+                </div>
+                <div class="text-[10px] font-black uppercase tracking-wider text-gray-400">
+                    Scraped source: WikiCFP
+                </div>
+            </div>
+        </div>
+
+        <div class="p-5">
+            <form @submit.prevent="$store.conferenceSearch.search()" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+                <div>
+                    <label for="conference-search-query" class="sr-only">Conference topic or paper title</label>
+                    <input
+                        id="conference-search-query"
+                        type="search"
+                        x-model="$store.conferenceSearch.query"
+                        maxlength="140"
+                        placeholder="Search a field, topic, or paper title, e.g. educational technology assessment"
+                        class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+                    >
+                </div>
+                <button
+                    type="submit"
+                    :disabled="$store.conferenceSearch.isLoading || $store.conferenceSearch.query.trim().length < 3"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 text-xs font-black text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                    <svg x-show="!$store.conferenceSearch.isLoading" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3.75h15A1.5 1.5 0 0 1 21 5.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.75V5.25a1.5 1.5 0 0 1 1.5-1.5Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9M7.5 12h5.25" /></svg>
+                    <svg x-show="$store.conferenceSearch.isLoading" x-cloak class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path></svg>
+                    <span x-text="$store.conferenceSearch.isLoading ? 'Scraping' : 'Scrape conferences'"></span>
+                </button>
+            </form>
+
+            <div x-show="$store.conferenceSearch.error" x-cloak class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
+                <p class="font-black">Conference scraping unavailable</p>
+                <p class="mt-1" x-text="$store.conferenceSearch.error"></p>
+            </div>
+
+            <div x-show="!$store.conferenceSearch.hasSearched && !$store.conferenceSearch.isLoading" class="mt-5 rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                <p class="text-sm font-black text-gray-800">Search for possible publication venues</p>
+                <p class="mt-1 text-xs text-gray-500">Results will show relevance, local/international scope, deadlines, locations, and source links when available.</p>
+            </div>
+
+            <div x-show="$store.conferenceSearch.hasSearched && !$store.conferenceSearch.isLoading && !$store.conferenceSearch.results.length && !$store.conferenceSearch.error" x-cloak class="mt-5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-center">
+                <p class="text-sm font-black text-gray-800">No conference listings found</p>
+                <p class="mt-1 text-xs text-gray-500">Try a broader topic, a field name, or fewer title words.</p>
+            </div>
+
+            <div x-show="$store.conferenceSearch.results.length" x-cloak class="mt-5 space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                    <p class="text-xs font-black text-gray-900">
+                        <span x-text="$store.conferenceSearch.results.length"></span>
+                        <span>scraped conference candidates</span>
+                    </p>
+                    <div class="flex flex-wrap justify-end gap-2">
+                        <button type="button" @click="$store.conferenceSearch.askAthena()" :disabled="$store.researchAssistant.isLoading" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">Ask Athena to compare</button>
+                        <button type="button" @click="$store.conferenceSearch.clear()" class="rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-wider text-gray-400 transition hover:bg-gray-100 hover:text-red-600">Clear</button>
+                    </div>
+                </div>
+
+                <template x-for="result in $store.conferenceSearch.results" :key="`${result.source}-${result.url || result.title}`">
+                    <article class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-700" x-text="result.source"></span>
+                            <span x-show="result.scope_label" :class="{
+                                'bg-green-50 text-green-700': result.scope === 'local',
+                                'bg-indigo-50 text-indigo-700': result.scope === 'international',
+                                'bg-cyan-50 text-cyan-700': result.scope === 'online',
+                                'bg-gray-100 text-gray-500': !['local', 'international', 'online'].includes(result.scope),
+                            }" class="rounded-full px-2 py-0.5 text-[10px] font-bold" x-text="result.scope_label"></span>
+                            <span x-show="Number.isInteger(result.relevance_score)" class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-600" x-text="`${result.relevance_score}% relevance`"></span>
+                            <span x-show="result.deadline" class="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700" x-text="`Deadline: ${result.deadline}`"></span>
+                            <span x-show="result.location" class="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700" x-text="result.location"></span>
+                        </div>
+                        <h4 class="mt-3 text-sm font-black leading-6 text-gray-900" x-text="result.title"></h4>
+                        <p class="mt-2 text-xs leading-5 text-gray-600" x-text="result.description"></p>
+                        <dl class="mt-3 grid gap-2 text-[11px] leading-4 text-gray-500 md:grid-cols-2">
+                            <div>
+                                <dt class="font-black uppercase tracking-wider text-gray-400">Event date</dt>
+                                <dd class="mt-0.5 font-semibold text-gray-700" x-text="result.event_date || 'Event date not listed'"></dd>
+                            </div>
+                            <div>
+                                <dt class="font-black uppercase tracking-wider text-gray-400">Matched terms</dt>
+                                <dd class="mt-0.5 font-semibold text-gray-700" x-text="Array.isArray(result.matched_keywords) && result.matched_keywords.length ? result.matched_keywords.join(', ') : 'No direct keyword match listed'"></dd>
+                            </div>
+                            <div x-show="result.url">
+                                <dt class="font-black uppercase tracking-wider text-gray-400">Source link</dt>
+                                <dd class="mt-0.5">
+                                    <a :href="result.url" target="_blank" rel="noopener noreferrer" class="font-black text-red-600 hover:text-red-700">Open CFP listing</a>
+                                </dd>
+                            </div>
+                        </dl>
+                    </article>
+                </template>
+            </div>
+        </div>
+    </section>
+
     <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
         <section class="flex min-h-[620px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="assistant-heading">
             <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
