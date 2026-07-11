@@ -72,4 +72,12 @@ class TopicProposal extends Model
     {
         return $this->hasMany(ProjectProgressReport::class, 'topic_id')->latest('reporting_date');
     }
+
+    public function latestProgressReport(): HasOne
+    {
+        return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany([
+            'reporting_date' => 'max',
+            'id' => 'max',
+        ]);
+    }
 }

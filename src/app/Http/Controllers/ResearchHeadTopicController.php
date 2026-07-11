@@ -15,14 +15,34 @@ use Spatie\Permission\Models\Role;
 
 class ResearchHeadTopicController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $status = $request->string('status')->toString();
+        $search = trim($request->string('search')->toString());
+        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
+
+        $summary = [
+            'screening' => TopicProposal::whereIn('status', ['pending', 'resubmitted'])->count(),
+            'expert_review' => TopicProposal::where('status', 'expert_review')->count(),
+            'final_decision' => TopicProposal::where('status', 'for_final_decision')->count(),
+            'approved' => TopicProposal::where('status', 'approved')->count(),
+        ];
+
         $topics = TopicProposal::with([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports:id,topic_id,review_status',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ])
+            ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
+                        ->orWhereHas('user', fn ($query) => $query->where('name', 'like', "%{$search}%"));
+                });
+            })
             ->latest()
-            ->get();
+            ->paginate(15)
+            ->withQueryString();
 
         $experts = User::role('expert')->orderBy('name')->get();
         $screeningTemplates = ProposalTemplate::active()
@@ -31,7 +51,7 @@ class ResearchHeadTopicController extends Controller
             ->get()
             ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path));
 
-        return view('research_head.dashboard', compact('topics', 'experts', 'screeningTemplates'));
+        return view('research_head.dashboard', compact('topics', 'experts', 'screeningTemplates', 'summary', 'status', 'search'));
     }
 
     public function updateStatus(Request $request, TopicProposal $topic)

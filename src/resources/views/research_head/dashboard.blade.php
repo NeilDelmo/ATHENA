@@ -5,17 +5,17 @@
         @if (session('success'))<div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>@endif
         @if ($errors->any())<div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"><p class="font-bold">The review could not be submitted.</p><p class="mt-1 text-xs">{{ $errors->first() }}</p></div>@endif
 
-        @php
-            $screening = $topics->whereIn('status', ['pending', 'resubmitted'])->count();
-            $expertReview = $topics->where('status', 'expert_review')->count();
-            $finalDecision = $topics->where('status', 'for_final_decision')->count();
-            $approved = $topics->where('status', 'approved')->count();
-        @endphp
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            @foreach ([['Awaiting screening', $screening, 'text-amber-700 bg-amber-50'], ['With co-evaluators', $expertReview, 'text-purple-700 bg-purple-50'], ['Screening complete', $finalDecision, 'text-blue-700 bg-blue-50'], ['Approved', $approved, 'text-green-700 bg-green-50']] as [$label, $count, $style])
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p></div>
+            @foreach ([['Awaiting screening', $summary['screening'], 'text-amber-700 bg-amber-50', null], ['With co-evaluators', $summary['expert_review'], 'text-purple-700 bg-purple-50', null], ['Screening complete', $summary['final_decision'], 'text-blue-700 bg-blue-50', null], ['Approved projects', $summary['approved'], 'text-green-700 bg-green-50', route('research_head.projects.index')]] as [$label, $count, $style, $url])
+                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p>@if ($url)<a href="{{ $url }}" class="mt-3 block text-xs font-bold text-green-700">Open project monitoring &rarr;</a>@endif</div>
             @endforeach
         </div>
+
+        <form method="GET" action="{{ route('research_head.dashboard') }}" class="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_220px_auto]">
+            <input name="search" type="search" value="{{ $search }}" placeholder="Search proposal or faculty..." class="block w-full rounded-xl border-gray-200 text-sm">
+            <select name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold"><option value="">All proposal statuses</option>@foreach (['pending' => 'Pending', 'expert_review' => 'Initial screening', 'for_final_decision' => 'Screening complete', 'revision_requested' => 'Revision requested', 'resubmitted' => 'Resubmitted', 'approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach</select>
+            <div class="flex gap-2"><button class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white">Filter</button>@if ($search !== '' || $status !== '')<a href="{{ route('research_head.dashboard') }}" class="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600">Clear</a>@endif</div>
+        </form>
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div class="border-b border-gray-100 p-5"><h3 class="text-base font-black text-gray-900">Proposal pipeline</h3><p class="mt-1 text-xs text-gray-400">Expert recommendations are advisory; the Research Head retains the final decision.</p></div>
@@ -69,9 +69,10 @@
                         </div>
                     </article>
                 @empty
-                    <div class="p-12 text-center"><p class="text-sm font-bold text-gray-700">No proposals submitted yet</p></div>
+                    <div class="p-12 text-center"><p class="text-sm font-bold text-gray-700">No proposals found</p><p class="mt-1 text-xs text-gray-400">Try changing the search or status filter.</p></div>
                 @endforelse
             </div>
+            @if ($topics->hasPages())<div class="border-t border-gray-100 px-5 py-4">{{ $topics->links() }}</div>@endif
         </div>
     </div>
 </x-app-layout>

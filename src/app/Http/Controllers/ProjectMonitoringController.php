@@ -13,6 +13,59 @@ use Illuminate\Validation\Rule;
 
 class ProjectMonitoringController extends Controller
 {
+    public function index(Request $request)
+    {
+        $status = $request->string('status')->toString();
+        $attention = $request->string('attention')->toString();
+        $search = trim($request->string('search')->toString());
+        $allowedStatuses = ['ongoing', 'delayed', 'completed'];
+        $allowedAttention = ['needs_attention', 'pending_reports'];
+
+        $summary = [
+            'ongoing' => TopicProposal::where('status', 'approved')->where(fn ($query) => $query->where('project_status', 'ongoing')->orWhereNull('project_status'))->count(),
+            'delayed' => TopicProposal::where('status', 'approved')->where('project_status', 'delayed')->count(),
+            'completed' => TopicProposal::where('status', 'approved')->where('project_status', 'completed')->count(),
+            'pending_reports' => ProjectProgressReport::where('review_status', 'pending')
+                ->whereHas('topic', fn ($query) => $query->where('status', 'approved'))
+                ->count(),
+        ];
+
+        $projects = TopicProposal::query()
+            ->where('status', 'approved')
+            ->with(['user', 'researchCall', 'category', 'latestProgressReport'])
+            ->withCount([
+                'progressReports',
+                'progressReports as pending_reports_count' => fn ($query) => $query->where('review_status', 'pending'),
+            ])
+            ->when(in_array($status, $allowedStatuses, true), function ($query) use ($status) {
+                $status === 'ongoing'
+                    ? $query->where(fn ($query) => $query->where('project_status', 'ongoing')->orWhereNull('project_status'))
+                    : $query->where('project_status', $status);
+            })
+            ->when(in_array($attention, $allowedAttention, true), function ($query) use ($attention) {
+                if ($attention === 'pending_reports') {
+                    $query->whereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'));
+                } else {
+                    $query->where(function ($query) {
+                        $query->where('project_status', 'delayed')
+                            ->orWhereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'));
+                    });
+                }
+            })
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($query) use ($search) {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhereHas('user', fn ($query) => $query->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->orderByRaw("CASE WHEN project_status = 'delayed' OR EXISTS (SELECT 1 FROM project_progress_reports WHERE project_progress_reports.topic_id = topics.id AND review_status = 'pending') THEN 0 ELSE 1 END")
+            ->latest('updated_at')
+            ->paginate(15)
+            ->withQueryString();
+
+        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
+    }
+
     public function store(Request $request, TopicProposal $topic): RedirectResponse
     {
         abort_unless($topic->status === 'approved' && $topic->user_id === $request->user()->id, 403);

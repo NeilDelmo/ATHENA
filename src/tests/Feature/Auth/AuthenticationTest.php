@@ -6,13 +6,13 @@ use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 use Spatie\Permission\Models\Role;
 
-function mockGoogleUser(string $email): void
+function mockGoogleUser(string $email, string $avatar = 'https://example.com/avatar.jpg'): void
 {
     $googleUser = Mockery::mock(SocialiteUser::class);
     $googleUser->shouldReceive('getEmail')->andReturn($email);
     $googleUser->shouldReceive('getName')->andReturn('Red Spartan Faculty');
     $googleUser->shouldReceive('getId')->andReturn('google-user-123');
-    $googleUser->shouldReceive('getAvatar')->andReturn('https://example.com/avatar.jpg');
+    $googleUser->shouldReceive('getAvatar')->andReturn($avatar);
 
     $provider = Mockery::mock(Provider::class);
     $provider->shouldReceive('user')->once()->andReturn($googleUser);
@@ -59,6 +59,18 @@ test('a BatStateU Google account is provisioned as faculty and authenticated', f
     expect($user->google_id)->toBe('google-user-123')
         ->and($user->email_verified_at)->not->toBeNull()
         ->and($user->hasRole('faculty'))->toBeTrue();
+});
+
+test('a Google avatar URL longer than 255 characters is stored', function () {
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    $avatar = 'https://lh3.googleusercontent.com/a/'.str_repeat('a', 300).'=s96-c';
+    mockGoogleUser('long-avatar@g.batstate-u.edu.ph', $avatar);
+
+    $this->get('/auth/google/callback')->assertRedirect('/dashboard');
+
+    expect(strlen($avatar))->toBeGreaterThan(255)
+        ->and(User::where('email', 'long-avatar@g.batstate-u.edu.ph')->firstOrFail()->avatar)
+        ->toBe($avatar);
 });
 
 test('Google accounts outside the institutional domain are rejected', function () {
