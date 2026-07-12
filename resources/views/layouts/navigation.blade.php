@@ -7,6 +7,12 @@
     </div>
 
     <div class="grow space-y-1 overflow-y-auto px-4 py-6">
+        @role('research_coordinator')
+            <a href="{{ route('research_coordinator.dashboard') }}" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold {{ request()->routeIs('research_coordinator.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800' }}">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h16.5M16.5 16.5h3.75M16.5 16.5v4.5m0-4.5l-3-3m3 3l3-3M8.25 16.5v4.5m0-4.5l-3-3m3 3l3-3"/></svg>
+                Coordinator Workspace
+            </a>
+        @endrole
         
         @role('research_head')
             <a href="{{ route('research_head.dashboard') }}" 

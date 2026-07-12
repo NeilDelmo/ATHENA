@@ -8,6 +8,7 @@ use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchHeadTopicController;
+use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -21,6 +22,10 @@ Route::get('/dashboard', function () {
 
     if ($user->hasRole('research_head')) {
         return redirect()->route('research_head.dashboard');
+    }
+
+    if ($user->hasRole('research_coordinator')) {
+        return redirect()->route('research_coordinator.dashboard');
     }
 
     if ($user->hasRole('expert')) {
@@ -99,6 +104,11 @@ Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::post('/research-head/proposal-templates', [ProposalTemplateController::class, 'store'])->name('research_head.proposal-templates.store');
     Route::put('/research-head/proposal-templates/{proposalTemplate}', [ProposalTemplateController::class, 'update'])->name('research_head.proposal-templates.update');
     Route::patch('/research-head/proposal-templates/{proposalTemplate}/status', [ProposalTemplateController::class, 'updateStatus'])->name('research_head.proposal-templates.status');
+});
+
+Route::middleware(['auth', 'role:research_coordinator'])->prefix('research-coordinator')->name('research_coordinator.')->group(function () {
+    Route::get('/dashboard', [ResearchCoordinatorController::class, 'index'])->name('dashboard');
+    Route::post('/submissions/{topic}/review', [ResearchCoordinatorController::class, 'review'])->name('submissions.review');
 });
 
 Route::middleware(['auth', 'role:expert'])->group(function () {
