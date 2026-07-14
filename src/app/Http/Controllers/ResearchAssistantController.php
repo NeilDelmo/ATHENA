@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 class ResearchAssistantController extends Controller
 {
@@ -39,9 +40,9 @@ class ResearchAssistantController extends Controller
             ], 422);
         }
 
-        $apiKey = (string) config('services.groq.key');
-        $model = (string) config('services.groq.model');
-        $baseUrl = (string) config('services.groq.base_url');
+        $apiKey = trim((string) config('services.groq.key'));
+        $model = trim((string) config('services.groq.model'));
+        $baseUrl = trim((string) config('services.groq.base_url'));
 
         if ($apiKey === '' || $model === '' || $baseUrl === '') {
             return response()->json([
@@ -110,6 +111,16 @@ class ResearchAssistantController extends Controller
             return response()->json([
                 'message' => 'The research assistant could not be reached. Please try again.',
             ], 503);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            Log::error('Groq research assistant request encountered an unexpected error.', [
+                'exception' => $exception::class,
+            ]);
+
+            return response()->json([
+                'message' => 'The research assistant encountered an unexpected error. Please try again.',
+            ], 503);
         }
 
         if ($response->status() === 429) {
@@ -123,6 +134,8 @@ class ResearchAssistantController extends Controller
             Log::warning('Groq research assistant request failed.', [
                 'status' => $response->status(),
                 'model' => $model,
+                'request_id' => $response->header('x-request-id'),
+                'provider_error' => $response->json('error.code') ?? $response->json('error.type'),
             ]);
 
             return response()->json([

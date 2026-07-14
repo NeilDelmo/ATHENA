@@ -18,17 +18,17 @@
     <body
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
-        @hasanyrole('faculty|faculty_researcher') data-research-assistant-url="{{ route('research-support.chat') }}" @endhasanyrole
+        @auth data-research-assistant-url="{{ route('research-support.chat') }}" @endauth
         @hasanyrole('faculty|faculty_researcher') data-literature-search-url="{{ route('research-support.literature-search') }}" @endhasanyrole
         @hasanyrole('faculty|faculty_researcher') data-conference-search-url="{{ route('research-support.conference-search') }}" @endhasanyrole
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
-        @hasanyrole('faculty|faculty_researcher')
+        @auth
             <script>
                 window.athenaResearchAssistantContexts = {{ Illuminate\Support\Js::from($researchAssistantContexts ?? collect()) }};
                 window.athenaResearchAssistantActiveContextId = {{ Illuminate\Support\Js::from($activeResearchAssistantContextId ?? null) }};
             </script>
-        @endhasanyrole
+        @endauth
 
         @include('layouts.navigation')
 
@@ -48,10 +48,10 @@
 
                 <div class="flex items-center gap-4 ml-auto">
 
-                    @hasanyrole('faculty|faculty_researcher')
+                    @auth
                         <button
                             type="button"
-                            @click="$store.researchAssistant.openDrawer()"
+                            @click="$store.researchAssistant.openDrawer($event.currentTarget)"
                             class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-xs font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                             aria-label="Open Athena AI research assistant"
                             title="Open Athena AI research assistant"
@@ -61,7 +61,7 @@
                             </svg>
                             <span class="hidden sm:inline">Ask Athena</span>
                         </button>
-                    @endhasanyrole
+                    @endauth
 
                     <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
@@ -129,9 +129,9 @@
 
         </div>
 
-        @hasanyrole('faculty|faculty_researcher')
+        @auth
             <x-research-assistant-drawer />
-        @endhasanyrole
+        @endauth
 
         <script>
             function initializeManilaClock() {

@@ -136,6 +136,8 @@ Alpine.store('researchAssistant', {
     errorTitle: '',
     retryAfter: 0,
     abortController: null,
+    requestSequence: 0,
+    returnFocusElement: null,
     copiedMessageId: null,
     copiedConversation: false,
     nextMessageId: 2,
@@ -145,16 +147,10 @@ Alpine.store('researchAssistant', {
     activePromptGroup: researchAssistantPromptGroups[0].key,
     promptGroups: researchAssistantPromptGroups,
     quickPrompts: researchAssistantPromptGroups.flatMap((group) => group.prompts),
-    messages: [
-        {
-            id: 1,
-            role: 'assistant',
-            content: 'Hi! I am Athena, your research support assistant. Tell me what you are studying, or choose a prompt below to get started.',
-            context: false,
-        },
-    ],
+    messages: [],
 
-    openDrawer() {
+    openDrawer(trigger = null) {
+        this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
         this.drawerOpen = true;
         document.documentElement.classList.add('overflow-hidden');
         window.setTimeout(() => document.getElementById('research-assistant-drawer-message')?.focus(), 220);
@@ -163,6 +159,7 @@ Alpine.store('researchAssistant', {
     closeDrawer() {
         this.drawerOpen = false;
         document.documentElement.classList.remove('overflow-hidden');
+        window.setTimeout(() => this.returnFocusElement?.focus?.());
     },
 
     openWithContext(contextId) {
@@ -184,6 +181,17 @@ Alpine.store('researchAssistant', {
         return this.activePromptGroupData()?.prompts || [];
     },
 
+    starterPrompts() {
+        return this.promptGroups.map((group) => ({
+            label: group.label,
+            prompt: group.prompts[0],
+        }));
+    },
+
+    hasConversation() {
+        return this.messages.some((message) => message.role === 'user');
+    },
+
     setPromptGroup(groupKey) {
         if (this.promptGroups.some((group) => group.key === groupKey)) {
             this.activePromptGroup = groupKey;
@@ -199,6 +207,11 @@ Alpine.store('researchAssistant', {
                 : document.getElementById('research-assistant-message');
             input?.focus();
         });
+    },
+
+    async sendPrompt(prompt) {
+        this.draft = prompt;
+        await this.send();
     },
 
     hasContextOptions() {
@@ -228,6 +241,7 @@ Alpine.store('researchAssistant', {
 
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
         this.draft = '';
+        this.resetComposers();
         this.error = '';
         this.errorTitle = '';
         this.scrollToLatest();
@@ -237,22 +251,36 @@ Alpine.store('researchAssistant', {
 
     async requestReply() {
         const chatUrl = document.body.dataset.researchAssistantUrl;
-        if (!chatUrl || this.isLoading) return;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
+        if (this.isLoading) return;
+
+        if (!chatUrl) {
+            this.setError('Assistant unavailable', 'The chat endpoint is unavailable on this page. Refresh and try again.');
+            return;
+        }
+
+        if (!csrfToken) {
+            this.setError('Session unavailable', 'The security token is missing. Refresh the page before sending another message.');
+            return;
+        }
+
+        const requestSequence = ++this.requestSequence;
+        const abortController = new AbortController();
         this.isLoading = true;
         this.error = '';
-        this.abortController = new AbortController();
+        this.abortController = abortController;
         this.scrollToLatest();
 
         try {
             const response = await fetch(chatUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
-                signal: this.abortController.signal,
+                signal: abortController.signal,
                 headers: {
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'X-CSRF-TOKEN': csrfToken,
                 },
                 body: JSON.stringify({
                     messages: this.contextMessages(),
@@ -293,21 +321,30 @@ Alpine.store('researchAssistant', {
                 return;
             }
 
+            if (typeof payload.reply !== 'string' || !payload.reply.trim()) {
+                this.setError('Invalid response', 'Athena returned an incomplete response. Please retry your message.');
+                return;
+            }
+
             this.messages.push({
                 id: this.nextMessageId++,
                 role: 'assistant',
-                content: payload.reply,
+                content: payload.reply.trim(),
                 model: payload.model,
             });
             this.copiedConversation = false;
         } catch (error) {
             if (error.name !== 'AbortError') {
-                this.setError('Network interrupted', error.message || 'A network error interrupted the request.');
+                this.setError('Network interrupted', error instanceof Error && error.message
+                    ? error.message
+                    : 'A network error interrupted the request.');
             }
         } finally {
-            this.isLoading = false;
-            this.abortController = null;
-            this.scrollToLatest();
+            if (requestSequence === this.requestSequence) {
+                this.isLoading = false;
+                this.abortController = null;
+                this.scrollToLatest();
+            }
         }
     },
 
@@ -324,6 +361,7 @@ Alpine.store('researchAssistant', {
     },
 
     stop() {
+        this.requestSequence += 1;
         this.abortController?.abort();
         this.abortController = null;
         this.isLoading = false;
@@ -399,15 +437,19 @@ Alpine.store('researchAssistant', {
         }
     },
 
+    newConversation() {
+        if (this.hasConversation() && !window.confirm('Start a new chat? The current conversation is not saved.')) {
+            return;
+        }
+
+        this.clearConversation();
+    },
+
     clearConversation() {
         this.stop();
-        this.messages = [{
-            id: this.nextMessageId++,
-            role: 'assistant',
-            content: 'New conversation started. What would you like help with?',
-            context: false,
-        }];
+        this.messages = [];
         this.draft = '';
+        this.resetComposers();
         this.error = '';
         this.errorTitle = '';
         this.retryAfter = 0;
@@ -416,10 +458,28 @@ Alpine.store('researchAssistant', {
         this.scrollToLatest();
     },
 
+    resizeComposer(event) {
+        const composer = event?.currentTarget;
+        if (!composer) return;
+
+        composer.style.height = 'auto';
+        composer.style.height = `${Math.min(composer.scrollHeight, 176)}px`;
+    },
+
+    resetComposers() {
+        window.setTimeout(() => {
+            document.querySelectorAll('[data-assistant-composer]').forEach((composer) => {
+                composer.style.height = 'auto';
+            });
+        });
+    },
+
     scrollToLatest() {
         window.setTimeout(() => {
             document.querySelectorAll('[data-assistant-messages]').forEach((container) => {
-                container.scrollTop = container.scrollHeight;
+                if (container.offsetParent !== null) {
+                    container.scrollTop = container.scrollHeight;
+                }
             });
         });
     },

@@ -93,11 +93,14 @@ Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController
     ->middleware('auth')
     ->name('project-progress.download');
 
-Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
+Route::middleware('auth')->group(function () {
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.chat');
+});
+
+Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
     Route::post('/research-support/literature-search', LiteratureSearchController::class)
         ->middleware('throttle:20,1')
         ->name('research-support.literature-search');

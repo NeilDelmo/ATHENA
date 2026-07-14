@@ -53,3 +53,11 @@ Thumbs.db
 # Homestead.
 /src/Homestead.json
 /src/Homestead.yaml
+
+# Root-level generated dependencies, caches, and build artifacts.
+/node_modules/
+/vendor/
+/bootstrap/cache/
+/database/*.sqlite
+/public/build/
+/storage/framework/

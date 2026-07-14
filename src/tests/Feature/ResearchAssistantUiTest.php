@@ -10,6 +10,8 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     Role::firstOrCreate(['name' => 'faculty']);
     Role::firstOrCreate(['name' => 'faculty_researcher']);
+    Role::firstOrCreate(['name' => 'research_head']);
+    Role::firstOrCreate(['name' => 'expert']);
 });
 
 function createAssistantTopicFor(User $user, array $overrides = []): TopicProposal
@@ -60,8 +62,9 @@ test('faculty and faculty researchers can open the research help facility', func
     $this->actingAs($researcher)
         ->get(route('research-support.index'))
         ->assertOk()
-        ->assertSee('Research Help Facility')
+        ->assertSee('Athena AI Workspace')
         ->assertSee('AI Research Assistant')
+        ->assertSee('How can Athena help?')
         ->assertSee('RRL Finder')
         ->assertSee('Search related literature')
         ->assertSee('Semantic Scholar + Crossref + OpenAlex')
@@ -81,6 +84,20 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Export .txt');
 })->with(['faculty', 'faculty_researcher']);
 
+test('all authenticated roles can open the assistant workspace', function (string $role) {
+    $this->withoutVite();
+
+    $user = User::factory()->create();
+    $user->assignRole($role);
+
+    $this->actingAs($user)
+        ->get(route('research-support.index'))
+        ->assertOk()
+        ->assertSee('Athena AI Workspace')
+        ->assertSee('How can Athena help?')
+        ->assertDontSee('RRL Finder');
+})->with(['research_head', 'expert']);
+
 test('proposal owners can launch athena with the current proposal selected', function () {
     $this->withoutVite();
 
@@ -99,7 +116,7 @@ test('proposal owners can launch athena with the current proposal selected', fun
         ->assertSee('Context-aware freshwater research');
 });
 
-test('faculty and faculty researchers can receive a groq research response', function (string $role) {
+test('authenticated users can receive a groq research response', function (string $role) {
     config([
         'services.groq.key' => 'test-key',
         'services.groq.model' => 'openai/gpt-oss-120b',
@@ -132,7 +149,51 @@ test('faculty and faculty researchers can receive a groq research response', fun
     Http::assertSent(fn ($request) => $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
         && $request['max_completion_tokens'] === 700
         && $request['messages'][0]['role'] === 'system');
-})->with(['faculty', 'faculty_researcher']);
+})->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
+
+test('assistant reports a provider connection failure without crashing', function () {
+    config([
+        'services.groq.key' => 'test-key',
+        'services.groq.model' => 'openai/gpt-oss-120b',
+        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+    ]);
+
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::failedConnection('Provider unavailable'),
+    ]);
+
+    $user = User::factory()->create();
+    $user->assignRole('research_head');
+
+    $this->actingAs($user)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'Help me plan a study.']],
+        ])
+        ->assertServiceUnavailable()
+        ->assertJsonPath('message', 'The research assistant could not be reached. Please try again.');
+});
+
+test('assistant rejects a malformed successful provider response', function () {
+    config([
+        'services.groq.key' => 'test-key',
+        'services.groq.model' => 'openai/gpt-oss-120b',
+        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+    ]);
+
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::response(['choices' => []]),
+    ]);
+
+    $user = User::factory()->create();
+    $user->assignRole('expert');
+
+    $this->actingAs($user)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'Help me plan a study.']],
+        ])
+        ->assertStatus(502)
+        ->assertJsonPath('message', 'The assistant returned an empty response. Please try rephrasing your question.');
+});
 
 test('users can attach their own proposal context to a chat request', function () {
     config([
@@ -628,20 +689,27 @@ test('chat requests require a final user message', function () {
         ->and($response->json('errors.messages.0'))->toBe('The conversation must end with a user message.');
 });
 
-test('assistant launcher is rendered for faculty and faculty researchers', function () {
-    $researcher = User::factory()->create();
-    $researcher->assignRole('faculty_researcher');
+test('assistant launcher is rendered for every authenticated role', function (string $role) {
+    $this->withoutVite();
 
-    $faculty = User::factory()->create();
-    $faculty->assignRole('faculty');
+    $user = User::factory()->create();
+    $user->assignRole($role);
 
-    $this->actingAs($researcher)
-        ->get(route('faculty.dashboard'))
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
         ->assertOk()
         ->assertSee('Open Athena AI research assistant');
+})->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
-    $this->actingAs($faculty)
-        ->get(route('faculty.dashboard'))
-        ->assertOk()
-        ->assertSee('Open Athena AI research assistant');
+test('guests cannot send assistant messages', function () {
+    Http::fake();
+
+    $this->postJson(route('research-support.chat'), [
+        'messages' => [[
+            'role' => 'user',
+            'content' => 'Help me plan a study.',
+        ]],
+    ])->assertUnauthorized();
+
+    Http::assertNothingSent();
 });
