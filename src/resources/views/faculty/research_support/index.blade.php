@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
+        <div class="athena-readable">
             <div>
                 <div class="flex items-center gap-2">
                     <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">ATHENA assistant</span>
@@ -11,7 +11,7 @@
         </div>
     </x-slot>
 
-    <div class="mb-5 overflow-x-auto border-b border-gray-200">
+    <div class="athena-readable mb-5 overflow-x-auto border-b border-gray-200">
         <nav class="flex min-w-max gap-6" aria-label="Research help tools">
             <a href="{{ route('research-support.index') }}" aria-current="page" class="flex items-center gap-2 border-b-2 border-red-600 px-1 pb-3 text-xs font-black text-red-600">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
@@ -31,11 +31,11 @@
     <x-research-assistant-workspace />
 
     @hasanyrole('faculty|faculty_researcher')
-    <div class="mb-3 mt-8">
+    <div class="athena-readable mb-3 mt-8">
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Research discovery tools</p>
     </div>
 
-    <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="rrl-finder-heading">
+    <section class="athena-readable mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="rrl-finder-heading">
         <div class="border-b border-gray-100 px-5 py-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
@@ -164,7 +164,7 @@
         </div>
     </section>
 
-    <section class="mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">
+    <section class="athena-readable mb-5 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">
         <div class="border-b border-gray-100 px-5 py-4">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>

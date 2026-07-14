@@ -2,7 +2,7 @@
     x-cloak
     x-show="$store.researchAssistant.drawerOpen"
     @keydown.escape.window="$store.researchAssistant.closeDrawer()"
-    class="pointer-events-none fixed inset-0 z-[70]"
+    class="athena-readable pointer-events-none fixed inset-0 z-[70]"
 >
     <div x-show="$store.researchAssistant.drawerOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="pointer-events-auto absolute inset-0 bg-gray-950/45 backdrop-blur-sm xl:hidden" aria-hidden="true"></div>
 

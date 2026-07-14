@@ -21,6 +21,40 @@
     }
 }
 
+@layer components {
+    .athena-header-actions > button,
+    .athena-header-actions > [x-data] > button {
+        color: rgb(255 255 255);
+    }
+
+    .athena-header-actions > button:hover,
+    .athena-header-actions > [x-data] > button:hover {
+        background-color: rgb(255 255 255 / 0.1);
+    }
+
+    /* A moderate, consistent reading scale for ATHENA and Research Help tools. */
+    .athena-readable .text-\[8px\] {
+        font-size: 0.6875rem;
+    }
+
+    .athena-readable .text-\[10px\],
+    .athena-readable .text-\[11px\] {
+        font-size: 0.75rem;
+    }
+
+    .athena-readable .text-xs {
+        font-size: 0.8125rem;
+    }
+
+    .athena-readable .text-sm {
+        font-size: 0.9375rem;
+    }
+
+    .athena-readable .text-base {
+        font-size: 1.0625rem;
+    }
+}
+
 /*
  * Authenticated application theme bridge.
  * Existing screens use the original gray utility palette; these scoped

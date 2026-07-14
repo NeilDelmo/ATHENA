@@ -16,7 +16,8 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body
-        x-data
+        x-data="{ sidebarOpen: window.innerWidth >= 640 }"
+        @keydown.escape.window="sidebarOpen = false"
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
@@ -35,23 +36,64 @@
         @include('layouts.navigation')
 
         <div
-            :class="{ 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
-            class="flex min-h-screen flex-col bg-white transition-[padding,background-color] duration-200 ease-out dark:bg-slate-950 sm:pl-64"
+            x-cloak
+            x-show="sidebarOpen"
+            x-transition.opacity
+            @click="sidebarOpen = false"
+            class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
+            aria-hidden="true"
+        ></div>
+
+        <div
+            :class="{ 'sm:pl-64': sidebarOpen, 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
+            class="flex min-h-screen flex-col bg-white pl-16 transition-[padding,background-color] duration-200 ease-out dark:bg-slate-950"
         >
             
-            <nav class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
-                <div class="hidden text-xs font-medium text-gray-400 md:block">
-                    Philippine Time:
-                    <time
-                        id="manila-system-time"
-                        class="font-bold tabular-nums text-gray-600"
-                        data-timezone="Asia/Manila"
-                        aria-live="off"
-                    >{{ now()->format('M d, Y | h:i:s A') }}</time>
-                    <span class="ml-1 text-[10px] font-black uppercase tracking-wider text-red-600">PHT</span>
+            <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8">
+                <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-red-700 via-red-700 to-red-950 md:from-transparent md:via-red-700/70 md:to-red-950" aria-hidden="true"></div>
+
+                <div
+                    class="pointer-events-none absolute inset-y-0 left-0 hidden w-[30rem] overflow-hidden md:block"
+                    style="-webkit-mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%); mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%);"
+                    aria-hidden="true"
+                >
+                    <img src="{{ asset('images/front.jpg') }}" alt="" class="absolute inset-0 h-full w-full object-cover object-center" />
+                    <div class="absolute inset-0 bg-gradient-to-r from-red-950/65 via-red-700/25 to-red-600/60"></div>
+                    <div class="absolute -bottom-14 right-20 h-32 w-32 rotate-45 rounded-3xl border border-white/20 bg-white/10"></div>
+                    <div class="absolute -top-16 left-24 h-36 w-36 rounded-full border-[18px] border-white/10"></div>
                 </div>
 
-                <div class="flex items-center gap-4 ml-auto">
+                <svg class="pointer-events-none absolute inset-y-0 right-0 h-full w-[55%] text-white/[0.11]" aria-hidden="true">
+                    <defs>
+                        <pattern id="athena-header-hexagons" width="52" height="45" patternUnits="userSpaceOnUse">
+                            <path d="M13 1h26l12 21.5L39 44H13L1 22.5 13 1Z" fill="none" stroke="currentColor" stroke-width="1" />
+                        </pattern>
+                        <linearGradient id="athena-header-pattern-fade" x1="0" x2="1">
+                            <stop offset="0" stop-color="white" stop-opacity="0" />
+                            <stop offset="0.38" stop-color="white" stop-opacity="0.55" />
+                            <stop offset="1" stop-color="white" stop-opacity="1" />
+                        </linearGradient>
+                        <mask id="athena-header-pattern-mask">
+                            <rect width="100%" height="100%" fill="url(#athena-header-pattern-fade)" />
+                        </mask>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#athena-header-hexagons)" mask="url(#athena-header-pattern-mask)" />
+                </svg>
+
+                <div class="absolute right-8 top-3 z-10 hidden min-w-0 items-center gap-3 md:flex">
+                    <div class="rounded-xl border border-white/15 bg-red-950/25 px-4 py-2 text-xs font-medium text-red-100 shadow-sm backdrop-blur-sm">
+                        Philippine Time:
+                        <time
+                            id="manila-system-time"
+                            class="font-bold tabular-nums text-white"
+                            data-timezone="Asia/Manila"
+                            aria-live="off"
+                        >{{ now()->format('M d, Y | h:i:s A') }}</time>
+                        <span class="ml-1 text-[10px] font-black uppercase tracking-wider text-red-200">PHT</span>
+                    </div>
+                </div>
+
+                <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-4">
 
                     @auth
                         <button
@@ -59,7 +101,7 @@
                             @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
                             :aria-expanded="$store.researchAssistant.drawerOpen"
                             aria-controls="research-assistant-panel"
-                            class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-xs font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                            class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-[13px] font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                             aria-label="Open Athena AI research assistant"
                             title="Open Athena AI research assistant"
                         >
@@ -81,10 +123,10 @@
 
                     <x-notification-menu />
 
-                    <div class="h-6 w-[1px] bg-gray-200 dark:bg-slate-700"></div>
+                    <div class="h-6 w-px bg-white/25"></div>
 
                     <div x-data="{ open: false }" class="relative">
-                        <button @click="open = !open" class="flex cursor-pointer items-center gap-2.5 rounded-xl p-1.5 transition duration-150 hover:bg-gray-50 focus:outline-none dark:hover:bg-slate-800">
+                        <button @click="open = !open" class="flex cursor-pointer items-center gap-2.5 rounded-xl p-1.5 transition duration-150 hover:bg-white/10 focus:outline-none">
                             @if(Auth::user()->avatar ?? false)
                                 <img src="{{ Auth::user()->avatar }}" class="w-8 h-8 rounded-full border border-gray-200 object-cover shadow-sm" alt="Google Profile">
                             @else
@@ -92,8 +134,8 @@
                                     {{ substr(Auth::user()->name, 0, 1) }}
                                 </div>
                             @endif
-                            <span class="text-sm font-bold text-gray-700 hidden sm:block truncate max-w-[120px]">{{ Auth::user()->name }}</span>
-                            <svg class="w-4 h-4 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <span class="hidden max-w-[120px] truncate text-sm font-bold text-white sm:block">{{ Auth::user()->name }}</span>
+                            <svg class="hidden h-4 w-4 text-red-100 sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                             </svg>
                         </button>
