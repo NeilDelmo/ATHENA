@@ -151,6 +151,35 @@ test('authenticated users can receive a groq research response', function (strin
         && $request['messages'][0]['role'] === 'system');
 })->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
+test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
+    config([
+        'services.groq.key' => 'test-key',
+        'services.groq.model' => 'openai/gpt-oss-120b',
+        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+    ]);
+
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'Group the studies by theme and method.'],
+            ]],
+        ]),
+    ]);
+
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty');
+    $generatedPrompt = str_repeat('Research result context. ', 120);
+
+    expect(strlen($generatedPrompt))->toBeGreaterThan(2000);
+
+    $this->actingAs($researcher)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => $generatedPrompt]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'Group the studies by theme and method.');
+});
+
 test('assistant reports a provider connection failure without crashing', function () {
     config([
         'services.groq.key' => 'test-key',
@@ -698,7 +727,11 @@ test('assistant launcher is rendered for every authenticated role', function (st
     $this->actingAs($user)
         ->get(route('profile.edit'))
         ->assertOk()
-        ->assertSee('Open Athena AI research assistant');
+        ->assertSee('Open Athena AI research assistant')
+        ->assertSee('aria-controls="research-assistant-panel"', false)
+        ->assertSee('id="research-assistant-panel"', false)
+        ->assertSee('$store.researchAssistant.toggleDrawer', false)
+        ->assertSeeInOrder(['<body', 'x-data', 'data-app-shell'], false);
 })->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
 test('guests cannot send assistant messages', function () {

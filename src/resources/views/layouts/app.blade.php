@@ -16,6 +16,8 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body
+        x-data
+        @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
         @auth data-research-assistant-url="{{ route('research-support.chat') }}" @endauth
@@ -32,7 +34,10 @@
 
         @include('layouts.navigation')
 
-        <div class="flex min-h-screen flex-col bg-white transition-colors duration-300 dark:bg-slate-950 sm:pl-64">
+        <div
+            :class="{ 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
+            class="flex min-h-screen flex-col bg-white transition-[padding,background-color] duration-200 ease-out dark:bg-slate-950 sm:pl-64"
+        >
             
             <nav class="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900 sm:px-8">
                 <div class="hidden text-xs font-medium text-gray-400 md:block">
@@ -51,7 +56,9 @@
                     @auth
                         <button
                             type="button"
-                            @click="$store.researchAssistant.openDrawer($event.currentTarget)"
+                            @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
+                            :aria-expanded="$store.researchAssistant.drawerOpen"
+                            aria-controls="research-assistant-panel"
                             class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-xs font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                             aria-label="Open Athena AI research assistant"
                             title="Open Athena AI research assistant"
@@ -59,7 +66,7 @@
                             <svg class="h-4 w-4 transition group-hover:rotate-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
                             </svg>
-                            <span class="hidden sm:inline">Ask Athena</span>
+                            <span class="hidden sm:inline">Ask ATHENA</span>
                         </button>
                     @endauth
 

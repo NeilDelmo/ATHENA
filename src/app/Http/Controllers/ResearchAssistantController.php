@@ -13,12 +13,14 @@ use Throwable;
 
 class ResearchAssistantController extends Controller
 {
+    private const MESSAGE_MAX_LENGTH = 8000;
+
     public function __invoke(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'messages' => ['required', 'array', 'min:1', 'max:8'],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
-            'messages.*.content' => ['required', 'string', 'max:2000'],
+            'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'context' => ['nullable', 'array'],
             'context.topic_id' => ['nullable', 'integer'],
         ]);

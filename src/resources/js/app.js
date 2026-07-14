@@ -85,6 +85,16 @@ const activeAssistantContextId = window.athenaResearchAssistantActiveContextId ?
 const defaultAssistantContextId = assistantContexts.some((context) => Number(context.id) === Number(activeAssistantContextId))
     ? Number(activeAssistantContextId)
     : Number(assistantContexts[0]?.id || 0);
+const researchAssistantMessageLimit = 8000;
+
+function compactAssistantText(value, maxLength = 280) {
+    const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+
+    if (normalized.length <= maxLength) return normalized;
+
+    return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
+
 const researchAssistantPromptGroups = [
     {
         key: 'planning',
@@ -149,16 +159,36 @@ Alpine.store('researchAssistant', {
     quickPrompts: researchAssistantPromptGroups.flatMap((group) => group.prompts),
     messages: [],
 
+    isOverlayViewport() {
+        return !window.matchMedia('(min-width: 1280px)').matches;
+    },
+
+    syncPageScroll() {
+        document.documentElement.classList.toggle(
+            'overflow-hidden',
+            this.drawerOpen && this.isOverlayViewport(),
+        );
+    },
+
+    toggleDrawer(trigger = null) {
+        if (this.drawerOpen) {
+            this.closeDrawer();
+            return;
+        }
+
+        this.openDrawer(trigger);
+    },
+
     openDrawer(trigger = null) {
         this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
         this.drawerOpen = true;
-        document.documentElement.classList.add('overflow-hidden');
+        this.syncPageScroll();
         window.setTimeout(() => document.getElementById('research-assistant-drawer-message')?.focus(), 220);
     },
 
     closeDrawer() {
         this.drawerOpen = false;
-        document.documentElement.classList.remove('overflow-hidden');
+        this.syncPageScroll();
         window.setTimeout(() => this.returnFocusElement?.focus?.());
     },
 
@@ -236,7 +266,7 @@ Alpine.store('researchAssistant', {
     },
 
     async send() {
-        const content = this.draft.trim();
+        const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
         if (!content || this.isLoading || this.retryAfter > 0) return;
 
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
@@ -352,7 +382,10 @@ Alpine.store('researchAssistant', {
         return this.messages
             .filter((message) => ['user', 'assistant'].includes(message.role) && message.context !== false)
             .slice(-8)
-            .map(({ role, content }) => ({ role, content }));
+            .map(({ role, content }) => ({
+                role,
+                content: String(content).slice(0, researchAssistantMessageLimit),
+            }));
     },
 
     async retry() {
@@ -630,16 +663,16 @@ Alpine.store('literatureSearch', {
     },
 
     athenaPrompt() {
-        const resultLines = this.results.slice(0, 8).map((result, index) => {
+        const resultLines = this.results.slice(0, 6).map((result, index) => {
             const year = result.year ? ` (${result.year})` : '';
             const citations = Number.isInteger(result.citation_count) ? `; citations: ${result.citation_count}` : '';
-            const doi = result.doi ? `; DOI: ${result.doi}` : '';
+            const doi = result.doi ? `; DOI: ${compactAssistantText(result.doi, 100)}` : '';
 
             return [
-                `${index + 1}. ${result.title}${year}`,
-                `Authors: ${result.authors || 'Authors not listed'}`,
-                `Source: ${result.source}${result.venue ? `, ${result.venue}` : ''}${citations}${doi}`,
-                `Description: ${result.description}`,
+                `${index + 1}. ${compactAssistantText(result.title, 180)}${year}`,
+                `Authors: ${compactAssistantText(result.authors || 'Authors not listed', 180)}`,
+                `Source: ${compactAssistantText(result.source, 80)}${result.venue ? `, ${compactAssistantText(result.venue, 120)}` : ''}${citations}${doi}`,
+                `Description: ${compactAssistantText(result.description, 320)}`,
             ].join('\n');
         }).join('\n\n');
 
@@ -760,18 +793,18 @@ Alpine.store('conferenceSearch', {
     },
 
     athenaPrompt() {
-        const resultLines = this.results.slice(0, 8).map((result, index) => {
+        const resultLines = this.results.slice(0, 6).map((result, index) => {
             const relevance = Number.isInteger(result.relevance_score) ? `; relevance: ${result.relevance_score}%` : '';
-            const scope = result.scope_label ? `; scope: ${result.scope_label}` : '';
+            const scope = result.scope_label ? `; scope: ${compactAssistantText(result.scope_label, 80)}` : '';
             const matchedTerms = Array.isArray(result.matched_keywords) && result.matched_keywords.length
-                ? `; matched terms: ${result.matched_keywords.join(', ')}`
+                ? `; matched terms: ${compactAssistantText(result.matched_keywords.join(', '), 160)}`
                 : '';
 
             return [
-                `${index + 1}. ${result.title}`,
-                `Source: ${result.source}${scope}${relevance}${matchedTerms}${result.location ? `; location: ${result.location}` : ''}${result.deadline ? `; deadline: ${result.deadline}` : ''}${result.event_date ? `; event date: ${result.event_date}` : ''}`,
-                `Description: ${result.description}`,
-                result.url ? `Link: ${result.url}` : '',
+                `${index + 1}. ${compactAssistantText(result.title, 180)}`,
+                `Source: ${compactAssistantText(result.source, 80)}${scope}${relevance}${matchedTerms}${result.location ? `; location: ${compactAssistantText(result.location, 100)}` : ''}${result.deadline ? `; deadline: ${compactAssistantText(result.deadline, 80)}` : ''}${result.event_date ? `; event date: ${compactAssistantText(result.event_date, 80)}` : ''}`,
+                `Description: ${compactAssistantText(result.description, 320)}`,
+                result.url ? `Link: ${compactAssistantText(result.url, 240)}` : '',
             ].filter(Boolean).join('\n');
         }).join('\n\n');
 

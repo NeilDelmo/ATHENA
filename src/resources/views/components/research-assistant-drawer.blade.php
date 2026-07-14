@@ -2,22 +2,23 @@
     x-cloak
     x-show="$store.researchAssistant.drawerOpen"
     @keydown.escape.window="$store.researchAssistant.closeDrawer()"
-    class="fixed inset-0 z-[70]"
+    class="pointer-events-none fixed inset-0 z-[70]"
 >
-    <div x-show="$store.researchAssistant.drawerOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="absolute inset-0 bg-gray-950/45 backdrop-blur-sm" aria-hidden="true"></div>
+    <div x-show="$store.researchAssistant.drawerOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="pointer-events-auto absolute inset-0 bg-gray-950/45 backdrop-blur-sm xl:hidden" aria-hidden="true"></div>
 
     <aside
+        id="research-assistant-panel"
         x-show="$store.researchAssistant.drawerOpen"
         x-transition:enter="transform transition ease-out duration-200"
-        x-transition:enter-start="translate-y-full sm:translate-x-full sm:translate-y-0"
-        x-transition:enter-end="translate-y-0 sm:translate-x-0"
+        x-transition:enter-start="translate-x-full"
+        x-transition:enter-end="translate-x-0"
         x-transition:leave="transform transition ease-in duration-150"
-        x-transition:leave-start="translate-y-0 sm:translate-x-0"
-        x-transition:leave-end="translate-y-full sm:translate-x-full sm:translate-y-0"
+        x-transition:leave-start="translate-x-0"
+        x-transition:leave-end="translate-x-full"
         role="dialog"
-        aria-modal="true"
+        :aria-modal="$store.researchAssistant.isOverlayViewport() ? 'true' : null"
         aria-labelledby="research-assistant-drawer-title"
-        class="absolute inset-0 flex max-h-[100dvh] w-full flex-col bg-white shadow-2xl dark:bg-slate-900 sm:inset-y-3 sm:left-auto sm:right-3 sm:max-h-[calc(100dvh-1.5rem)] sm:w-[min(36rem,calc(100vw-1.5rem))] sm:rounded-3xl sm:border sm:border-gray-200 dark:sm:border-slate-700"
+        class="pointer-events-auto absolute inset-y-0 right-0 flex max-h-[100dvh] w-full flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:w-[26rem] xl:w-[28rem]"
     >
         <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
             <div class="flex min-w-0 items-center gap-3">
