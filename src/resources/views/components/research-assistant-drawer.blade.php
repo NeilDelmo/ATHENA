@@ -41,7 +41,7 @@
         </div>
 
         <div class="border-b border-blue-100 bg-blue-50 px-5 py-3 text-[11px] leading-5 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200">
-            This conversation is not saved. Avoid sharing confidential participant data.
+            Matching approved ATHENA knowledge is retrieved automatically and disclosed under each grounded answer. This conversation is not saved. Avoid sharing confidential participant data.
         </div>
 
         <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="border-b border-gray-100 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
@@ -55,7 +55,7 @@
                         <option :value="context.id" x-text="`${context.label} (${context.status})`"></option>
                     </template>
                 </select>
-                <p class="mt-2 text-[10px] leading-4 text-blue-800 dark:text-blue-200" x-text="$store.researchAssistant.contextEnabled ? 'Uses selected proposal summary and reviewer comments. Files are not read.' : 'Off: chat messages only.'"></p>
+                <p class="mt-2 text-[10px] leading-4 text-blue-800 dark:text-blue-200" x-text="$store.researchAssistant.contextEnabled ? 'Uses the proposal summary plus matching approved knowledge. Files are not read.' : 'Proposal context is off; matching approved knowledge remains active.'"></p>
             </div>
         </div>
 
@@ -64,6 +64,17 @@
                 <div :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="flex">
                     <div :class="message.role === 'user' ? 'max-w-[85%] bg-red-600 text-white' : 'max-w-[90%] border border-gray-200 bg-white text-gray-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'" class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm">
                         <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                        <div x-show="message.role === 'assistant' && Array.isArray(message.sources) && message.sources.length" x-cloak class="mt-3 border-t border-gray-100 pt-3 dark:border-slate-800">
+                            <p class="text-[9px] font-black uppercase tracking-wider text-green-700 dark:text-green-300">Grounded with ATHENA knowledge</p>
+                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                <template x-for="source in message.sources" :key="source.reference">
+                                    <span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[9px] font-bold text-green-800 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-200 dark:ring-green-900">
+                                        <span x-text="`${source.reference} · ${source.title}`"></span>
+                                        <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="font-black text-green-700 hover:text-green-900 dark:text-green-300" aria-label="Open grounding source">↗</a>
+                                    </span>
+                                </template>
+                            </div>
+                        </div>
                         <button x-show="message.role === 'assistant'" type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 text-[10px] font-bold text-gray-400 hover:text-gray-700 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy'"></button>
                     </div>
                 </div>

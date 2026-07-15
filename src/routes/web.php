@@ -6,11 +6,12 @@ use App\Http\Controllers\ExpertReviewController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ProjectMonitoringController;
+use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchHeadTopicController;
+use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -119,6 +120,10 @@ Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::post('/research-head/proposal-templates', [ProposalTemplateController::class, 'store'])->name('research_head.proposal-templates.store');
     Route::put('/research-head/proposal-templates/{proposalTemplate}', [ProposalTemplateController::class, 'update'])->name('research_head.proposal-templates.update');
     Route::patch('/research-head/proposal-templates/{proposalTemplate}/status', [ProposalTemplateController::class, 'updateStatus'])->name('research_head.proposal-templates.status');
+    Route::get('/research-head/assistant-knowledge', [ResearchKnowledgeController::class, 'index'])->name('research_head.assistant-knowledge.index');
+    Route::post('/research-head/assistant-knowledge', [ResearchKnowledgeController::class, 'store'])->name('research_head.assistant-knowledge.store');
+    Route::put('/research-head/assistant-knowledge/{researchKnowledgeEntry}', [ResearchKnowledgeController::class, 'update'])->name('research_head.assistant-knowledge.update');
+    Route::patch('/research-head/assistant-knowledge/{researchKnowledgeEntry}/status', [ResearchKnowledgeController::class, 'updateStatus'])->name('research_head.assistant-knowledge.status');
 });
 
 Route::middleware(['auth', 'role:expert'])->group(function () {

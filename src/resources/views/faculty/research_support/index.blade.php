@@ -188,9 +188,11 @@
                         id="conference-search-query"
                         type="search"
                         x-model="$store.conferenceSearch.query"
+                        :disabled="$store.conferenceSearch.isLoading"
+                        :aria-busy="$store.conferenceSearch.isLoading"
                         maxlength="140"
                         placeholder="Search a field, topic, or paper title, e.g. educational technology assessment"
-                        class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-500 focus:ring-red-500"
+                        class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-500 focus:ring-red-500 disabled:cursor-wait disabled:bg-gray-50 disabled:text-gray-500 dark:disabled:bg-slate-800 dark:disabled:text-slate-400"
                     >
                 </div>
                 <button
@@ -199,10 +201,68 @@
                     class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 text-xs font-black text-white shadow-sm transition hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     <svg x-show="!$store.conferenceSearch.isLoading" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3.75h15A1.5 1.5 0 0 1 21 5.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.75V5.25a1.5 1.5 0 0 1 1.5-1.5Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9M7.5 12h5.25" /></svg>
-                    <svg x-show="$store.conferenceSearch.isLoading" x-cloak class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path></svg>
+                    <svg x-show="$store.conferenceSearch.isLoading" x-cloak class="h-4 w-4 motion-safe:animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4Z"></path></svg>
                     <span x-text="$store.conferenceSearch.isLoading ? 'Scraping' : 'Scrape conferences'"></span>
                 </button>
             </form>
+
+            <div
+                x-show="$store.conferenceSearch.isLoading"
+                x-cloak
+                x-transition.opacity.duration.200ms
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                class="mt-5 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-orange-50 p-5 shadow-sm dark:border-amber-900/60 dark:from-amber-950/50 dark:via-slate-900 dark:to-orange-950/40"
+            >
+                <div class="flex items-start gap-4">
+                    <div class="relative flex h-12 w-12 shrink-0 items-center justify-center">
+                        <span class="absolute inset-0 rounded-full bg-amber-300 opacity-30 motion-safe:animate-ping motion-reduce:hidden"></span>
+                        <span class="relative flex h-11 w-11 items-center justify-center rounded-full bg-amber-600 text-white shadow-md shadow-amber-200 dark:shadow-none">
+                            <svg class="h-5 w-5 motion-safe:animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3.75h15A1.5 1.5 0 0 1 21 5.25v10.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 15.75V5.25a1.5 1.5 0 0 1 1.5-1.5Z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9M7.5 12h5.25" />
+                            </svg>
+                        </span>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-sm font-black text-gray-900" x-text="$store.conferenceSearch.loadingMessage()">Connecting to the conference source</p>
+                            <span class="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-black tabular-nums text-amber-700" x-text="`${$store.conferenceSearch.elapsedSeconds}s elapsed`"></span>
+                        </div>
+                        <p class="mt-1 text-xs leading-5 text-gray-600">
+                            Searching WikiCFP for
+                            <span class="font-black text-gray-800" x-text="`\u201c${$store.conferenceSearch.activeQuery}\u201d`"></span>.
+                            This can take a few seconds while the source page responds.
+                        </p>
+                        <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wider">
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-amber-700 shadow-sm ring-1 ring-amber-200 dark:ring-amber-900">
+                                <span class="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse"></span>
+                                Reading public listings
+                            </span>
+                            <span class="rounded-full bg-white px-2.5 py-1 text-gray-500 shadow-sm ring-1 ring-gray-200 dark:ring-slate-700">Relevance ranking</span>
+                            <span class="rounded-full bg-white px-2.5 py-1 text-gray-500 shadow-sm ring-1 ring-gray-200 dark:ring-slate-700">Dates and source links</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-5 grid gap-3 md:grid-cols-2" aria-hidden="true">
+                    @foreach (range(1, 2) as $placeholder)
+                        <div class="rounded-xl border border-amber-100 bg-white/80 p-4 shadow-sm motion-safe:animate-pulse dark:border-slate-700 dark:bg-slate-900/80">
+                            <div class="flex gap-2">
+                                <span class="h-5 w-16 rounded-full bg-amber-100 dark:bg-amber-950"></span>
+                                <span class="h-5 w-24 rounded-full bg-gray-100 dark:bg-slate-800"></span>
+                            </div>
+                            <div class="mt-4 h-3 w-4/5 rounded-full bg-gray-200 dark:bg-slate-700"></div>
+                            <div class="mt-2 h-3 w-3/5 rounded-full bg-gray-100 dark:bg-slate-800"></div>
+                            <div class="mt-4 grid grid-cols-2 gap-3">
+                                <span class="h-8 rounded-lg bg-gray-100 dark:bg-slate-800"></span>
+                                <span class="h-8 rounded-lg bg-gray-100 dark:bg-slate-800"></span>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
 
             <div x-show="$store.conferenceSearch.error" x-cloak class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
                 <p class="font-black">Conference scraping unavailable</p>
@@ -219,7 +279,7 @@
                 <p class="mt-1 text-xs text-gray-500">Try a broader topic, a field name, or fewer title words.</p>
             </div>
 
-            <div x-show="$store.conferenceSearch.results.length" x-cloak class="mt-5 space-y-3">
+            <div x-show="$store.conferenceSearch.results.length && !$store.conferenceSearch.isLoading" x-cloak class="mt-5 space-y-3">
                 <div class="flex items-center justify-between gap-3">
                     <p class="text-xs font-black text-gray-900">
                         <span x-text="$store.conferenceSearch.results.length"></span>
@@ -292,7 +352,7 @@
             </div>
 
             <div class="border-b border-blue-100 bg-blue-50 px-5 py-3 text-xs leading-5 text-blue-800">
-                <span class="font-black">Privacy:</span> Only this conversation is sent securely to Groq. Athena does not automatically read your uploaded proposals or save this chat.
+                <span class="font-black">Grounded assistance:</span> Matching approved ATHENA knowledge is retrieved automatically. The conversation, matching excerpts, and optional proposal summary are sent securely to Groq; uploaded files are not read and this chat is not saved.
             </div>
 
             <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="border-b border-gray-100 bg-white px-5 py-4">
@@ -308,7 +368,7 @@
                             </template>
                         </select>
                     </div>
-                    <p class="mt-2 text-[11px] leading-5 text-blue-800" x-text="$store.researchAssistant.contextEnabled ? 'Athena will use the selected proposal title, status, latest summary, and recent reviewer comments. Uploaded files are not read.' : 'Context is off. Athena will only use the messages in this chat.'"></p>
+                    <p class="mt-2 text-[11px] leading-5 text-blue-800" x-text="$store.researchAssistant.contextEnabled ? 'Athena will use the selected proposal title, status, latest summary, and recent reviewer comments. Matching approved knowledge is also retrieved automatically.' : 'Proposal context is off. Athena will still retrieve matching approved ATHENA knowledge for your question.'"></p>
                 </div>
             </div>
 
@@ -317,6 +377,17 @@
                     <div :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="flex">
                         <div :class="message.role === 'user' ? 'max-w-[82%] bg-red-600 text-white' : 'group max-w-[88%] border border-gray-200 bg-white text-gray-700'" class="rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm">
                             <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                            <div x-show="message.role === 'assistant' && Array.isArray(message.sources) && message.sources.length" x-cloak class="mt-3 border-t border-gray-100 pt-3">
+                                <p class="text-[9px] font-black uppercase tracking-wider text-green-700 dark:text-green-300">Grounded with ATHENA knowledge</p>
+                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                    <template x-for="source in message.sources" :key="source.reference">
+                                        <span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-bold text-green-800 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-200 dark:ring-green-900">
+                                            <span x-text="`${source.reference} · ${source.title}`"></span>
+                                            <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="font-black text-green-700 hover:text-green-900 dark:text-green-300" aria-label="Open grounding source">↗</a>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
                             <button x-show="message.role === 'assistant'" type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 text-[10px] font-bold text-gray-400 transition hover:text-gray-700" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                         </div>
                     </div>

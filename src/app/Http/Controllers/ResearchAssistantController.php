@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TopicProposal;
+use App\Services\ResearchKnowledgeService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,8 @@ use Illuminate\Support\Str;
 
 class ResearchAssistantController extends Controller
 {
+    public function __construct(private ResearchKnowledgeService $researchKnowledge) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -79,6 +82,16 @@ class ResearchAssistantController extends Controller
             ],
         ];
 
+        $knowledgeSources = $this->researchKnowledge->retrieve($messages->last()['content']);
+        $knowledgeContext = $this->researchKnowledge->promptContext($knowledgeSources);
+
+        if ($knowledgeContext) {
+            $aiMessages[] = [
+                'role' => 'system',
+                'content' => $knowledgeContext,
+            ];
+        }
+
         if ($contextMessage) {
             $aiMessages[] = [
                 'role' => 'system',
@@ -145,6 +158,7 @@ class ResearchAssistantController extends Controller
         return response()->json([
             'reply' => $reply,
             'model' => $model,
+            'sources' => $this->researchKnowledge->publicSources($knowledgeSources),
             'usage' => [
                 'prompt_tokens' => $response->json('usage.prompt_tokens'),
                 'completion_tokens' => $response->json('usage.completion_tokens'),
@@ -158,6 +172,8 @@ class ResearchAssistantController extends Controller
 You are Athena, a concise and supportive research assistant for university faculty and faculty researchers.
 
 Help with research questions, objectives, methodology, proposal organization, academic writing, and general research planning. Ask a focused clarifying question when essential information is missing. Prefer practical steps, short examples, and clear headings when useful.
+
+When ATHENA knowledge excerpts are provided, prioritize them for institutional facts and cite them inline using their [ATHENA n] labels. If no supplied excerpt supports an institution-specific answer, say that the ATHENA knowledge base does not currently contain that information instead of answering from general memory.
 
 Important boundaries:
 - Do not claim to have read uploaded papers, Athena records, university policies, or private data unless their contents are explicitly included in the conversation.

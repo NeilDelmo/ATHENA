@@ -15,7 +15,7 @@
         @endif
 
         <div class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-800">
-            This is an administrative area for official forms only. Researcher tools and the planned chatbot remain in the separate Research Support workspace.
+            This area manages official forms only. Athena's approved guidance is managed separately in the <a href="{{ route('research_head.assistant-knowledge.index') }}" class="font-black underline decoration-blue-300 underline-offset-2">Athena Knowledge Base</a>, while faculty use the chatbot in the Research Support workspace.
         </div>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
