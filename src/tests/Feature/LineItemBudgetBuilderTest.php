@@ -98,17 +98,23 @@ test('the line item budget saves optional structured inputs and resumes them', f
 });
 
 test('empty optional fields are accepted while totals remain automatic', function () {
+    $this->draft->update(['project_leader' => 'SHEENA LEI DELMO']);
+
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
         ->assertOk()
         ->assertSee('Community Coastal Research')
         ->assertSee('ARASOF-Nasugbu')
+        ->assertSee('Sheena Lei Delmo')
+        ->assertDontSee('SHEENA LEI DELMO')
         ->assertSee('0.00')
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research');
 });
 
 test('the generated Word file preserves the official structure and fills dynamic rows', function () {
+    $this->draft->update(['project_leader' => 'SHEENA LEI DELMO']);
+
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.line-item-budget.download', $this->draft), ($this->payload)())
         ->assertOk()
@@ -155,7 +161,8 @@ test('the generated Word file preserves the official structure and fills dynamic
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[2]//w:b')->length)->toBeGreaterThan(0)
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[3]//w:b')->length)->toBeGreaterThan(0)
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[4]//w:b')->length)->toBeGreaterThan(0)
-            ->and($documentXml)->toContain('Faculty Project Leader')
+            ->and($documentXml)->toContain('Sheena Lei Delmo')
+            ->and($documentXml)->not->toContain('SHEENA LEI DELMO')
             ->and($documentXml)->toContain('Researcher One')
             ->and($documentXml)->toContain('Researcher Two')
             ->and($documentXml)->toContain('August 1, 2026 - July 31, 2027')

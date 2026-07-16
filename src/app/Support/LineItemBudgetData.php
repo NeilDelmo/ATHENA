@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class LineItemBudgetData
 {
@@ -34,7 +35,7 @@ class LineItemBudgetData
             'planned_start' => Carbon::parse($validated['planned_start'])->format('F j, Y'),
             'planned_end' => Carbon::parse($validated['planned_end'])->format('F j, Y'),
             'duration' => Carbon::parse($validated['planned_start'])->format('F j, Y').' - '.Carbon::parse($validated['planned_end'])->format('F j, Y'),
-            'project_leader' => $validated['project_leader'],
+            'project_leader' => self::personName((string) $validated['project_leader']),
             'leader_campus' => trim((string) ($validated['leader_campus'] ?? config('line_item_budget.default_campus'))),
             'leader_college' => trim((string) ($validated['leader_college'] ?? '')),
             'staff' => $staff,
@@ -62,6 +63,15 @@ class LineItemBudgetData
     public static function amount(mixed $value): ?float
     {
         return $value === null || $value === '' ? null : round((float) $value, 2);
+    }
+
+    private static function personName(string $name): string
+    {
+        $name = Str::squish($name);
+
+        return $name === Str::upper($name)
+            ? Str::of($name)->lower()->title()->toString()
+            : $name;
     }
 
     /** @param array<int, mixed> $rows @param array<int, string> $keys @return array<int, array<string, string>> */
