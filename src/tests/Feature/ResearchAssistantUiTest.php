@@ -80,6 +80,7 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Ask Athena')
         ->assertSee('Privacy:')
         ->assertSee('Research prompt groups')
+        ->assertSee('x-html="$store.researchAssistant.renderMessage(message.content)"', false)
         ->assertSee('Copy chat')
         ->assertSee('Export .txt');
 })->with(['faculty', 'faculty_researcher']);
@@ -132,7 +133,7 @@ test('authenticated users can receive a groq research response', function (strin
         ]),
     ]);
 
-    $researcher = User::factory()->create();
+    $researcher = User::factory()->create(['name' => 'Athena Researcher']);
     $researcher->assignRole($role);
 
     $this->actingAs($researcher)
@@ -148,7 +149,9 @@ test('authenticated users can receive a groq research response', function (strin
 
     Http::assertSent(fn ($request) => $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
         && $request['max_completion_tokens'] === 700
-        && $request['messages'][0]['role'] === 'system');
+        && $request['messages'][0]['role'] === 'system'
+        && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
+        && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role)));
 })->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {

@@ -66,7 +66,7 @@
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
                             <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
-                                <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                                <p class="whitespace-pre-wrap" x-html="$store.researchAssistant.renderMessage(message.content)"></p>
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy'"></button>
                             </div>
                         </div>

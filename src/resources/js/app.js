@@ -95,6 +95,34 @@ function compactAssistantText(value, maxLength = 280) {
     return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
 }
 
+function escapeAssistantHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function formatAssistantMarkdown(value) {
+    const codeSpans = [];
+    let formatted = escapeAssistantHtml(value).replace(/`([^`\n]+)`/g, (_, code) => {
+        const index = codeSpans.push(code) - 1;
+
+        return `\uE000${index}\uE001`;
+    });
+
+    formatted = formatted
+        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
+        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
+        .replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>')
+        .replace(/\uE000(\d+)\uE001/g, (_, index) => `<code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.9em] dark:bg-slate-800">${codeSpans[Number(index)]}</code>`)
+        .replace(/\n/g, '<br>');
+
+    return formatted;
+}
+
 const researchAssistantPromptGroups = [
     {
         key: 'planning',
@@ -220,6 +248,10 @@ Alpine.store('researchAssistant', {
 
     hasConversation() {
         return this.messages.some((message) => message.role === 'user');
+    },
+
+    renderMessage(content) {
+        return formatAssistantMarkdown(content);
     },
 
     setPromptGroup(groupKey) {

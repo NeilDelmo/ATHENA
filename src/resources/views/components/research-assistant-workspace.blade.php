@@ -123,7 +123,7 @@
                             </div>
                             <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
-                                <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                                <p class="whitespace-pre-wrap" x-html="$store.researchAssistant.renderMessage(message.content)"></p>
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                             </div>
                         </div>
