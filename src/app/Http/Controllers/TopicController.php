@@ -201,15 +201,12 @@ class TopicController extends Controller
                     $directory,
                     $workPlan['project_title'],
                     Arr::only($validated, [
-                        'title',
                         'project_title',
                         'total_duration_months',
                         'planned_start',
                         'planned_end',
                         'entries',
                         'prepared_by',
-                        'prepared_date',
-                        'verified_date',
                     ]),
                 );
             }

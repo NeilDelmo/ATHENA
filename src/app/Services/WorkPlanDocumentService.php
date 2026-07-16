@@ -119,8 +119,9 @@ class WorkPlanDocumentService
         $projectTitleCells = $this->elements($xpath, './w:tc', $rows[1]);
         $durationCells = $this->elements($xpath, './w:tc', $rows[2]);
 
-        $this->replaceCellText($xpath, $titleCells[1], $workPlan['title']);
-        $this->replaceCellText($xpath, $projectTitleCells[1], $workPlan['project_title'], true);
+        $this->replaceCellText($xpath, $titleCells[1], '');
+        $this->replaceCellText($xpath, $projectTitleCells[1], $workPlan['project_title'], true, 'center');
+        $this->setCellVerticalAlignment($xpath, $projectTitleCells[1], 'center');
 
         $durationParagraphs = $this->elements($xpath, './w:p', $durationCells[0]);
 
@@ -129,8 +130,8 @@ class WorkPlanDocumentService
         }
 
         $this->replaceParagraphText($durationParagraphs[1], $workPlan['total_duration_label']);
-        $this->appendDateValue($xpath, $durationCells[1], $workPlan['planned_start']);
-        $this->appendDateValue($xpath, $durationCells[2], $workPlan['planned_end']);
+        $this->appendMetadataValue($xpath, $durationCells[1], $workPlan['planned_start']);
+        $this->appendMetadataValue($xpath, $durationCells[2], $workPlan['planned_end']);
     }
 
     /**
@@ -164,8 +165,8 @@ class WorkPlanDocumentService
                 throw new RuntimeException('The Work Plan objective row structure is incomplete.');
             }
 
-            $this->replaceCellText($xpath, $cells[0], $entry['objective']);
-            $this->replaceCellText($xpath, $cells[1], $entry['expected_output']);
+            $this->replaceCellText($xpath, $cells[0], $entry['objective'], false, 'center');
+            $this->replaceCellText($xpath, $cells[1], $entry['expected_output'], false, 'center');
             $this->replaceCellText($xpath, $cells[2], $entry['activity'], false, 'left');
 
             for ($month = 1; $month <= 12; $month++) {
@@ -205,14 +206,14 @@ class WorkPlanDocumentService
         $this->replaceParagraphText($preparedRole, 'Project Leader');
         $this->replaceParagraphText(
             $preparedDate,
-            $this->dateSignedLabel($workPlan['prepared_date']),
+            $this->dateSignedLabel(),
         );
 
         $this->replaceParagraphText($verifiedName, $workPlan['verified_by'], true);
         $this->replaceParagraphText($verifiedRole, $workPlan['verified_role']);
         $this->replaceParagraphText(
             $verifiedDate,
-            $this->dateSignedLabel($workPlan['verified_date']),
+            $this->dateSignedLabel(),
         );
     }
 
@@ -270,7 +271,7 @@ class WorkPlanDocumentService
         }
     }
 
-    private function appendDateValue(DOMXPath $xpath, DOMElement $cell, string $date): void
+    private function appendMetadataValue(DOMXPath $xpath, DOMElement $cell, string $value): void
     {
         $paragraphs = $this->elements($xpath, './w:p', $cell);
 
@@ -288,7 +289,7 @@ class WorkPlanDocumentService
             throw new RuntimeException('A Work Plan date value slot could not be created.');
         }
 
-        $this->replaceParagraphText($valueParagraph, $date, true, 'center');
+        $this->replaceParagraphText($valueParagraph, $value, false, 'center');
         $cell->appendChild($valueParagraph);
     }
 
@@ -375,6 +376,19 @@ class WorkPlanDocumentService
         $justification->setAttributeNS(self::WORD_NAMESPACE, 'w:val', $alignment);
     }
 
+    private function setCellVerticalAlignment(DOMXPath $xpath, DOMElement $cell, string $alignment): void
+    {
+        $cellProperties = $this->firstElement($xpath, './w:tcPr', $cell);
+        $verticalAlignment = $this->elements($xpath, './w:vAlign', $cellProperties)[0] ?? null;
+
+        if (! $verticalAlignment instanceof DOMElement) {
+            $verticalAlignment = $cell->ownerDocument->createElementNS(self::WORD_NAMESPACE, 'w:vAlign');
+            $cellProperties->appendChild($verticalAlignment);
+        }
+
+        $verticalAlignment->setAttributeNS(self::WORD_NAMESPACE, 'w:val', $alignment);
+    }
+
     private function setMonthShading(DOMXPath $xpath, DOMElement $cell, bool $selected): void
     {
         $cellProperties = $this->firstElement($xpath, './w:tcPr', $cell);
@@ -410,9 +424,9 @@ class WorkPlanDocumentService
         }
     }
 
-    private function dateSignedLabel(string $date): string
+    private function dateSignedLabel(): string
     {
-        return 'Date Signed:'.($date !== '' ? ' '.$date : '     ');
+        return 'Date Signed:     ';
     }
 
     private function firstElement(DOMXPath $xpath, string $query, ?DOMNode $context = null): DOMElement

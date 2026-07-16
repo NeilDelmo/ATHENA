@@ -14,7 +14,6 @@ class WorkPlanRules
     public static function rules(string $presenceRule = 'required'): array
     {
         return [
-            'title' => [$presenceRule, 'string', 'max:255'],
             'project_title' => [$presenceRule, 'string', 'max:255'],
             'total_duration_months' => [$presenceRule, 'integer', 'min:1', 'max:12'],
             'planned_start' => [$presenceRule, 'date'],
@@ -27,8 +26,6 @@ class WorkPlanRules
             'entries.*.months' => [$presenceRule, 'array', 'min:1', 'max:12'],
             'entries.*.months.*' => ['integer', Rule::in(range(1, 12)), 'lte:total_duration_months'],
             'prepared_by' => [$presenceRule, 'string', 'max:120'],
-            'prepared_date' => ['nullable', 'date'],
-            'verified_date' => ['nullable', 'date'],
         ];
     }
 
@@ -105,8 +102,6 @@ class WorkPlanRules
             'entries.*.months' => 'scheduled months',
             'entries.*.months.*' => 'scheduled month',
             'prepared_by' => 'project leader',
-            'prepared_date' => 'project leader date signed',
-            'verified_date' => 'verification date',
         ];
     }
 }

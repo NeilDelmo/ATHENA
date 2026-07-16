@@ -27,10 +27,7 @@ class ProposalDraftWorkPlanController extends Controller
         $paper = $catalog->get('work-plan');
         $workPlanDocument = $this->workPlanDocument($proposalDraft);
         $sourceData = $workPlanDocument?->source_data ?? [
-            'title' => $paper['label'],
             'entries' => [],
-            'prepared_date' => null,
-            'verified_date' => null,
         ];
 
         return view('faculty.proposal-drafts.work-plan.edit', compact(
@@ -56,10 +53,7 @@ class ProposalDraftWorkPlanController extends Controller
             ],
             [
                 'source_data' => Arr::only($request->validated(), [
-                    'title',
                     'entries',
-                    'prepared_date',
-                    'verified_date',
                 ]),
                 'file_path' => null,
                 'original_filename' => null,

@@ -31,8 +31,6 @@ beforeEach(function () {
             ],
         ],
         'prepared_by' => 'Faculty Project Leader',
-        'prepared_date' => '',
-        'verified_date' => '',
     ];
 });
 
@@ -175,6 +173,8 @@ test('the number of objectives cannot exceed the number of available project mon
 test('the preview expands objective rows, shades Gantt months, and fixes the verifier', function () {
     $payload = ($this->validWorkPlan)();
     $payload['project_title'] = 'Coastal <script>alert(1)</script> Project';
+    $payload['prepared_date'] = '2026-07-30';
+    $payload['verified_date'] = '2026-08-02';
     $payload['entries'] = collect(range(1, 7))
         ->map(fn (int $number): array => [
             'objective' => 'Objective '.$number,
@@ -189,18 +189,28 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->assertOk()
         ->assertSee('Attachment A-BatStateU-FO-RES-02')
         ->assertSee('MAJOR ACTIVITIES/WORK PLAN')
+        ->assertDontSee('Coastal Research Work Plan')
         ->assertSee('Coastal &lt;script&gt;alert(1)&lt;/script&gt; Project', false)
         ->assertDontSee('<script>alert(1)</script>', false)
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research')
+        ->assertDontSee('July 30, 2026')
+        ->assertDontSee('August 2, 2026')
         ->assertDontSee('Director, Research / Head, Research')
         ->assertDontSee('>NAME<', false)
+        ->assertDontSee('work-plan-signature-date"><span', false)
         ->assertDontSee('work-plan-signature-label', false);
 
     expect(substr_count($response->getContent(), 'data-work-plan-entry-row'))->toBe(7)
+        ->and(substr_count($response->getContent(), 'class="work-plan-objective-cell"'))->toBe(7)
+        ->and(substr_count($response->getContent(), 'class="work-plan-output-cell"'))->toBe(7)
         ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(7)
         ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(2)
         ->and(substr_count($response->getContent(), 'data-signature-name'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-signature-date'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-work-plan-metadata-value'))->toBe(3)
+        ->and(substr_count($response->getContent(), 'data-work-plan-title-value'))->toBe(1)
+        ->and(substr_count($response->getContent(), 'data-work-plan-project-title'))->toBe(1)
         ->and($response->getContent())->not->toContain('>X<');
 });
 
@@ -236,25 +246,62 @@ test('the Word download patches only the official template body', function () {
         $document->loadXML($documentXml, LIBXML_NONET);
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $titleCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[1]/w:tc');
+        $projectTitleCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[2]/w:tc');
+        $metadataCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc');
+        $durationParagraphs = $xpath->query('./w:p', $metadataCells->item(0));
+        $plannedStartParagraphs = $xpath->query('./w:p', $metadataCells->item(1));
+        $plannedEndParagraphs = $xpath->query('./w:p', $metadataCells->item(2));
+        $firstEntryCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[6]/w:tc');
         $signatureCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[last()]/w:tc');
         $preparedParagraphs = $xpath->query('./w:p', $signatureCells->item(0));
         $verifiedParagraphs = $xpath->query('./w:p', $signatureCells->item(1));
         $paragraphText = fn (DOMNode $paragraph): string => trim((string) $xpath->evaluate('string(.)', $paragraph));
+        $hasDirectFormatting = fn (DOMNode $paragraph, string $format): bool => $xpath->query("./w:r/w:rPr/w:{$format}", $paragraph)->length > 0;
 
         expect($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(13)
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[position() >= 6 and position() <= 12]/w:trPr/w:trHeight')->length)->toBe(0)
+            ->and(trim((string) $xpath->evaluate('string(.)', $titleCells->item(1))))->toBe('')
+            ->and(trim((string) $xpath->evaluate('string(.)', $projectTitleCells->item(1))))->toBe('Community-led Coastal Habitat Restoration')
+            ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $projectTitleCells->item(1)))->toBe('center')
+            ->and($xpath->evaluate('string(./w:tcPr/w:vAlign/@w:val)', $projectTitleCells->item(1)))->toBe('center')
+            ->and($documentXml)->not->toContain('Coastal Research Work Plan')
             ->and($documentXml)->toContain('Community-led Coastal Habitat Restoration')
             ->and($documentXml)->toContain('Faculty Project Leader')
             ->and($documentXml)->toContain('DJOANNA MARIE V. SALAC')
             ->and($documentXml)->toContain('Head, Research')
             ->and(substr_count($documentXml, 'w:fill="E7E6E6"'))->toBe(7)
+            ->and($metadataCells->length)->toBe(3)
+            ->and($paragraphText($durationParagraphs->item(1)))->toBe('12 months')
+            ->and($paragraphText($plannedStartParagraphs->item(1)))->toBe('August 1, 2026')
+            ->and($paragraphText($plannedEndParagraphs->item(1)))->toBe('July 31, 2027')
+            ->and($hasDirectFormatting($durationParagraphs->item(1), 'b'))->toBeFalse()
+            ->and($hasDirectFormatting($durationParagraphs->item(1), 'u'))->toBeFalse()
+            ->and($hasDirectFormatting($durationParagraphs->item(1), 'sz'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedStartParagraphs->item(1), 'b'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedStartParagraphs->item(1), 'u'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedStartParagraphs->item(1), 'sz'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedEndParagraphs->item(1), 'b'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedEndParagraphs->item(1), 'u'))->toBeFalse()
+            ->and($hasDirectFormatting($plannedEndParagraphs->item(1), 'sz'))->toBeFalse()
+            ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $firstEntryCells->item(0)))->toBe('center')
+            ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $firstEntryCells->item(1)))->toBe('center')
+            ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $firstEntryCells->item(2)))->toBe('left')
             ->and($signatureCells->length)->toBe(2)
             ->and($paragraphText($preparedParagraphs->item(3)))->toMatch('/^_{10,}$/')
             ->and($paragraphText($preparedParagraphs->item(4)))->toBe('Faculty Project Leader')
             ->and($paragraphText($preparedParagraphs->item(5)))->toBe('Project Leader')
+            ->and($paragraphText($preparedParagraphs->item(6)))->toBe('Date Signed:')
+            ->and($hasDirectFormatting($preparedParagraphs->item(6), 'b'))->toBeFalse()
+            ->and($hasDirectFormatting($preparedParagraphs->item(6), 'u'))->toBeFalse()
+            ->and($hasDirectFormatting($preparedParagraphs->item(6), 'sz'))->toBeFalse()
             ->and($paragraphText($verifiedParagraphs->item(3)))->toMatch('/^_{10,}$/')
             ->and($paragraphText($verifiedParagraphs->item(4)))->toBe('DJOANNA MARIE V. SALAC')
             ->and($paragraphText($verifiedParagraphs->item(5)))->toBe('Head, Research')
+            ->and($paragraphText($verifiedParagraphs->item(6)))->toBe('Date Signed:')
+            ->and($hasDirectFormatting($verifiedParagraphs->item(6), 'b'))->toBeFalse()
+            ->and($hasDirectFormatting($verifiedParagraphs->item(6), 'u'))->toBeFalse()
+            ->and($hasDirectFormatting($verifiedParagraphs->item(6), 'sz'))->toBeFalse()
             ->and($documentXml)->not->toContain('>NAME<');
 
         for ($index = 0; $index < $templateArchive->numFiles; $index++) {

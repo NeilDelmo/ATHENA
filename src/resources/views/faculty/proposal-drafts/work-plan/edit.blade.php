@@ -72,14 +72,6 @@
             @csrf
             @method('PUT')
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div>
-                    <label for="title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Work Plan Title <span class="text-red-600">Required</span></label>
-                    <input id="title" name="title" type="text" value="{{ old('title', $sourceData['title'] ?? $paper['label']) }}" maxlength="255" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                    @error('title')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                </div>
-            </section>
-
             <section aria-labelledby="work-plan-objectives-heading" class="space-y-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -136,20 +128,11 @@
             </section>
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="grid gap-5 md:grid-cols-2">
-                    <div>
-                        <label for="prepared_date" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Leader Date Signed <span class="font-medium normal-case tracking-normal text-gray-400">Optional</span></label>
-                        <input id="prepared_date" name="prepared_date" type="date" value="{{ old('prepared_date', $sourceData['prepared_date'] ?? '') }}" class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                    </div>
-                    <div>
-                        <label for="verified_date" class="block text-xs font-black uppercase tracking-wider text-gray-600">Verification Date <span class="font-medium normal-case tracking-normal text-gray-400">Optional</span></label>
-                        <input id="verified_date" name="verified_date" type="date" value="{{ old('verified_date', $sourceData['verified_date'] ?? '') }}" class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                    </div>
-                </div>
-                <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
                     <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Checked &amp; Verified by</p>
                     <p class="mt-2 font-black text-gray-900">{{ config('work_plan.verifier.name') }}</p>
                     <p class="text-xs text-gray-600">{{ config('work_plan.verifier.role') }}</p>
+                    <p class="mt-2 text-xs text-gray-500">Both Date Signed fields remain blank for handwritten signatures.</p>
                 </div>
             </section>
 

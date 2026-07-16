@@ -74,15 +74,12 @@
                                 @foreach (['preview' => 'Preview Work Plan', 'download' => 'Download Word file'] as $action => $label)
                                     <form action="{{ route('faculty.proposal-drafts.work-plan.'.$action, $proposalDraft) }}" method="POST" @if ($action === 'preview') target="_blank" @endif class="w-full sm:w-auto">
                                         @csrf
-                                        <input type="hidden" name="title" value="{{ $workPlanSource['title'] }}">
                                         @foreach ($workPlanSource['entries'] as $entryIndex => $entry)
                                             <input type="hidden" name="entries[{{ $entryIndex }}][objective]" value="{{ $entry['objective'] }}">
                                             <input type="hidden" name="entries[{{ $entryIndex }}][expected_output]" value="{{ $entry['expected_output'] }}">
                                             <input type="hidden" name="entries[{{ $entryIndex }}][activity]" value="{{ $entry['activity'] }}">
                                             @foreach ($entry['months'] as $month)<input type="hidden" name="entries[{{ $entryIndex }}][months][]" value="{{ $month }}">@endforeach
                                         @endforeach
-                                        @if (filled($workPlanSource['prepared_date'] ?? null))<input type="hidden" name="prepared_date" value="{{ $workPlanSource['prepared_date'] }}">@endif
-                                        @if (filled($workPlanSource['verified_date'] ?? null))<input type="hidden" name="verified_date" value="{{ $workPlanSource['verified_date'] }}">@endif
                                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
                                     </form>
                                 @endforeach

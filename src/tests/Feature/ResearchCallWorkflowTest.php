@@ -54,8 +54,6 @@ test('the proposal workflow generates and stores Attachment A with the submitted
             'months' => [1, 2, 3],
         ]],
         'prepared_by' => $this->faculty->name,
-        'prepared_date' => '',
-        'verified_date' => '',
         'detailed_proposal' => UploadedFile::fake()->create($projectTitle.'-proposal.pdf', 100, 'application/pdf'),
         'line_item_budget' => UploadedFile::fake()->create($projectTitle.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         'expense_breakdown' => UploadedFile::fake()->create($projectTitle.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),

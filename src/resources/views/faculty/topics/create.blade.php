@@ -232,14 +232,10 @@
                         <article class="rounded-2xl border border-gray-200 bg-white p-5">
                             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-red-600">Prepared by</p>
                             <h4 class="mt-1 text-sm font-black text-gray-900">Project Leader</h4>
-                            <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                            <div class="mt-4 grid gap-4">
                                 <div class="grid gap-2">
                                     <label for="prepared_by" class="text-xs font-black text-gray-700">Name <span class="text-red-600">Required</span></label>
                                     <input id="prepared_by" name="prepared_by" type="text" value="{{ old('prepared_by', $preparedBy) }}" maxlength="120" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                                </div>
-                                <div class="grid gap-2">
-                                    <label for="prepared_date" class="text-xs font-black text-gray-700">Date Signed <span class="font-semibold text-gray-400">Optional</span></label>
-                                    <input id="prepared_date" name="prepared_date" type="date" value="{{ old('prepared_date') }}" class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
                                 </div>
                             </div>
                         </article>
@@ -248,10 +244,7 @@
                             <p class="text-[10px] font-black uppercase tracking-[0.16em] text-green-700">Checked &amp; Verified by</p>
                             <p class="mt-4 text-sm font-black text-gray-900">{{ $workPlanVerifier['name'] }}</p>
                             <p class="mt-1 text-xs font-semibold text-gray-600">{{ $workPlanVerifier['role'] }}</p>
-                            <div class="mt-4 grid gap-2">
-                                <label for="verified_date" class="text-xs font-black text-gray-700">Date Signed <span class="font-semibold text-gray-400">Optional</span></label>
-                                <input id="verified_date" name="verified_date" type="date" value="{{ old('verified_date') }}" class="block w-full rounded-xl border-gray-200 bg-white text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                            </div>
+                            <p class="mt-4 text-xs text-gray-600">Date Signed remains blank for a handwritten signature.</p>
                         </article>
                     </div>
                 </section>

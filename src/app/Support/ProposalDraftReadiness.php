@@ -102,7 +102,6 @@ class ProposalDraftReadiness
             return $document instanceof ProposalDraftDocument
                 && $document->completed_at !== null
                 && is_array($document->source_data)
-                && filled($document->source_data['title'] ?? null)
                 && is_array($document->source_data['entries'] ?? null)
                 && $document->source_data['entries'] !== [];
         }

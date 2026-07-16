@@ -56,15 +56,12 @@ beforeEach(function () {
     ];
 
     $this->workPlan = fn (array $overrides = []): array => [
-        'title' => 'Major Activities and Work Plan',
         'entries' => [[
             'objective' => 'Document the baseline habitat condition',
             'expected_output' => 'Validated baseline habitat profile',
             'activity' => "Conduct field survey\nComplete community mapping",
             'months' => [1, 2, 3],
         ]],
-        'prepared_date' => '2026-07-31',
-        'verified_date' => '2026-08-01',
         ...$overrides,
     ];
 
@@ -398,14 +395,16 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         ->sole();
 
     expect($document->completed_at)->not->toBeNull()
-        ->and($document->source_data['title'])->toBe('Major Activities and Work Plan')
         ->and($document->source_data['entries'][0]['months'])->toBe([1, 2, 3])
         ->and($document->source_data)->not->toHaveKeys([
+            'title',
             'project_title',
             'total_duration_months',
             'planned_start',
             'planned_end',
             'prepared_by',
+            'prepared_date',
+            'verified_date',
         ]);
 
     $this->actingAs($this->faculty)

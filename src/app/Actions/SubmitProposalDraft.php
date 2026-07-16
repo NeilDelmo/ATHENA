@@ -191,15 +191,12 @@ class SubmitProposalDraft
         string $permanentDirectory,
     ): array {
         $sourceData = [
-            'title' => $document->source_data['title'] ?? null,
             'project_title' => $draft->project_title,
             'total_duration_months' => $draft->duration_months,
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
             'entries' => $document->source_data['entries'] ?? null,
             'prepared_by' => $draft->project_leader,
-            'prepared_date' => $document->source_data['prepared_date'] ?? null,
-            'verified_date' => $document->source_data['verified_date'] ?? null,
         ];
         $validated = Validator::make(
             $sourceData,

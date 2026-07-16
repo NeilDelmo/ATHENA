@@ -28,24 +28,24 @@
                 <tbody>
                     <tr class="work-plan-title-row">
                         <th scope="row">Title:</th>
-                        <td colspan="15" class="work-plan-value">{{ $workPlan['title'] }}</td>
+                        <td colspan="15" class="work-plan-value" data-work-plan-title-value></td>
                     </tr>
                     <tr class="work-plan-project-row">
                         <th scope="row">Project Title:</th>
-                        <td colspan="15" class="work-plan-value">{{ $workPlan['project_title'] }}</td>
+                        <td colspan="15" class="work-plan-value" data-work-plan-project-title>{{ $workPlan['project_title'] }}</td>
                     </tr>
                     <tr class="work-plan-duration-row">
                         <th scope="row">
                             <span>Total Duration (in months):</span>
-                            <strong>{{ $workPlan['total_duration_label'] }}</strong>
+                            <span class="work-plan-metadata-value" data-work-plan-metadata-value>{{ $workPlan['total_duration_label'] }}</span>
                         </th>
                         <td colspan="3" class="work-plan-date-cell">
                             <span>Planned Start:</span>
-                            <strong>{{ $workPlan['planned_start'] }}</strong>
+                            <span class="work-plan-metadata-value" data-work-plan-metadata-value>{{ $workPlan['planned_start'] }}</span>
                         </td>
                         <td colspan="12" class="work-plan-date-cell">
                             <span>Planned End:</span>
-                            <strong>{{ $workPlan['planned_end'] }}</strong>
+                            <span class="work-plan-metadata-value" data-work-plan-metadata-value>{{ $workPlan['planned_end'] }}</span>
                         </td>
                     </tr>
                     <tr class="work-plan-heading-row">
@@ -61,9 +61,9 @@
                     </tr>
                     @foreach ($workPlan['entries'] as $entry)
                         <tr class="work-plan-entry-row" data-work-plan-entry-row>
-                            <td>{{ $entry['objective'] }}</td>
-                            <td>{{ $entry['expected_output'] }}</td>
-                            <td colspan="2">{{ $entry['activity'] }}</td>
+                            <td class="work-plan-objective-cell">{{ $entry['objective'] }}</td>
+                            <td class="work-plan-output-cell">{{ $entry['expected_output'] }}</td>
+                            <td colspan="2" class="work-plan-activity-cell">{{ $entry['activity'] }}</td>
                             @for ($month = 1; $month <= 12; $month++)
                                 <td
                                     class="work-plan-month-mark {{ in_array($month, $entry['months'], true) ? 'is-active' : '' }}"
@@ -79,7 +79,7 @@
                                 <p class="work-plan-signature-line" data-signature-line aria-hidden="true"></p>
                                 <p class="work-plan-signature-name" data-signature-name>{{ $workPlan['prepared_by'] }}</p>
                                 <p class="work-plan-signature-role">Project Leader</p>
-                                <p class="work-plan-signature-date">Date Signed: <span>{{ $workPlan['prepared_date'] }}</span></p>
+                                <p class="work-plan-signature-date" data-signature-date>Date Signed:</p>
                             </section>
                         </td>
                         <td colspan="13">
@@ -88,7 +88,7 @@
                                 <p class="work-plan-signature-line" data-signature-line aria-hidden="true"></p>
                                 <p class="work-plan-signature-name" data-signature-name>{{ $workPlan['verified_by'] }}</p>
                                 <p class="work-plan-signature-role">{{ $workPlan['verified_role'] }}</p>
-                                <p class="work-plan-signature-date">Date Signed: <span>{{ $workPlan['verified_date'] }}</span></p>
+                                <p class="work-plan-signature-date" data-signature-date>Date Signed:</p>
                             </section>
                         </td>
                     </tr>
