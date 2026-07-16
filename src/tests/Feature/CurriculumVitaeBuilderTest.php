@@ -168,6 +168,14 @@ test('the generated Word file preserves the official form and adds one complete 
             $contentControlIds[] = $xpath->evaluate('string(@w:val)', $contentControlId);
         }
 
+        $nameParagraph = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]')->item(0);
+        expect($nameParagraph)->toBeInstanceOf(DOMElement::class);
+        $nameParts = [];
+
+        foreach ($xpath->query('./w:r/w:t', $nameParagraph) as $namePart) {
+            $nameParts[] = $namePart->textContent;
+        }
+
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
             ->and($xpath->query('//w:br[@w:type="page"]')->length)->toBe(2)
             ->and($xpath->query('//w14:checked[@w14:val="1"]')->length)->toBe(1)
@@ -178,6 +186,10 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(//w:sectPr/w:pgSz/@w:h)'))->toBe('18722')
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:rFonts/@w:ascii)'))->toBe('Times New Roman')
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:sz/@w:val)'))->toBe('18')
+            ->and($nameParts)->toBe(['Leader', 'Faculty', 'Project'])
+            ->and($xpath->query('./w:r/w:tab', $nameParagraph)->length)->toBe(2)
+            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[1]/@w:pos)', $nameParagraph))->toBe('3892')
+            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[2]/@w:pos)', $nameParagraph))->toBe('6989')
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')

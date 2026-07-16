@@ -17,6 +17,9 @@ class CurriculumVitaeDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
+    /** @var list<int> */
+    private const NAME_TAB_STOPS = [3892, 6989];
+
     private int $nextContentControlId = 100000000;
 
     /** @param array{people: array<int, array<string, mixed>>} $curriculumVitae */
@@ -152,6 +155,7 @@ class CurriculumVitaeDocumentService
         $this->replaceParagraphWithTabs(
             $this->firstElement($xpath, './w:p', $nameCell),
             [$person['last_name'], $person['first_name'], $person['middle_name']],
+            self::NAME_TAB_STOPS,
         );
 
         $personalCells = $this->elements($xpath, './w:tc', $rows[4]);
@@ -278,10 +282,14 @@ class CurriculumVitaeDocumentService
         }
     }
 
-    /** @param list<string> $values */
-    private function replaceParagraphWithTabs(DOMElement $paragraph, array $values): void
+    /**
+     * @param  list<string>  $values
+     * @param  list<int>  $tabStops
+     */
+    private function replaceParagraphWithTabs(DOMElement $paragraph, array $values, array $tabStops = []): void
     {
         $this->clearParagraphContent($paragraph);
+        $this->setParagraphTabStops($paragraph, $tabStops);
         $document = $paragraph->ownerDocument;
 
         foreach ($values as $index => $value) {
@@ -299,6 +307,64 @@ class CurriculumVitaeDocumentService
 
             $this->appendRun($paragraph, $value);
         }
+    }
+
+    /** @param list<int> $positions */
+    private function setParagraphTabStops(DOMElement $paragraph, array $positions): void
+    {
+        if ($positions === []) {
+            return;
+        }
+
+        $paragraphProperties = null;
+
+        foreach ($paragraph->childNodes as $child) {
+            if ($child instanceof DOMElement && $child->namespaceURI === self::W && $child->localName === 'pPr') {
+                $paragraphProperties = $child;
+
+                break;
+            }
+        }
+
+        if (! $paragraphProperties instanceof DOMElement) {
+            return;
+        }
+
+        foreach (iterator_to_array($paragraphProperties->childNodes) as $property) {
+            if ($property instanceof DOMElement && $property->namespaceURI === self::W && $property->localName === 'tabs') {
+                $paragraphProperties->removeChild($property);
+            }
+        }
+
+        $document = $paragraph->ownerDocument;
+        $tabs = $document->createElementNS(self::W, 'w:tabs');
+
+        foreach ($positions as $position) {
+            $tab = $document->createElementNS(self::W, 'w:tab');
+            $tab->setAttributeNS(self::W, 'w:val', 'left');
+            $tab->setAttributeNS(self::W, 'w:pos', (string) $position);
+            $tabs->appendChild($tab);
+        }
+
+        $anchor = null;
+
+        foreach ($paragraphProperties->childNodes as $property) {
+            if ($property instanceof DOMElement
+                && $property->namespaceURI === self::W
+                && in_array($property->localName, ['ind', 'jc', 'rPr'], true)) {
+                $anchor = $property;
+
+                break;
+            }
+        }
+
+        if ($anchor instanceof DOMElement) {
+            $paragraphProperties->insertBefore($tabs, $anchor);
+
+            return;
+        }
+
+        $paragraphProperties->appendChild($tabs);
     }
 
     private function replaceCellLabelValue(DOMXPath $xpath, DOMElement $cell, string $label, string $value): void
