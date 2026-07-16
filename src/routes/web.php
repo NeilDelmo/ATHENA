@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftDetailsController;
+use App\Http\Controllers\ProposalDraftLineItemBudgetController;
 use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
@@ -64,6 +65,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'update'])->name('work-plan.update');
         Route::post('/{proposalDraft}/work-plan/preview', [ProposalDraftWorkPlanController::class, 'preview'])->name('work-plan.preview');
         Route::post('/{proposalDraft}/work-plan/download', [ProposalDraftWorkPlanController::class, 'download'])->name('work-plan.download');
+        Route::get('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'edit'])->name('line-item-budget.edit');
+        Route::put('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'update'])->name('line-item-budget.update');
+        Route::post('/{proposalDraft}/line-item-budget/preview', [ProposalDraftLineItemBudgetController::class, 'preview'])->name('line-item-budget.preview');
+        Route::post('/{proposalDraft}/line-item-budget/download', [ProposalDraftLineItemBudgetController::class, 'download'])->name('line-item-budget.download');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');

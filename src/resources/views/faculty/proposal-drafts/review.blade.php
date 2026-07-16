@@ -13,6 +13,8 @@
     @php
         $workPlanDocument = $checklist->get('work-plan')['documents']->first();
         $workPlanSource = $workPlanDocument?->source_data;
+        $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();
+        $lineItemBudgetSource = $lineItemBudgetDocument?->source_data;
     @endphp
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -60,16 +62,16 @@
                                     @if ($item['documents']->isEmpty())
                                         <p>No saved paper.</p>
                                     @elseif ($paper['mode'] === 'generated')
-                                        <p>Structured Work Plan saved {{ $item['documents']->first()->updated_at->diffForHumans() }}.</p>
+                                        <p>Structured {{ $paper['label'] }} data saved {{ $item['documents']->first()->updated_at->diffForHumans() }}.</p>
                                     @else
                                         <ul class="space-y-1">@foreach ($item['documents'] as $document)<li class="break-all">{{ $document->original_filename }}</li>@endforeach</ul>
                                     @endif
                                 </div>
                             </div>
-                            <a href="{{ $paper['mode'] === 'generated' ? route('faculty.proposal-drafts.work-plan.edit', $proposalDraft) : route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
+                            <a href="{{ match ($paper['slug']) { 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
                         </div>
 
-                        @if ($paper['mode'] === 'generated' && is_array($workPlanSource))
+                        @if ($paper['slug'] === 'work-plan' && is_array($workPlanSource))
                             <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
                                 @foreach (['preview' => 'Preview Work Plan', 'download' => 'Download Word file'] as $action => $label)
                                     <form action="{{ route('faculty.proposal-drafts.work-plan.'.$action, $proposalDraft) }}" method="POST" @if ($action === 'preview') target="_blank" @endif class="w-full sm:w-auto">
@@ -80,6 +82,15 @@
                                             <input type="hidden" name="entries[{{ $entryIndex }}][activity]" value="{{ $entry['activity'] }}">
                                             @foreach ($entry['months'] as $month)<input type="hidden" name="entries[{{ $entryIndex }}][months][]" value="{{ $month }}">@endforeach
                                         @endforeach
+                                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
+                                    </form>
+                                @endforeach
+                            </div>
+                        @elseif ($paper['slug'] === 'line-item-budget' && is_array($lineItemBudgetSource))
+                            <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                                @foreach (['preview' => 'Preview Line-Item Budget', 'download' => 'Download Word file'] as $action => $label)
+                                    <form action="{{ route('faculty.proposal-drafts.line-item-budget.'.$action, $proposalDraft) }}" method="POST" @if ($action === 'preview') target="_blank" @endif class="w-full sm:w-auto">
+                                        @csrf
                                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
                                     </form>
                                 @endforeach

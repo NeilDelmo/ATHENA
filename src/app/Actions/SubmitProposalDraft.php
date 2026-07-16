@@ -7,8 +7,11 @@ use App\Models\ProposalDraftDocument;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
+use App\Support\LineItemBudgetData;
+use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
@@ -28,6 +31,7 @@ class SubmitProposalDraft
         private readonly ProposalDraftReadiness $readiness,
         private readonly ProposalPackageService $packageService,
         private readonly WorkPlanDocumentService $workPlanDocumentService,
+        private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -82,11 +86,14 @@ class SubmitProposalDraft
                         ->values();
 
                     if ($paper['mode'] === 'generated') {
-                        $permanentFiles[] = $this->generateWorkPlan(
-                            $lockedDraft,
-                            $paperDocuments->firstOrFail(),
-                            $permanentDirectory,
-                        );
+                        $document = $paperDocuments->firstOrFail();
+                        $permanentFiles[] = match ($paper['slug']) {
+                            'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
+                            'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
+                            default => throw ValidationException::withMessages([
+                                'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
+                            ]),
+                        };
 
                         continue;
                     }
@@ -208,6 +215,39 @@ class SubmitProposalDraft
 
         return $this->packageService->storeGeneratedWorkPlan(
             $this->workPlanDocumentService->generate($workPlan),
+            $permanentDirectory,
+            $draft->project_title,
+            $validated,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function generateLineItemBudget(
+        ProposalDraft $draft,
+        ProposalDraftDocument $document,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = [
+            ...($document->source_data ?? []),
+            'project_title' => $draft->project_title,
+            'planned_start' => $draft->planned_start?->toDateString(),
+            'planned_end' => $draft->planned_end?->toDateString(),
+            'project_leader' => $draft->project_leader,
+        ];
+        $validator = Validator::make(
+            $sourceData,
+            LineItemBudgetRules::rules(),
+            [],
+            LineItemBudgetRules::attributes(),
+        );
+        $validator->after(LineItemBudgetRules::afterCallbacks(
+            (float) ($draft->researchCall?->maximum_budget ?? 0),
+        ));
+        $validated = $validator->validate();
+        $lineItemBudget = LineItemBudgetData::fromValidated($validated);
+
+        return $this->packageService->storeGeneratedLineItemBudget(
+            $this->lineItemBudgetDocumentService->generate($lineItemBudget),
             $permanentDirectory,
             $draft->project_title,
             $validated,

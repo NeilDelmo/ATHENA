@@ -99,11 +99,15 @@ class ProposalDraftReadiness
         if ($paper['mode'] === 'generated') {
             $document = $documents->first();
 
-            return $document instanceof ProposalDraftDocument
-                && $document->completed_at !== null
-                && is_array($document->source_data)
-                && is_array($document->source_data['entries'] ?? null)
-                && $document->source_data['entries'] !== [];
+            if (! $document instanceof ProposalDraftDocument
+                || $document->completed_at === null
+                || ! is_array($document->source_data)) {
+                return false;
+            }
+
+            return $paper['slug'] !== 'work-plan'
+                || (is_array($document->source_data['entries'] ?? null)
+                    && $document->source_data['entries'] !== []);
         }
 
         return $documents->every(function (ProposalDraftDocument $document) use ($paper): bool {

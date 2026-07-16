@@ -1733,4 +1733,242 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
+    nextId: 0,
+    staff: [],
+    customMooeItems: [],
+    customCoItems: [],
+    amounts: {},
+    leaderCampus: '',
+    leaderCollege: '',
+    overrideMooe: false,
+    overrideCo: false,
+    overrideProject: false,
+    mooeOverride: '',
+    coOverride: '',
+    projectOverride: '',
+    levelOfCall: '',
+    approvalBody: '',
+    resolutionNumber: '',
+    resolutionYear: '',
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
+        this.leaderCampus = String(data.leader_campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu');
+        this.leaderCollege = String(data.leader_college ?? '');
+        this.amounts = data.amounts && typeof data.amounts === 'object' ? { ...data.amounts } : {};
+        this.staff = Array.isArray(data.staff) && data.staff.length
+            ? data.staff.map((member) => this.newStaff(member))
+            : [this.newStaff()];
+        this.customMooeItems = Array.isArray(data.custom_mooe_items)
+            ? data.custom_mooe_items.map((item) => this.newBudgetItem(item))
+            : [];
+        this.customCoItems = Array.isArray(data.custom_co_items)
+            ? data.custom_co_items.map((item) => this.newBudgetItem(item))
+            : [];
+        this.mooeOverride = data.mooe_total_override ?? '';
+        this.coOverride = data.co_total_override ?? '';
+        this.projectOverride = data.project_total_override ?? '';
+        this.overrideMooe = this.hasValue(this.mooeOverride);
+        this.overrideCo = this.hasValue(this.coOverride);
+        this.overrideProject = this.hasValue(this.projectOverride);
+        this.levelOfCall = String(data.level_of_call ?? '');
+        this.approvalBody = String(data.approval_body ?? '');
+        this.resolutionNumber = String(data.resolution_number ?? '');
+        this.resolutionYear = String(data.resolution_year ?? '');
+    },
+
+    newStaff(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            name: String(values.name ?? ''),
+            campus: String(values.campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu'),
+            college: String(values.college ?? ''),
+        };
+    },
+
+    newBudgetItem(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            particular: String(values.particular ?? ''),
+            amount: values.amount ?? '',
+        };
+    },
+
+    addStaff() {
+        this.staff.push(this.newStaff());
+    },
+
+    removeStaff(index) {
+        this.staff.splice(index, 1);
+
+        if (this.staff.length === 0) this.staff.push(this.newStaff());
+    },
+
+    addCustomItem(section) {
+        const property = section === 'mooe' ? 'customMooeItems' : 'customCoItems';
+        this[property].push(this.newBudgetItem());
+    },
+
+    removeCustomItem(section, index) {
+        const property = section === 'mooe' ? 'customMooeItems' : 'customCoItems';
+        this[property].splice(index, 1);
+    },
+
+    hasValue(value) {
+        return value !== '' && value !== null && value !== undefined;
+    },
+
+    numeric(value) {
+        if (!this.hasValue(value)) return 0;
+
+        const number = Number(value);
+
+        return Number.isFinite(number) ? number : 0;
+    },
+
+    computedSectionTotal(section) {
+        const itemKeys = (config.sections?.[section]?.items || []).map((item) => item.key);
+        const customItems = section === 'mooe' ? this.customMooeItems : this.customCoItems;
+
+        return itemKeys.reduce((total, key) => total + this.numeric(this.amounts[key]), 0)
+            + customItems.reduce((total, item) => total + this.numeric(item.amount), 0);
+    },
+
+    sectionTotal(section) {
+        if (section === 'mooe' && this.overrideMooe) return this.numeric(this.mooeOverride);
+        if (section === 'co' && this.overrideCo) return this.numeric(this.coOverride);
+
+        return this.computedSectionTotal(section);
+    },
+
+    projectTotal() {
+        return this.overrideProject
+            ? this.numeric(this.projectOverride)
+            : this.sectionTotal('mooe') + this.sectionTotal('co');
+    },
+
+    formatMoney(value) {
+        return new Intl.NumberFormat('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(this.numeric(value));
+    },
+
+    validateForm() {
+        this.validationMessage = '';
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
+
+        if (!invalidField) return true;
+
+        invalidField.reportValidity();
+        invalidField.focus();
+
+        return false;
+    },
+
+    formData() {
+        const formData = new FormData(this.$refs.form);
+        formData.delete('_method');
+
+        return formData;
+    },
+
+    async generatePreview() {
+        if (!this.validateForm()) return;
+
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Line-Item Budget information.';
+                this.previewHtml = '';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    async downloadDocument() {
+        if (!this.validateForm()) return;
+
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Line-Item Budget information.';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.docx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
 Alpine.start();

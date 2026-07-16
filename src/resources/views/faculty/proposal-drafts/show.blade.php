@@ -84,9 +84,11 @@
                         $sampleAvailable = is_array($sampleDefinition)
                             && isset($sampleDefinition['path'])
                             && \Illuminate\Support\Facades\Storage::disk('local')->exists($sampleDefinition['path']);
-                        $paperRoute = $paper['mode'] === 'generated'
-                            ? route('faculty.proposal-drafts.work-plan.edit', $proposalDraft)
-                            : route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]);
+                        $paperRoute = match ($paper['slug']) {
+                            'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
+                            'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
+                            default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
+                        };
                     @endphp
                     <article class="flex min-h-80 flex-col rounded-2xl border {{ $item['complete'] ? 'border-green-200' : 'border-gray-200' }} bg-white p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
@@ -99,7 +101,7 @@
                         <div class="mt-4 min-h-10 text-xs text-gray-600">
                             @if ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
-                                    <p class="font-semibold">Saved Work Plan · {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
+                                    <p class="font-semibold">Saved form data &middot; {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
                                 @elseif ($paper['multiple'])
                                     <p class="font-semibold">{{ $item['count'] }} {{ Str::plural('file', $item['count']) }} staged</p>
                                 @else

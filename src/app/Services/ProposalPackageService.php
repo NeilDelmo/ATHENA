@@ -184,6 +184,38 @@ class ProposalPackageService
     }
 
     /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedLineItemBudget(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $originalFilename = $filenameBase.'-line-item-budget.docx';
+        $path = $directory.'/line-item-budget/'.Str::uuid().'.docx';
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated Line-Item Budget could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function storeFile(UploadedFile $file, string $directory, string $documentType, int $position = 0): array
