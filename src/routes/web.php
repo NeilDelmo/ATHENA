@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\ExpertReviewController;
+use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -10,8 +11,10 @@ use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
+use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
+use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +28,18 @@ Route::get('/dashboard', function () {
 
     if ($user->hasRole('research_head')) {
         return redirect()->route('research_head.dashboard');
+    }
+
+    if ($user->hasRole('research_coordinator') && $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
+        return match (session('active_role')) {
+            'faculty' => redirect()->route('faculty.dashboard'),
+            'research_coordinator' => redirect()->route('research_coordinator.dashboard'),
+            default => redirect()->route('role-selection.show'),
+        };
+    }
+
+    if ($user->hasRole('research_coordinator')) {
+        return redirect()->route('research_coordinator.dashboard');
     }
 
     if ($user->hasRole('expert')) {
@@ -41,6 +56,11 @@ Route::get('/dashboard', function () {
         'google' => 'Your account does not have an ATHENA role yet. Please contact the system administrator.',
     ]);
 })->middleware('auth')->name('dashboard');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/select-role', [RoleSelectionController::class, 'show'])->name('role-selection.show');
+    Route::post('/select-role', [RoleSelectionController::class, 'store'])->name('role-selection.store');
+});
 
 // FACULTY ROUTES
 Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
@@ -113,6 +133,8 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 // RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
+    Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
+    Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
@@ -129,6 +151,10 @@ Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::patch('/research-head/assistant-knowledge/{researchKnowledgeEntry}/status', [ResearchKnowledgeController::class, 'updateStatus'])->name('research_head.assistant-knowledge.status');
 });
 
+Route::get('/research-coordinator/dashboard', [ResearchCoordinatorController::class, 'index'])
+    ->middleware(['auth', 'role:research_coordinator'])
+    ->name('research_coordinator.dashboard');
+
 Route::middleware(['auth', 'role:expert'])->group(function () {
     Route::get('/expert/dashboard', [ExpertReviewController::class, 'index'])->name('expert.dashboard');
     Route::patch('/expert/assignments/{assignment}', [ExpertReviewController::class, 'submit'])->name('expert.assignments.submit');
@@ -137,6 +163,7 @@ Route::middleware(['auth', 'role:expert'])->group(function () {
 // PROFILE ROUTES
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile/college', [ProfileController::class, 'updateCollege'])->name('profile.college.update');
 });
 
 // GOOGLE AUTHENTICATION ROUTES
