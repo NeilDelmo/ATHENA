@@ -7,13 +7,13 @@
             'resubmitted', 'expert_review' => 'bg-purple-50 text-purple-700',
             default => 'bg-amber-50 text-amber-700',
         };
-        $backRoute = Auth::user()->hasRole('research_head')
+        $backRoute = Auth::user()->isUsingWorkspace('research_head')
             ? route('research_head.dashboard')
-            : (Auth::user()->hasRole('expert') ? route('expert.dashboard') : route('faculty.dashboard'));
+            : (Auth::user()->isUsingWorkspace('expert') ? route('expert.dashboard') : route('faculty.dashboard'));
         $completedDocuments = $packageChecklist->where('status', 'complete')->count();
         $packageComplete = $completedDocuments === $packageChecklist->count();
-        $canDecide = Auth::user()->hasRole('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'for_final_decision'], true);
-        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']);
+        $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'for_final_decision'], true);
+        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
     @endphp
 
     <x-slot name="header">
@@ -131,7 +131,7 @@
                     </div>
                 </section>
 
-                @if ($topic->status === 'approved' && (Auth::user()->hasRole('research_head') || $topic->user_id === Auth::id()))
+                @if ($topic->status === 'approved' && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
                     @include('topics.partials.project-monitoring')
                 @endif
             </div>
@@ -156,7 +156,7 @@
                         <textarea name="comment" rows="4" maxlength="5000" placeholder="Decision rationale (required for revision or rejection)" class="block w-full rounded-xl border-gray-200 text-xs"></textarea>
                         <button class="w-full rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white">Submit action</button>
                     </form>
-                @elseif (Auth::user()->hasRole('research_head'))
+                @elseif (Auth::user()->isUsingWorkspace('research_head'))
                     <div class="rounded-2xl bg-gray-100 p-5 text-center text-xs font-bold text-gray-600">No Research Head action is available while this proposal is {{ str_replace('_', ' ', $topic->status) }}.</div>
                 @endif
 

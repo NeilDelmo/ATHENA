@@ -189,19 +189,16 @@ body {
     line-height: 1;
 }
 
-.work-plan-signature-name {
+.work-plan-signature-line {
     width: 56%;
     min-height: 0.17in;
     margin: 0.43in auto 0 !important;
-    overflow: hidden;
     border-bottom: 0.75pt solid #000;
-    font-size: 11pt;
-    font-weight: 600;
     line-height: 0.16in;
-    white-space: nowrap;
 }
 
-.work-plan-signature-label {
+.work-plan-signature-name {
+    margin-top: 0.01in !important;
     font-size: 10.5pt;
     font-weight: 700;
     line-height: 1;

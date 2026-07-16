@@ -198,24 +198,56 @@ class WorkPlanDocumentService
             throw new RuntimeException('The Work Plan signature slots are incomplete.');
         }
 
-        $this->replaceParagraphText($preparedParagraphs[4], $workPlan['prepared_by'], true);
-        $this->replaceParagraphText($preparedParagraphs[5], 'Project Leader');
+        [$preparedName, $preparedRole, $preparedDate] = $this->signatureSlots($xpath, $preparedParagraphs);
+        [$verifiedName, $verifiedRole, $verifiedDate] = $this->signatureSlots($xpath, $verifiedParagraphs);
+
+        $this->replaceParagraphText($preparedName, $workPlan['prepared_by'], true);
+        $this->replaceParagraphText($preparedRole, 'Project Leader');
         $this->replaceParagraphText(
-            $preparedParagraphs[array_key_last($preparedParagraphs)],
+            $preparedDate,
             $this->dateSignedLabel($workPlan['prepared_date']),
         );
 
-        $this->replaceParagraphText($verifiedParagraphs[4], $workPlan['verified_by'], true);
-        $this->replaceParagraphText($verifiedParagraphs[5], $workPlan['verified_role']);
-
-        for ($index = 6; $index < count($verifiedParagraphs) - 1; $index++) {
-            $this->replaceParagraphText($verifiedParagraphs[$index], '');
-        }
-
+        $this->replaceParagraphText($verifiedName, $workPlan['verified_by'], true);
+        $this->replaceParagraphText($verifiedRole, $workPlan['verified_role']);
         $this->replaceParagraphText(
-            $verifiedParagraphs[array_key_last($verifiedParagraphs)],
+            $verifiedDate,
             $this->dateSignedLabel($workPlan['verified_date']),
         );
+    }
+
+    /**
+     * @param  array<int, DOMElement>  $paragraphs
+     * @return array{DOMElement, DOMElement, DOMElement}
+     */
+    private function signatureSlots(DOMXPath $xpath, array $paragraphs): array
+    {
+        $nameIndex = null;
+        $dateParagraph = null;
+
+        foreach ($paragraphs as $index => $paragraph) {
+            $text = trim((string) $xpath->evaluate('string(.)', $paragraph));
+
+            if ($text === 'NAME') {
+                $nameIndex = $index;
+            }
+
+            if (str_starts_with($text, 'Date Signed:')) {
+                $dateParagraph = $paragraph;
+            }
+        }
+
+        if ($nameIndex === null || $nameIndex === 0 || ! isset($paragraphs[$nameIndex + 1]) || ! $dateParagraph instanceof DOMElement) {
+            throw new RuntimeException('The Work Plan signature placeholders are incomplete.');
+        }
+
+        $signatureLine = trim((string) $xpath->evaluate('string(.)', $paragraphs[$nameIndex - 1]));
+
+        if (preg_match('/^_{10,}$/', $signatureLine) !== 1) {
+            throw new RuntimeException('The Work Plan handwritten signature line is missing.');
+        }
+
+        return [$paragraphs[$nameIndex], $paragraphs[$nameIndex + 1], $dateParagraph];
     }
 
     private function replaceCellText(

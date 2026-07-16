@@ -30,7 +30,7 @@
 
     <x-research-assistant-workspace />
 
-    @hasanyrole('faculty|faculty_researcher')
+    @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
     <div class="athena-readable mb-3 mt-8">
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Research discovery tools</p>
     </div>
@@ -277,6 +277,6 @@
         </div>
     </section>
 
-    @endhasanyrole
+    @endif
 
 </x-app-layout>

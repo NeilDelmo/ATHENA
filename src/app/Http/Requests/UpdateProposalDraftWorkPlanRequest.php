@@ -42,6 +42,17 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         return WorkPlanRules::rules();
     }
 
+    /**
+     * @return list<callable>
+     */
+    public function after(): array
+    {
+        return WorkPlanRules::afterCallbacks(
+            $this->input('entries'),
+            $this->input('total_duration_months'),
+        );
+    }
+
     /** @return array<string, string> */
     public function attributes(): array
     {

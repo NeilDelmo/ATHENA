@@ -3,9 +3,10 @@
 namespace App\Providers;
 
 use App\Models\TopicProposal;
+use App\Models\User;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\View;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,7 +26,10 @@ class AppServiceProvider extends ServiceProvider
         View::composer('layouts.app', function ($view): void {
             $user = request()->user();
 
-            if (! $user || ! $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
+            if (! $user || ! $user->isUsingWorkspace([
+                User::WORKSPACE_FACULTY,
+                User::WORKSPACE_FACULTY_RESEARCHER,
+            ])) {
                 $view->with('researchAssistantContexts', collect());
                 $view->with('activeResearchAssistantContextId', null);
 

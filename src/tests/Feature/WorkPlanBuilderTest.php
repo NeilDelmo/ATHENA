@@ -66,6 +66,8 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('Attachment A: Work Plan')
         ->assertSee('Objectives and Gantt schedule')
         ->assertSee('Add another objective')
+        ->assertSee('Each month can belong to only one objective.')
+        ->assertSee('automatically expands each row')
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research')
         ->assertSee('Download Word file')
@@ -118,6 +120,58 @@ test('the Work Plan validates the fixed Year 1 layout and dynamic objectives', f
         ->assertJsonValidationErrors('entries');
 });
 
+test('the Gantt schedule assigns each month to only one objective', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['entries'][] = [
+        'objective' => 'Develop the implementation model',
+        'expected_output' => 'Validated implementation model',
+        'activity' => 'Develop and validate the model',
+        'months' => [3, 4, 5],
+    ];
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.work-plans.preview'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('entries.1.months')
+        ->assertJsonFragment([
+            'M3 is already assigned to Objective 1. Each month can be assigned to only one objective.',
+        ]);
+
+    $payload['entries'][1]['months'] = [4, 5, 6];
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.work-plans.preview'), $payload)
+        ->assertOk();
+});
+
+test('the Gantt schedule rejects a repeated month within one objective', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['entries'][0]['months'] = [1, 1, 2];
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.work-plans.preview'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('entries.0.months');
+});
+
+test('the number of objectives cannot exceed the number of available project months', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['total_duration_months'] = 2;
+    $payload['entries'] = collect(range(1, 3))
+        ->map(fn (int $number): array => [
+            'objective' => 'Objective '.$number,
+            'expected_output' => 'Output '.$number,
+            'activity' => 'Activity '.$number,
+            'months' => [min($number, 2)],
+        ])
+        ->all();
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.work-plans.preview'), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('entries');
+});
+
 test('the preview expands objective rows, shades Gantt months, and fixes the verifier', function () {
     $payload = ($this->validWorkPlan)();
     $payload['project_title'] = 'Coastal <script>alert(1)</script> Project';
@@ -126,7 +180,7 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
             'objective' => 'Objective '.$number,
             'expected_output' => 'Output '.$number,
             'activity' => 'Activity '.$number,
-            'months' => [$number, min($number + 1, 12)],
+            'months' => [$number],
         ])
         ->all();
 
@@ -139,10 +193,14 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->assertDontSee('<script>alert(1)</script>', false)
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research')
-        ->assertDontSee('Director, Research / Head, Research');
+        ->assertDontSee('Director, Research / Head, Research')
+        ->assertDontSee('>NAME<', false)
+        ->assertDontSee('work-plan-signature-label', false);
 
     expect(substr_count($response->getContent(), 'data-work-plan-entry-row'))->toBe(7)
-        ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(14)
+        ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(7)
+        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-signature-name'))->toBe(2)
         ->and($response->getContent())->not->toContain('>X<');
 });
 
@@ -153,7 +211,7 @@ test('the Word download patches only the official template body', function () {
             'objective' => 'Objective '.$number,
             'expected_output' => 'Output '.$number,
             'activity' => "Activity {$number}A\nActivity {$number}B",
-            'months' => [$number, min($number + 1, 12)],
+            'months' => [$number],
         ])
         ->all();
 
@@ -178,13 +236,26 @@ test('the Word download patches only the official template body', function () {
         $document->loadXML($documentXml, LIBXML_NONET);
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $signatureCells = $xpath->query('(//w:body/w:tbl[1]/w:tr)[last()]/w:tc');
+        $preparedParagraphs = $xpath->query('./w:p', $signatureCells->item(0));
+        $verifiedParagraphs = $xpath->query('./w:p', $signatureCells->item(1));
+        $paragraphText = fn (DOMNode $paragraph): string => trim((string) $xpath->evaluate('string(.)', $paragraph));
 
         expect($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(13)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[position() >= 6 and position() <= 12]/w:trPr/w:trHeight')->length)->toBe(0)
             ->and($documentXml)->toContain('Community-led Coastal Habitat Restoration')
             ->and($documentXml)->toContain('Faculty Project Leader')
             ->and($documentXml)->toContain('DJOANNA MARIE V. SALAC')
             ->and($documentXml)->toContain('Head, Research')
-            ->and(substr_count($documentXml, 'w:fill="E7E6E6"'))->toBe(14);
+            ->and(substr_count($documentXml, 'w:fill="E7E6E6"'))->toBe(7)
+            ->and($signatureCells->length)->toBe(2)
+            ->and($paragraphText($preparedParagraphs->item(3)))->toMatch('/^_{10,}$/')
+            ->and($paragraphText($preparedParagraphs->item(4)))->toBe('Faculty Project Leader')
+            ->and($paragraphText($preparedParagraphs->item(5)))->toBe('Project Leader')
+            ->and($paragraphText($verifiedParagraphs->item(3)))->toMatch('/^_{10,}$/')
+            ->and($paragraphText($verifiedParagraphs->item(4)))->toBe('DJOANNA MARIE V. SALAC')
+            ->and($paragraphText($verifiedParagraphs->item(5)))->toBe('Head, Research')
+            ->and($documentXml)->not->toContain('>NAME<');
 
         for ($index = 0; $index < $templateArchive->numFiles; $index++) {
             $partName = $templateArchive->getNameIndex($index);

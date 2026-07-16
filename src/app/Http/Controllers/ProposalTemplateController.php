@@ -102,7 +102,7 @@ class ProposalTemplateController extends Controller
 
     public function download(Request $request, ProposalTemplate $proposalTemplate)
     {
-        abort_unless($proposalTemplate->is_active || $request->user()->hasRole('research_head'), 404);
+        abort_unless($proposalTemplate->is_active || $request->user()->isUsingWorkspace('research_head'), 404);
         abort_unless(Storage::disk('local')->exists($proposalTemplate->file_path), 404);
 
         return Storage::disk('local')->download(

@@ -123,7 +123,7 @@
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
                     <div><h3 class="text-sm font-black text-gray-900">Recent proposals</h3><p class="mt-0.5 text-xs text-gray-500">Your latest research submissions.</p></div>
-                    @if ($user->hasRole('faculty_researcher'))<a href="{{ route('research.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700">View all</a>@endif
+                    @if ($user->isUsingWorkspace('faculty_researcher'))<a href="{{ route('research.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700">View all</a>@endif
                 </div>
                 <div class="divide-y divide-gray-100">
                     @forelse ($recentProposals as $topic)

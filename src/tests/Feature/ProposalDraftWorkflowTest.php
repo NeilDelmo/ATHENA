@@ -375,6 +375,18 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $invalidWorkPlan)
         ->assertSessionHasErrors('entries.0.months.0');
 
+    $overlappingWorkPlan = ($this->workPlan)();
+    $overlappingWorkPlan['entries'][] = [
+        'objective' => 'Validate the restoration approach',
+        'expected_output' => 'Validated restoration approach',
+        'activity' => 'Validate the approach with community partners',
+        'months' => [3],
+    ];
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $overlappingWorkPlan)
+        ->assertSessionHasErrors('entries.1.months');
+
     $workPlan = ($this->workPlan)();
 
     $this->actingAs($this->faculty)

@@ -22,8 +22,8 @@
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
         @auth data-research-assistant-url="{{ route('research-support.chat') }}" @endauth
-        @hasanyrole('faculty|faculty_researcher') data-literature-search-url="{{ route('research-support.literature-search') }}" @endhasanyrole
-        @hasanyrole('faculty|faculty_researcher') data-conference-search-url="{{ route('research-support.conference-search') }}" @endhasanyrole
+        @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-literature-search-url="{{ route('research-support.literature-search') }}" @endif
+        @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
         @auth
@@ -140,15 +140,22 @@
                             </svg>
                         </button>
 
-                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                             <div class="border-b border-gray-100 px-4 py-2 dark:border-slate-800">
                                 <p class="text-xs text-gray-400 font-semibold uppercase">Account Profile</p>
                                 <p class="text-xs font-bold text-gray-800 truncate mt-0.5">{{ Auth::user()->email }}</p>
+                                <p class="mt-1 text-[11px] font-bold text-red-600 dark:text-red-300">Using {{ Auth::user()->activeWorkspaceLabel() }}</p>
                             </div>
                             
                             <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
                                 Account Profile
                             </a>
+
+                            @if (Auth::user()->hasMultipleWorkspaces())
+                                <a href="{{ route('workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                    Switch Workspace
+                                </a>
+                            @endif
                             
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf

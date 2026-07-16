@@ -1,6 +1,6 @@
 <x-app-layout>
     @php
-        $isFacultyResearcher = Auth::user()->hasRole('faculty_researcher');
+        $isFacultyResearcher = Auth::user()->isUsingWorkspace('faculty_researcher');
     @endphp
 
     <x-slot name="header">

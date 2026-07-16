@@ -93,7 +93,7 @@ test('an existing institutional user keeps their assigned system role', function
     config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
     mockGoogleUser('head@g.batstate-u.edu.ph');
 
-    $this->get('/auth/google/callback')->assertRedirect('/dashboard');
+    $this->get('/auth/google/callback')->assertRedirect(route('workspace.select'));
 
     expect($head->fresh()->hasRole('research_head'))->toBeTrue()
         ->and($head->fresh()->google_id)->toBe('google-user-123');

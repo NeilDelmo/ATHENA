@@ -19,6 +19,7 @@ use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\WorkPlanController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -28,17 +29,10 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
+    $dashboardRoute = $user->dashboardRouteName();
 
-    if ($user->hasRole('research_head')) {
-        return redirect()->route('research_head.dashboard');
-    }
-
-    if ($user->hasRole('expert')) {
-        return redirect()->route('expert.dashboard');
-    }
-
-    if ($user->hasAnyRole(['faculty', 'faculty_researcher'])) {
-        return redirect()->route('faculty.dashboard');
+    if ($dashboardRoute) {
+        return redirect()->route($dashboardRoute);
     }
 
     Auth::logout();
@@ -48,8 +42,15 @@ Route::get('/dashboard', function () {
     ]);
 })->middleware('auth')->name('dashboard');
 
+Route::middleware('auth')->group(function () {
+    Route::get('/choose-workspace', [WorkspaceController::class, 'index'])->name('workspace.select');
+    Route::post('/choose-workspace', [WorkspaceController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('workspace.store');
+});
+
 // FACULTY ROUTES
-Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
     Route::get('/faculty/topics/create', [TopicController::class, 'create'])->name('faculty.topics.create');
 
@@ -113,7 +114,7 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
 
-Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
@@ -130,7 +131,7 @@ Route::middleware('auth')->group(function () {
         ->name('research-support.chat');
 });
 
-Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::post('/research-support/literature-search', LiteratureSearchController::class)
         ->middleware('throttle:20,1')
         ->name('research-support.literature-search');
@@ -140,7 +141,7 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 });
 
 // RESEARCH HEAD ROUTES
-Route::middleware(['auth', 'role:research_head'])->group(function () {
+Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
@@ -158,7 +159,7 @@ Route::middleware(['auth', 'role:research_head'])->group(function () {
     Route::patch('/research-head/assistant-knowledge/{researchKnowledgeEntry}/status', [ResearchKnowledgeController::class, 'updateStatus'])->name('research_head.assistant-knowledge.status');
 });
 
-Route::middleware(['auth', 'role:expert'])->group(function () {
+Route::middleware(['auth', 'workspace:expert'])->group(function () {
     Route::get('/expert/dashboard', [ExpertReviewController::class, 'index'])->name('expert.dashboard');
     Route::patch('/expert/assignments/{assignment}', [ExpertReviewController::class, 'submit'])->name('expert.assignments.submit');
 });

@@ -1450,6 +1450,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     months: Array.from({ length: 12 }, (_, index) => index + 1),
     durationMonths: Number(config.durationMonths || 12),
     monthErrorIndexes: [],
+    monthConflictIndexes: [],
     validationMessage: '',
     previewHtml: '',
     previewError: '',
@@ -1482,10 +1483,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     addEntry() {
-        if (this.entries.length >= this.maxEntries) return;
+        if (!this.canAddEntry()) return;
 
         this.entries.push(this.newEntry());
         this.monthErrorIndexes = [];
+        this.monthConflictIndexes = [];
     },
 
     removeEntry(index) {
@@ -1493,12 +1495,15 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         this.entries.splice(index, 1);
         this.monthErrorIndexes = [];
+        this.monthConflictIndexes = [];
     },
 
     clearMonthError(index) {
         if (this.entries[index]?.months.length === 0) return;
 
         this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
+        this.monthConflictIndexes = [];
+        this.validationMessage = '';
     },
 
     isMonthWithinDuration(month) {
@@ -1507,11 +1512,73 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             && month <= this.durationMonths;
     },
 
+    canAddEntry() {
+        const usedMonths = new Set(this.entries.flatMap((entry) => entry.months));
+
+        return this.entries.length < Math.min(this.maxEntries, this.durationMonths)
+            && usedMonths.size < this.durationMonths;
+    },
+
+    monthOwnerIndex(entryIndex, month) {
+        return this.entries.findIndex((entry, index) => (
+            index !== entryIndex && entry.months.includes(month)
+        ));
+    },
+
+    isMonthSelectable(entryIndex, month) {
+        if (!this.isMonthWithinDuration(month)) return false;
+        if (this.entries[entryIndex]?.months.includes(month)) return true;
+
+        return this.monthOwnerIndex(entryIndex, month) === -1;
+    },
+
+    monthOwnerLabel(entryIndex, month) {
+        const ownerIndex = this.monthOwnerIndex(entryIndex, month);
+
+        return ownerIndex === -1 ? '' : `O${ownerIndex + 1}`;
+    },
+
+    monthSelectionTitle(entryIndex, month) {
+        if (!this.isMonthWithinDuration(month)) {
+            return `M${month} is outside the project duration.`;
+        }
+
+        const ownerIndex = this.monthOwnerIndex(entryIndex, month);
+
+        return ownerIndex === -1
+            ? `Assign M${month} to Objective ${entryIndex + 1}`
+            : `M${month} is assigned to Objective ${ownerIndex + 1}`;
+    },
+
+    monthConflicts() {
+        const monthOwners = new Map();
+        const conflicts = [];
+
+        this.entries.forEach((entry, entryIndex) => {
+            entry.months.forEach((month) => {
+                if (monthOwners.has(month) && monthOwners.get(month) !== entryIndex) {
+                    conflicts.push({
+                        entryIndex,
+                        month,
+                        ownerIndex: monthOwners.get(month),
+                    });
+
+                    return;
+                }
+
+                monthOwners.set(month, entryIndex);
+            });
+        });
+
+        return conflicts;
+    },
+
     limitMonthsToDuration() {
         this.entries.forEach((entry) => {
             entry.months = entry.months.filter((month) => this.isMonthWithinDuration(month));
         });
         this.monthErrorIndexes = [];
+        this.monthConflictIndexes = [];
     },
 
     validateForm() {
@@ -1528,17 +1595,33 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         const invalidEntryIndex = this.entries.findIndex((entry) => entry.months.length === 0);
 
-        if (invalidEntryIndex === -1) {
-            this.monthErrorIndexes = [];
+        if (invalidEntryIndex !== -1) {
+            this.monthErrorIndexes = [invalidEntryIndex];
+            this.validationMessage = 'Select at least one scheduled month for every objective.';
+            this.$nextTick(() => {
+                this.$refs.form
+                    ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`)
+                    ?.focus();
+            });
+
+            return false;
+        }
+
+        this.monthErrorIndexes = [];
+        const conflicts = this.monthConflicts();
+
+        if (conflicts.length === 0) {
+            this.monthConflictIndexes = [];
 
             return true;
         }
 
-        this.monthErrorIndexes = [invalidEntryIndex];
-        this.validationMessage = 'Select at least one scheduled month for every objective.';
+        const firstConflict = conflicts[0];
+        this.monthConflictIndexes = [...new Set(conflicts.map((conflict) => conflict.entryIndex))];
+        this.validationMessage = `M${firstConflict.month} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
         this.$nextTick(() => {
             this.$refs.form
-                ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`)
+                ?.querySelector(`[name="entries[${firstConflict.entryIndex}][months][]"][value="${firstConflict.month}"]`)
                 ?.focus();
         });
 

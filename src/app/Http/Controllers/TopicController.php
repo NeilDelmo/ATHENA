@@ -145,7 +145,7 @@ class TopicController extends Controller
             'changed' => $previousVersion && $row['previous'] !== $row['latest'],
         ]);
 
-        $experts = $request->user()->hasRole('research_head')
+        $experts = $request->user()->isUsingWorkspace('research_head')
             ? User::role('expert')->orderBy('name')->get()
             : collect();
         $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
@@ -487,10 +487,10 @@ class TopicController extends Controller
     {
         $user = $request->user();
 
-        $canExpertView = $user->hasRole('expert')
+        $canExpertView = $user->isUsingWorkspace('expert')
             && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
 
-        abort_unless($user->hasRole('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
+        abort_unless($user->isUsingWorkspace('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
     }
 
     /**

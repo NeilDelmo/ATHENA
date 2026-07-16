@@ -148,7 +148,7 @@ class ProjectMonitoringController extends Controller
     {
         $topic = $report->topic;
         abort_unless(
-            $request->user()->hasRole('research_head') || $topic->user_id === $request->user()->id,
+            $request->user()->isUsingWorkspace('research_head') || $topic->user_id === $request->user()->id,
             403,
         );
         abort_unless($report->attachment_path && Storage::disk('local')->exists($report->attachment_path), 404);

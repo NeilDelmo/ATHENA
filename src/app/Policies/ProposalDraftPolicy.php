@@ -9,7 +9,10 @@ class ProposalDraftPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasAnyRole(['faculty', 'faculty_researcher']);
+        return $user->isUsingWorkspace([
+            User::WORKSPACE_FACULTY,
+            User::WORKSPACE_FACULTY_RESEARCHER,
+        ]);
     }
 
     public function create(User $user): bool
