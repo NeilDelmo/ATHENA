@@ -1,0 +1,248 @@
+@page {
+    size: 13in 8.5in;
+    margin: 0.5in;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+}
+
+body {
+    color: #000;
+    background: #e5e7eb;
+    font-family: "Times New Roman", Times, serif;
+}
+
+.work-plan-preview-page {
+    min-width: 13in;
+    padding: 24px;
+}
+
+.work-plan-sheet {
+    width: 13in;
+    min-height: 8.5in;
+    margin: 0 auto;
+    padding: 0.42in 0.5in 0.5in;
+    background: #fff;
+    box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
+}
+
+.work-plan-form-code {
+    margin: 0;
+    font-size: 10pt;
+    line-height: 1;
+}
+
+.work-plan-sheet h1 {
+    margin: 0.2in 0 0.04in;
+    font-size: 11pt;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+}
+
+.work-plan-table {
+    width: 100%;
+    table-layout: fixed;
+    border: 0.75pt solid #000;
+    border-collapse: collapse;
+    font-size: 11pt;
+}
+
+.work-plan-table th,
+.work-plan-table td {
+    padding: 1.5pt 3pt;
+    border: 0.75pt solid #000;
+    font-weight: 400;
+    line-height: 1.05;
+    vertical-align: middle;
+}
+
+.work-plan-table th {
+    text-align: center;
+}
+
+.work-plan-title-row {
+    height: 0.35in;
+}
+
+.work-plan-project-row {
+    height: 0.41in;
+}
+
+.work-plan-title-row .work-plan-value,
+.work-plan-project-row .work-plan-value {
+    padding-right: 8pt;
+    padding-left: 8pt;
+    font-size: 11pt;
+    font-weight: 600;
+    line-height: 1.05;
+    text-align: left;
+}
+
+.work-plan-duration-row {
+    height: 0.69in;
+}
+
+.work-plan-duration-row th,
+.work-plan-date-cell {
+    padding: 5pt 4pt;
+    text-align: center;
+    vertical-align: top;
+}
+
+.work-plan-duration-row span,
+.work-plan-duration-row strong {
+    display: block;
+}
+
+.work-plan-duration-row strong {
+    width: 68%;
+    min-height: 0.18in;
+    margin: 0.22in auto 0;
+    border-bottom: 0.75pt solid #000;
+    font-size: 9pt;
+    font-weight: 600;
+}
+
+.work-plan-date-cell strong {
+    width: 72%;
+}
+
+.work-plan-heading-row {
+    height: 0.31in;
+}
+
+.work-plan-month-heading-row {
+    height: 0.3in;
+}
+
+.work-plan-heading-row th {
+    font-size: 11pt;
+}
+
+.work-plan-heading-row th:last-child {
+    font-size: 10pt;
+}
+
+.work-plan-month-heading-row th {
+    padding: 1pt 0;
+    font-size: 9pt;
+}
+
+.work-plan-entry-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.work-plan-entry-row td {
+    height: 0.65in;
+    padding: 4pt 3pt;
+    overflow-wrap: break-word;
+    font-size: 10pt;
+    line-height: 1.15;
+    white-space: pre-wrap;
+}
+
+.work-plan-entry-row .work-plan-month-mark {
+    padding: 0;
+    text-align: center;
+    white-space: normal;
+}
+
+.work-plan-entry-row .work-plan-month-mark.is-active {
+    background: #e7e6e6;
+}
+
+.work-plan-signature-row {
+    height: 1.24in;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.work-plan-signature-row > td {
+    height: 1.24in;
+    padding: 0;
+    vertical-align: top;
+}
+
+.work-plan-signature-block {
+    position: relative;
+    height: 1.235in;
+    margin: 0;
+    padding: 0.02in 0.08in;
+    text-align: center;
+}
+
+.work-plan-signature-block p {
+    margin: 0;
+}
+
+.work-plan-signature-heading {
+    font-size: 11pt;
+    line-height: 1;
+}
+
+.work-plan-signature-name {
+    width: 56%;
+    min-height: 0.17in;
+    margin: 0.43in auto 0 !important;
+    overflow: hidden;
+    border-bottom: 0.75pt solid #000;
+    font-size: 11pt;
+    font-weight: 600;
+    line-height: 0.16in;
+    white-space: nowrap;
+}
+
+.work-plan-signature-label {
+    font-size: 10.5pt;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.work-plan-signature-role {
+    font-size: 10.5pt;
+    line-height: 1.05;
+}
+
+.work-plan-signature-date {
+    position: absolute;
+    right: 0.08in;
+    bottom: 0.02in;
+    left: 0.08in;
+    font-size: 10pt;
+    line-height: 1;
+    text-align: left;
+}
+
+.work-plan-signature-date span {
+    font-size: 8.5pt;
+    font-weight: 600;
+}
+
+@media print {
+    html,
+    body {
+        background: #fff;
+    }
+
+    .work-plan-preview-page {
+        min-width: 0;
+        padding: 0;
+    }
+
+    .work-plan-sheet {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+}

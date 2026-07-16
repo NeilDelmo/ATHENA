@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -30,6 +31,7 @@ class ProposalVersionFile extends Model
         'mime_type',
         'file_size',
         'checksum',
+        'source_data',
         'is_carried_forward',
     ];
 
@@ -38,6 +40,7 @@ class ProposalVersionFile extends Model
         return [
             'file_size' => 'integer',
             'position' => 'integer',
+            'source_data' => 'array',
             'is_carried_forward' => 'boolean',
         ];
     }
@@ -54,13 +57,15 @@ class ProposalVersionFile extends Model
 
     public function label(): string
     {
+        $catalogLabel = app(ProposalPaperCatalog::class)->label($this->document_type);
+
+        if ($catalogLabel !== null) {
+            return $catalogLabel.($this->document_type === self::TYPE_CURRICULUM_VITAE && $this->position > 0
+                ? ' '.($this->position + 1)
+                : '');
+        }
+
         return match ($this->document_type) {
-            self::TYPE_DETAILED_PROPOSAL => 'Detailed Proposal',
-            self::TYPE_WORK_PLAN => 'Work Plan',
-            self::TYPE_LINE_ITEM_BUDGET => 'Line-Item Budget',
-            self::TYPE_EXPENSE_BREAKDOWN => 'Expense Breakdown',
-            self::TYPE_CURRICULUM_VITAE => 'Curriculum Vitae'.($this->position > 0 ? ' '.($this->position + 1) : ''),
-            self::TYPE_GAD_CHECKLIST => 'GAD Checklist',
             self::TYPE_COMMENT_RESPONSE => 'Comment-Response Form',
             default => str($this->document_type)->replace('_', ' ')->title()->toString(),
         };

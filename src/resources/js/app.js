@@ -1155,4 +1155,499 @@ Alpine.data('fileDropzone', (config = {}) => ({
     },
 }));
 
+Alpine.data('workPlanWizard', (config = {}) => ({
+    step: 1,
+    nextEntryId: 0,
+    entries: [],
+    maxEntries: Number(config.maxEntries || 20),
+    months: Array.from({ length: 12 }, (_, index) => index + 1),
+    durationMonths: Number(config.initialDuration) || '',
+    monthErrorIndexes: [],
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const initialEntries = Array.isArray(config.initialEntries) ? config.initialEntries : [];
+
+        if (initialEntries.length === 0) {
+            this.addEntry();
+
+            return;
+        }
+
+        this.entries = initialEntries
+            .slice(0, this.maxEntries)
+            .map((entry) => this.newEntry(entry));
+        this.limitMonthsToDuration();
+    },
+
+    newEntry(values = {}) {
+        this.nextEntryId += 1;
+
+        return {
+            id: this.nextEntryId,
+            objective: String(values.objective || ''),
+            expectedOutput: String(values.expected_output || ''),
+            activity: String(values.activity || ''),
+            months: Array.isArray(values.months)
+                ? values.months.map((month) => Number(month))
+                : [],
+        };
+    },
+
+    addEntry() {
+        if (this.entries.length >= this.maxEntries) return;
+
+        this.entries.push(this.newEntry());
+        this.monthErrorIndexes = [];
+    },
+
+    removeEntry(index) {
+        if (this.entries.length === 1) return;
+
+        this.entries.splice(index, 1);
+        this.monthErrorIndexes = [];
+    },
+
+    clearMonthError(index) {
+        if (this.entries[index]?.months.length === 0) return;
+
+        this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
+    },
+
+    isMonthWithinDuration(month) {
+        const duration = Number(this.durationMonths);
+
+        return Number.isInteger(duration) && duration >= 1 && month <= duration;
+    },
+
+    limitMonthsToDuration() {
+        const duration = Number(this.durationMonths);
+
+        if (!Number.isInteger(duration) || duration < 1) return;
+
+        this.entries.forEach((entry) => {
+            entry.months = entry.months.filter((month) => month <= duration);
+        });
+        this.monthErrorIndexes = [];
+    },
+
+    stepTitle() {
+        return {
+            1: 'Project details',
+            2: 'Work Plan and signatories',
+            3: 'Required documents',
+            4: 'Review and submit',
+        }[this.step];
+    },
+
+    shortStepTitle(stepNumber) {
+        return {
+            1: 'Details',
+            2: 'Work Plan',
+            3: 'Documents',
+            4: 'Review',
+        }[stepNumber];
+    },
+
+    goToStep(stepNumber) {
+        if (stepNumber >= this.step) return;
+
+        this.step = stepNumber;
+        this.validationMessage = '';
+        this.scrollToWizard();
+    },
+
+    nextStep() {
+        if (!this.validateStep(this.step)) return;
+
+        this.step = Math.min(3, this.step + 1);
+        this.validationMessage = '';
+        this.scrollToWizard();
+    },
+
+    previousStep() {
+        this.step = Math.max(1, this.step - 1);
+        this.validationMessage = '';
+        this.scrollToWizard();
+    },
+
+    validateStep(stepNumber) {
+        const panel = this.$refs.form.querySelector(`[data-work-plan-step="${stepNumber}"]`);
+        const fields = Array.from(panel?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.checkValidity());
+
+        if (invalidField) {
+            invalidField.reportValidity();
+            invalidField.focus();
+
+            return false;
+        }
+
+        if (stepNumber !== 2) return true;
+
+        const invalidEntryIndex = this.entries.findIndex((entry) => entry.months.length === 0);
+
+        if (invalidEntryIndex === -1) {
+            this.monthErrorIndexes = [];
+
+            return true;
+        }
+
+        this.monthErrorIndexes = [invalidEntryIndex];
+        this.$nextTick(() => {
+            this.$refs.form
+                .querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`)
+                ?.focus();
+        });
+
+        return false;
+    },
+
+    async generatePreview() {
+        if (this.step < 4 && !this.validateStep(this.step)) return;
+
+        this.step = 4;
+        this.validationMessage = '';
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+        this.scrollToWizard();
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.workPlanFormData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                const firstField = Object.keys(payload.errors || {})[0] || '';
+
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the information you entered.';
+                this.previewHtml = '';
+                this.step = this.stepForField(firstField);
+                this.scrollToWizard();
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The preview service is unavailable. Please try again.');
+
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error
+                ? error.message
+                : 'The preview service is unavailable. Please try again.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    stepForField(field) {
+        if (field.startsWith('entries.')) return 2;
+        if (field.startsWith('prepared_') || field.startsWith('verified_')) return 2;
+
+        return 1;
+    },
+
+    workPlanFormData() {
+        const formData = new FormData(this.$refs.form);
+
+        [
+            'research_call_id',
+            'detailed_proposal',
+            'document',
+            'work_plan',
+            'line_item_budget',
+            'expense_breakdown',
+            'curricula_vitae[]',
+            'gad_checklist',
+        ].forEach((field) => formData.delete(field));
+
+        return formData;
+    },
+
+    async downloadDocument() {
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.workPlanFormData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                const firstField = Object.keys(payload.errors || {})[0] || '';
+
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Work Plan information.';
+                this.step = this.stepForField(firstField);
+                this.scrollToWizard();
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
+
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error
+                ? error.message
+                : 'The Word file could not be generated. Please try again.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+
+    scrollToWizard() {
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+        this.$root.scrollIntoView({ behavior, block: 'start' });
+    },
+}));
+
+Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
+    nextEntryId: 0,
+    entries: [],
+    maxEntries: Number(config.maxEntries || 20),
+    months: Array.from({ length: 12 }, (_, index) => index + 1),
+    durationMonths: Number(config.durationMonths || 12),
+    monthErrorIndexes: [],
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const initialEntries = Array.isArray(config.initialEntries) ? config.initialEntries : [];
+
+        this.entries = initialEntries.length > 0
+            ? initialEntries.slice(0, this.maxEntries).map((entry) => this.newEntry(entry))
+            : [this.newEntry()];
+        this.limitMonthsToDuration();
+    },
+
+    newEntry(values = {}) {
+        this.nextEntryId += 1;
+
+        return {
+            id: this.nextEntryId,
+            objective: String(values.objective || ''),
+            expectedOutput: String(values.expected_output || ''),
+            activity: String(values.activity || ''),
+            months: Array.isArray(values.months)
+                ? values.months.map((month) => Number(month))
+                : [],
+        };
+    },
+
+    addEntry() {
+        if (this.entries.length >= this.maxEntries) return;
+
+        this.entries.push(this.newEntry());
+        this.monthErrorIndexes = [];
+    },
+
+    removeEntry(index) {
+        if (this.entries.length === 1) return;
+
+        this.entries.splice(index, 1);
+        this.monthErrorIndexes = [];
+    },
+
+    clearMonthError(index) {
+        if (this.entries[index]?.months.length === 0) return;
+
+        this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
+    },
+
+    isMonthWithinDuration(month) {
+        return Number.isInteger(this.durationMonths)
+            && this.durationMonths >= 1
+            && month <= this.durationMonths;
+    },
+
+    limitMonthsToDuration() {
+        this.entries.forEach((entry) => {
+            entry.months = entry.months.filter((month) => this.isMonthWithinDuration(month));
+        });
+        this.monthErrorIndexes = [];
+    },
+
+    validateForm() {
+        this.validationMessage = '';
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.checkValidity());
+
+        if (invalidField) {
+            invalidField.reportValidity();
+            invalidField.focus();
+
+            return false;
+        }
+
+        const invalidEntryIndex = this.entries.findIndex((entry) => entry.months.length === 0);
+
+        if (invalidEntryIndex === -1) {
+            this.monthErrorIndexes = [];
+
+            return true;
+        }
+
+        this.monthErrorIndexes = [invalidEntryIndex];
+        this.validationMessage = 'Select at least one scheduled month for every objective.';
+        this.$nextTick(() => {
+            this.$refs.form
+                ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`)
+                ?.focus();
+        });
+
+        return false;
+    },
+
+    workPlanFormData() {
+        const formData = new FormData(this.$refs.form);
+
+        formData.delete('_method');
+
+        return formData;
+    },
+
+    async generatePreview() {
+        if (!this.validateForm()) return;
+
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.workPlanFormData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Work Plan information.';
+                this.previewHtml = '';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The preview service is unavailable. Please try again.');
+
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error
+                ? error.message
+                : 'The preview service is unavailable. Please try again.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    async downloadDocument() {
+        if (!this.validateForm()) return;
+
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.workPlanFormData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Work Plan information.';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
+
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error
+                ? error.message
+                : 'The Word file could not be generated. Please try again.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
 Alpine.start();

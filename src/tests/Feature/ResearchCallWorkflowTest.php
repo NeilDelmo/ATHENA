@@ -35,27 +35,32 @@ beforeEach(function () {
     Storage::fake('local');
 });
 
-test('faculty submissions only require core proposal details and have no application limit', function () {
+test('the proposal workflow generates and stores Attachment A with the submitted package', function () {
     $this->actingAs($this->faculty)
         ->get(route('faculty.topics.create'))
-        ->assertOk()
-        ->assertSee('Faculty guide')
-        ->assertSee('Required documents')
-        ->assertSee('Drag and drop')
-        ->assertSee('choose a file')
-        ->assertSee('Submit Proposal')
-        ->assertDontSee('Short Description')
-        ->assertDontSee('Research Category');
+        ->assertRedirect(route('faculty.proposal-drafts.index'));
 
-    $payload = fn (string $title) => [
+    $payload = fn (string $projectTitle) => [
         'research_call_id' => $this->call->id,
-        'title' => $title,
-        'detailed_proposal' => UploadedFile::fake()->create($title.'-proposal.pdf', 100, 'application/pdf'),
-        'work_plan' => UploadedFile::fake()->create($title.'-work-plan.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        'line_item_budget' => UploadedFile::fake()->create($title.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        'expense_breakdown' => UploadedFile::fake()->create($title.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-        'curricula_vitae' => [UploadedFile::fake()->create($title.'-cv.pdf', 50, 'application/pdf')],
-        'gad_checklist' => UploadedFile::fake()->create($title.'-gad.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'title' => 'Major Activities and Work Plan',
+        'project_title' => $projectTitle,
+        'total_duration_months' => 12,
+        'planned_start' => '2026-08-01',
+        'planned_end' => '2027-07-31',
+        'entries' => [[
+            'objective' => 'Complete the approved research activities',
+            'expected_output' => 'Completed research outputs',
+            'activity' => 'Conduct the scheduled research activities',
+            'months' => [1, 2, 3],
+        ]],
+        'prepared_by' => $this->faculty->name,
+        'prepared_date' => '',
+        'verified_date' => '',
+        'detailed_proposal' => UploadedFile::fake()->create($projectTitle.'-proposal.pdf', 100, 'application/pdf'),
+        'line_item_budget' => UploadedFile::fake()->create($projectTitle.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        'expense_breakdown' => UploadedFile::fake()->create($projectTitle.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'curricula_vitae' => [UploadedFile::fake()->create($projectTitle.'-cv.pdf', 50, 'application/pdf')],
+        'gad_checklist' => UploadedFile::fake()->create($projectTitle.'-gad.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ];
 
     $incompletePayload = $payload('Missing GAD checklist');
@@ -72,11 +77,18 @@ test('faculty submissions only require core proposal details and have no applica
         ->and($this->head->notifications()->count())->toBe(3);
 
     $firstProposal = $this->faculty->proposals()->oldest()->firstOrFail();
+    $generatedWorkPlan = $firstProposal->latestVersion->files->firstWhere('document_type', 'work_plan');
+
     expect($firstProposal->versions()->count())->toBe(1)
         ->and($firstProposal->latestVersion->version_number)->toBe(1)
         ->and($firstProposal->latestVersion->submission_type)->toBe('initial')
+        ->and($firstProposal->latestVersion->estimated_duration_months)->toBe(12)
         ->and($firstProposal->latestVersion->checksum)->toHaveLength(64)
-        ->and($firstProposal->latestVersion->files()->count())->toBe(6);
+        ->and($firstProposal->latestVersion->files()->count())->toBe(6)
+        ->and($generatedWorkPlan)->not->toBeNull()
+        ->and($generatedWorkPlan->original_filename)->toBe('first-work-plan.docx')
+        ->and($generatedWorkPlan->mime_type)->toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        ->and($generatedWorkPlan->checksum)->toHaveLength(64);
 
     $firstProposal->latestVersion->files->each(
         fn ($file) => Storage::disk('local')->assertExists($file->file_path),
@@ -85,7 +97,7 @@ test('faculty submissions only require core proposal details and have no applica
     $this->actingAs($this->faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee(route('faculty.topics.create'), false)
+        ->assertSee(route('faculty.proposal-drafts.index'), false)
         ->assertDontSee('submitProposalModal');
 });
 
@@ -106,7 +118,7 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->and($this->call->fresh()->isAcceptingSubmissions())->toBeFalse();
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.topics.create'))
+        ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
         ->assertDontSee($this->call->title);
 
@@ -303,12 +315,9 @@ test('faculty can securely download configured proposal templates', function () 
     Storage::disk('local')->put($samplePath, '%PDF-1.4 sample contents');
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.topics.create'))
+        ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('Test Work Plan')
-        ->assertSee(route('proposal-templates.download', 'test-work-plan'))
-        ->assertSee('View sample')
-        ->assertSee(route('proposal-samples.show', 'detailed-proposal'));
+        ->assertDontSee('Test Work Plan');
 
     $this->actingAs($this->faculty)
         ->get(route('proposal-templates.download', 'test-work-plan'))

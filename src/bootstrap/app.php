@@ -24,6 +24,12 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->routeIs('research-support.chat'),
+            fn (Request $request) => $request->is('api/*')
+                || $request->routeIs('research-support.chat')
+                || $request->routeIs('faculty.work-plans.*')
+                || $request->routeIs(
+                    'faculty.proposal-drafts.work-plan.preview',
+                    'faculty.proposal-drafts.work-plan.download',
+                ),
         );
     })->create();

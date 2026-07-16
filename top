@@ -1,0 +1,266 @@
+[33mcommit 86b677dff64e2427dd208d8ab5ed0adcddf6a6eb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Merge: 3cf76ec fd8f4ab
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Thu Jul 16 08:52:27 2026 +0800
+
+    Merge origin/master and resolve research assistant conflicts
+
+[33mcommit 3cf76ec91c2fc5218f5aa2bba4f34f856beca1a9[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Thu Jul 16 08:34:57 2026 +0800
+
+    changes in ui color
+
+[33mcommit fd8f4abe3d8a8e6c6d3aec79d74b7078fb20397a[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 15 22:08:04 2026 +0800
+
+    fixing the chatbot
+
+[33mcommit 5065fe3f4da54ca25eaab29b0d9b42276132fc53[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Wed Jul 15 03:54:19 2026 +0800
+
+    changes in the header and the sidebar ui
+
+[33mcommit 8ae2168dd96cf3344a22164edc023736451b86aa[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Wed Jul 15 01:28:22 2026 +0800
+
+    add a chatbot side panel and fix the chatbot error
+
+[33mcommit e53c2ba9ce3d1b73fda3d8f66508cef39a1d6ac2[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Wed Jul 15 00:28:07 2026 +0800
+
+    changes in chatbot ui
+
+[33mcommit f447efee32bd91e806cf4396548755ff9500a954[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sat Jul 11 21:52:39 2026 +0800
+
+    cleaning up some folders
+
+[33mcommit 578a6d82d9e8f291e90ee1caf749ef241ecf48dd[m[33m ([m[1;31morigin/profilelength[m[33m, [m[1;32mprofilelength[m[33m)[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sat Jul 11 21:49:50 2026 +0800
+
+    fixing the charlengthbug
+
+[33mcommit 80bf3f1c036cbd681065a2d0e26eb58cf5078e06[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Fri Jul 10 18:04:27 2026 +0800
+
+    added simple monitoring
+
+[33mcommit 168c05debafd276339c127f80579cbf2f0c8c218[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Fri Jul 10 17:21:19 2026 +0800
+
+    conferencescraper
+
+[33mcommit 598091b1598dc996f4c5d94eb23d55b6a45f0476[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Fri Jul 10 12:32:38 2026 +0800
+
+    added webscraping
+
+[33mcommit 518d77cf04ae374f04d8da6f303e346211742baf[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 9 22:36:40 2026 +0800
+
+    improve the chatbot
+
+[33mcommit 8805b4330a261fd7b9ee492b683f498f5911cb5f[m[33m ([m[1;31morigin/repo-clean[m[33m, [m[1;32mrepo-clean[m[33m)[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 9 21:12:29 2026 +0800
+
+    fixing the chatbot
+
+[33mcommit ba0e86a0cdb800c4b82ae3da2c728926ca0022e5[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 9 20:29:54 2026 +0800
+
+    make the theme consistent
+
+[33mcommit fd5276c30b145a66c6b2e9376fbf25dc9f5740ce[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 9 15:42:07 2026 +0800
+
+    reorganizaing
+
+[33mcommit f404e36a36484fff5cd9fd0485a41d7e2bef852c[m
+Merge: 32b970d b64a2c9
+Author: maryjhezlbaldos <maryjhezlbaldos@gmail.com>
+Date:   Thu Jul 9 13:16:31 2026 +0800
+
+    Enhance welcome/landing page with added user section, theme support, and scroll animations
+
+[33mcommit b64a2c9a57a24e7766f09f5da3fd05d9c4bb5e56[m[33m ([m[1;31morigin/welcome-page-update[m[33m)[m
+Author: maryjhezlbaldos <maryjhezlbaldos@gmail.com>
+Date:   Thu Jul 9 11:58:27 2026 +0800
+
+    Enhance welcome/landing page with added user section, theme support, and scroll animations
+
+[33mcommit 32b970d4a10fd43c95fcd147b1681017ad8dd61b[m
+Merge: c2fe114 4302ec6
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Tue Jul 7 07:54:05 2026 +0800
+
+    updated ui login
+
+[33mcommit c2fe114fe5409d5884d6dd5bde697b0827aef503[m[33m ([m[1;31morigin/dnvBranch[m[33m)[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Tue Jul 7 07:50:31 2026 +0800
+
+    changes in ui login
+
+[33mcommit 4302ec683dcd6c22ef9624fcc63d528ed95bdfa0[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Mon Jul 6 21:26:27 2026 +0800
+
+    added chatbot
+
+[33mcommit 06ddc659953d98b1cf129925f220b4407c048eb8[m
+Merge: 4e8a529 470015c
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Mon Jul 6 10:34:08 2026 +0800
+
+    Merge branch 'master' of https://github.com/NeilDelmo/ATHENA
+    sdfwiasdi the commit.
+
+[33mcommit 4e8a52997bfc97ff8e433828f7ac7528c7fd2c17[m
+Author: Djanisse Villaflor <23-73453@g.batstate-u.edu.ph>
+Date:   Mon Jul 6 10:33:58 2026 +0800
+
+    updated login
+
+[33mcommit 470015c80d7aabab4ba6c316217873b5712150f9[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 21:56:27 2026 +0800
+
+    changes some text
+
+[33mcommit 5d6cd79c982882e01c62132f14bfe889424deb5d[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 21:20:21 2026 +0800
+
+    move the template and sample
+
+[33mcommit f75a451b5acf0326c77f7d7003e24148b681a747[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 20:45:01 2026 +0800
+
+    setting date on research calls
+
+[33mcommit a053113f087cef8b39fa412a8455432df18f2159[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 20:06:22 2026 +0800
+
+    fixing the proposal topic
+
+[33mcommit ff1a1ea2bec6b86f1606dbeb7ac66e1ef5538725[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 15:10:52 2026 +0800
+
+    move the topicproposal
+
+[33mcommit 237d5cef192d79dad290ca81f647a78f151349f0[m[33m ([m[1;31morigin/removing-some-field[m[33m)[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 14:33:07 2026 +0800
+
+    removing some fields when uploading topic proposal
+
+[33mcommit a416907c1690b788837203554c3ed5188bfe3ff5[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Sun Jul 5 14:15:24 2026 +0800
+
+    added ui for the errors
+
+[33mcommit 4eb1cfc41d5b85a8a58cf8ae0b895b3ccbf9f5e3[m
+Author: maryjhezlbaldos <maryjhezlbaldos@gmail.com>
+Date:   Sun Jul 5 10:52:00 2026 +0800
+
+    Add images and modify welcome/landing page
+
+[33mcommit b55d30852fe11b7e3aeef5c847c8da9d16ed035d[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Fri Jul 3 12:59:56 2026 +0800
+
+    added something it git ignore
+
+[33mcommit 1f29acf4240d54ec3ea77f3764fab75e32e79f54[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Fri Jul 3 10:34:30 2026 +0800
+
+    implemented research head template manager
+
+[33mcommit b9a838b651368b5e8fbf20a257c4780caf5131cf[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 2 23:26:19 2026 +0800
+
+    improve the proposaltopic
+
+[33mcommit cba102fd8d9985eec6f4f92e666707213f2998a0[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 2 23:15:20 2026 +0800
+
+    make it multiple document uploading
+
+[33mcommit 03db65f1cf3b85d5b1b847be94170b383c68da43[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 2 20:46:46 2026 +0800
+
+    added toaster
+
+[33mcommit 16772f0bc3438ae8616f3789f342ca4fd03da854[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Thu Jul 2 20:39:08 2026 +0800
+
+    added notification
+
+[33mcommit b159d00aaf57b97cdf132acd8397057adfff14b7[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 21:37:34 2026 +0800
+
+    I'm sleepy
+
+[33mcommit 266e78d9c5b6a3b170d35720741615c860807d8c[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 21:21:54 2026 +0800
+
+    improve profile section
+
+[33mcommit 2ee298cbca08fa6c7415cae9ebf49144019bc290[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 21:10:44 2026 +0800
+
+    added profile
+
+[33mcommit e1edd2307a8bbba36f35e086f606418cec366e53[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 21:06:00 2026 +0800
+
+    added light and dark
+
+[33mcommit 2735e253ce4650cfc667eb1ba55d2b4f21863fee[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 20:48:38 2026 +0800
+
+    fixing authentication
+
+[33mcommit 224a4ed268a9dcff4c4ab4f8fd5187e681af16fe[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 20:37:21 2026 +0800
+
+    fixing time
+
+[33mcommit 0b480c4134ef60572adc32641beb7d8cb02be357[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1 20:33:35 2026 +0800
+
+    added another tab and some things
+
+[33mcommit edbb94b2084149437e2d62e2b18993f410e8f4f7[m
+Author: Neil Delmo <jmardelmo@gmail.com>
+Date:   Wed Jul 1
