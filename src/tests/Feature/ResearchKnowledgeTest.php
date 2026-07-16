@@ -1,0 +1,99 @@
+<?php
+
+use App\Models\ResearchKnowledgeEntry;
+use App\Models\User;
+use Illuminate\Support\Facades\Http;
+use Spatie\Permission\Models\Role;
+
+beforeEach(function () {
+    Role::firstOrCreate(['name' => 'research_head']);
+    Role::firstOrCreate(['name' => 'faculty']);
+});
+
+test('research heads can feed approved guidance into the athena knowledge base', function () {
+    $researchHead = User::factory()->create();
+    $researchHead->assignRole('research_head');
+
+    $this->actingAs($researchHead)
+        ->post(route('research_head.assistant-knowledge.store'), [
+            'title' => 'Institutional ethics clearance process',
+            'category' => 'ethics',
+            'content' => 'Faculty researchers must secure ethics clearance before collecting identifiable participant data.',
+            'source_url' => 'https://example.edu/research-ethics',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $entry = ResearchKnowledgeEntry::query()->sole();
+
+    expect($entry->title)->toBe('Institutional ethics clearance process')
+        ->and($entry->is_active)->toBeTrue()
+        ->and($entry->created_by)->toBe($researchHead->id);
+});
+
+test('faculty cannot manage the athena knowledge base', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->get(route('research_head.assistant-knowledge.index'))
+        ->assertForbidden();
+});
+
+test('athena retrieves matching approved knowledge and discloses its sources', function () {
+    config([
+        'services.groq.key' => 'test-key',
+        'services.groq.model' => 'openai/gpt-oss-120b',
+        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+    ]);
+
+    $researchHead = User::factory()->create();
+    ResearchKnowledgeEntry::create([
+        'title' => 'Institutional ethics clearance process',
+        'category' => 'ethics',
+        'content' => 'Faculty researchers must secure ethics clearance before collecting identifiable participant data.',
+        'source_url' => 'https://example.edu/research-ethics',
+        'is_active' => true,
+        'created_by' => $researchHead->id,
+    ]);
+    ResearchKnowledgeEntry::create([
+        'title' => 'Archived ethics instructions',
+        'category' => 'ethics',
+        'content' => 'This archived instruction must never be supplied to the model.',
+        'is_active' => false,
+        'created_by' => $researchHead->id,
+    ]);
+
+    Http::fake([
+        'api.groq.com/openai/v1/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'Secure clearance before data collection [ATHENA 1].'],
+            ]],
+            'usage' => ['prompt_tokens' => 80, 'completion_tokens' => 10],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'What is the ethics clearance process before participant data collection?',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'Secure clearance before data collection [ATHENA 1].')
+        ->assertJsonPath('sources.0.reference', 'ATHENA 1')
+        ->assertJsonPath('sources.0.title', 'Institutional ethics clearance process')
+        ->assertJsonPath('sources.0.url', 'https://example.edu/research-ethics');
+
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, 'Faculty researchers must secure ethics clearance')
+            && str_contains($prompt, 'cite the supporting reference inline')
+            && ! str_contains($prompt, 'archived instruction');
+    });
+});

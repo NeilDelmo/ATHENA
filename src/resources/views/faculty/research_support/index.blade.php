@@ -206,6 +206,12 @@
                 </button>
             </form>
 
+            <div x-show="$store.conferenceSearch.isLoading" x-cloak class="mt-5 rounded-xl border border-amber-100 bg-amber-50 px-4 py-5 text-center" role="status" aria-live="polite">
+                <p class="text-sm font-black text-amber-900">Connecting to the conference source</p>
+                <p class="mt-1 text-xs font-semibold text-amber-700">Reading public listings</p>
+                <p class="mt-1 text-[11px] text-amber-600">This can take a few seconds</p>
+            </div>
+
             <div x-show="$store.conferenceSearch.error" x-cloak class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-700">
                 <p class="font-black">Conference scraping unavailable</p>
                 <p class="mt-1" x-text="$store.conferenceSearch.error"></p>

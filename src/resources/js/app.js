@@ -393,6 +393,7 @@ Alpine.store('researchAssistant', {
                 role: 'assistant',
                 content: payload.reply.trim(),
                 model: payload.model,
+                sources: Array.isArray(payload.sources) ? payload.sources : [],
             });
             this.copiedConversation = false;
         } catch (error) {
@@ -467,6 +468,11 @@ Alpine.store('researchAssistant', {
             const speaker = message.role === 'user' ? 'You' : 'Athena';
             lines.push(`${speaker}:`);
             lines.push(message.content);
+
+            if (Array.isArray(message.sources) && message.sources.length) {
+                lines.push(`Grounded sources: ${message.sources.map((source) => `${source.reference} - ${source.title}`).join('; ')}`);
+            }
+
             lines.push('');
         });
 
@@ -736,10 +742,14 @@ Alpine.store('literatureSearch', {
 
 Alpine.store('conferenceSearch', {
     query: '',
+    activeQuery: '',
+    lastSearchQuery: '',
     results: [],
     failedSources: [],
     isLoading: false,
     hasSearched: false,
+    elapsedSeconds: 0,
+    loadingTimer: null,
     error: '',
 
     async search() {
@@ -758,7 +768,10 @@ Alpine.store('conferenceSearch', {
 
         if (!searchUrl || this.isLoading) return;
 
-        this.isLoading = true;
+        this.results = [];
+        this.activeQuery = query;
+        this.lastSearchQuery = query;
+        this.startLoadingTimer();
 
         try {
             const response = await fetch(searchUrl, {
@@ -803,7 +816,36 @@ Alpine.store('conferenceSearch', {
             this.error = error.message || 'A network error interrupted the conference scraper.';
         } finally {
             this.isLoading = false;
+            this.stopLoadingTimer();
         }
+    },
+
+    startLoadingTimer() {
+        this.stopLoadingTimer();
+        this.elapsedSeconds = 0;
+        this.isLoading = true;
+        this.loadingTimer = window.setInterval(() => {
+            this.elapsedSeconds += 1;
+        }, 1000);
+    },
+
+    stopLoadingTimer() {
+        if (this.loadingTimer !== null) {
+            window.clearInterval(this.loadingTimer);
+            this.loadingTimer = null;
+        }
+    },
+
+    loadingMessage() {
+        if (this.elapsedSeconds >= 8) {
+            return 'Still searching \u2014 the source is taking a little longer';
+        }
+
+        if (this.elapsedSeconds >= 2) {
+            return 'Scanning public conference listings';
+        }
+
+        return 'Connecting to the conference source';
     },
 
     askAthena() {
@@ -842,7 +884,7 @@ Alpine.store('conferenceSearch', {
 
         return [
             'Help me compare these scraped conference publishing opportunities.',
-            `Research topic/title: ${this.query.trim()}`,
+            `Research topic/title: ${this.lastSearchQuery || this.query.trim()}`,
             '',
             resultLines,
             '',
@@ -851,11 +893,16 @@ Alpine.store('conferenceSearch', {
     },
 
     clear() {
+        this.stopLoadingTimer();
         this.query = '';
+        this.activeQuery = '';
+        this.lastSearchQuery = '';
         this.results = [];
         this.failedSources = [];
         this.error = '';
         this.hasSearched = false;
+        this.elapsedSeconds = 0;
+        this.isLoading = false;
     },
 });
 
