@@ -70,10 +70,34 @@ beforeEach(function () {
 
         foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
             if ($paper['mode'] === 'generated') {
+                $sourceData = match ($paper['slug']) {
+                    'work-plan' => ($this->workPlan)(),
+                    'curriculum-vitae' => [
+                        'people' => [[
+                            'last_name' => 'Owner',
+                            'first_name' => 'Faculty',
+                            'middle_name' => '',
+                            'agency' => '',
+                            'gender' => '',
+                            'birthday' => '',
+                            'street' => '',
+                            'barangay' => '',
+                            'municipality' => '',
+                            'province' => '',
+                            'landline' => '',
+                            'cellphone' => '',
+                            'email' => '',
+                            ...collect(array_keys(config('curriculum_vitae.sections')))
+                                ->mapWithKeys(fn (string $key): array => [$key => []])
+                                ->all(),
+                        ]],
+                    ],
+                    default => [],
+                };
                 $draft->documents()->create([
                     'document_type' => $paper['document_type'],
                     'position' => 0,
-                    'source_data' => ($this->workPlan)(),
+                    'source_data' => $sourceData,
                     'completed_at' => now(),
                 ]);
 
@@ -190,6 +214,10 @@ test('every draft paper and submission endpoint is protected from another owner'
         fn () => $this->put(route('faculty.proposal-drafts.line-item-budget.update', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.line-item-budget.preview', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.line-item-budget.download', $draft), []),
+        fn () => $this->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $draft)),
+        fn () => $this->put(route('faculty.proposal-drafts.curriculum-vitae.update', $draft), []),
+        fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.preview', $draft), []),
+        fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.download', $draft), []),
         fn () => $this->get(route('faculty.proposal-drafts.review', $draft)),
         fn () => $this->post(route('faculty.proposal-drafts.submit', $draft)),
         fn () => $this->delete(route('faculty.proposal-drafts.destroy', $draft)),
@@ -241,6 +269,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Review Proposal Package')
         ->assertSee('Ready to submit')
         ->assertSee('Preview Work Plan')
+        ->assertSee('Preview CV Package')
         ->assertSee('Download Word file')
         ->assertSee('Submit Proposal Package');
 });
@@ -311,7 +340,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
     Storage::disk('local')->assertMissing($replacement->file_path);
 });
 
-test('paper uploads enforce file types the 25 MB limit and ten normalized CV positions', function () {
+test('paper uploads enforce file types and the 25 MB limit', function () {
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
@@ -326,44 +355,6 @@ test('paper uploads enforce file types the 25 MB limit and ten normalized CV pos
         ])
         ->assertSessionHasErrors('documents.0');
 
-    $firstBatch = collect(range(1, 4))
-        ->map(fn (int $number) => UploadedFile::fake()->create("cv-{$number}.pdf", 10, 'application/pdf'))
-        ->all();
-    $secondBatch = collect(range(5, 10))
-        ->map(fn (int $number) => UploadedFile::fake()->create("cv-{$number}.docx", 10, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'))
-        ->all();
-
-    $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'curriculum-vitae']), ['documents' => $firstBatch])
-        ->assertRedirect();
-    $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'curriculum-vitae']), ['documents' => $secondBatch])
-        ->assertRedirect();
-
-    $curriculaVitae = $draft->documents()
-        ->where('document_type', ProposalVersionFile::TYPE_CURRICULUM_VITAE)
-        ->orderBy('position')
-        ->get();
-
-    expect($curriculaVitae)->toHaveCount(10)
-        ->and($curriculaVitae->pluck('position')->all())->toBe(range(0, 9));
-
-    $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'curriculum-vitae']), [
-            'documents' => [UploadedFile::fake()->create('cv-11.pdf', 10, 'application/pdf')],
-        ])
-        ->assertSessionHasErrors('documents');
-
-    $removed = $curriculaVitae[4];
-    $this->actingAs($this->faculty)
-        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'curriculum-vitae', $removed]))
-        ->assertRedirect();
-
-    expect($draft->documents()
-        ->where('document_type', ProposalVersionFile::TYPE_CURRICULUM_VITAE)
-        ->orderBy('position')
-        ->pluck('position')
-        ->all())->toBe(range(0, 8));
 });
 
 test('the nested Work Plan saves source data resumes previews and downloads using shared details', function () {

@@ -15,6 +15,8 @@
         $workPlanSource = $workPlanDocument?->source_data;
         $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();
         $lineItemBudgetSource = $lineItemBudgetDocument?->source_data;
+        $curriculumVitaeDocument = $checklist->get('curriculum-vitae')['documents']->first();
+        $curriculumVitaeSource = $curriculumVitaeDocument?->source_data;
     @endphp
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -68,7 +70,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <a href="{{ match ($paper['slug']) { 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
+                            <a href="{{ match ($paper['slug']) { 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
                         </div>
 
                         @if ($paper['slug'] === 'work-plan' && is_array($workPlanSource))
@@ -90,6 +92,15 @@
                             <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
                                 @foreach (['preview' => 'Preview Line-Item Budget', 'download' => 'Download Word file'] as $action => $label)
                                     <form action="{{ route('faculty.proposal-drafts.line-item-budget.'.$action, $proposalDraft) }}" method="POST" @if ($action === 'preview') target="_blank" @endif class="w-full sm:w-auto">
+                                        @csrf
+                                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
+                                    </form>
+                                @endforeach
+                            </div>
+                        @elseif ($paper['slug'] === 'curriculum-vitae' && is_array($curriculumVitaeSource))
+                            <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                                @foreach (['preview' => 'Preview CV Package', 'download' => 'Download Word file'] as $action => $label)
+                                    <form action="{{ route('faculty.proposal-drafts.curriculum-vitae.'.$action, $proposalDraft) }}" method="POST" @if ($action === 'preview') target="_blank" @endif class="w-full sm:w-auto">
                                         @csrf
                                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
                                     </form>

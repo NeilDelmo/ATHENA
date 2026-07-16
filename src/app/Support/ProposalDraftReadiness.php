@@ -105,9 +105,13 @@ class ProposalDraftReadiness
                 return false;
             }
 
-            return $paper['slug'] !== 'work-plan'
-                || (is_array($document->source_data['entries'] ?? null)
-                    && $document->source_data['entries'] !== []);
+            return match ($paper['slug']) {
+                'work-plan' => is_array($document->source_data['entries'] ?? null)
+                    && $document->source_data['entries'] !== [],
+                'curriculum-vitae' => is_array($document->source_data['people'] ?? null)
+                    && $document->source_data['people'] !== [],
+                default => true,
+            };
         }
 
         return $documents->every(function (ProposalDraftDocument $document) use ($paper): bool {

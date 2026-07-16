@@ -1971,4 +1971,203 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
+    nextId: 0,
+    people: [],
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const initialPeople = Array.isArray(config.initialPeople) ? config.initialPeople : [];
+        this.people = initialPeople.length > 0
+            ? initialPeople.map((person) => this.newPerson(person))
+            : [this.newPerson()];
+    },
+
+    newPerson(values = {}) {
+        this.nextId += 1;
+        const person = {
+            id: this.nextId,
+            last_name: String(values.last_name ?? ''),
+            first_name: String(values.first_name ?? ''),
+            middle_name: String(values.middle_name ?? ''),
+            agency: String(values.agency ?? ''),
+            gender: String(values.gender ?? ''),
+            birthday: String(values.birthday ?? ''),
+            street: String(values.street ?? ''),
+            barangay: String(values.barangay ?? ''),
+            municipality: String(values.municipality ?? ''),
+            province: String(values.province ?? ''),
+            landline: String(values.landline ?? ''),
+            cellphone: String(values.cellphone ?? ''),
+            email: String(values.email ?? ''),
+        };
+
+        Object.keys(config.sections || {}).forEach((sectionKey) => {
+            const rows = Array.isArray(values[sectionKey]) ? values[sectionKey] : [];
+            person[sectionKey] = rows.map((row) => this.newSectionRow(sectionKey, row));
+        });
+
+        return person;
+    },
+
+    newSectionRow(sectionKey, values = {}) {
+        this.nextId += 1;
+        const row = { id: this.nextId };
+
+        (config.sections?.[sectionKey]?.fields || []).forEach((field) => {
+            row[field.key] = values[field.key] ?? '';
+        });
+
+        return row;
+    },
+
+    addPerson() {
+        this.people.push(this.newPerson());
+        this.$nextTick(() => this.focusPerson(this.people.length - 1));
+    },
+
+    removePerson(index) {
+        if (this.people.length === 1) return;
+
+        this.people.splice(index, 1);
+    },
+
+    personLabel(person) {
+        const name = [person.first_name, person.middle_name, person.last_name]
+            .map((part) => String(part || '').trim())
+            .filter(Boolean)
+            .join(' ');
+
+        return name || 'New team member';
+    },
+
+    focusPerson(index) {
+        const target = this.$root.querySelector(`[data-person-index="${index}"]`);
+
+        if (!target) return;
+
+        const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+        target.scrollIntoView({ behavior, block: 'start' });
+    },
+
+    addSectionRow(personIndex, sectionKey) {
+        this.people[personIndex][sectionKey].push(this.newSectionRow(sectionKey));
+    },
+
+    removeSectionRow(personIndex, sectionKey, rowIndex) {
+        this.people[personIndex][sectionKey].splice(rowIndex, 1);
+    },
+
+    validateForm() {
+        this.validationMessage = '';
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
+
+        if (!invalidField) return true;
+
+        invalidField.closest('details')?.setAttribute('open', '');
+        invalidField.focus();
+        invalidField.reportValidity();
+
+        return false;
+    },
+
+    formData() {
+        const formData = new FormData(this.$refs.form);
+        formData.delete('_method');
+
+        return formData;
+    },
+
+    async generatePreview() {
+        if (!this.validateForm()) return;
+
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Curriculum Vitae information.';
+                this.previewHtml = '';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The CV preview could not be generated. Please try again.');
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error ? error.message : 'The CV preview could not be generated.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    async downloadDocument() {
+        if (!this.validateForm()) return;
+
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Curriculum Vitae information.';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'attachment-c-curriculum-vitae.docx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
 Alpine.start();

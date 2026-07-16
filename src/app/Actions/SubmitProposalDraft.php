@@ -7,9 +7,12 @@ use App\Models\ProposalDraftDocument;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\CurriculumVitaeDocumentService;
 use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
+use App\Support\CurriculumVitaeData;
+use App\Support\CurriculumVitaeRules;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
@@ -32,6 +35,7 @@ class SubmitProposalDraft
         private readonly ProposalPackageService $packageService,
         private readonly WorkPlanDocumentService $workPlanDocumentService,
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
+        private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -90,6 +94,7 @@ class SubmitProposalDraft
                         $permanentFiles[] = match ($paper['slug']) {
                             'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
                             'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
+                            'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
                             default => throw ValidationException::withMessages([
                                 'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
                             ]),
@@ -248,6 +253,29 @@ class SubmitProposalDraft
 
         return $this->packageService->storeGeneratedLineItemBudget(
             $this->lineItemBudgetDocumentService->generate($lineItemBudget),
+            $permanentDirectory,
+            $draft->project_title,
+            $validated,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function generateCurriculumVitae(
+        ProposalDraft $draft,
+        ProposalDraftDocument $document,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = $document->source_data ?? [];
+        $validated = Validator::make(
+            $sourceData,
+            CurriculumVitaeRules::rules(),
+            [],
+            CurriculumVitaeRules::attributes(),
+        )->validate();
+        $curriculumVitae = CurriculumVitaeData::fromValidated($validated);
+
+        return $this->packageService->storeGeneratedCurriculumVitae(
+            $this->curriculumVitaeDocumentService->generate($curriculumVitae),
             $permanentDirectory,
             $draft->project_title,
             $validated,

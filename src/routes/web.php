@@ -8,6 +8,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProposalDraftController;
+use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
 use App\Http\Controllers\ProposalDraftPaperController;
@@ -69,6 +70,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'update'])->name('line-item-budget.update');
         Route::post('/{proposalDraft}/line-item-budget/preview', [ProposalDraftLineItemBudgetController::class, 'preview'])->name('line-item-budget.preview');
         Route::post('/{proposalDraft}/line-item-budget/download', [ProposalDraftLineItemBudgetController::class, 'download'])->name('line-item-budget.download');
+        Route::get('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'edit'])->name('curriculum-vitae.edit');
+        Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
+        Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');
+        Route::post('/{proposalDraft}/curriculum-vitae/download', [ProposalDraftCurriculumVitaeController::class, 'download'])->name('curriculum-vitae.download');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
