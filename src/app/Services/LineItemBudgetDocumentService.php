@@ -109,9 +109,9 @@ class LineItemBudgetDocumentService
         $this->replaceCellText($xpath, $projectCells[1], $budget['project_title'], false, false, 'left');
         $this->removeParagraphFormatting($xpath, $this->firstElement($xpath, './w:p', $projectCells[1]), ['b', 'bCs']);
         $this->setCellVerticalAlignment($xpath, $projectCells[1], 'center');
-        $this->replaceCellText($xpath, $headingCells[1], 'Name', false, false, 'left');
-        $this->replaceCellText($xpath, $headingCells[2], 'Campus', false, false, 'left');
-        $this->replaceCellText($xpath, $headingCells[3], 'College', false, false, 'left');
+        $this->replaceCellText($xpath, $headingCells[1], 'Name', true, false, 'left');
+        $this->replaceCellText($xpath, $headingCells[2], 'Campus', true, false, 'left');
+        $this->replaceCellText($xpath, $headingCells[3], 'College', true, false, 'left');
         $this->replaceCellText($xpath, $leaderCells[1], $budget['project_leader'], false, false, 'left');
         $this->replaceCellText($xpath, $leaderCells[2], $budget['leader_campus'], false, false, 'left');
         $this->replaceCellText($xpath, $leaderCells[3], $budget['leader_college'], false, false, 'left');

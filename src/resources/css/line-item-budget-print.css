@@ -29,8 +29,12 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 
 .line-budget-table { width: 100%; table-layout: fixed; border: 0.75pt solid #000; border-collapse: collapse; }
 
-.line-budget-table col { width: 16.4%; }
-.line-budget-table .amount-column { width: 18%; }
+.line-budget-table col:nth-child(1) { width: 4.52%; }
+.line-budget-table col:nth-child(2) { width: 4.54%; }
+.line-budget-table col:nth-child(3) { width: 6.12%; }
+.line-budget-table col:nth-child(4) { width: 40.84%; }
+.line-budget-table col:nth-child(5) { width: 21.32%; }
+.line-budget-table col:nth-child(6) { width: 22.66%; }
 
 .line-budget-table th,
 .line-budget-table td {
@@ -47,7 +51,7 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .line-budget-table th { font-weight: 400; }
 .line-budget-table .project-title { font-weight: 400; text-align: left; }
 .line-budget-table .duration { font-style: italic; text-align: left; }
-.staff-heading th { text-align: left; }
+.staff-heading th { font-weight: 700; text-align: left; white-space: nowrap; }
 .budget-heading th { font-weight: 700; text-align: center; }
 .section-heading th { font-weight: 700; }
 .particular { padding-left: 0.25in !important; }

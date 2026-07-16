@@ -129,6 +129,12 @@ test('the generated Word file preserves the official structure and fills dynamic
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
         $rows = $xpath->query('//w:body/w:tbl[1]/w:tr');
+        $tableGridWidths = [];
+
+        foreach ($xpath->query('//w:body/w:tbl[1]/w:tblGrid/w:gridCol') as $gridColumn) {
+            $tableGridWidths[] = (string) $xpath->evaluate('string(@w:w)', $gridColumn);
+        }
+
         $rowText = fn (int $index): string => trim((string) $xpath->evaluate('string(.)', $rows->item($index)));
         $findRow = function (string $text) use ($rows, $xpath): DOMNode {
             foreach ($rows as $row) {
@@ -141,10 +147,14 @@ test('the generated Word file preserves the official structure and fills dynamic
         };
 
         expect($rows->length)->toBe(48)
+            ->and($tableGridWidths)->toBe(['461', '463', '625', '4168', '2176', '2313'])
             ->and($rowText(0))->toBe('Program Title:')
             ->and($rowText(1))->toContain('Community Coastal Research')
             ->and($xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[2]/w:tc[2]/w:p/w:pPr/w:jc/@w:val)'))->toBe('left')
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[2]/w:tc[2]//w:b')->length)->toBe(0)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[2]//w:b')->length)->toBeGreaterThan(0)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[3]//w:b')->length)->toBeGreaterThan(0)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[3]/w:tc[4]//w:b')->length)->toBeGreaterThan(0)
             ->and($documentXml)->toContain('Faculty Project Leader')
             ->and($documentXml)->toContain('Researcher One')
             ->and($documentXml)->toContain('Researcher Two')
