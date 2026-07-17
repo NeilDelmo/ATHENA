@@ -69,7 +69,8 @@ test('the line item budget saves optional structured inputs and resumes them', f
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $payload)
-        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+        ->assertRedirect(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertSessionHas('success', 'Attachment B: Line-Item Budget saved.');
 
     $document = $this->draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)

@@ -65,7 +65,7 @@ class ProposalDraftWorkPlanController extends Controller
         );
 
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->route('faculty.proposal-drafts.work-plan.edit', $proposalDraft)
             ->with('success', 'Attachment A: Work Plan saved.');
     }
 

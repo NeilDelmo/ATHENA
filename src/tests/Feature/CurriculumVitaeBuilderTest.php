@@ -116,7 +116,8 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
 test('multiple team CVs save as one completed generated paper and resume with all rows', function () {
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), ($this->payload)())
-        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+        ->assertRedirect(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
+        ->assertSessionHas('success', 'Attachment C: Curriculum Vitae saved.');
 
     $document = $this->draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_CURRICULUM_VITAE)

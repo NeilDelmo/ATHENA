@@ -71,7 +71,7 @@ class ProposalDraftLineItemBudgetController extends Controller
         );
 
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft)
             ->with('success', 'Attachment B: Line-Item Budget saved.');
     }
 

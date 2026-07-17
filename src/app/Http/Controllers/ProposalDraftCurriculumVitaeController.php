@@ -69,7 +69,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
         Storage::disk('local')->delete($stagedPaths);
 
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft)
             ->with('success', 'Attachment C: Curriculum Vitae saved.');
     }
 

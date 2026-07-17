@@ -261,7 +261,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertOk()
         ->assertSee('Detailed Research Proposal')
         ->assertSee('detailed-proposal.pdf')
-        ->assertSee('Save and return');
+        ->assertSee('Save changes');
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.review', $draft))
@@ -286,7 +286,8 @@ test('project details are validated once and reused by the Work Plan workflow', 
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)())
-        ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
+        ->assertRedirect(route('faculty.proposal-drafts.details.edit', $draft))
+        ->assertSessionHas('success', 'Project details saved.');
 
     $draft->refresh();
     expect($draft->project_title)->toBe('Coastal Habitat Restoration')
@@ -309,7 +310,8 @@ test('single-file papers can be uploaded downloaded replaced and removed private
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
             'documents' => [UploadedFile::fake()->create('first-proposal.pdf', 100, 'application/pdf')],
         ])
-        ->assertRedirect();
+        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'detailed-proposal']))
+        ->assertSessionHas('success', 'Detailed Research Proposal saved.');
 
     $first = $draft->documents()->sole();
     Storage::disk('local')->assertExists($first->file_path);
@@ -322,7 +324,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
             'documents' => [UploadedFile::fake()->create('replacement-proposal.docx', 120, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
         ])
-        ->assertRedirect();
+        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'detailed-proposal']));
 
     $replacement = $draft->documents()->sole();
     expect($replacement->id)->toBe($first->id)
@@ -383,7 +385,8 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $workPlan)
-        ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
+        ->assertRedirect(route('faculty.proposal-drafts.work-plan.edit', $draft))
+        ->assertSessionHas('success', 'Attachment A: Work Plan saved.');
 
     $document = $draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)

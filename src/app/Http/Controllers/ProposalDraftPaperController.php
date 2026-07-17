@@ -61,7 +61,7 @@ class ProposalDraftPaperController extends Controller
             : $this->replaceDocument($proposalDraft, $paper, $storedFiles[0]);
 
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
             ->with('success', $paper['label'].' saved.');
     }
 
