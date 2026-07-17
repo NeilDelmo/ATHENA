@@ -32,3 +32,41 @@ test('profile credentials cannot be changed or deleted locally', function () {
     $this->actingAs($user)->patch('/profile', [])->assertMethodNotAllowed();
     $this->actingAs($user)->delete('/profile')->assertMethodNotAllowed();
 });
+
+test('users can save their college from their profile', function () {
+    $user = User::factory()->create();
+    $college = 'College of Informatics and Computing Sciences';
+
+    $this->actingAs($user)
+        ->patch(route('profile.college.update'), ['college' => $college])
+        ->assertRedirect()
+        ->assertSessionHas('status', 'college-updated');
+
+    expect($user->refresh()->college)->toBe($college);
+
+    $this->withoutVite();
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee('Set your college')
+        ->assertSee('value="'.$college.'" selected', false);
+});
+
+test('college must be one of the supported colleges', function () {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->from(route('profile.edit'))
+        ->patch(route('profile.college.update'), ['college' => 'Unsupported College'])
+        ->assertRedirect(route('profile.edit'))
+        ->assertSessionHasErrors('college');
+
+    expect($user->refresh()->college)->toBeNull();
+});
+
+test('guests cannot update a college', function () {
+    $this->patch(route('profile.college.update'), [
+        'college' => 'College of Teacher Education',
+    ])->assertRedirect(route('login'));
+});

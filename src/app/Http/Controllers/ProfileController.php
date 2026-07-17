@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateCollegeRequest;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -32,5 +34,12 @@ class ProfileController extends Controller
             'user' => $user,
             'recentProposals' => $recentProposals,
         ]);
+    }
+
+    public function updateCollege(UpdateCollegeRequest $request): RedirectResponse
+    {
+        $request->user()->update($request->validated());
+
+        return back()->with('status', 'college-updated');
     }
 }

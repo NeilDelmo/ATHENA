@@ -60,6 +60,7 @@ class ProviderController extends Controller
             // immediately after a successful sign-in.
             $request->session()->forget([
                 'url.intended',
+                'active_role',
                 User::ACTIVE_WORKSPACE_SESSION_KEY,
             ]);
 

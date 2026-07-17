@@ -2,14 +2,14 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
-use App\Models\User;
-use App\Models\TopicProposal;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
+use App\Models\TopicProposal;
+use App\Models\User;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
         $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
         $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
         $expertRole = Role::firstOrCreate(['name' => 'expert']);
+        Role::firstOrCreate(['name' => 'research_coordinator']);
 
         $researchHeadEmail = '23-78498@g.batstate-u.edu.ph';
 

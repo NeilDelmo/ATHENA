@@ -4,7 +4,7 @@ use App\Models\User;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'expert'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 });
@@ -20,6 +20,7 @@ test('each account role is sent to its own dashboard', function (string $role, s
     'faculty' => ['faculty', 'faculty.dashboard'],
     'faculty researcher' => ['faculty_researcher', 'faculty.dashboard'],
     'research head' => ['research_head', 'research_head.dashboard'],
+    'research coordinator' => ['research_coordinator', 'research_coordinator.dashboard'],
     'expert' => ['expert', 'expert.dashboard'],
 ]);
 
