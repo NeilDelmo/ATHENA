@@ -96,6 +96,15 @@ function navigateFromPaperEditor(editor, destination, message) {
     window.location.assign(destination);
 }
 
+function submitPaperEditor(editor, submitterSelector) {
+    const form = editor.querySelector('[data-paper-form]');
+    const submitter = editor.querySelector(submitterSelector);
+
+    if (form instanceof HTMLFormElement && submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
+        form.requestSubmit(submitter);
+    }
+}
+
 document.addEventListener('input', (event) => {
     const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
 
@@ -141,15 +150,16 @@ document.addEventListener('keydown', (event) => {
     const commandKey = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
 
-    if (commandKey && !event.altKey && key === 's') {
+    if (commandKey && !event.altKey && !event.shiftKey && key === 's') {
         event.preventDefault();
+        submitPaperEditor(editor, '[data-paper-save]');
 
-        const form = editor.querySelector('[data-paper-form]');
-        const submitter = editor.querySelector(event.shiftKey ? '[data-paper-save-exit]' : '[data-paper-save]');
+        return;
+    }
 
-        if (form instanceof HTMLFormElement && submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
-            form.requestSubmit(submitter);
-        }
+    if (commandKey && !event.altKey && !event.shiftKey && key === 'enter') {
+        event.preventDefault();
+        submitPaperEditor(editor, '[data-paper-save-exit]');
 
         return;
     }

@@ -8,7 +8,7 @@ return [
             'description' => 'Save the current paper and stay in its editor.',
         ],
         [
-            'keys' => 'Ctrl + Shift + S',
+            'keys' => 'Ctrl + Enter',
             'action' => 'Save and exit',
             'description' => 'Save the current paper, then return to the proposal package.',
         ],
