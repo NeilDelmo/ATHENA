@@ -1,10 +1,15 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Contracts\Provider;
 use Laravel\Socialite\Contracts\User as SocialiteUser;
 use Laravel\Socialite\Facades\Socialite;
 use Spatie\Permission\Models\Role;
+
+beforeEach(function () {
+    config()->set('services.google.remember_login', false);
+});
 
 function mockGoogleUser(string $email, string $avatar = 'https://example.com/avatar.jpg'): void
 {
@@ -52,13 +57,55 @@ test('a BatStateU Google account is provisioned as faculty and authenticated', f
 
     $response = $this->get('/auth/google/callback');
 
-    $response->assertRedirect('/dashboard');
+    $response
+        ->assertRedirect('/dashboard')
+        ->assertCookieMissing(Auth::guard('web')->getRecallerName());
     $this->assertAuthenticated();
 
     $user = User::where('email', 'faculty@g.batstate-u.edu.ph')->firstOrFail();
     expect($user->google_id)->toBe('google-user-123')
         ->and($user->email_verified_at)->not->toBeNull()
-        ->and($user->hasRole('faculty'))->toBeTrue();
+        ->and($user->hasRole('faculty'))->toBeTrue()
+        ->and($user->getRememberToken())->toBeEmpty();
+});
+
+test('Google sign in remembers the user when persistence is enabled', function () {
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    config()->set('services.google.remember_login', true);
+    mockGoogleUser('remembered@g.batstate-u.edu.ph');
+
+    $response = $this->get('/auth/google/callback');
+
+    $response
+        ->assertRedirect('/dashboard')
+        ->assertCookie(Auth::guard('web')->getRecallerName())
+        ->assertCookieNotExpired(Auth::guard('web')->getRecallerName());
+    $this->assertAuthenticated();
+
+    expect(User::where('email', 'remembered@g.batstate-u.edu.ph')->firstOrFail()->getRememberToken())
+        ->not->toBeNull();
+});
+
+test('a remembered Google user is restored after their session is lost', function () {
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    config()->set('services.google.remember_login', true);
+    mockGoogleUser('returning@g.batstate-u.edu.ph');
+
+    $rememberCookieName = Auth::guard('web')->getRecallerName();
+    $callbackResponse = $this->get('/auth/google/callback');
+    $rememberCookie = $callbackResponse->getCookie($rememberCookieName);
+
+    expect($rememberCookie)->not->toBeNull();
+
+    $this->flushSession();
+    Auth::forgetGuards();
+
+    $this->withCookie($rememberCookieName, $rememberCookie->getValue())
+        ->get('/dashboard')
+        ->assertRedirect(route('faculty.dashboard'));
+
+    $this->assertAuthenticated();
+    expect(Auth::viaRemember())->toBeTrue();
 });
 
 test('a Google avatar URL longer than 255 characters is stored', function () {
@@ -115,10 +162,19 @@ test('Google sign in ignores a saved page for another role', function () {
 
 test('users can logout', function () {
     $user = User::factory()->create();
+    Auth::login($user, remember: true);
 
-    $this->actingAs($user)->post('/logout')->assertRedirect('/');
+    $rememberToken = $user->fresh()->getRememberToken();
+    $rememberCookieName = Auth::guard('web')->getRecallerName();
+    $rememberCookieValue = app('cookie')->queued($rememberCookieName)->getValue();
+
+    $this->withCookie($rememberCookieName, $rememberCookieValue)
+        ->post('/logout')
+        ->assertRedirect('/')
+        ->assertCookieExpired($rememberCookieName);
 
     $this->assertGuest();
+    expect($user->fresh()->getRememberToken())->not->toBe($rememberToken);
 });
 
 test('local account registration and password endpoints are unavailable', function () {

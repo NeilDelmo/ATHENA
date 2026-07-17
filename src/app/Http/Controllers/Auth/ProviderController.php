@@ -51,7 +51,7 @@ class ProviderController extends Controller
                 $user->assignRole(Role::firstOrCreate(['name' => 'faculty']));
             }
 
-            Auth::login($user);
+            Auth::login($user, (bool) config('services.google.remember_login', false));
             $request->session()->regenerate();
 
             // Always let the application choose the correct dashboard for the
