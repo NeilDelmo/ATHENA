@@ -56,6 +56,7 @@ class CurriculumVitaeRules
             'money' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'yes_no' => ['nullable', Rule::in(['yes', 'no'])],
             'select' => ['nullable', Rule::in($field['options'])],
+            'suggestions' => ['nullable', 'string', 'max:500'],
             default => ['nullable', 'string', 'max:500'],
         };
     }

@@ -118,6 +118,12 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('<option value="Dropped">Dropped</option>', false)
         ->assertSee('<option value="Terminated">Terminated</option>', false)
         ->assertSee('Ongoing studies automatically end in Present.')
+        ->assertSee('data-cv-suggestions', false)
+        ->assertSee('<datalist', false)
+        ->assertSee('<option value="Permanent"></option>', false)
+        ->assertSee('<option value="Project Leader"></option>', false)
+        ->assertSee('<option value="R &amp; D Papers in Scientific Journals"></option>', false)
+        ->assertSee('Choose a suggested value or type your own.')
         ->assertSee('data-paper-submit-status', false)
         ->assertSee('data-paper-submit-message', false)
         ->assertSee('Please keep this page open while ATHENA updates the paper.')
@@ -125,6 +131,26 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Ctrl + S')
         ->assertSee('Save and exit')
         ->assertSee('data-paper-form', false);
+});
+
+test('CV editable suggestion fields use the official Attachment C choices', function () {
+    $expectedOptions = [
+        'employment.appointment_status' => ['Permanent', 'Temporary', 'Contractual', 'Casual', 'Emergency'],
+        'awards.category' => ['Local - In-house', 'Local - Regional', 'Local - National', 'International'],
+        'projects.designation' => ['Co-Program Leader', 'Co-Project Leader', 'Program Coordinator', 'Program Leader', 'Project Leader', 'Research & Development Staff'],
+        'projects.sector' => ['Agricultural Resources Management', 'Crops', 'Forestry and Env’t', 'Livestock', 'Socio-economics'],
+        'projects.current_status' => ['Approved', 'Completed with TR', 'Completed w/o TR', 'Deferred (approval)', 'Deferred (impl’n)', 'Disapproved', 'Extended', 'New', 'Ongoing', 'Proposed', 'Reactivated', 'Recommended', 'Rejected', 'Suspended', 'Terminated', 'Terminated w/ TR'],
+        'publications.publication_group' => ['R & D Papers in Scientific Journals', 'Technical Reports', 'Research Abstracts', 'Papers Presented in Conferences', 'Books', 'News Articles'],
+        'publications.authoring_type' => ['Sole-Author', 'Co-Author', 'Editor', 'Co-Editor', 'Main Author'],
+        'presentations.category' => ['Local - In-house', 'Local - Regional', 'Local - National', 'International'],
+    ];
+    $configuredOptions = collect(config('curriculum_vitae.sections'))
+        ->flatMap(fn (array $section, string $sectionKey) => collect($section['fields'])
+            ->filter(fn (array $field): bool => $field['type'] === 'suggestions')
+            ->mapWithKeys(fn (array $field): array => ["{$sectionKey}.{$field['key']}" => $field['options']]))
+        ->all();
+
+    expect($configuredOptions)->toBe($expectedOptions);
 });
 
 test('CV sections use the official default row counts', function () {
@@ -167,7 +193,9 @@ test('multiple team CVs save as one completed generated paper and resume with al
         ->and($document->source_data['people'])->toHaveCount(3)
         ->and($document->source_data['people'][0]['academic_background'])->toHaveCount(3)
         ->and($document->source_data['people'][0]['academic_background'][2]['status'])->toBe('Ongoing')
-        ->and($document->source_data['people'][0]['academic_background'][2]['year_end'])->toBeNull();
+        ->and($document->source_data['people'][0]['academic_background'][2]['year_end'])->toBeNull()
+        ->and($document->source_data['people'][0]['publications'][0]['publication_group'])->toBe('Institutional Journal')
+        ->and($document->source_data['people'][0]['publications'][0]['authoring_type'])->toBe('Lead author');
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))

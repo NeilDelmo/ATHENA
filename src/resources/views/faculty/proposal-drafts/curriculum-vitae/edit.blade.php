@@ -125,6 +125,12 @@
                                                         <p x-show="row.status === 'Ongoing'" class="mt-1 text-[11px] font-semibold text-gray-500">Ongoing studies automatically end in Present.</p>
                                                     @elseif ($field['type'] === 'yes_no')
                                                         <select :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="">Leave blank</option><option value="yes">Yes</option><option value="no">No</option></select>
+                                                    @elseif ($field['type'] === 'suggestions')
+                                                        <input :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" :list="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}-options`" type="text" maxlength="500" x-model="row.{{ $field['key'] }}" data-cv-suggestions class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                                        <datalist :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}-options`">
+                                                            @foreach ($field['options'] as $option)<option value="{{ $option }}"></option>@endforeach
+                                                        </datalist>
+                                                        <p class="mt-1 text-[11px] font-semibold text-gray-500">Choose a suggested value or type your own.</p>
                                                     @elseif ($field['type'] === 'date')
                                                         <x-date-picker id-expression="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" name-expression="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" model="row.{{ $field['key'] }}" class="mt-1.5" />
                                                     @else

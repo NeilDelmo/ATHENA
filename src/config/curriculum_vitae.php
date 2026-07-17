@@ -41,7 +41,12 @@ return [
             'fields' => [
                 ['key' => 'agency', 'label' => 'Agency', 'type' => 'text'],
                 ['key' => 'plantilla_position', 'label' => 'Plantilla Position', 'type' => 'text'],
-                ['key' => 'appointment_status', 'label' => 'Status of Appointment', 'type' => 'text'],
+                [
+                    'key' => 'appointment_status',
+                    'label' => 'Status of Appointment',
+                    'type' => 'suggestions',
+                    'options' => ['Permanent', 'Temporary', 'Contractual', 'Casual', 'Emergency'],
+                ],
                 ['key' => 'start_date', 'label' => 'Appointment Start', 'type' => 'date'],
                 ['key' => 'end_date', 'label' => 'Appointment End', 'type' => 'date'],
                 ['key' => 'monthly_salary', 'label' => 'Monthly Salary', 'type' => 'money'],
@@ -61,7 +66,12 @@ return [
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of R&D Award', 'type' => 'text', 'wide' => true],
                 ['key' => 'rank', 'label' => 'Rank', 'type' => 'text'],
-                ['key' => 'category', 'label' => 'Category', 'type' => 'text'],
+                [
+                    'key' => 'category',
+                    'label' => 'Category',
+                    'type' => 'suggestions',
+                    'options' => ['Local - In-house', 'Local - Regional', 'Local - National', 'International'],
+                ],
                 ['key' => 'granting_institution', 'label' => 'Granting Institution', 'type' => 'text'],
                 ['key' => 'year_granted', 'label' => 'Year Granted', 'type' => 'year'],
             ],
@@ -71,9 +81,25 @@ return [
             'default_rows' => 5,
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of R&D Project', 'type' => 'text', 'wide' => true],
-                ['key' => 'designation', 'label' => 'Designation', 'type' => 'text'],
-                ['key' => 'sector', 'label' => 'Sector', 'type' => 'text'],
-                ['key' => 'current_status', 'label' => 'Current Status', 'type' => 'text', 'wide' => true],
+                [
+                    'key' => 'designation',
+                    'label' => 'Designation',
+                    'type' => 'suggestions',
+                    'options' => ['Co-Program Leader', 'Co-Project Leader', 'Program Coordinator', 'Program Leader', 'Project Leader', 'Research & Development Staff'],
+                ],
+                [
+                    'key' => 'sector',
+                    'label' => 'Sector',
+                    'type' => 'suggestions',
+                    'options' => ['Agricultural Resources Management', 'Crops', 'Forestry and Env’t', 'Livestock', 'Socio-economics'],
+                ],
+                [
+                    'key' => 'current_status',
+                    'label' => 'Current Status',
+                    'type' => 'suggestions',
+                    'options' => ['Approved', 'Completed with TR', 'Completed w/o TR', 'Deferred (approval)', 'Deferred (impl’n)', 'Disapproved', 'Extended', 'New', 'Ongoing', 'Proposed', 'Reactivated', 'Recommended', 'Rejected', 'Suspended', 'Terminated', 'Terminated w/ TR'],
+                    'wide' => true,
+                ],
                 ['key' => 'year_from', 'label' => 'Year From', 'type' => 'year'],
                 ['key' => 'year_to', 'label' => 'Year To', 'type' => 'year'],
             ],
@@ -85,8 +111,19 @@ return [
                 ['key' => 'title', 'label' => 'Title of R&D Publication', 'type' => 'text', 'wide' => true],
                 ['key' => 'year_published', 'label' => 'Year Published', 'type' => 'year'],
                 ['key' => 'place', 'label' => 'Place of Publication', 'type' => 'text'],
-                ['key' => 'publication_group', 'label' => 'Publication Group', 'type' => 'text', 'wide' => true],
-                ['key' => 'authoring_type', 'label' => 'Authoring Type', 'type' => 'text'],
+                [
+                    'key' => 'publication_group',
+                    'label' => 'Publication Group',
+                    'type' => 'suggestions',
+                    'options' => ['R & D Papers in Scientific Journals', 'Technical Reports', 'Research Abstracts', 'Papers Presented in Conferences', 'Books', 'News Articles'],
+                    'wide' => true,
+                ],
+                [
+                    'key' => 'authoring_type',
+                    'label' => 'Authoring Type',
+                    'type' => 'suggestions',
+                    'options' => ['Sole-Author', 'Co-Author', 'Editor', 'Co-Editor', 'Main Author'],
+                ],
             ],
         ],
         'presentations' => [
@@ -95,7 +132,12 @@ return [
             'fields' => [
                 ['key' => 'title', 'label' => 'Title of Research Paper', 'type' => 'text', 'wide' => true],
                 ['key' => 'conference_title', 'label' => 'Conference Title', 'type' => 'text', 'wide' => true],
-                ['key' => 'category', 'label' => 'Category', 'type' => 'text'],
+                [
+                    'key' => 'category',
+                    'label' => 'Category',
+                    'type' => 'suggestions',
+                    'options' => ['Local - In-house', 'Local - Regional', 'Local - National', 'International'],
+                ],
                 ['key' => 'date', 'label' => 'Date', 'type' => 'date'],
                 ['key' => 'venue', 'label' => 'Venue', 'type' => 'text'],
                 ['key' => 'sponsor', 'label' => 'Sponsor', 'type' => 'text'],
