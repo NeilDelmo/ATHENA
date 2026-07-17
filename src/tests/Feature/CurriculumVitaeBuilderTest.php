@@ -145,14 +145,42 @@ test('the preview repeats the complete official CV for every team member', funct
     $document = new DOMDocument;
     $document->loadHTML($response->getContent(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
     $xpath = new DOMXPath($document);
-    $nameCells = $xpath->query('(//tr[contains(concat(" ", normalize-space(@class), " "), " cv-name-values ")])[1]/td');
+    $nameLabels = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-name-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-label-row ")]/th');
+    $nameCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-name-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-value-row ")]/td');
+    $yearTaken = $xpath->query('(//th[contains(normalize-space(.), "Year Taken")])[1]')->item(0);
+    $scholarshipGrants = $xpath->query('(//th[contains(normalize-space(.), "Scholarship Grants")])[1]')->item(0);
+    $appointmentDate = $xpath->query('(//th[contains(normalize-space(.), "Date of Appointment")])[1]')->item(0);
+    $projectYear = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-projects-table ")])[1]//th[starts-with(normalize-space(.), "Year")]')->item(0);
+    $stylesheet = file_get_contents(resource_path('css/curriculum-vitae-print.css'));
 
-    expect($nameCells)->toHaveCount(3)
+    expect($nameLabels)->toHaveCount(3)
+        ->and(trim($nameLabels->item(0)->textContent))->toBe('Last Name')
+        ->and(trim($nameLabels->item(1)->textContent))->toBe('First Name')
+        ->and(trim($nameLabels->item(2)->textContent))->toBe('Middle Name')
+        ->and($nameCells)->toHaveCount(3)
         ->and(trim($nameCells->item(0)->textContent))->toBe('Leader')
         ->and(trim($nameCells->item(1)->textContent))->toBe('Faculty')
-        ->and(trim($nameCells->item(2)->textContent))->toBe('Project');
+        ->and(trim($nameCells->item(2)->textContent))->toBe('Project')
+        ->and($yearTaken->getAttribute('colspan'))->toBe('2')
+        ->and($scholarshipGrants->getAttribute('colspan'))->toBe('4')
+        ->and($appointmentDate->getAttribute('colspan'))->toBe('2')
+        ->and($projectYear->getAttribute('colspan'))->toBe('2')
+        ->and($stylesheet)->not->toContain('font-style: italic')
+        ->and($stylesheet)->toContain('.cv-table .cv-borderless-columns > * + * { border-left-width: 0; }')
+        ->and($stylesheet)->toContain('.cv-name-table .cv-value-row td { font-weight: 700; text-align: center; }')
+        ->and($stylesheet)->toContain('margin: 1in 0.509375in;')
+        ->and($stylesheet)->toContain('.cv-projects-table { break-before: page; page-break-before: always; }')
+        ->and($stylesheet)->toContain('.cv-name-table col:nth-child(1) { width: 36.12736%; }')
+        ->and($stylesheet)->toContain('.cv-publications-table col:nth-child(4) { width: 33.41688%; }');
 
-    $response->assertSeeInOrder(['Faculty', 'Researcher', 'Researcher']);
+    $response
+        ->assertDontSee('RESIDENTIAL ADDRESS')
+        ->assertSee('Degree Earned')
+        ->assertSee('(from highest to lowest)')
+        ->assertSee('Status of Appointment')
+        ->assertSee('(permanent, temporary, contractual, casual, emergency)')
+        ->assertSee('R&amp;D RELATED PUBLICATIONS (for the last 3 years)', false)
+        ->assertSeeInOrder(['Faculty', 'Researcher', 'Researcher']);
 });
 
 test('the generated Word file preserves the official form and adds one complete block per team member', function () {
@@ -165,9 +193,21 @@ test('the generated Word file preserves the official form and adds one complete 
     $temporaryPath = tempnam(sys_get_temp_dir(), 'curriculum-vitae-test-');
     file_put_contents($temporaryPath, $response->streamedContent());
     $archive = new ZipArchive;
+    $templateArchive = new ZipArchive;
 
     try {
         expect($archive->open($temporaryPath))->toBeTrue();
+        expect($templateArchive->open(config('curriculum_vitae.template_path')))->toBeTrue()
+            ->and($archive->numFiles)->toBe($templateArchive->numFiles);
+
+        for ($index = 0; $index < $templateArchive->numFiles; $index++) {
+            $partName = $templateArchive->getNameIndex($index);
+
+            if ($partName !== 'word/document.xml') {
+                expect($archive->getFromName($partName))->toBe($templateArchive->getFromName($partName));
+            }
+        }
+
         $documentXml = $archive->getFromName('word/document.xml');
         $document = new DOMDocument;
         $document->loadXML($documentXml, LIBXML_NONET);
@@ -180,11 +220,13 @@ test('the generated Word file preserves the official form and adds one complete 
             $contentControlIds[] = $xpath->evaluate('string(@w:val)', $contentControlId);
         }
 
+        $nameLabelCells = $xpath->query('//w:body/w:tbl[1]/w:tr[3]/w:tc');
         $nameCells = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc');
+        $nameParagraph = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]')->item(0);
         $nameParts = [];
 
-        foreach ($nameCells as $nameCell) {
-            $nameParts[] = trim($xpath->evaluate('string(.//w:t)', $nameCell));
+        foreach ($xpath->query('./w:r/w:t', $nameParagraph) as $namePart) {
+            $nameParts[] = $namePart->textContent;
         }
 
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
@@ -198,14 +240,21 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:rFonts/@w:ascii)'))->toBe('Times New Roman')
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:sz/@w:val)'))->toBe('18')
             ->and($nameParts)->toBe(['Leader', 'Faculty', 'Project'])
-            ->and($nameCells)->toHaveCount(3)
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:tcW/@w:w)'))->toBe('3892')
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:tcPr/w:tcW/@w:w)'))->toBe('3097')
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:tcPr/w:tcW/@w:w)'))->toBe('3784')
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:gridSpan/@w:val)'))->toBe('6')
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:tcPr/w:gridSpan/@w:val)'))->toBe('10')
-            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:tcPr/w:gridSpan/@w:val)'))->toBe('12')
-            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[4]//w:tab')->length)->toBe(0)
+            ->and($nameLabelCells)->toHaveCount(3)
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[3]//w:i')->length)->toBe(0)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[1]/w:tcPr/w:tcBorders/w:right/@w:val)'))->toBe('nil')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:tcPr/w:tcBorders/w:left/@w:val)'))->toBe('nil')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:tcPr/w:tcBorders/w:right/@w:val)'))->toBe('nil')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[3]/w:tc[3]/w:tcPr/w:tcBorders/w:left/@w:val)'))->toBe('nil')
+            ->and($nameCells)->toHaveCount(1)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:gridSpan/@w:val)'))->toBe('28')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:tcBorders/w:top/@w:val)'))->toBe('nil')
+            ->and($xpath->query('./w:r/w:tab', $nameParagraph)->length)->toBe(3)
+            ->and($xpath->query('./w:r[w:t]/w:rPr/w:b', $nameParagraph)->length)->toBe(3)
+            ->and($xpath->query('./w:pPr/w:tabs/w:tab[@w:val="center"]', $nameParagraph)->length)->toBe(3)
+            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[1]/@w:pos)', $nameParagraph))->toBe('1946')
+            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[2]/@w:pos)', $nameParagraph))->toBe('5441')
+            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[3]/@w:pos)', $nameParagraph))->toBe('8881')
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')
@@ -213,6 +262,7 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($documentXml)->toContain('Two');
     } finally {
         $archive->close();
+        $templateArchive->close();
 
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
