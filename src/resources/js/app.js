@@ -2334,7 +2334,31 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             row[field.key] = values[field.key] ?? '';
         });
 
+        if (sectionKey === 'academic_background') {
+            const status = String(row.status ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+            const academicStatuses = {
+                graduated: 'Graduated',
+                ongoing: 'Ongoing',
+                dropped: 'Dropped',
+                terminated: 'Terminated',
+            };
+            row.status = academicStatuses[status] ?? '';
+
+            if (row.status === 'Ongoing') row.year_end = 'Present';
+            if (row.status === 'Graduated' && row.year_end === 'Present') row.year_end = '';
+        }
+
         return row;
+    },
+
+    updateAcademicStatus(row, status) {
+        row.status = status;
+
+        if (status === 'Ongoing') {
+            row.year_end = 'Present';
+        } else if (row.year_end === 'Present') {
+            row.year_end = '';
+        }
     },
 
     addPerson() {

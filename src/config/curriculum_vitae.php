@@ -12,7 +12,7 @@ return [
                 ['key' => 'major_field', 'label' => 'Major Field', 'type' => 'text'],
                 ['key' => 'sector', 'label' => 'Sector', 'type' => 'text'],
                 ['key' => 'learning_institution', 'label' => 'Learning Institution', 'type' => 'text'],
-                ['key' => 'status', 'label' => 'Status', 'type' => 'text'],
+                ['key' => 'status', 'label' => 'Status', 'type' => 'select', 'options' => ['Graduated', 'Ongoing', 'Dropped', 'Terminated']],
                 ['key' => 'year_start', 'label' => 'Year Started', 'type' => 'year'],
                 ['key' => 'year_end', 'label' => 'Year Ended', 'type' => 'year'],
                 ['key' => 'thesis', 'label' => 'Thesis', 'type' => 'text', 'wide' => true],

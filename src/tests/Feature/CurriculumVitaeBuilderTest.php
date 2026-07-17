@@ -54,6 +54,7 @@ beforeEach(function () {
                 'academic_background' => [
                     ['degree' => 'BS Computer Science', 'major_field' => 'Computer Science', 'sector' => 'Higher Education', 'learning_institution' => 'BatStateU', 'status' => 'Graduated', 'year_start' => '2008', 'year_end' => '2012', 'thesis' => 'Coastal data platform'],
                     ['degree' => 'MS Information Technology', 'major_field' => 'Information Technology', 'sector' => 'Higher Education', 'learning_institution' => 'BatStateU', 'status' => 'Graduated', 'year_start' => '2014', 'year_end' => '2016', 'thesis' => 'Community information systems'],
+                    ['degree' => 'Doctor of Information Technology', 'major_field' => 'Database Technologies', 'sector' => '', 'learning_institution' => 'AMA University', 'status' => 'On going', 'year_start' => '2019', 'year_end' => 'e', 'thesis' => ''],
                 ],
                 'employment' => [[
                     'agency' => 'Batangas State University',
@@ -111,6 +112,11 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Choose a month or type a year to jump directly.')
         ->assertDontSee('type="date"', false)
         ->assertSee('Every member begins with a new official CV block.')
+        ->assertSee('<option value="Graduated">Graduated</option>', false)
+        ->assertSee('<option value="Ongoing">Ongoing</option>', false)
+        ->assertSee('<option value="Dropped">Dropped</option>', false)
+        ->assertSee('<option value="Terminated">Terminated</option>', false)
+        ->assertSee('Ongoing studies automatically end in Present.')
         ->assertSee('Ctrl + S')
         ->assertSee('Save and exit')
         ->assertSee('data-paper-form', false);
@@ -129,7 +135,9 @@ test('multiple team CVs save as one completed generated paper and resume with al
     expect($document->completed_at)->not->toBeNull()
         ->and($document->file_path)->toBeNull()
         ->and($document->source_data['people'])->toHaveCount(3)
-        ->and($document->source_data['people'][0]['academic_background'])->toHaveCount(2);
+        ->and($document->source_data['people'][0]['academic_background'])->toHaveCount(3)
+        ->and($document->source_data['people'][0]['academic_background'][2]['status'])->toBe('Ongoing')
+        ->and($document->source_data['people'][0]['academic_background'][2]['year_end'])->toBeNull();
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
@@ -164,6 +172,7 @@ test('the preview repeats the complete official CV for every team member', funct
     $addressValueCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-value-row ")]/td');
     $addressLabelCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-label-row ")]/th');
     $contactOutputs = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-contact-table ")])[1]//strong');
+    $ongoingAcademicCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-academic-table ")])[1]//tbody/tr[last()]/td');
     $yearTaken = $xpath->query('(//th[contains(normalize-space(.), "Year Taken")])[1]')->item(0);
     $scholarshipGrants = $xpath->query('(//th[contains(normalize-space(.), "Scholarship Grants")])[1]')->item(0);
     $appointmentDate = $xpath->query('(//th[contains(normalize-space(.), "Date of Appointment")])[1]')->item(0);
@@ -186,6 +195,10 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressLabelCells)))->toBe(['Street', 'Barangay', 'Municipality', 'Province'])
         ->and($contactOutputs)->toHaveCount(3)
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['043-000-0000', '(+63) 9123456789', 'faculty@example.test'])
+        ->and($ongoingAcademicCells)->toHaveCount(8)
+        ->and(trim($ongoingAcademicCells->item(4)->textContent))->toBe('Ongoing')
+        ->and(trim($ongoingAcademicCells->item(5)->textContent))->toBe('2019')
+        ->and(trim($ongoingAcademicCells->item(6)->textContent))->toBe('Present')
         ->and($yearTaken->getAttribute('colspan'))->toBe('2')
         ->and($scholarshipGrants->getAttribute('colspan'))->toBe('4')
         ->and($appointmentDate->getAttribute('colspan'))->toBe('2')
@@ -296,6 +309,8 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')
+            ->and($documentXml)->toContain('Doctor of Information Technology')
+            ->and($xpath->query('//w:t[.="Present"]')->length)->toBe(1)
             ->and($documentXml)->toContain('Researcher')
             ->and($documentXml)->toContain('Two');
     } finally {
@@ -323,4 +338,20 @@ test('every team member requires a first and last name and the package limit is 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), $payload)
         ->assertSessionHasErrors('people');
+});
+
+test('academic status and completed study end years reject unsupported values', function () {
+    $payload = ($this->payload)();
+    $payload['people'][0]['academic_background'][0]['status'] = 'Still studying';
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), $payload)
+        ->assertSessionHasErrors('people.0.academic_background.0.status');
+
+    $payload = ($this->payload)();
+    $payload['people'][0]['academic_background'][0]['year_end'] = 'e';
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), $payload)
+        ->assertSessionHasErrors('people.0.academic_background.0.year_end');
 });

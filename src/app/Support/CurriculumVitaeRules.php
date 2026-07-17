@@ -40,7 +40,7 @@ class CurriculumVitaeRules
             $rules["people.*.{$sectionKey}.*"] = ['array:'.implode(',', $fieldKeys)];
 
             foreach ($section['fields'] as $field) {
-                $rules["people.*.{$sectionKey}.*.{$field['key']}"] = self::fieldRules($field['type']);
+                $rules["people.*.{$sectionKey}.*.{$field['key']}"] = self::fieldRules($field);
             }
         }
 
@@ -48,13 +48,14 @@ class CurriculumVitaeRules
     }
 
     /** @return array<mixed> */
-    private static function fieldRules(string $type): array
+    private static function fieldRules(array $field): array
     {
-        return match ($type) {
+        return match ($field['type']) {
             'date' => ['nullable', 'date_format:Y-m-d'],
             'year' => ['nullable', 'digits:4'],
             'money' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'yes_no' => ['nullable', Rule::in(['yes', 'no'])],
+            'select' => ['nullable', Rule::in($field['options'])],
             default => ['nullable', 'string', 'max:500'],
         };
     }

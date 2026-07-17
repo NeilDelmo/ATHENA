@@ -109,7 +109,20 @@
                                             @foreach ($section['fields'] as $field)
                                                 <div class="{{ ($field['wide'] ?? false) ? 'sm:col-span-2' : '' }}">
                                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`">{{ $field['label'] }}</label>
-                                                    @if ($field['type'] === 'yes_no')
+                                                    @if ($field['type'] === 'select')
+                                                        <select :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" @if ($sectionKey === 'academic_background' && $field['key'] === 'status') x-bind:value="row.status" x-on:change="updateAcademicStatus(row, $event.target.value)" @else x-model="row.{{ $field['key'] }}" @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                                            <option value="">Leave blank</option>
+                                                            @foreach ($field['options'] as $option)<option value="{{ $option }}">{{ $option }}</option>@endforeach
+                                                        </select>
+                                                    @elseif ($sectionKey === 'academic_background' && $field['key'] === 'year_end')
+                                                        <template x-if="row.status === 'Ongoing'">
+                                                            <input :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" type="text" value="Present" disabled class="mt-1.5 block w-full cursor-not-allowed rounded-xl border-gray-200 bg-gray-100 text-sm font-bold text-gray-700 shadow-sm">
+                                                        </template>
+                                                        <template x-if="row.status !== 'Ongoing'">
+                                                            <input :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" type="number" min="1900" max="2100" step="1" x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                                        </template>
+                                                        <p x-show="row.status === 'Ongoing'" class="mt-1 text-[11px] font-semibold text-gray-500">Ongoing studies automatically end in Present.</p>
+                                                    @elseif ($field['type'] === 'yes_no')
                                                         <select :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="">Leave blank</option><option value="yes">Yes</option><option value="no">No</option></select>
                                                     @elseif ($field['type'] === 'date')
                                                         <x-date-picker id-expression="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" name-expression="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" model="row.{{ $field['key'] }}" class="mt-1.5" />

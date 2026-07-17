@@ -86,8 +86,8 @@ class CurriculumVitaeData
             );
             $normalized[$sectionKey] = collect($person[$sectionKey] ?? [])
                 ->filter(fn (mixed $row): bool => is_array($row))
-                ->map(function (array $row) use ($fieldTypes): array {
-                    return $fieldTypes->mapWithKeys(function (string $type, string $key) use ($row): array {
+                ->map(function (array $row) use ($fieldTypes, $sectionKey): array {
+                    $normalizedRow = $fieldTypes->mapWithKeys(function (string $type, string $key) use ($row): array {
                         $value = $row[$key] ?? null;
 
                         if ($type === 'money') {
@@ -96,6 +96,12 @@ class CurriculumVitaeData
 
                         return [$key => trim((string) ($value ?? ''))];
                     })->all();
+
+                    if ($sectionKey === 'academic_background' && $normalizedRow['status'] === 'Ongoing') {
+                        $normalizedRow['year_end'] = 'Present';
+                    }
+
+                    return $normalizedRow;
                 })
                 ->filter(fn (array $row): bool => collect($row)->contains(fn (string $value): bool => $value !== ''))
                 ->values()
