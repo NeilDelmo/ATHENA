@@ -27,6 +27,7 @@
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
         x-data="proposalDraftCurriculumVitae({
             initialPeople: @js($initialPeople),
+            workspacePeople: @js($workspacePeople),
             sections: @js($sections),
             previewUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.download', $proposalDraft)),
@@ -53,12 +54,22 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Research team CV package</h3>
-                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">The first draft is seeded from the Project Leader and the Project Staff saved in Attachment B. Each member becomes a separate complete CV form in the generated paper.</p>
+                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Workspace account names and institutional emails are filled automatically. You can still add a blank CV for an unlisted person.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View sample</a>@endif
-                    <button type="button" x-on:click="addPerson" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Add another member</button>
+                    <button type="button" x-on:click="addPerson" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Add blank CV</button>
                 </div>
+            </div>
+            <div class="mt-5 grid gap-3 border-t border-gray-100 pt-5 sm:grid-cols-[1fr_auto] sm:items-end">
+                <div>
+                    <label for="workspace-cv-member" class="block text-[10px] font-black uppercase tracking-wider text-gray-600">Add from proposal workspace</label>
+                    <select id="workspace-cv-member" x-model="selectedWorkspacePerson" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                        <option value="">Choose a member</option>
+                        <template x-for="member in workspacePeople" :key="member.key"><option :value="member.key" x-text="`${member.name} — ${member.email}`"></option></template>
+                    </select>
+                </div>
+                <button type="button" x-on:click="addWorkspacePerson" x-bind:disabled="!selectedWorkspacePerson" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Add workspace member CV</button>
             </div>
             <div class="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-5">
                 <template x-for="(person, index) in people" :key="person.id">
@@ -70,6 +81,7 @@
         <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
+            <input type="hidden" name="document_version" value="{{ $curriculumVitaeDocument?->lock_version ?? 0 }}">
 
             <template x-for="(person, personIndex) in people" :key="person.id">
                 <article class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex">

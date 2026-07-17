@@ -2080,9 +2080,34 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalDraftMembers', (config = {}) => ({
+    candidates: Array.isArray(config.candidates) ? config.candidates : [],
+    email: '',
+    name: '',
+    matchedAccount: null,
+
+    init() {
+        this.email = String(this.$root.querySelector('[name="email"]')?.value || '').trim();
+        this.name = String(this.$root.querySelector('[name="name"]')?.value || '').trim();
+        this.syncAccount();
+    },
+
+    syncAccount() {
+        const normalizedEmail = String(this.email || '').trim().toLowerCase();
+        this.matchedAccount = this.candidates.find(
+            (candidate) => String(candidate.email || '').trim().toLowerCase() === normalizedEmail,
+        ) || null;
+
+        if (this.matchedAccount) {
+            this.name = String(this.matchedAccount.name || '');
+        }
+    },
+}));
+
 Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     nextId: 0,
     staff: [],
+    workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     customMooeItems: [],
     customCoItems: [],
     amounts: {},
@@ -2155,6 +2180,21 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     addStaff() {
         this.staff.push(this.newStaff());
+    },
+
+    syncStaff(member) {
+        const normalizedName = String(member.name || '').trim().toLowerCase();
+        const workspacePerson = this.workspacePeople.find(
+            (person) => String(person.name || '').trim().toLowerCase() === normalizedName,
+        );
+
+        if (!workspacePerson) return;
+
+        member.name = String(workspacePerson.name || member.name);
+
+        if (!String(member.college || '').trim()) {
+            member.college = String(workspacePerson.college || '');
+        }
     },
 
     removeStaff(index) {
@@ -2321,6 +2361,8 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     nextId: 0,
     people: [],
+    workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
+    selectedWorkspacePerson: '',
     validationMessage: '',
     previewHtml: '',
     previewError: '',
@@ -2405,6 +2447,29 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
     addPerson() {
         this.people.push(this.newPerson());
+        this.$nextTick(() => this.focusPerson(this.people.length - 1));
+    },
+
+    addWorkspacePerson() {
+        const workspacePerson = this.workspacePeople.find(
+            (person) => String(person.key) === String(this.selectedWorkspacePerson),
+        );
+
+        if (!workspacePerson) return;
+
+        const alreadyAdded = this.people.some((person) => (
+            String(person.email || '').trim().toLowerCase()
+            === String(workspacePerson.email || '').trim().toLowerCase()
+        ));
+
+        if (alreadyAdded) {
+            this.validationMessage = `${workspacePerson.name} already has a CV in this package.`;
+            return;
+        }
+
+        this.validationMessage = '';
+        this.people.push(this.newPerson(workspacePerson.cv || {}));
+        this.selectedWorkspacePerson = '';
         this.$nextTick(() => this.focusPerson(this.people.length - 1));
     },
 

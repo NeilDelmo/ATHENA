@@ -118,10 +118,14 @@
                     <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">Final submission</h3>
                     <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Submitting creates an immutable version 1 package and sends it to the Research Head.' : 'Complete Project Details and every required paper to enable submission.' }}</p>
                 </div>
+                @can('submit', $proposalDraft)
                 <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" onsubmit="return confirm('Submit this complete proposal package to the Research Head?')" class="w-full shrink-0 sm:w-auto">
                     @csrf
                     <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Submit Proposal Package</button>
                 </form>
+                @else
+                    <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only {{ $proposalDraft->owner->name }} can submit this shared workspace.</p>
+                @endcan
             </div>
         </section>
     </div>

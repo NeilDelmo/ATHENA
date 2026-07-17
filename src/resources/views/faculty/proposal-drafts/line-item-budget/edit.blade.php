@@ -30,6 +30,7 @@
             initialData: @js($initialData),
             sections: @js($sections),
             defaultCampus: @js(config('line_item_budget.default_campus')),
+            workspacePeople: @js($workspacePeople),
             previewUrl: @js(route('faculty.proposal-drafts.line-item-budget.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.line-item-budget.download', $proposalDraft)),
             csrfToken: @js(csrf_token()),
@@ -81,10 +82,11 @@
         <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.line-item-budget.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
+            <input type="hidden" name="document_version" value="{{ $lineItemBudgetDocument?->lock_version ?? 0 }}">
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div><h3 class="text-base font-black text-gray-900">Project leader and staff</h3><p class="mt-1 text-xs text-gray-500">Names are typed manually for now. Add as many staff rows as the project needs.</p></div>
+                    <div><h3 class="text-base font-black text-gray-900">Project leader and staff</h3><p class="mt-1 text-xs text-gray-500">Choose a proposal workspace member to reuse their account name and college, or type an external member manually.</p></div>
                     <button type="button" x-on:click="addStaff" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add project staff</button>
                 </div>
 
@@ -96,7 +98,7 @@
                 <div class="mt-5 space-y-3">
                     <template x-for="(member, index) in staff" :key="member.id">
                         <div class="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
-                            <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Name</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" maxlength="120" x-model="member.name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                            <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Name</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" list="proposal-workspace-member-names" maxlength="120" x-model="member.name" x-on:change="syncStaff(member)" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-campus-${member.id}`">Campus</label><input :id="`staff-campus-${member.id}`" :name="`staff[${index}][campus]`" type="text" maxlength="120" x-model="member.campus" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-college-${member.id}`">College</label><input :id="`staff-college-${member.id}`" :name="`staff[${index}][college]`" type="text" list="line-item-budget-colleges" maxlength="120" x-model="member.college" placeholder="Select or type" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <button type="button" x-on:click="removeStaff(index)" class="rounded-xl px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
@@ -106,6 +108,11 @@
                 <datalist id="line-item-budget-colleges">
                     @foreach (config('line_item_budget.college_options') as $college)
                         <option value="{{ $college }}"></option>
+                    @endforeach
+                </datalist>
+                <datalist id="proposal-workspace-member-names">
+                    @foreach ($workspacePeople as $workspacePerson)
+                        <option value="{{ $workspacePerson['name'] }}">{{ $workspacePerson['email'] }}</option>
                     @endforeach
                 </datalist>
             </section>

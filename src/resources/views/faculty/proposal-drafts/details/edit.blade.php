@@ -37,6 +37,7 @@
             <form data-paper-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="draft_version" value="{{ $proposalDraft->lock_version }}">
 
                 <div>
                     <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <span class="text-red-600">Required</span></label>
@@ -65,8 +66,9 @@
 
                 <div>
                     <label for="project_leader" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Leader <span class="text-red-600">Required</span></label>
-                    <input id="project_leader" name="project_leader" type="text" value="{{ old('project_leader', $proposalDraft->project_leader ?: auth()->user()->name) }}" maxlength="120" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
-                    <p class="mt-2 text-[11px] text-gray-500">This name appears under “Prepared by” in the official Work Plan.</p>
+                    <input id="project_leader" name="project_leader" type="text" list="proposal-workspace-people" value="{{ old('project_leader', $proposalDraft->project_leader ?: $proposalDraft->owner->name) }}" maxlength="120" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                    <datalist id="proposal-workspace-people">@foreach ($workspacePeople as $workspacePerson)<option value="{{ $workspacePerson['name'] }}">{{ $workspacePerson['email'] }}</option>@endforeach</datalist>
+                    <p class="mt-2 text-[11px] text-gray-500">Choose a workspace member or type a name. This appears under “Prepared by” in the official Work Plan.</p>
                     @error('project_leader')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                 </div>
 

@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftLineItemBudgetRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Services\LineItemBudgetDocumentService;
 use App\Support\LineItemBudgetData;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
@@ -34,19 +36,24 @@ class ProposalDraftLineItemBudgetController extends Controller
         'resolution_year',
     ];
 
-    public function edit(ProposalDraft $proposalDraft, ProposalPaperCatalog $catalog): View
-    {
+    public function edit(
+        ProposalDraft $proposalDraft,
+        ProposalPaperCatalog $catalog,
+        ProposalWorkspacePeople $proposalWorkspacePeople,
+    ): View {
         Gate::authorize('update', $proposalDraft);
         $proposalDraft->load('researchCall');
         $paper = $catalog->get('line-item-budget');
         $lineItemBudgetDocument = $this->document($proposalDraft);
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
+        $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
 
         return view('faculty.proposal-drafts.line-item-budget.edit', compact(
             'proposalDraft',
             'paper',
             'lineItemBudgetDocument',
             'sourceData',
+            'workspacePeople',
         ));
     }
 
@@ -54,11 +61,15 @@ class ProposalDraftLineItemBudgetController extends Controller
         UpdateProposalDraftLineItemBudgetRequest $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('line-item-budget');
-        $proposalDraft->documents()->updateOrCreate(
-            ['document_type' => $paper['document_type'], 'position' => 0],
+        $saveProposalDraftDocument->handle(
+            $proposalDraft,
+            $paper['document_type'],
+            0,
+            $request->integer('document_version'),
             [
                 'source_data' => Arr::only($request->validated(), self::SOURCE_FIELDS),
                 'file_path' => null,

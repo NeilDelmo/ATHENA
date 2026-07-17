@@ -26,6 +26,7 @@ class UpdateProposalDraftPaperRequest extends FormRequest
         $remainingSlots = $this->remainingSlots($paper);
 
         return [
+            'document_version' => [$paper['multiple'] ? 'nullable' : 'required', 'integer', 'min:0'],
             'documents' => ['required', 'array', 'min:1', 'max:'.$remainingSlots],
             'documents.*' => [
                 'required',

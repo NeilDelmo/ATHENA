@@ -184,6 +184,11 @@ class User extends Authenticatable
         return $this->hasMany(ProposalDraft::class);
     }
 
+    public function proposalDraftMemberships(): HasMany
+    {
+        return $this->hasMany(ProposalDraftMember::class);
+    }
+
     public function topicReviews(): HasMany
     {
         return $this->hasMany(TopicReview::class, 'reviewer_id');

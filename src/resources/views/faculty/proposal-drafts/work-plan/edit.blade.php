@@ -78,6 +78,7 @@
         <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.work-plan.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
+            <input type="hidden" name="document_version" value="{{ $workPlanDocument?->lock_version ?? 0 }}">
 
             <section aria-labelledby="work-plan-objectives-heading" class="space-y-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

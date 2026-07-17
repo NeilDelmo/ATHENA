@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftPaperRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -46,6 +47,7 @@ class ProposalDraftPaperController extends Controller
         ProposalDraft $proposalDraft,
         string $paper,
         ProposalPaperCatalog $catalog,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
@@ -58,7 +60,13 @@ class ProposalDraftPaperController extends Controller
 
         $paper['multiple']
             ? $this->appendDocuments($proposalDraft, $paper, $storedFiles)
-            : $this->replaceDocument($proposalDraft, $paper, $storedFiles[0]);
+            : $this->replaceDocument(
+                $proposalDraft,
+                $paper,
+                $storedFiles[0],
+                $request->integer('document_version'),
+                $saveProposalDraftDocument,
+            );
 
         return redirect()
             ->route(
@@ -185,18 +193,22 @@ class ProposalDraftPaperController extends Controller
      * @param  array<string, mixed>  $paper
      * @param  array<string, mixed>  $storedFile
      */
-    private function replaceDocument(ProposalDraft $proposalDraft, array $paper, array $storedFile): void
-    {
+    private function replaceDocument(
+        ProposalDraft $proposalDraft,
+        array $paper,
+        array $storedFile,
+        int $expectedVersion,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
+    ): void {
         $existingDocument = $this->documentsFor($proposalDraft, $paper)->first();
         $oldPath = $existingDocument?->file_path;
 
         try {
-            ProposalDraftDocument::query()->updateOrCreate(
-                [
-                    'proposal_draft_id' => $proposalDraft->getKey(),
-                    'document_type' => $paper['document_type'],
-                    'position' => 0,
-                ],
+            $saveProposalDraftDocument->handle(
+                $proposalDraft,
+                $paper['document_type'],
+                0,
+                $expectedVersion,
                 [
                     ...$storedFile,
                     'source_data' => null,

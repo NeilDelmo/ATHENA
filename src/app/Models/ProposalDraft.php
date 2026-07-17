@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,6 +22,7 @@ class ProposalDraft extends Model
         'planned_end',
         'project_leader',
         'status',
+        'lock_version',
     ];
 
     protected $attributes = [
@@ -33,6 +35,7 @@ class ProposalDraft extends Model
             'duration_months' => 'integer',
             'planned_start' => 'date',
             'planned_end' => 'date',
+            'lock_version' => 'integer',
         ];
     }
 
@@ -51,6 +54,32 @@ class ProposalDraft extends Model
         return $this->hasMany(ProposalDraftDocument::class)
             ->orderBy('document_type')
             ->orderBy('position');
+    }
+
+    public function members(): HasMany
+    {
+        return $this->hasMany(ProposalDraftMember::class)
+            ->orderBy('name');
+    }
+
+    /** @param Builder<ProposalDraft> $query */
+    public function scopeAccessibleTo(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $accessible) use ($user): void {
+            $accessible
+                ->where('user_id', $user->getKey())
+                ->orWhereHas('members', fn (Builder $members): Builder => $members->forUser($user));
+        });
+    }
+
+    public function isOwnedBy(User $user): bool
+    {
+        return $this->user_id === $user->getKey();
+    }
+
+    public function isSharedWith(User $user): bool
+    {
+        return $this->members()->forUser($user)->exists();
     }
 
     public function projectDetailsAreComplete(): bool

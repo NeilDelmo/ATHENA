@@ -22,18 +22,20 @@ class ProposalDraftPolicy
 
     public function view(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->owns($user, $proposalDraft);
+        return $this->viewAny($user)
+            && ($proposalDraft->isOwnedBy($user) || $proposalDraft->isSharedWith($user));
     }
 
     public function update(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->owns($user, $proposalDraft)
+        return $this->view($user, $proposalDraft)
             && $proposalDraft->status === ProposalDraft::STATUS_DRAFT;
     }
 
     public function delete(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->update($user, $proposalDraft);
+        return $this->owns($user, $proposalDraft)
+            && $proposalDraft->status === ProposalDraft::STATUS_DRAFT;
     }
 
     public function download(User $user, ProposalDraft $proposalDraft): bool
@@ -43,7 +45,12 @@ class ProposalDraftPolicy
 
     public function submit(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->update($user, $proposalDraft);
+        return $this->delete($user, $proposalDraft);
+    }
+
+    public function manageMembers(User $user, ProposalDraft $proposalDraft): bool
+    {
+        return $this->delete($user, $proposalDraft);
     }
 
     private function owns(User $user, ProposalDraft $proposalDraft): bool

@@ -36,6 +36,7 @@ beforeEach(function () {
         'project_leader' => 'Faculty Project Leader',
     ]);
     $this->payload = fn (array $overrides = []): array => [
+        'document_version' => 0,
         'leader_campus' => 'Pablo Borbon Campus',
         'leader_college' => 'College of Arts and Sciences',
         'staff' => [
@@ -100,6 +101,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('Save and exit');
 
     $saveAndExitPayload = $payload;
+    $saveAndExitPayload['document_version'] = 1;
     $saveAndExitPayload['exit_after_save'] = '1';
 
     $this->actingAs($this->faculty)

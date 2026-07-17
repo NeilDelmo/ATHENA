@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftCurriculumVitaeRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Support\CurriculumVitaeData;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -18,13 +19,22 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProposalDraftCurriculumVitaeController extends Controller
 {
-    public function edit(ProposalDraft $proposalDraft, ProposalPaperCatalog $catalog): View
-    {
+    public function edit(
+        ProposalDraft $proposalDraft,
+        ProposalPaperCatalog $catalog,
+        ProposalWorkspacePeople $proposalWorkspacePeople,
+    ): View {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('curriculum-vitae');
         $curriculumVitaeDocument = $this->document($proposalDraft);
+        $workspacePeople = collect($proposalWorkspacePeople->forDraft($proposalDraft))
+            ->map(fn (array $person): array => [
+                ...$person,
+                'cv' => CurriculumVitaeData::seedPeopleWithContacts([$person])[0],
+            ])
+            ->all();
         $sourceData = $curriculumVitaeDocument?->source_data ?? [
-            'people' => $this->seedPeople($proposalDraft),
+            'people' => $this->seedPeople($proposalDraft, $workspacePeople),
         ];
 
         return view('faculty.proposal-drafts.curriculum-vitae.edit', compact(
@@ -32,6 +42,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
             'paper',
             'curriculumVitaeDocument',
             'sourceData',
+            'workspacePeople',
         ));
     }
 
@@ -39,6 +50,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
         UpdateProposalDraftCurriculumVitaeRequest $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('curriculum-vitae');
@@ -47,24 +59,25 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->get();
         $stagedPaths = $documents->pluck('file_path')->filter()->all();
 
-        DB::transaction(function () use ($proposalDraft, $paper, $request): void {
-            $document = $proposalDraft->documents()->updateOrCreate(
-                ['document_type' => $paper['document_type'], 'position' => 0],
-                [
-                    'source_data' => ['people' => $request->validated('people')],
-                    'file_path' => null,
-                    'original_filename' => null,
-                    'mime_type' => null,
-                    'file_size' => null,
-                    'checksum' => null,
-                    'completed_at' => now(),
-                ],
-            );
-            $proposalDraft->documents()
-                ->where('document_type', $paper['document_type'])
-                ->whereKeyNot($document->getKey())
-                ->delete();
-        });
+        $document = $saveProposalDraftDocument->handle(
+            $proposalDraft,
+            $paper['document_type'],
+            0,
+            $request->integer('document_version'),
+            [
+                'source_data' => ['people' => $request->validated('people')],
+                'file_path' => null,
+                'original_filename' => null,
+                'mime_type' => null,
+                'file_size' => null,
+                'checksum' => null,
+                'completed_at' => now(),
+            ],
+        );
+        $proposalDraft->documents()
+            ->where('document_type', $paper['document_type'])
+            ->whereKeyNot($document->getKey())
+            ->delete();
 
         Storage::disk('local')->delete($stagedPaths);
 
@@ -106,7 +119,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function seedPeople(ProposalDraft $proposalDraft): array
+    private function seedPeople(ProposalDraft $proposalDraft, array $workspacePeople): array
     {
         $lineItemBudgetSource = $proposalDraft->documents()
             ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
@@ -118,11 +131,18 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->filter()
             ->all();
 
-        return CurriculumVitaeData::seedPeople([
-            ...collect([$proposalDraft->project_leader, ...$staffNames])
-                ->filter(fn (mixed $name): bool => is_string($name) && filled($name))
+        $additionalPeople = collect([$proposalDraft->project_leader, ...$staffNames])
+            ->filter(fn (mixed $name): bool => is_string($name) && filled($name))
+            ->map(fn (string $name): array => ['name' => $name, 'email' => '']);
+
+        return CurriculumVitaeData::seedPeopleWithContacts(
+            collect($workspacePeople)
+                ->map(fn (array $person): array => ['name' => $person['name'], 'email' => $person['email']])
+                ->concat($additionalPeople)
+                ->unique(fn (array $person): string => Str::lower(Str::squish($person['name'])))
+                ->values()
                 ->all(),
-        ]);
+        );
     }
 
     private function document(ProposalDraft $proposalDraft): ?ProposalDraftDocument

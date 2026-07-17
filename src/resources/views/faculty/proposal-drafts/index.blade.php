@@ -41,11 +41,15 @@
                     @endphp
                     <article class="flex min-h-64 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
-                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800">Draft</span>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800">Draft</span>
+                                <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">{{ $proposalDraft->user_id === auth()->id() ? 'Owner' : 'Collaborator' }}</span>
+                            </div>
                             <span class="text-[11px] text-gray-500">Saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                         </div>
                         <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-900">{{ $proposalDraft->project_title }}</h4>
                         <p class="mt-2 text-xs leading-5 text-gray-500">{{ $proposalDraft->researchCall->title }}</p>
+                        <p class="mt-1 text-[11px] font-semibold text-gray-500">Workspace owner: {{ $proposalDraft->owner->name }}</p>
 
                         <div class="mt-5" aria-label="{{ $completeCount }} of {{ $draftChecklist->count() }} papers complete">
                             <div class="flex items-center justify-between text-[11px] font-bold text-gray-600">
@@ -57,13 +61,15 @@
                             </div>
                         </div>
 
-                        <div class="mt-auto grid gap-2 pt-6 sm:grid-cols-[1fr_auto]">
+                        <div class="mt-auto grid gap-2 pt-6 {{ $proposalDraft->user_id === auth()->id() ? 'sm:grid-cols-[1fr_auto]' : '' }}">
                             <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Resume</a>
+                            @can('delete', $proposalDraft)
                             <form action="{{ route('faculty.proposal-drafts.destroy', $proposalDraft) }}" method="POST" onsubmit="return confirm('Delete this proposal draft and all staged papers?')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Delete</button>
                             </form>
+                            @endcan
                         </div>
                     </article>
                 @empty

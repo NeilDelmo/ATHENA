@@ -94,6 +94,7 @@
                 <form data-paper-form action="{{ route('faculty.proposal-drafts.papers.update', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="mt-5 space-y-5">
                     @csrf
                     @method('PUT')
+                    <input type="hidden" name="document_version" value="{{ $documents->first()?->lock_version ?? 0 }}">
                     <div>
                         <label for="documents" class="block text-xs font-black uppercase tracking-wider text-gray-600">Select {{ $paper['multiple'] ? 'files' : 'a file' }} <span class="text-red-600">Required</span></label>
                         <input id="documents" name="documents[]" type="file" accept="{{ $accept }}" @if ($paper['multiple']) multiple @endif required class="mt-2 block w-full cursor-pointer rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">

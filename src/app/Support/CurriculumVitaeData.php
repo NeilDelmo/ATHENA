@@ -21,11 +21,27 @@ class CurriculumVitaeData
     /** @param array<int, string> $names @return array<int, array<string, mixed>> */
     public static function seedPeople(array $names): array
     {
-        return collect($names)
-            ->map(fn (string $name): string => Str::squish($name))
-            ->filter()
-            ->unique(fn (string $name): string => Str::lower($name))
-            ->map(fn (string $name): array => self::seedPerson($name))
+        return self::seedPeopleWithContacts(
+            collect($names)->map(fn (string $name): array => ['name' => $name, 'email' => ''])->all(),
+        );
+    }
+
+    /** @param array<int, array{name: string, email?: string}> $people @return array<int, array<string, mixed>> */
+    public static function seedPeopleWithContacts(array $people): array
+    {
+        return collect($people)
+            ->map(fn (array $person): array => [
+                'name' => Str::squish($person['name']),
+                'email' => Str::lower(trim((string) ($person['email'] ?? ''))),
+            ])
+            ->filter(fn (array $person): bool => filled($person['name']))
+            ->unique(fn (array $person): string => $person['email'] ?: Str::lower($person['name']))
+            ->map(function (array $person): array {
+                return [
+                    ...self::seedPerson($person['name']),
+                    'email' => $person['email'],
+                ];
+            })
             ->values()
             ->all();
     }

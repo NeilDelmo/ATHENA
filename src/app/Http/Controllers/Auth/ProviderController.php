@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Actions\LinkProposalDraftMemberships;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\InstitutionalEmail;
@@ -26,8 +27,10 @@ class ProviderController extends Controller
             ->redirect();
     }
 
-    public function handleGoogleCallback(Request $request): RedirectResponse
-    {
+    public function handleGoogleCallback(
+        Request $request,
+        LinkProposalDraftMemberships $linkProposalDraftMemberships,
+    ): RedirectResponse {
         try {
             try {
                 $googleUser = Socialite::driver('google')->user();
@@ -49,6 +52,12 @@ class ProviderController extends Controller
 
             if (! $user->roles()->exists()) {
                 $user->assignRole(Role::firstOrCreate(['name' => 'faculty']));
+            }
+
+            try {
+                $linkProposalDraftMemberships->handle($user);
+            } catch (\Throwable $exception) {
+                report($exception);
             }
 
             Auth::login($user, (bool) config('services.google.remember_login', false));

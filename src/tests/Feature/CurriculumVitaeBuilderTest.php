@@ -37,6 +37,7 @@ beforeEach(function () {
         'project_leader' => 'Faculty Project Leader',
     ]);
     $this->payload = fn (): array => [
+        'document_version' => 0,
         'people' => [
             [
                 'last_name' => 'Leader',
@@ -109,7 +110,7 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Faculty')
         ->assertSee('One')
         ->assertSee('Two')
-        ->assertSee('Add another member')
+        ->assertSee('Add blank CV')
         ->assertSee('Choose a month or type a year to jump directly.')
         ->assertDontSee('type="date"', false)
         ->assertSee('Every member begins with a new official CV block.')
@@ -204,6 +205,7 @@ test('multiple team CVs save as one completed generated paper and resume with al
         ->assertSee('Two');
 
     $saveAndExitPayload = ($this->payload)();
+    $saveAndExitPayload['document_version'] = 1;
     $saveAndExitPayload['exit_after_save'] = '1';
 
     $this->actingAs($this->faculty)

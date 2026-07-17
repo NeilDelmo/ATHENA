@@ -47,6 +47,7 @@ beforeEach(function () {
     };
 
     $this->projectDetails = fn (array $overrides = []): array => [
+        'draft_version' => 0,
         'project_title' => 'Coastal Habitat Restoration',
         'duration_months' => 12,
         'planned_start' => '2026-08-01',
@@ -56,6 +57,7 @@ beforeEach(function () {
     ];
 
     $this->workPlan = fn (array $overrides = []): array => [
+        'document_version' => 0,
         'entries' => [[
             'objective' => 'Document the baseline habitat condition',
             'expected_output' => 'Validated baseline habitat profile',
@@ -294,7 +296,7 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSessionHas('success', 'Project details saved.');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)(['exit_after_save' => '1']))
+        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)(['draft_version' => 1, 'exit_after_save' => '1']))
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
 
     $draft->refresh();
@@ -316,6 +318,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+            'document_version' => 0,
             'documents' => [UploadedFile::fake()->create('first-proposal.pdf', 100, 'application/pdf')],
         ])
         ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'detailed-proposal']))
@@ -330,6 +333,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+            'document_version' => 1,
             'documents' => [UploadedFile::fake()->create('replacement-proposal.docx', 120, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
             'exit_after_save' => '1',
         ])
@@ -362,6 +366,7 @@ test('paper uploads enforce file types and the 25 MB limit', function () {
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+            'document_version' => 0,
             'documents' => [UploadedFile::fake()->create('oversized.pdf', 25601, 'application/pdf')],
         ])
         ->assertSessionHasErrors('documents.0');
@@ -397,7 +402,7 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         ->assertRedirect(route('faculty.proposal-drafts.work-plan.edit', $draft))
         ->assertSessionHas('success', 'Attachment A: Work Plan saved.');
 
-    $saveAndExitWorkPlan = [...$workPlan, 'exit_after_save' => '1'];
+    $saveAndExitWorkPlan = [...$workPlan, 'document_version' => 1, 'exit_after_save' => '1'];
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $saveAndExitWorkPlan)

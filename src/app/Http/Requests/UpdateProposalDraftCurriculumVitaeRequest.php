@@ -41,7 +41,10 @@ class UpdateProposalDraftCurriculumVitaeRequest extends FormRequest
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {
-        return CurriculumVitaeRules::rules();
+        return [
+            ...CurriculumVitaeRules::rules(),
+            'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+        ];
     }
 
     /** @return array<string, string> */

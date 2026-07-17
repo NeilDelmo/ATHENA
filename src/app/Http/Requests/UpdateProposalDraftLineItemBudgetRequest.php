@@ -42,7 +42,10 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public function rules(): array
     {
-        return LineItemBudgetRules::rules();
+        return [
+            ...LineItemBudgetRules::rules(),
+            'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+        ];
     }
 
     /** @return list<callable> */

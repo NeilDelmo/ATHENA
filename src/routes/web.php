@@ -12,6 +12,7 @@ use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
+use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
@@ -91,6 +92,8 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
         Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');
         Route::post('/{proposalDraft}/curriculum-vitae/download', [ProposalDraftCurriculumVitaeController::class, 'download'])->name('curriculum-vitae.download');
+        Route::post('/{proposalDraft}/members', [ProposalDraftMemberController::class, 'store'])->name('members.store');
+        Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');

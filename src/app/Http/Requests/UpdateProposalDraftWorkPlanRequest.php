@@ -39,7 +39,10 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
      */
     public function rules(): array
     {
-        return WorkPlanRules::rules();
+        return [
+            ...WorkPlanRules::rules(),
+            'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+        ];
     }
 
     /**

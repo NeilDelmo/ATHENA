@@ -5,6 +5,7 @@
                 <a href="{{ route('faculty.proposal-drafts.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">← Saved drafts</a>
                 <h2 class="mt-2 break-words text-2xl font-black tracking-tight text-gray-900">{{ $proposalDraft->project_title }}</h2>
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->researchCall->title }} · Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</p>
+                <p class="mt-1 text-xs font-bold text-blue-700">{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</p>
             </div>
             <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto">Review package</a>
         </div>
@@ -47,6 +48,61 @@
             <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-100" aria-hidden="true">
                 <div class="h-full rounded-full bg-red-600" style="width: {{ $paperCount === 0 ? 0 : ($completedPaperCount / $paperCount) * 100 }}%"></div>
             </div>
+        </section>
+
+        <section id="workspace-members" aria-labelledby="workspace-members-heading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h3 id="workspace-members-heading" class="text-lg font-black text-gray-900">Proposal collaborators</h3>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-500">Linked ATHENA accounts can edit every draft paper. External members remain available for name and email autofill, but cannot sign in until an account with the same verified email is connected.</p>
+                </div>
+                <span class="inline-flex w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800">{{ 1 + $proposalDraft->members->count() }} {{ Str::plural('member', 1 + $proposalDraft->members->count()) }}</span>
+            </div>
+
+            <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <article class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900">{{ $proposalDraft->owner->name }}</p><span class="rounded-full bg-blue-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
+                    <p class="mt-1 break-all text-xs text-gray-600">{{ $proposalDraft->owner->email }}</p>
+                </article>
+                @foreach ($proposalDraft->members as $member)
+                    <article class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0"><p class="truncate font-black text-gray-900">{{ $member->user?->name ?? $member->name }}</p><p class="mt-1 break-all text-xs text-gray-600">{{ $member->user?->email ?? $member->email }}</p></div>
+                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isLinked() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $member->isLinked() ? 'Linked' : 'External' }}</span>
+                        </div>
+                        @can('manageMembers', $proposalDraft)
+                            <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" class="mt-3" onsubmit="return confirm('Remove this collaborator from the proposal workspace?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
+                            </form>
+                        @endcan
+                    </article>
+                @endforeach
+            </div>
+
+            @can('manageMembers', $proposalDraft)
+                <form
+                    action="{{ route('faculty.proposal-drafts.members.store', $proposalDraft) }}"
+                    method="POST"
+                    class="mt-5 grid gap-4 border-t border-gray-100 pt-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end"
+                    x-data="proposalDraftMembers({ candidates: @js($memberCandidates) })"
+                >
+                    @csrf
+                    <div>
+                        <label for="workspace-member-email" class="block text-[10px] font-black uppercase tracking-wider text-gray-600">Member email</label>
+                        <input id="workspace-member-email" name="email" type="email" list="workspace-member-accounts" x-model="email" x-on:input="syncAccount" value="{{ old('email') }}" maxlength="255" required placeholder="name@g.batstate-u.edu.ph" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                        <datalist id="workspace-member-accounts">@foreach ($memberCandidates as $candidate)<option value="{{ $candidate['email'] }}">{{ $candidate['name'] }}</option>@endforeach</datalist>
+                        <p class="mt-1 text-[11px] text-gray-500">Select a suggested ATHENA account or type an unregistered member’s email.</p>
+                    </div>
+                    <div>
+                        <label for="workspace-member-name" class="block text-[10px] font-black uppercase tracking-wider text-gray-600">Member name</label>
+                        <input id="workspace-member-name" name="name" type="text" x-model="name" value="{{ old('name') }}" maxlength="255" required placeholder="Full name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                        <p class="mt-1 text-[11px] text-gray-500" x-text="matchedAccount ? 'Pulled from the linked ATHENA account.' : 'Required for an external member.'"></p>
+                    </div>
+                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 lg:w-auto">Add collaborator</button>
+                </form>
+            @endcan
         </section>
 
         <section aria-labelledby="project-details-heading" class="rounded-2xl border {{ $projectDetailsComplete ? 'border-green-200' : 'border-amber-200' }} bg-white p-5 shadow-sm sm:p-6">

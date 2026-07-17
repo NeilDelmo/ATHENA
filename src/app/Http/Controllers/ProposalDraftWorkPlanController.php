@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftWorkPlanRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -42,15 +43,16 @@ class ProposalDraftWorkPlanController extends Controller
         UpdateProposalDraftWorkPlanRequest $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
         $paper = $catalog->get('work-plan');
-        $proposalDraft->documents()->updateOrCreate(
-            [
-                'document_type' => $paper['document_type'],
-                'position' => 0,
-            ],
+        $saveProposalDraftDocument->handle(
+            $proposalDraft,
+            $paper['document_type'],
+            0,
+            $request->integer('document_version'),
             [
                 'source_data' => Arr::only($request->validated(), [
                     'entries',

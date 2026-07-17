@@ -18,6 +18,7 @@ class ProposalDraftDocument extends Model
         'file_size',
         'checksum',
         'completed_at',
+        'lock_version',
     ];
 
     protected function casts(): array
@@ -27,6 +28,7 @@ class ProposalDraftDocument extends Model
             'source_data' => 'array',
             'file_size' => 'integer',
             'completed_at' => 'datetime',
+            'lock_version' => 'integer',
         ];
     }
 

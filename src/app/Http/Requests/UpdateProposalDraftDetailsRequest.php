@@ -21,6 +21,7 @@ class UpdateProposalDraftDetailsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'draft_version' => ['required', 'integer', 'min:0'],
             'project_title' => ['required', 'string', 'max:255'],
             'duration_months' => ['required', 'integer', 'min:1', 'max:12'],
             'planned_start' => ['required', 'date'],
