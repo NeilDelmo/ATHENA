@@ -163,16 +163,21 @@ class CurriculumVitaeDocumentService
             $person['gender'] === 'male',
             $person['gender'] === 'female',
         ]);
-        $this->replaceCellLabelValue($xpath, $personalCells[2], 'Birthday (mm/dd/yyyy):', $person['birthday']);
+        $this->replaceCellLabelValue($xpath, $personalCells[2], 'Birthday (mm/dd/yyyy):', $person['birthday'], '   ');
 
-        $addressCells = $this->elements($xpath, './w:tc', $rows[7]);
-        foreach (['street', 'barangay', 'municipality', 'province'] as $index => $key) {
-            $this->replaceCellText($xpath, $addressCells[$index], $person[$key]);
+        $addressValueCells = $this->elements($xpath, './w:tc', $rows[6]);
+        $addressLabelCells = $this->elements($xpath, './w:tc', $rows[7]);
+
+        foreach ([['street', 'Street'], ['barangay', 'Barangay'], ['municipality', 'Municipality'], ['province', 'Province']] as $index => [$key, $label]) {
+            $this->replaceCellText($xpath, $addressValueCells[$index], $person[$key], bold: true);
+            $this->replaceCellText($xpath, $addressLabelCells[$index], $label);
+            $this->setCellBorder($xpath, $addressValueCells[$index], 'bottom');
+            $this->setCellBorder($xpath, $addressLabelCells[$index], 'top');
         }
 
         $contactCells = $this->elements($xpath, './w:tc', $rows[8]);
         $this->replaceCellLabelValue($xpath, $contactCells[0], 'Landline no.:', $person['landline']);
-        $this->replaceCellLabelValue($xpath, $contactCells[1], 'Cellphone no.: (+63)', $person['cellphone']);
+        $this->replaceCellLabelValue($xpath, $contactCells[1], 'Cellphone no.:', '(+63) '.$person['cellphone']);
         $this->replaceCellLabelValue($xpath, $contactCells[2], 'Email Address:', $person['email']);
 
         $this->replaceRows($xpath, $table, array_slice($rows, 12, 4), $rows[12], $rows[16], $person['academic_background'], [
@@ -273,10 +278,16 @@ class CurriculumVitaeDocumentService
                 $checked->setAttributeNS(self::W14, 'w14:val', $isSelected ? '1' : '0');
             }
 
+            $checkedState = $this->elements($xpath, './w14:checkedState', $checkbox)[0] ?? null;
+
+            if ($checkedState instanceof DOMElement) {
+                $checkedState->setAttributeNS(self::W14, 'w14:val', '25A0');
+            }
+
             $displayText = $xpath->query('ancestor::w:sdt[1]/w:sdtContent//w:t', $checkbox)->item(0);
 
             if ($displayText instanceof DOMElement) {
-                $displayText->nodeValue = $isSelected ? '☒' : '☐';
+                $displayText->nodeValue = $isSelected ? '■' : '☐';
             }
         }
     }
@@ -362,27 +373,41 @@ class CurriculumVitaeDocumentService
         $paragraphProperties->appendChild($tabs);
     }
 
-    private function replaceCellLabelValue(DOMXPath $xpath, DOMElement $cell, string $label, string $value): void
-    {
+    private function replaceCellLabelValue(
+        DOMXPath $xpath,
+        DOMElement $cell,
+        string $label,
+        string $value,
+        string $separator = ' ',
+    ): void {
         $paragraph = $this->firstElement($xpath, './w:p', $cell);
         $this->clearParagraphContent($paragraph);
         $this->appendRun($paragraph, $label);
-        $this->appendRun($paragraph, ' '.$value);
+        $this->appendRun($paragraph, $separator.$value, bold: true);
 
         foreach (array_slice($this->elements($xpath, './w:p', $cell), 1) as $extraParagraph) {
             $cell->removeChild($extraParagraph);
         }
     }
 
-    private function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text): void
+    private function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text, bool $bold = false): void
     {
         $paragraph = $this->firstElement($xpath, './w:p', $cell);
         $this->clearParagraphContent($paragraph);
-        $this->appendRun($paragraph, $text);
+        $this->appendRun($paragraph, $text, $bold);
 
         foreach (array_slice($this->elements($xpath, './w:p', $cell), 1) as $extraParagraph) {
             $cell->removeChild($extraParagraph);
         }
+    }
+
+    private function setCellBorder(DOMXPath $xpath, DOMElement $cell, string $side): void
+    {
+        $border = $this->firstElement($xpath, './w:tcPr/w:tcBorders/w:'.$side, $cell);
+        $border->setAttributeNS(self::W, 'w:val', 'single');
+        $border->setAttributeNS(self::W, 'w:sz', '4');
+        $border->setAttributeNS(self::W, 'w:space', '0');
+        $border->setAttributeNS(self::W, 'w:color', 'C0C0C0');
     }
 
     private function clearParagraphContent(DOMElement $paragraph): void

@@ -78,6 +78,103 @@ themeMediaQuery.addEventListener('change', () => {
 initializeThemeToggles();
 document.addEventListener('livewire:navigated', initializeThemeToggles);
 
+function currentPaperEditor() {
+    return document.querySelector('[data-paper-editor]');
+}
+
+function paperEditorHasUnsavedChanges(editor) {
+    return editor?.dataset.paperDirty === 'true';
+}
+
+function confirmPaperEditorNavigation(editor, message) {
+    return !paperEditorHasUnsavedChanges(editor) || window.confirm(message);
+}
+
+function navigateFromPaperEditor(editor, destination, message) {
+    if (!destination || !confirmPaperEditorNavigation(editor, message)) return;
+
+    window.location.assign(destination);
+}
+
+document.addEventListener('input', (event) => {
+    const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
+
+    if (editor) editor.dataset.paperDirty = 'true';
+});
+
+document.addEventListener('change', (event) => {
+    const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
+
+    if (editor) editor.dataset.paperDirty = 'true';
+});
+
+document.addEventListener('submit', (event) => {
+    const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
+
+    if (!editor) return;
+
+    queueMicrotask(() => {
+        if (!event.defaultPrevented) editor.dataset.paperDirty = 'false';
+    });
+});
+
+document.addEventListener('click', (event) => {
+    const action = event.target instanceof Element
+        ? event.target.closest('[data-paper-discard], [data-paper-cancel-exit]')
+        : null;
+
+    if (!action) return;
+
+    const editor = action.closest('[data-paper-editor]');
+    const message = action.matches('[data-paper-discard]')
+        ? 'Discard unsaved changes and reload this paper?'
+        : 'Discard unsaved changes and return to the proposal package?';
+
+    if (!confirmPaperEditorNavigation(editor, message)) event.preventDefault();
+});
+
+document.addEventListener('keydown', (event) => {
+    const editor = currentPaperEditor();
+
+    if (!editor || event.defaultPrevented || event.isComposing || event.repeat) return;
+
+    const commandKey = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+
+    if (commandKey && !event.altKey && key === 's') {
+        event.preventDefault();
+
+        const form = editor.querySelector('[data-paper-form]');
+        const submitter = editor.querySelector(event.shiftKey ? '[data-paper-save-exit]' : '[data-paper-save]');
+
+        if (form instanceof HTMLFormElement && submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
+            form.requestSubmit(submitter);
+        }
+
+        return;
+    }
+
+    if (commandKey && event.altKey && !event.shiftKey && key === 'r') {
+        event.preventDefault();
+        navigateFromPaperEditor(
+            editor,
+            editor.dataset.paperEditUrl,
+            'Discard unsaved changes and reload this paper?',
+        );
+
+        return;
+    }
+
+    if (commandKey && event.altKey && !event.shiftKey && key === 'x') {
+        event.preventDefault();
+        navigateFromPaperEditor(
+            editor,
+            editor.dataset.paperExitUrl,
+            'Discard unsaved changes and return to the proposal package?',
+        );
+    }
+});
+
 const assistantContexts = Array.isArray(window.athenaResearchAssistantContexts)
     ? window.athenaResearchAssistantContexts
     : [];

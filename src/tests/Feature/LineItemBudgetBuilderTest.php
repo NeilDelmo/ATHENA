@@ -95,7 +95,16 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('value="CCJE"', false)
         ->assertSee('value="CAS"', false)
         ->assertSee('value="CHS"', false)
-        ->assertDontSee('College of Informatics and Computing Sciences');
+        ->assertDontSee('College of Informatics and Computing Sciences')
+        ->assertSee('Ctrl + S')
+        ->assertSee('Save and exit');
+
+    $saveAndExitPayload = $payload;
+    $saveAndExitPayload['exit_after_save'] = '1';
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $saveAndExitPayload)
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
 });
 
 test('empty optional fields are accepted while totals remain automatic', function () {

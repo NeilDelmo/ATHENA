@@ -89,11 +89,23 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 
 .cv-name-table .cv-value-row td { font-weight: 700; text-align: center; }
 
+.cv-output-value { font-weight: 700; }
+
 .cv-table .cv-borderless-columns > * + * { border-left-width: 0; }
 
 .cv-table .cv-borderless-columns > *:not(:last-child) { border-right-width: 0; }
 
-.cv-address-table .cv-value-row td { text-align: center; }
+.cv-address-table .cv-address-value-row td {
+    border-bottom: 0.5pt solid #c0c0c0;
+    font-weight: 700;
+    text-align: center;
+}
+
+.cv-address-table .cv-address-label-row th {
+    border-top: 0.5pt solid #c0c0c0;
+    font-style: normal;
+    text-align: center;
+}
 
 .cv-detail-heading th { background: #f2f2f2; font-weight: 700; text-align: center; }
 

@@ -61,7 +61,12 @@ class ProposalDraftPaperController extends Controller
             : $this->replaceDocument($proposalDraft, $paper, $storedFiles[0]);
 
         return redirect()
-            ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
+            ->route(
+                $request->boolean('exit_after_save')
+                    ? 'faculty.proposal-drafts.show'
+                    : 'faculty.proposal-drafts.papers.edit',
+                $request->boolean('exit_after_save') ? $proposalDraft : [$proposalDraft, $paper['slug']],
+            )
             ->with('success', $paper['label'].' saved.');
     }
 

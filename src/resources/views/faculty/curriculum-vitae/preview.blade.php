@@ -28,7 +28,7 @@
                     <table class="cv-table cv-personal-details-table">
                         <colgroup><col><col><col></colgroup>
                         <tbody>
-                            <tr class="cv-data-row"><td>Agency: {{ $person['agency'] }}</td><td>Gender: {{ $person['gender'] === 'male' ? '☒ Male  ☐ Female' : ($person['gender'] === 'female' ? '☐ Male  ☒ Female' : '☐ Male  ☐ Female') }}</td><td>Birthday (mm/dd/yyyy): {{ $person['birthday'] }}</td></tr>
+                            <tr class="cv-data-row"><td>Agency: <strong class="cv-output-value">{{ $person['agency'] }}</strong></td><td>Gender: {{ $person['gender'] === 'male' ? '■ Male  ☐ Female' : ($person['gender'] === 'female' ? '☐ Male  ■ Female' : '☐ Male  ☐ Female') }}</td><td>Birthday (mm/dd/yyyy):&nbsp;&nbsp;&nbsp;<strong class="cv-output-value">{{ $person['birthday'] }}</strong></td></tr>
                             <tr class="cv-data-row"><td colspan="3">&nbsp;</td></tr>
                         </tbody>
                     </table>
@@ -36,15 +36,15 @@
                     <table class="cv-table cv-address-table">
                         <colgroup><col><col><col><col></colgroup>
                         <tbody>
-                            <tr class="cv-label-row cv-borderless-columns"><th>Street</th><th>Barangay</th><th>Municipality</th><th>Province</th></tr>
-                            <tr class="cv-value-row cv-borderless-columns"><td>{{ $person['street'] }}</td><td>{{ $person['barangay'] }}</td><td>{{ $person['municipality'] }}</td><td>{{ $person['province'] }}</td></tr>
+                            <tr class="cv-address-value-row cv-borderless-columns"><td>{{ $person['street'] }}</td><td>{{ $person['barangay'] }}</td><td>{{ $person['municipality'] }}</td><td>{{ $person['province'] }}</td></tr>
+                            <tr class="cv-address-label-row cv-borderless-columns"><th>Street</th><th>Barangay</th><th>Municipality</th><th>Province</th></tr>
                         </tbody>
                     </table>
 
                     <table class="cv-table cv-contact-table">
                         <colgroup><col><col><col></colgroup>
                         <tbody>
-                            <tr class="cv-data-row"><td>Landline no.: {{ $person['landline'] }}</td><td>Cellphone no.: (+63) {{ $person['cellphone'] }}</td><td>Email Address: {{ $person['email'] }}</td></tr>
+                            <tr class="cv-data-row"><td>Landline no.: <strong class="cv-output-value">{{ $person['landline'] }}</strong></td><td>Cellphone no.: <strong class="cv-output-value">(+63) {{ $person['cellphone'] }}</strong></td><td>Email Address: <strong class="cv-output-value">{{ $person['email'] }}</strong></td></tr>
                         </tbody>
                     </table>
 

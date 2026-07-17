@@ -110,7 +110,10 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Add another member')
         ->assertSee('Choose a month or type a year to jump directly.')
         ->assertDontSee('type="date"', false)
-        ->assertSee('Every member begins with a new official CV block.');
+        ->assertSee('Every member begins with a new official CV block.')
+        ->assertSee('Ctrl + S')
+        ->assertSee('Save and exit')
+        ->assertSee('data-paper-form', false);
 });
 
 test('multiple team CVs save as one completed generated paper and resume with all rows', function () {
@@ -133,6 +136,13 @@ test('multiple team CVs save as one completed generated paper and resume with al
         ->assertOk()
         ->assertSee('Community Coastal Information Systems')
         ->assertSee('Two');
+
+    $saveAndExitPayload = ($this->payload)();
+    $saveAndExitPayload['exit_after_save'] = '1';
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), $saveAndExitPayload)
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
 });
 
 test('the preview repeats the complete official CV for every team member', function () {
@@ -148,6 +158,12 @@ test('the preview repeats the complete official CV for every team member', funct
     $xpath = new DOMXPath($document);
     $nameLabels = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-name-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-label-row ")]/th');
     $nameCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-name-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-value-row ")]/td');
+    $agencyOutput = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-personal-details-table ")])[1]//td[1]/strong')->item(0);
+    $genderCell = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-personal-details-table ")])[1]//td[2]')->item(0);
+    $birthdayOutput = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-personal-details-table ")])[1]//td[3]/strong')->item(0);
+    $addressValueCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-value-row ")]/td');
+    $addressLabelCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-label-row ")]/th');
+    $contactOutputs = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-contact-table ")])[1]//strong');
     $yearTaken = $xpath->query('(//th[contains(normalize-space(.), "Year Taken")])[1]')->item(0);
     $scholarshipGrants = $xpath->query('(//th[contains(normalize-space(.), "Scholarship Grants")])[1]')->item(0);
     $appointmentDate = $xpath->query('(//th[contains(normalize-space(.), "Date of Appointment")])[1]')->item(0);
@@ -162,6 +178,14 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and(trim($nameCells->item(0)->textContent))->toBe('Leader')
         ->and(trim($nameCells->item(1)->textContent))->toBe('Faculty')
         ->and(trim($nameCells->item(2)->textContent))->toBe('Project')
+        ->and(trim($agencyOutput->textContent))->toBe('Batangas State University')
+        ->and($genderCell->textContent)->toContain('■ Female')
+        ->and(trim($birthdayOutput->textContent))->toBe('06/15/1990')
+        ->and($addressValueCells)->toHaveCount(4)
+        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressValueCells)))->toBe(['Rizal Street', 'Barangay 1', 'Nasugbu', 'Batangas'])
+        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressLabelCells)))->toBe(['Street', 'Barangay', 'Municipality', 'Province'])
+        ->and($contactOutputs)->toHaveCount(3)
+        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['043-000-0000', '(+63) 9123456789', 'faculty@example.test'])
         ->and($yearTaken->getAttribute('colspan'))->toBe('2')
         ->and($scholarshipGrants->getAttribute('colspan'))->toBe('4')
         ->and($appointmentDate->getAttribute('colspan'))->toBe('2')
@@ -169,6 +193,7 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and($stylesheet)->not->toContain('font-style: italic')
         ->and($stylesheet)->toContain('.cv-table .cv-borderless-columns > * + * { border-left-width: 0; }')
         ->and($stylesheet)->toContain('.cv-name-table .cv-value-row td { font-weight: 700; text-align: center; }')
+        ->and($stylesheet)->toContain('border-bottom: 0.5pt solid #c0c0c0;')
         ->and($stylesheet)->toContain('margin: 1in 0.509375in;')
         ->and($stylesheet)->toContain('.cv-projects-table { break-before: page; page-break-before: always; }')
         ->and($stylesheet)->toContain('.cv-name-table col:nth-child(1) { width: 36.12736%; }')
@@ -180,6 +205,8 @@ test('the preview repeats the complete official CV for every team member', funct
         ->assertSee('(from highest to lowest)')
         ->assertSee('Status of Appointment')
         ->assertSee('(permanent, temporary, contractual, casual, emergency)')
+        ->assertSee('Birthday (mm/dd/yyyy):&nbsp;&nbsp;&nbsp;<strong', false)
+        ->assertSee('■ Female')
         ->assertSee('R&amp;D RELATED PUBLICATIONS (for the last 3 years)', false)
         ->assertSeeInOrder(['Faculty', 'Researcher', 'Researcher']);
 });
@@ -233,7 +260,9 @@ test('the generated Word file preserves the official form and adds one complete 
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
             ->and($xpath->query('//w:br[@w:type="page"]')->length)->toBe(2)
             ->and($xpath->query('//w14:checked[@w14:val="1"]')->length)->toBe(1)
-            ->and(substr_count($documentXml, '☒'))->toBe(1)
+            ->and($xpath->query('//w14:checkedState[@w14:val="25A0"]')->length)->toBe(6)
+            ->and(substr_count($documentXml, '■'))->toBe(1)
+            ->and(substr_count($documentXml, '☒'))->toBe(0)
             ->and($contentControlIds)->toHaveCount(6)
             ->and(array_unique($contentControlIds))->toHaveCount(6)
             ->and($xpath->evaluate('string(//w:sectPr/w:pgSz/@w:w)'))->toBe('12242')
@@ -256,6 +285,14 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[1]/@w:pos)', $nameParagraph))->toBe('1946')
             ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[2]/@w:pos)', $nameParagraph))->toBe('5441')
             ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[3]/@w:pos)', $nameParagraph))->toBe('8881')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[5]/w:tc[1]//w:r[w:t[contains(., "Batangas State University")]]/w:rPr/w:b')->length)->toBe(1)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[5]/w:tc[3]//w:r[w:rPr/w:b]/w:t)'))->toBe('   06/15/1990')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[7]//w:r[w:t]/w:rPr/w:b')->length)->toBe(4)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[7]/w:tc[1])'))->toBe('Rizal Street')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[8]/w:tc[1])'))->toBe('Street')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[7]/w:tc[1]/w:tcPr/w:tcBorders/w:bottom/@w:val)'))->toBe('single')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[8]/w:tc[1]/w:tcPr/w:tcBorders/w:top/@w:val)'))->toBe('single')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[9]//w:r[w:rPr/w:b and w:t]')->length)->toBe(3)
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')

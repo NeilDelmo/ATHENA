@@ -28,7 +28,12 @@ class ProposalDraftDetailsController extends Controller
         $proposalDraft->update($request->validated());
 
         return redirect()
-            ->route('faculty.proposal-drafts.details.edit', $proposalDraft)
+            ->route(
+                $request->boolean('exit_after_save')
+                    ? 'faculty.proposal-drafts.show'
+                    : 'faculty.proposal-drafts.details.edit',
+                $proposalDraft,
+            )
             ->with('success', 'Project details saved.');
     }
 }

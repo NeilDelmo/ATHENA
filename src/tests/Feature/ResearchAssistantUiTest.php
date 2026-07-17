@@ -156,7 +156,9 @@ test('authenticated users can receive a groq research response', function (strin
         && $request['max_completion_tokens'] === 700
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
-        && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role)));
+        && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role))
+        && str_contains($request['messages'][0]['content'], 'Ctrl + S: Save the current paper and stay in its editor.')
+        && str_contains($request['messages'][0]['content'], 'Ctrl + Shift + S: Save the current paper, then return to the proposal package.'));
 })->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
