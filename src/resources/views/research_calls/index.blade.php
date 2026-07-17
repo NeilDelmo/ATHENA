@@ -11,7 +11,7 @@
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>
         @endif
 
-        @role('research_head')
+        @if (Auth::user()->isUsingWorkspace('research_head'))
             <details class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" @if ($errors->any()) open @endif>
                 <summary class="cursor-pointer text-sm font-black text-gray-900">Create a research call</summary>
                 <form method="POST" action="{{ route('research-calls.store') }}" class="mt-5 grid gap-4 md:grid-cols-2">
@@ -30,7 +30,7 @@
                     @if ($errors->any())<div class="md:col-span-2 rounded-xl bg-red-50 p-3 text-xs text-red-700">{{ $errors->first() }}</div>@endif
                 </form>
             </details>
-        @endrole
+        @endif
 
         @foreach ([['Active calls', $activeCalls], ['Upcoming calls', $upcomingCalls], ['Previous calls', $previousCalls]] as [$heading, $calls])
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -56,7 +56,7 @@
                                     <div><dt class="font-bold text-gray-400">Submissions</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->topics_count }}</dd></div>
                                 </dl>
                             </div>
-                            @role('research_head')
+                            @if (Auth::user()->isUsingWorkspace('research_head'))
                                 @php
                                     $canReopen = $call->status === 'closed' && $call->closes_at->isFuture();
                                     $nextStatus = $call->status === 'open' ? 'closed' : 'open';
@@ -77,7 +77,7 @@
                                 @elseif ($lifecycleStatus === 'ended')
                                     <p class="mt-4 text-right text-[11px] font-semibold text-gray-400">The submission period ended automatically.</p>
                                 @endif
-                            @endrole
+                            @endif
                         </article>
                     @empty
                         <div class="p-8 text-center text-xs text-gray-400">No {{ strtolower($heading) }} yet.</div>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -11,7 +12,11 @@ use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalPackageService;
+use App\Services\WorkPlanDocumentService;
+use App\Support\ProposalPaperCatalog;
+use App\Support\WorkPlanData;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -47,38 +52,9 @@ class TopicController extends Controller
         return view('faculty.dashboard', compact('topics', 'activeCalls', 'revisionResponseTemplates'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        $activeCalls = ResearchCall::query()
-            ->where('status', 'open')
-            ->where('opens_at', '<=', now())
-            ->where('closes_at', '>=', now())
-            ->orderBy('closes_at')
-            ->get();
-
-        $proposalTemplates = ProposalTemplate::active()
-            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SUBMISSION)
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
-            ->map(function (ProposalTemplate $template) {
-                return [
-                    'name' => $template->name,
-                    'description' => $template->description,
-                    'instructions' => $template->instructions,
-                    'revision_label' => $template->revision_label,
-                    'key' => $template->slug,
-                    'size' => Storage::disk('local')->size($template->file_path),
-                    'extension' => strtoupper(pathinfo($template->file_path, PATHINFO_EXTENSION)),
-                ];
-            })
-            ->values();
-
-        $proposalSamples = collect(config('proposal_samples', []))
-            ->filter(fn (array $sample) => Storage::disk('local')->exists($sample['path']))
-            ->keys();
-
-        return view('faculty.topics.create', compact('activeCalls', 'proposalTemplates', 'proposalSamples'));
+        return redirect()->route('faculty.proposal-drafts.index');
     }
 
     public function researchIndex(Request $request)
@@ -124,14 +100,9 @@ class TopicController extends Controller
             ->sortByDesc('version_number')
             ->first();
 
-        $requiredDocuments = [
-            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => 'Detailed Research Proposal',
-            ProposalVersionFile::TYPE_WORK_PLAN => 'Attachment A - Work Plan',
-            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => 'Attachment B - Line-Item Budget',
-            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => 'Estimated Expense Breakdown',
-            ProposalVersionFile::TYPE_CURRICULUM_VITAE => 'Attachment C - Curriculum Vitae',
-            ProposalVersionFile::TYPE_GAD_CHECKLIST => 'GAD Generic Checklist',
-        ];
+        $requiredDocuments = app(ProposalPaperCatalog::class)
+            ->all()
+            ->mapWithKeys(fn (array $paper): array => [$paper['document_type'] => $paper['label']]);
 
         $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
             $files = $latestVersion?->files->where('document_type', $type) ?? collect();
@@ -174,7 +145,7 @@ class TopicController extends Controller
             'changed' => $previousVersion && $row['previous'] !== $row['latest'],
         ]);
 
-        $experts = $request->user()->hasRole('research_head')
+        $experts = $request->user()->isUsingWorkspace('research_head')
             ? User::role('expert')->orderBy('name')->get()
             : collect();
         $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
@@ -199,29 +170,12 @@ class TopicController extends Controller
         ));
     }
 
-    public function store(Request $request, ProposalPackageService $packageService)
-    {
-        $validated = $request->validateWithBag('submission', [
-            'title' => 'required|string|max:255',
-            'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
-            'detailed_proposal' => 'required_without:document|file|mimes:pdf,doc,docx|max:25600',
-            'document' => 'nullable|required_without:detailed_proposal|file|mimes:pdf,doc,docx|max:25600',
-            'work_plan' => 'required|file|mimes:pdf,doc,docx|max:25600',
-            'line_item_budget' => 'required|file|mimes:pdf,doc,docx|max:25600',
-            'expense_breakdown' => 'required|file|mimes:xls,xlsx|max:25600',
-            'curricula_vitae' => 'required|array|min:1|max:10',
-            'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
-            'gad_checklist' => 'required|file|mimes:pdf,doc,docx|max:25600',
-        ], [], [
-            'detailed_proposal' => 'detailed proposal',
-            'document' => 'detailed proposal',
-            'work_plan' => 'work plan',
-            'line_item_budget' => 'line-item budget',
-            'expense_breakdown' => 'expense breakdown',
-            'curricula_vitae' => 'curriculum vitae files',
-            'curricula_vitae.*' => 'curriculum vitae file',
-            'gad_checklist' => 'GAD checklist',
-        ]);
+    public function store(
+        StoreTopicProposalRequest $request,
+        ProposalPackageService $packageService,
+        WorkPlanDocumentService $documentService,
+    ) {
+        $validated = $request->validated();
 
         $call = ResearchCall::findOrFail($validated['research_call_id']);
 
@@ -231,28 +185,59 @@ class TopicController extends Controller
             ], 'submission');
         }
 
+        $packageFiles = [];
+        $directory = 'proposal-packages/'.Auth::id().'/'.Str::uuid();
+
         try {
             $packageFiles = $packageService->storeFromRequest(
                 $request,
-                'proposal-packages/'.Auth::id().'/'.Str::uuid(),
+                $directory,
             );
+
+            if (! $request->hasFile('work_plan')) {
+                $workPlan = WorkPlanData::fromValidated($validated);
+                $packageFiles[] = $packageService->storeGeneratedWorkPlan(
+                    $documentService->generate($workPlan),
+                    $directory,
+                    $workPlan['project_title'],
+                    Arr::only($validated, [
+                        'project_title',
+                        'total_duration_months',
+                        'planned_start',
+                        'planned_end',
+                        'entries',
+                        'prepared_by',
+                    ]),
+                );
+            }
+
             $primaryFile = $packageService->primaryFile($packageFiles);
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            $packageService->deleteStored($packageFiles);
+            report($exception);
+
             return back()
                 ->withInput()
-                ->withErrors(['detailed_proposal' => 'The proposal package could not be uploaded. Please try again.'], 'submission');
+                ->withErrors(['work_plan' => 'The proposal package or generated Work Plan could not be prepared. Please try again.'], 'submission');
         }
 
+        $proposalTitle = $validated['project_title'] ?? $validated['title'];
+        $versionData = [
+            ...$validated,
+            'title' => $proposalTitle,
+            'estimated_duration_months' => $validated['total_duration_months'] ?? null,
+        ];
+
         try {
-            $topic = DB::transaction(function () use ($validated, $call, $packageFiles, $primaryFile) {
+            $topic = DB::transaction(function () use ($versionData, $proposalTitle, $call, $packageFiles, $primaryFile) {
                 $topic = Auth::user()->proposals()->create([
-                    'title' => $validated['title'],
+                    'title' => $proposalTitle,
                     'research_call_id' => $call->id,
                     'status' => 'pending',
                 ]);
 
                 $version = $topic->versions()->create($this->versionAttributes(
-                    $validated,
+                    $versionData,
                     $primaryFile,
                     1,
                     'initial',
@@ -499,10 +484,10 @@ class TopicController extends Controller
     {
         $user = $request->user();
 
-        $canExpertView = $user->hasRole('expert')
+        $canExpertView = $user->isUsingWorkspace('expert')
             && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
 
-        abort_unless($user->hasRole('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
+        abort_unless($user->isUsingWorkspace('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
     }
 
     /**

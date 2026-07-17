@@ -24,6 +24,31 @@ test('each account role is sent to its own dashboard', function (string $role, s
     'expert' => ['expert', 'expert.dashboard'],
 ]);
 
+test('the shared faculty dashboard uses the correct workspace identity for each role', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create(['name' => 'Regular Faculty']);
+    $faculty->assignRole('faculty');
+
+    $facultyResearcher = User::factory()->create(['name' => 'Faculty Researcher']);
+    $facultyResearcher->assignRole('faculty_researcher');
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Research Proposal Workspace')
+        ->assertSee('Submit and track your research proposals.')
+        ->assertDontSee('Faculty Researcher Workspace')
+        ->assertDontSee('Manage and track your institutional research submissions.');
+
+    $this->actingAs($facultyResearcher)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Faculty Researcher Workspace')
+        ->assertSee('Manage and track your institutional research submissions.')
+        ->assertDontSee('Research Proposal Workspace');
+});
+
 test('the forbidden response uses the friendly error page', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');

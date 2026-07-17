@@ -1,24 +1,25 @@
 <x-app-layout>
+    @php
+        $isFacultyResearcher = Auth::user()->isUsingWorkspace('faculty_researcher');
+    @endphp
+
     <x-slot name="header">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
                 <h2 class="font-black text-2xl text-gray-900 tracking-tight">
-                    Faculty Research Workspace
+                    {{ $isFacultyResearcher ? 'Faculty Researcher Workspace' : 'Research Proposal Workspace' }}
                 </h2>
                 <p class="text-xs text-gray-500 mt-1">
-                    Welcome back, <span class="font-semibold text-red-600">{{ Auth::user()->name }}</span>. Manage and track your institutional research submissions.
+                    Welcome back, <span class="font-semibold text-red-600">{{ Auth::user()->name }}</span>.
+                    {{ $isFacultyResearcher ? 'Manage and track your institutional research submissions.' : 'Submit and track your research proposals.' }}
                 </p>
             </div>
 
             <div>
-                @if ($activeCalls->isEmpty())
-                    <span class="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-gray-300 px-4 py-2.5 text-xs font-bold text-white">No Open Research Call</span>
-                @else
-                    <a href="{{ route('faculty.topics.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-red-600/10 transition hover:bg-red-700">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        Submit Proposal
-                    </a>
-                @endif
+                <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm shadow-red-600/10 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    Proposal Workspace
+                </a>
             </div>
         </div>
     </x-slot>

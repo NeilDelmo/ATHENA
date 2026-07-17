@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureWorkspace;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,12 +19,19 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => RoleMiddleware::class,
+            'workspace' => EnsureWorkspace::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*') || $request->routeIs('research-support.chat'),
+            fn (Request $request) => $request->is('api/*')
+                || $request->routeIs('research-support.chat')
+                || $request->routeIs('faculty.work-plans.*')
+                || $request->routeIs(
+                    'faculty.proposal-drafts.work-plan.preview',
+                    'faculty.proposal-drafts.work-plan.download',
+                ),
         );
     })->create();

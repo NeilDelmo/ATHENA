@@ -54,8 +54,12 @@ test('a research head can upload replace and archive a proposal template', funct
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.topics.create'))
+        ->assertRedirect(route('faculty.proposal-drafts.index'));
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('Ethics Clearance Guide');
+        ->assertDontSee('Ethics Clearance Guide');
 
     $this->actingAs($this->faculty)
         ->get(route('proposal-templates.download', $template))

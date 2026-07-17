@@ -52,7 +52,7 @@
         class="grow space-y-1 overflow-x-hidden overflow-y-auto py-3"
     >
         
-        @role('research_head')
+        @if (Auth::user()->isUsingWorkspace('research_head'))
             <a href="{{ route('research_head.dashboard') }}" aria-label="Research Head Dashboard" title="Research Head Dashboard"
                class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research_head.dashboard') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -85,7 +85,7 @@
                 Athena Knowledge
             </a>
             
-            @endrole
+        @endif
 
         @role('research_coordinator')
             @if (session('active_role') !== 'faculty')
@@ -97,8 +97,7 @@
             @endif
         @endrole
 
-        @if (session('active_role') !== 'research_coordinator')
-        @hasanyrole('faculty|faculty_researcher')
+        @if (session('active_role') !== 'research_coordinator' && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
             <a href="{{ route('faculty.dashboard') }}" aria-label="Faculty Dashboard" title="Faculty Dashboard"
                class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('faculty.dashboard') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -107,12 +106,12 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Dashboard</span>
             </a>
 
-            <a href="{{ route('faculty.topics.create') }}" aria-label="Submit Proposal" title="Submit Proposal"
-               class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('faculty.topics.create') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
+            <a href="{{ route('faculty.proposal-drafts.index') }}" aria-label="Proposal Workspace" title="Proposal Workspace"
+               class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('faculty.proposal-drafts.*', 'faculty.topics.create') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5h10.5A2.25 2.25 0 0019.5 17.25V6.75A2.25 2.25 0 0017.25 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Submit Proposal</span>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Workspace</span>
             </a>
 
             <a href="{{ route('research-support.index') }}" aria-label="Research Help Facility" title="Research Help Facility"
@@ -123,10 +122,9 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Research Help Facility</span>
             </a>
             
-            @endhasanyrole
         @endif
 
-        @role('faculty_researcher')
+        @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
             <a href="{{ route('research.index') }}" aria-label="Research" title="Research"
                class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
                 <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -135,14 +133,14 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Research</span>
             </a>
 
-        @endrole
+        @endif
 
-        @role('expert')
+        @if (Auth::user()->isUsingWorkspace('expert'))
             <a href="{{ route('expert.dashboard') }}" aria-label="Co-evaluations" title="Co-evaluations" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition {{ request()->routeIs('expert.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Co-evaluations</span>
             </a>
-        @endrole
+        @endif
 
         <a href="{{ route('research-calls.index') }}" aria-label="Research Calls" title="Research Calls" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition {{ request()->routeIs('research-calls.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5"/></svg>

@@ -8,6 +8,13 @@ use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectMonitoringController;
+use App\Http\Controllers\ProposalDraftController;
+use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
+use App\Http\Controllers\ProposalDraftDetailsController;
+use App\Http\Controllers\ProposalDraftLineItemBudgetController;
+use App\Http\Controllers\ProposalDraftPaperController;
+use App\Http\Controllers\ProposalDraftSubmissionController;
+use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
@@ -16,6 +23,8 @@ use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\TopicController;
+use App\Http\Controllers\WorkPlanController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -25,10 +34,7 @@ Route::get('/', function () {
 
 Route::get('/dashboard', function () {
     $user = Auth::user();
-
-    if ($user->hasRole('research_head')) {
-        return redirect()->route('research_head.dashboard');
-    }
+    $dashboardRoute = $user->dashboardRouteName();
 
     if ($user->hasRole('research_coordinator') && $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
         return match (session('active_role')) {
@@ -42,12 +48,8 @@ Route::get('/dashboard', function () {
         return redirect()->route('research_coordinator.dashboard');
     }
 
-    if ($user->hasRole('expert')) {
-        return redirect()->route('expert.dashboard');
-    }
-
-    if ($user->hasAnyRole(['faculty', 'faculty_researcher'])) {
-        return redirect()->route('faculty.dashboard');
+    if ($dashboardRoute) {
+        return redirect()->route($dashboardRoute);
     }
 
     Auth::logout();
@@ -60,12 +62,47 @@ Route::get('/dashboard', function () {
 Route::middleware('auth')->group(function () {
     Route::get('/select-role', [RoleSelectionController::class, 'show'])->name('role-selection.show');
     Route::post('/select-role', [RoleSelectionController::class, 'store'])->name('role-selection.store');
+    Route::get('/choose-workspace', [WorkspaceController::class, 'index'])->name('workspace.select');
+    Route::post('/choose-workspace', [WorkspaceController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('workspace.store');
 });
 
 // FACULTY ROUTES
-Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
     Route::get('/faculty/topics/create', [TopicController::class, 'create'])->name('faculty.topics.create');
+
+    Route::prefix('/faculty/proposal-drafts')->name('faculty.proposal-drafts.')->group(function () {
+        Route::get('/', [ProposalDraftController::class, 'index'])->name('index');
+        Route::get('/create', [ProposalDraftController::class, 'create'])->name('create');
+        Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
+        Route::get('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'edit'])->name('details.edit');
+        Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
+        Route::get('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'edit'])->name('work-plan.edit');
+        Route::put('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'update'])->name('work-plan.update');
+        Route::post('/{proposalDraft}/work-plan/preview', [ProposalDraftWorkPlanController::class, 'preview'])->name('work-plan.preview');
+        Route::post('/{proposalDraft}/work-plan/download', [ProposalDraftWorkPlanController::class, 'download'])->name('work-plan.download');
+        Route::get('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'edit'])->name('line-item-budget.edit');
+        Route::put('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'update'])->name('line-item-budget.update');
+        Route::post('/{proposalDraft}/line-item-budget/preview', [ProposalDraftLineItemBudgetController::class, 'preview'])->name('line-item-budget.preview');
+        Route::post('/{proposalDraft}/line-item-budget/download', [ProposalDraftLineItemBudgetController::class, 'download'])->name('line-item-budget.download');
+        Route::get('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'edit'])->name('curriculum-vitae.edit');
+        Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
+        Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');
+        Route::post('/{proposalDraft}/curriculum-vitae/download', [ProposalDraftCurriculumVitaeController::class, 'download'])->name('curriculum-vitae.download');
+        Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
+        Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
+        Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
+        Route::delete('/{proposalDraft}/papers/{paper}/{document}', [ProposalDraftPaperController::class, 'remove'])->name('papers.remove');
+        Route::get('/{proposalDraft}/review', [ProposalDraftSubmissionController::class, 'show'])->name('review');
+        Route::post('/{proposalDraft}/submit', [ProposalDraftSubmissionController::class, 'store'])->name('submit');
+        Route::get('/{proposalDraft}', [ProposalDraftController::class, 'show'])->name('show');
+        Route::delete('/{proposalDraft}', [ProposalDraftController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::post('/faculty/work-plans/preview', [WorkPlanController::class, 'preview'])->name('faculty.work-plans.preview');
+    Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });
@@ -104,7 +141,7 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
 
-Route::middleware(['auth', 'role:faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
@@ -121,7 +158,7 @@ Route::middleware('auth')->group(function () {
         ->name('research-support.chat');
 });
 
-Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function () {
+Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::post('/research-support/literature-search', LiteratureSearchController::class)
         ->middleware('throttle:20,1')
         ->name('research-support.literature-search');
@@ -131,7 +168,7 @@ Route::middleware(['auth', 'role:faculty|faculty_researcher'])->group(function (
 });
 
 // RESEARCH HEAD ROUTES
-Route::middleware(['auth', 'role:research_head'])->group(function () {
+Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
@@ -155,7 +192,7 @@ Route::get('/research-coordinator/dashboard', [ResearchCoordinatorController::cl
     ->middleware(['auth', 'role:research_coordinator'])
     ->name('research_coordinator.dashboard');
 
-Route::middleware(['auth', 'role:expert'])->group(function () {
+Route::middleware(['auth', 'workspace:expert'])->group(function () {
     Route::get('/expert/dashboard', [ExpertReviewController::class, 'index'])->name('expert.dashboard');
     Route::patch('/expert/assignments/{assignment}', [ExpertReviewController::class, 'submit'])->name('expert.assignments.submit');
 });

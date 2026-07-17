@@ -1,0 +1,99 @@
+@page {
+    size: 8.5in 13in;
+    margin: 0.24in 1in 0.6in;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body { min-height: 100%; margin: 0; }
+
+body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, serif; }
+
+.line-budget-preview-page { min-width: 8.5in; padding: 24px; }
+
+.line-budget-sheet {
+    position: relative;
+    width: 8.5in;
+    min-height: 13in;
+    margin: 0 auto;
+    padding: 0.22in 1in 0.58in;
+    background: #fff;
+    box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
+    font-size: 10pt;
+}
+
+.line-budget-form-code { margin: 0; font-size: 10pt; line-height: 1; }
+
+.line-budget-sheet h1 { margin: 0.12in 0 0.06in; font-size: 10pt; line-height: 1; text-align: center; }
+
+.line-budget-table { width: 100%; table-layout: fixed; border: 0.75pt solid #000; border-collapse: collapse; }
+
+.line-budget-table col:nth-child(1) { width: 4.52%; }
+.line-budget-table col:nth-child(2) { width: 4.54%; }
+.line-budget-table col:nth-child(3) { width: 6.12%; }
+.line-budget-table col:nth-child(4) { width: 40.84%; }
+.line-budget-table col:nth-child(5) { width: 21.32%; }
+.line-budget-table col:nth-child(6) { width: 22.66%; }
+
+.line-budget-table th,
+.line-budget-table td {
+    min-height: 0.2in;
+    padding: 1.2pt 3pt;
+    border: 0.75pt solid #000;
+    font-weight: 400;
+    line-height: 1.05;
+    text-align: left;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.line-budget-table th { font-weight: 400; }
+.line-budget-table .project-title { font-weight: 400; text-align: left; }
+.line-budget-table .duration { font-style: italic; text-align: left; }
+.staff-heading th { font-weight: 700; text-align: left; white-space: nowrap; }
+.budget-heading th { font-weight: 700; text-align: center; }
+.section-heading th { font-weight: 700; }
+.particular { padding-left: 0.25in !important; }
+.particular.level-1 { padding-left: 0.52in !important; }
+.amount { padding-right: 8pt !important; text-align: right !important; }
+.total-row th,
+.total-row td,
+.project-total th,
+.project-total td { font-weight: 700; }
+.spacer-row td { height: 0.18in; }
+
+.signature-cell { height: 1.08in; padding: 3pt 7pt !important; text-align: center !important; vertical-align: top !important; }
+.signature-cell p { margin: 0; line-height: 1.05; }
+.signature-heading { text-align: left; }
+.signature-line { width: 43%; height: 0.36in; margin: 0 auto !important; border-bottom: 0.75pt solid #000; }
+.signature-name { font-weight: 700; }
+.date-signed { margin-top: 0.04in !important; text-align: left; }
+.research-office-heading { font-weight: 700 !important; text-align: center !important; }
+.research-office { line-height: 1.3 !important; }
+.research-office span { display: inline-block; margin: 0.05in 0.18in 0 0.08in; }
+.approval-line { line-height: 1.2 !important; }
+.certified { height: 1.18in; }
+
+.line-budget-notes { margin-top: 0.04in; font-size: 8pt; line-height: 1.05; }
+.line-budget-notes p { margin: 0; }
+
+.line-budget-sheet footer {
+    position: absolute;
+    right: 1in;
+    bottom: 0.22in;
+    left: 1in;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.2in;
+    font-size: 9pt;
+    font-weight: 700;
+    font-style: italic;
+}
+
+@media print {
+    html,
+    body { background: #fff; }
+    .line-budget-preview-page { min-width: 0; padding: 0; }
+    .line-budget-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+}

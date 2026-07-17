@@ -58,7 +58,19 @@ class ProviderController extends Controller
             // authenticated user's role. An intended URL may point to a page
             // protected by a different role and would otherwise cause a 403
             // immediately after a successful sign-in.
-            $request->session()->forget(['url.intended', 'active_role']);
+            $request->session()->forget([
+                'url.intended',
+                'active_role',
+                User::ACTIVE_WORKSPACE_SESSION_KEY,
+            ]);
+
+            if ($user->hasMultipleWorkspaces()) {
+                return redirect()->route('workspace.select');
+            }
+
+            if ($workspace = $user->availableWorkspaceKeys()[0] ?? null) {
+                $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+            }
 
             return redirect()->route('dashboard');
         } catch (\Exception $e) {

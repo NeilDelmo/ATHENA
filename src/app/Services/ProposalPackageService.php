@@ -8,6 +8,7 @@ use App\Models\TopicProposal;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Throwable;
 
@@ -154,6 +155,101 @@ class ProposalPackageService
     /**
      * @return array<string, mixed>
      */
+    public function storeGeneratedWorkPlan(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $originalFilename = $filenameBase.'-work-plan.docx';
+        $path = $directory.'/work-plan/'.Str::uuid().'.docx';
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated Work Plan could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedLineItemBudget(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $originalFilename = $filenameBase.'-line-item-budget.docx';
+        $path = $directory.'/line-item-budget/'.Str::uuid().'.docx';
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated Line-Item Budget could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedCurriculumVitae(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $originalFilename = $filenameBase.'-curriculum-vitae.docx';
+        $path = $directory.'/curriculum-vitae/'.Str::uuid().'.docx';
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated Curriculum Vitae could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function storeFile(UploadedFile $file, string $directory, string $documentType, int $position = 0): array
     {
         $path = $file->store($directory, 'local');
@@ -192,6 +288,7 @@ class ProposalPackageService
             'file_size' => $file->file_size,
             'checksum' => $file->checksum,
             'is_carried_forward' => true,
+            'source_data' => $file->source_data,
         ];
     }
 }
