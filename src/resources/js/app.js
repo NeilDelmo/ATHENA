@@ -120,7 +120,14 @@ function showPaperEditorSubmitStatus(editor, submitter) {
     if (submitMessage instanceof HTMLElement) submitMessage.textContent = message;
 
     editor.querySelectorAll('[data-paper-save], [data-paper-save-exit]').forEach((button) => {
-        if (button instanceof HTMLButtonElement) button.disabled = true;
+        if (! (button instanceof HTMLButtonElement)) return;
+
+        if (button === submitter) {
+            button.setAttribute('aria-disabled', 'true');
+            button.classList.add('cursor-wait', 'opacity-70');
+        } else {
+            button.disabled = true;
+        }
     });
 
     if (submitter instanceof HTMLButtonElement) {
