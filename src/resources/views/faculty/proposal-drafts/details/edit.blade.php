@@ -40,12 +40,12 @@
                     </div>
                     <div>
                         <label for="planned_start" class="block text-xs font-black uppercase tracking-wider text-gray-600">Planned Start <span class="text-red-600">Required</span></label>
-                        <input id="planned_start" name="planned_start" type="date" value="{{ old('planned_start', $proposalDraft->planned_start?->toDateString()) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                        <x-date-picker id="planned_start" name="planned_start" :value="$proposalDraft->planned_start?->toDateString()" required class="mt-2" />
                         @error('planned_start')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="planned_end" class="block text-xs font-black uppercase tracking-wider text-gray-600">Planned End <span class="text-red-600">Required</span></label>
-                        <input id="planned_end" name="planned_end" type="date" value="{{ old('planned_end', $proposalDraft->planned_end?->toDateString()) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                        <x-date-picker id="planned_end" name="planned_end" :value="$proposalDraft->planned_end?->toDateString()" required class="mt-2" />
                         @error('planned_end')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                     </div>
                 </div>

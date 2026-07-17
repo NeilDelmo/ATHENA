@@ -159,11 +159,11 @@
                         </div>
                         <div class="grid gap-2">
                             <label for="planned_start" class="text-xs font-black uppercase tracking-wider text-gray-500">Planned Start <span class="text-red-600">Required</span></label>
-                            <input id="planned_start" name="planned_start" type="date" value="{{ old('planned_start') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <x-date-picker id="planned_start" name="planned_start" :value="old('planned_start')" required />
                         </div>
                         <div class="grid gap-2">
                             <label for="planned_end" class="text-xs font-black uppercase tracking-wider text-gray-500">Planned End <span class="text-red-600">Required</span></label>
-                            <input id="planned_end" name="planned_end" type="date" value="{{ old('planned_end') }}" required class="block w-full rounded-xl border-gray-200 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <x-date-picker id="planned_end" name="planned_end" :value="old('planned_end')" required />
                         </div>
                     </div>
 

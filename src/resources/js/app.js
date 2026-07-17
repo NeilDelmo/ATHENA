@@ -906,6 +906,209 @@ Alpine.store('conferenceSearch', {
     },
 });
 
+Alpine.data('datePicker', (config = {}) => ({
+    value: normalizeIsoDate(config.initialValue),
+    min: normalizeIsoDate(config.min) || '1900-01-01',
+    max: normalizeIsoDate(config.max) || '2100-12-31',
+    required: Boolean(config.required),
+    isOpen: false,
+    suppressFocusOpen: false,
+    viewMonth: new Date().getMonth(),
+    viewYear: new Date().getFullYear(),
+    panelId: `athena-date-picker-${Math.random().toString(36).slice(2, 10)}`,
+    monthSelectId: `athena-date-picker-month-${Math.random().toString(36).slice(2, 10)}`,
+    yearInputId: `athena-date-picker-year-${Math.random().toString(36).slice(2, 10)}`,
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+
+    get formattedValue() {
+        const date = localDateFromIso(this.value);
+
+        if (!date) return '';
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+        }).format(date);
+    },
+
+    get minYear() {
+        return this.min ? Number(this.min.slice(0, 4)) : 1900;
+    },
+
+    get maxYear() {
+        return this.max ? Number(this.max.slice(0, 4)) : 2100;
+    },
+
+    get todaySelectable() {
+        return this.isSelectable(isoDateFromLocal(new Date()));
+    },
+
+    get calendarDays() {
+        const safeYear = this.boundedViewYear();
+        const safeMonth = Number.isInteger(Number(this.viewMonth)) ? Number(this.viewMonth) : new Date().getMonth();
+        const firstDay = new Date(safeYear, safeMonth, 1);
+        const calendarStart = new Date(safeYear, safeMonth, 1 - firstDay.getDay());
+        const today = isoDateFromLocal(new Date());
+
+        return Array.from({ length: 42 }, (_, index) => {
+            const date = new Date(calendarStart);
+            date.setDate(calendarStart.getDate() + index);
+            const iso = isoDateFromLocal(date);
+
+            return {
+                iso,
+                dayNumber: date.getDate(),
+                label: new Intl.DateTimeFormat(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                }).format(date),
+                isCurrentMonth: date.getMonth() === safeMonth,
+                isToday: iso === today,
+                isSelected: iso === this.value,
+                selectable: this.isSelectable(iso),
+            };
+        });
+    },
+
+    open() {
+        const preferredDate = localDateFromIso(this.value) ?? new Date();
+        const visibleDate = this.clampDate(preferredDate);
+
+        this.viewMonth = visibleDate.getMonth();
+        this.viewYear = visibleDate.getFullYear();
+        this.isOpen = true;
+    },
+
+    handleFocus() {
+        if (this.suppressFocusOpen) {
+            this.suppressFocusOpen = false;
+            return;
+        }
+
+        this.open();
+    },
+
+    close() {
+        this.isOpen = false;
+    },
+
+    closeAndFocus() {
+        this.close();
+        this.suppressFocusOpen = true;
+        this.$nextTick(() => {
+            this.$refs.display?.focus({ preventScroll: true });
+            this.$nextTick(() => {
+                this.suppressFocusOpen = false;
+            });
+        });
+    },
+
+    toggle() {
+        if (this.isOpen) {
+            this.closeAndFocus();
+            return;
+        }
+
+        this.open();
+    },
+
+    selectDate(iso) {
+        if (!this.isSelectable(iso)) return;
+
+        this.value = iso;
+        this.closeAndFocus();
+    },
+
+    selectToday() {
+        this.selectDate(isoDateFromLocal(new Date()));
+    },
+
+    clear() {
+        if (this.required) return;
+
+        this.value = '';
+        this.closeAndFocus();
+    },
+
+    changeMonth(offset) {
+        if (!this.canChangeMonth(offset)) return;
+
+        const nextMonth = new Date(this.boundedViewYear(), Number(this.viewMonth) + offset, 1);
+        this.viewMonth = nextMonth.getMonth();
+        this.viewYear = nextMonth.getFullYear();
+    },
+
+    canChangeMonth(offset) {
+        const target = new Date(this.boundedViewYear(), Number(this.viewMonth) + offset, 1);
+        const monthStart = isoDateFromLocal(target);
+        const monthEnd = isoDateFromLocal(new Date(target.getFullYear(), target.getMonth() + 1, 0));
+
+        return (!this.min || monthEnd >= this.min) && (!this.max || monthStart <= this.max);
+    },
+
+    clampViewYear() {
+        const fallbackYear = localDateFromIso(this.value)?.getFullYear() ?? new Date().getFullYear();
+        const hasRequestedYear = String(this.viewYear).trim() !== '' && Number.isInteger(Number(this.viewYear));
+        const requestedYear = hasRequestedYear ? Number(this.viewYear) : fallbackYear;
+
+        this.viewYear = Math.min(this.maxYear, Math.max(this.minYear, requestedYear));
+    },
+
+    boundedViewYear() {
+        const requestedYear = Number(this.viewYear);
+        const fallbackYear = localDateFromIso(this.value)?.getFullYear() ?? new Date().getFullYear();
+        const safeYear = Number.isInteger(requestedYear) ? requestedYear : fallbackYear;
+
+        return Math.min(this.maxYear, Math.max(this.minYear, safeYear));
+    },
+
+    clampDate(date) {
+        const iso = isoDateFromLocal(date);
+
+        if (this.min && iso < this.min) return localDateFromIso(this.min);
+        if (this.max && iso > this.max) return localDateFromIso(this.max);
+
+        return date;
+    },
+
+    isSelectable(iso) {
+        return Boolean(iso) && (!this.min || iso >= this.min) && (!this.max || iso <= this.max);
+    },
+}));
+
+function normalizeIsoDate(value) {
+    if (typeof value !== 'string') return '';
+
+    return localDateFromIso(value) ? value : '';
+}
+
+function localDateFromIso(value) {
+    if (typeof value !== 'string') return null;
+
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (!match) return null;
+
+    const [, year, month, day] = match.map(Number);
+    const date = new Date(year, month - 1, day);
+
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+
+    return date;
+}
+
+function isoDateFromLocal(date) {
+    const year = String(date.getFullYear()).padStart(4, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+}
+
 Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,

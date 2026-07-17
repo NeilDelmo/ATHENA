@@ -73,7 +73,11 @@
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $key }}`">{{ $label }} @if ($required)<span class="text-red-600">Required</span>@endif</label>
-                                    <input :id="`cv-${person.id}-{{ $key }}`" :name="`people[${personIndex}][{{ $key }}]`" type="{{ $key === 'birthday' ? 'date' : ($key === 'email' ? 'email' : 'text') }}" maxlength="{{ $key === 'agency' || $key === 'email' ? 255 : 120 }}" x-model="person.{{ $key }}" @if ($required) required @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    @if ($key === 'birthday')
+                                        <x-date-picker id-expression="`cv-${person.id}-{{ $key }}`" name-expression="`people[${personIndex}][{{ $key }}]`" model="person.{{ $key }}" :max="now()->toDateString()" class="mt-1.5" />
+                                    @else
+                                        <input :id="`cv-${person.id}-{{ $key }}`" :name="`people[${personIndex}][{{ $key }}]`" type="{{ $key === 'email' ? 'email' : 'text' }}" maxlength="{{ $key === 'agency' || $key === 'email' ? 255 : 120 }}" x-model="person.{{ $key }}" @if ($required) required @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    @endif
                                 </div>
                             @endforeach
                             <div>
@@ -97,8 +101,10 @@
                                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`">{{ $field['label'] }}</label>
                                                     @if ($field['type'] === 'yes_no')
                                                         <select :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="">Leave blank</option><option value="yes">Yes</option><option value="no">No</option></select>
+                                                    @elseif ($field['type'] === 'date')
+                                                        <x-date-picker id-expression="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" name-expression="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" model="row.{{ $field['key'] }}" class="mt-1.5" />
                                                     @else
-                                                        <input :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" type="{{ in_array($field['type'], ['date', 'money']) ? ($field['type'] === 'date' ? 'date' : 'number') : ($field['type'] === 'year' ? 'number' : 'text') }}" @if ($field['type'] === 'money') min="0" max="999999999.99" step="0.01" @elseif ($field['type'] === 'year') min="1900" max="2100" step="1" @else maxlength="500" @endif x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                                        <input :id="`cv-${person.id}-{{ $sectionKey }}-${row.id}-{{ $field['key'] }}`" :name="`people[${personIndex}][{{ $sectionKey }}][${rowIndex}][{{ $field['key'] }}]`" type="{{ $field['type'] === 'money' || $field['type'] === 'year' ? 'number' : 'text' }}" @if ($field['type'] === 'money') min="0" max="999999999.99" step="0.01" @elseif ($field['type'] === 'year') min="1900" max="2100" step="1" @else maxlength="500" @endif x-model="row.{{ $field['key'] }}" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                                     @endif
                                                 </div>
                                             @endforeach

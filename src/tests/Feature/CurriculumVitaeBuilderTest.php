@@ -108,6 +108,8 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('One')
         ->assertSee('Two')
         ->assertSee('Add another member')
+        ->assertSee('Choose a month or type a year to jump directly.')
+        ->assertDontSee('type="date"', false)
         ->assertSee('Every member begins with a new official CV block.');
 });
 
