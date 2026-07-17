@@ -88,6 +88,7 @@
             @if ($remainingSlots === 0)
                 <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">The {{ $paper['max_files'] }}-file limit has been reached. Remove a file before adding another.</div>
             @else
+                <x-paper-editor-submit-status />
                 <div class="mt-5"><x-paper-editor-shortcuts /></div>
 
                 <form data-paper-form action="{{ route('faculty.proposal-drafts.papers.update', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="mt-5 space-y-5">

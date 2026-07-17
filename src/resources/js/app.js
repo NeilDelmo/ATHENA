@@ -97,11 +97,34 @@ function navigateFromPaperEditor(editor, destination, message) {
 }
 
 function submitPaperEditor(editor, submitterSelector) {
+    if (editor.dataset.paperSubmitting === 'true') return;
+
     const form = editor.querySelector('[data-paper-form]');
     const submitter = editor.querySelector(submitterSelector);
 
     if (form instanceof HTMLFormElement && submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
         form.requestSubmit(submitter);
+    }
+}
+
+function showPaperEditorSubmitStatus(editor, submitter) {
+    const isSaveAndExit = submitter instanceof Element && submitter.matches('[data-paper-save-exit]');
+    const message = isSaveAndExit ? 'Saving and returning to the proposal package…' : 'Saving changes…';
+    const submitStatus = editor.querySelector('[data-paper-submit-status]');
+    const submitMessage = submitStatus?.querySelector('[data-paper-submit-message]');
+
+    editor.dataset.paperSubmitting = 'true';
+    editor.setAttribute('aria-busy', 'true');
+
+    if (submitStatus instanceof HTMLElement) submitStatus.hidden = false;
+    if (submitMessage instanceof HTMLElement) submitMessage.textContent = message;
+
+    editor.querySelectorAll('[data-paper-save], [data-paper-save-exit]').forEach((button) => {
+        if (button instanceof HTMLButtonElement) button.disabled = true;
+    });
+
+    if (submitter instanceof HTMLButtonElement) {
+        submitter.textContent = isSaveAndExit ? 'Saving and exiting…' : 'Saving…';
     }
 }
 
@@ -122,9 +145,16 @@ document.addEventListener('submit', (event) => {
 
     if (!editor) return;
 
-    queueMicrotask(() => {
-        if (!event.defaultPrevented) editor.dataset.paperDirty = 'false';
-    });
+    if (editor.dataset.paperSubmitting === 'true') {
+        event.preventDefault();
+
+        return;
+    }
+
+    if (event.defaultPrevented) return;
+
+    editor.dataset.paperDirty = 'false';
+    showPaperEditorSubmitStatus(editor, event.submitter);
 });
 
 document.addEventListener('click', (event) => {
@@ -2321,6 +2351,11 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         Object.keys(config.sections || {}).forEach((sectionKey) => {
             const rows = Array.isArray(values[sectionKey]) ? values[sectionKey] : [];
             person[sectionKey] = rows.map((row) => this.newSectionRow(sectionKey, row));
+            const defaultRows = Math.max(0, Number(config.sections?.[sectionKey]?.default_rows) || 0);
+
+            while (person[sectionKey].length < defaultRows) {
+                person[sectionKey].push(this.newSectionRow(sectionKey));
+            }
         });
 
         return person;

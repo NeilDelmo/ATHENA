@@ -264,6 +264,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Save changes')
         ->assertSee('Ctrl + S')
         ->assertSee('Ctrl + Enter')
+        ->assertSee('data-paper-submit-status', false)
         ->assertSee('data-paper-save-exit', false);
 
     $this->actingAs($this->faculty)

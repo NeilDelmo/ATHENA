@@ -84,7 +84,7 @@ class CurriculumVitaeData
             $fieldTypes = collect($section['fields'])->mapWithKeys(
                 fn (array $field): array => [$field['key'] => $field['type']],
             );
-            $normalized[$sectionKey] = collect($person[$sectionKey] ?? [])
+            $sectionRows = collect($person[$sectionKey] ?? [])
                 ->filter(fn (mixed $row): bool => is_array($row))
                 ->map(function (array $row) use ($fieldTypes, $sectionKey): array {
                     $normalizedRow = $fieldTypes->mapWithKeys(function (string $type, string $key) use ($row): array {
@@ -104,8 +104,14 @@ class CurriculumVitaeData
                     return $normalizedRow;
                 })
                 ->filter(fn (array $row): bool => collect($row)->contains(fn (string $value): bool => $value !== ''))
-                ->values()
-                ->all();
+                ->values();
+            $blankRow = $fieldTypes->mapWithKeys(fn (string $type, string $key): array => [$key => ''])->all();
+
+            while ($sectionRows->count() < (int) $section['default_rows']) {
+                $sectionRows->push($blankRow);
+            }
+
+            $normalized[$sectionKey] = $sectionRows->all();
         }
 
         return $normalized;

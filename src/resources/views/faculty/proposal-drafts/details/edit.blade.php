@@ -18,6 +18,7 @@
             <div role="status" class="mb-6 rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-800">{{ session('success') }}</div>
         @endif
 
+        <x-paper-editor-submit-status />
         <x-paper-editor-shortcuts />
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">

@@ -4,6 +4,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Support\CurriculumVitaeData;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -117,9 +118,38 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('<option value="Dropped">Dropped</option>', false)
         ->assertSee('<option value="Terminated">Terminated</option>', false)
         ->assertSee('Ongoing studies automatically end in Present.')
+        ->assertSee('data-paper-submit-status', false)
+        ->assertSee('data-paper-submit-message', false)
+        ->assertSee('Please keep this page open while ATHENA updates the paper.')
+        ->assertSee('aria-live="assertive"', false)
         ->assertSee('Ctrl + S')
         ->assertSee('Save and exit')
         ->assertSee('data-paper-form', false);
+});
+
+test('CV sections use the official default row counts', function () {
+    $expectedCounts = [
+        'academic_background' => 4,
+        'scholarships' => 5,
+        'employment' => 5,
+        'specializations' => 4,
+        'awards' => 3,
+        'projects' => 5,
+        'publications' => 5,
+        'presentations' => 5,
+    ];
+    $configuredCounts = collect(config('curriculum_vitae.sections'))
+        ->mapWithKeys(fn (array $section, string $key): array => [$key => $section['default_rows']])
+        ->all();
+    $normalized = CurriculumVitaeData::fromValidated([
+        'people' => [['last_name' => 'Researcher', 'first_name' => 'Faculty']],
+    ]);
+    $normalizedCounts = collect($expectedCounts)
+        ->mapWithKeys(fn (int $count, string $key): array => [$key => count($normalized['people'][0][$key])])
+        ->all();
+
+    expect($configuredCounts)->toBe($expectedCounts)
+        ->and($normalizedCounts)->toBe($expectedCounts);
 });
 
 test('multiple team CVs save as one completed generated paper and resume with all rows', function () {
@@ -172,7 +202,17 @@ test('the preview repeats the complete official CV for every team member', funct
     $addressValueCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-value-row ")]/td');
     $addressLabelCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-address-table ")])[1]//tr[contains(concat(" ", normalize-space(@class), " "), " cv-address-label-row ")]/th');
     $contactOutputs = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-contact-table ")])[1]//strong');
-    $ongoingAcademicCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-academic-table ")])[1]//tbody/tr[last()]/td');
+    $ongoingAcademicCells = $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-academic-table ")])[1]//tbody/tr[3]/td');
+    $defaultSectionRowCounts = [
+        'academic_background' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-academic-table ")])[1]//tbody/tr')->length,
+        'scholarships' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-scholarship-table ")])[1]//tbody/tr')->length,
+        'employment' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-employment-table ")])[1]//tbody/tr')->length,
+        'specializations' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-specialization-table ")])[1]//tbody/tr')->length,
+        'awards' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-awards-table ")])[1]//tbody/tr')->length,
+        'projects' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-projects-table ")])[1]//tbody/tr')->length,
+        'publications' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-publications-table ")])[1]//tbody/tr')->length,
+        'presentations' => $xpath->query('(//table[contains(concat(" ", normalize-space(@class), " "), " cv-presentations-table ")])[1]//tbody/tr')->length,
+    ];
     $yearTaken = $xpath->query('(//th[contains(normalize-space(.), "Year Taken")])[1]')->item(0);
     $scholarshipGrants = $xpath->query('(//th[contains(normalize-space(.), "Scholarship Grants")])[1]')->item(0);
     $appointmentDate = $xpath->query('(//th[contains(normalize-space(.), "Date of Appointment")])[1]')->item(0);
@@ -199,6 +239,16 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and(trim($ongoingAcademicCells->item(4)->textContent))->toBe('Ongoing')
         ->and(trim($ongoingAcademicCells->item(5)->textContent))->toBe('2019')
         ->and(trim($ongoingAcademicCells->item(6)->textContent))->toBe('Present')
+        ->and($defaultSectionRowCounts)->toBe([
+            'academic_background' => 4,
+            'scholarships' => 5,
+            'employment' => 5,
+            'specializations' => 4,
+            'awards' => 3,
+            'projects' => 5,
+            'publications' => 5,
+            'presentations' => 5,
+        ])
         ->and($yearTaken->getAttribute('colspan'))->toBe('2')
         ->and($scholarshipGrants->getAttribute('colspan'))->toBe('4')
         ->and($appointmentDate->getAttribute('colspan'))->toBe('2')
@@ -271,6 +321,8 @@ test('the generated Word file preserves the official form and adds one complete 
         }
 
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(51)
+            ->and($xpath->query('//w:body/w:tbl[2]/w:tr')->length)->toBe(14)
             ->and($xpath->query('//w:br[@w:type="page"]')->length)->toBe(2)
             ->and($xpath->query('//w14:checked[@w14:val="1"]')->length)->toBe(1)
             ->and($xpath->query('//w14:checkedState[@w14:val="25A0"]')->length)->toBe(6)
