@@ -8,11 +8,14 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CurriculumVitaeDocumentService;
+use App\Services\DetailedProposalDocumentService;
 use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
 use App\Support\CurriculumVitaeData;
 use App\Support\CurriculumVitaeRules;
+use App\Support\DetailedProposalData;
+use App\Support\DetailedProposalRules;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
@@ -33,6 +36,7 @@ class SubmitProposalDraft
         private readonly ProposalPaperCatalog $catalog,
         private readonly ProposalDraftReadiness $readiness,
         private readonly ProposalPackageService $packageService,
+        private readonly DetailedProposalDocumentService $detailedProposalDocumentService,
         private readonly WorkPlanDocumentService $workPlanDocumentService,
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
@@ -92,6 +96,7 @@ class SubmitProposalDraft
                     if ($paper['mode'] === 'generated') {
                         $document = $paperDocuments->firstOrFail();
                         $permanentFiles[] = match ($paper['slug']) {
+                            'detailed-proposal' => $this->generateDetailedProposal($lockedDraft, $document, $permanentDirectory),
                             'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
                             'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
                             'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
@@ -193,6 +198,65 @@ class SubmitProposalDraft
             'checksum' => hash_file('sha256', $absolutePath) ?: null,
             'source_data' => null,
             'is_carried_forward' => false,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function generateDetailedProposal(
+        ProposalDraft $draft,
+        ProposalDraftDocument $document,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = [
+            ...($document->source_data ?? []),
+            'project_title' => $draft->project_title,
+            'project_leader' => $draft->project_leader,
+        ];
+        $validator = Validator::make(
+            $sourceData,
+            DetailedProposalRules::rules(),
+            [],
+            DetailedProposalRules::attributes(),
+        );
+        $validator->after(DetailedProposalRules::afterCallbacks());
+        $validated = $validator->validate();
+        $detailedProposal = DetailedProposalData::fromValidated(
+            $validated,
+            $this->detailedProposalBudgetTotals($draft),
+        );
+
+        return $this->packageService->storeGeneratedDetailedProposal(
+            $this->detailedProposalDocumentService->generate($detailedProposal),
+            $permanentDirectory,
+            $draft->project_title,
+            $validated,
+        );
+    }
+
+    /** @return array{mooe_total: float, co_total: float} */
+    private function detailedProposalBudgetTotals(ProposalDraft $draft): array
+    {
+        $budgetDocument = $draft->documents->firstWhere(
+            'document_type',
+            config('proposal_papers.line-item-budget.document_type'),
+        );
+        $sourceData = $budgetDocument?->source_data;
+
+        if (! is_array($sourceData) || $draft->planned_start === null || $draft->planned_end === null) {
+            return ['mooe_total' => 0, 'co_total' => 0];
+        }
+
+        $budget = LineItemBudgetData::fromValidated([
+            ...$sourceData,
+            'project_title' => $draft->project_title,
+            'planned_start' => $draft->planned_start->toDateString(),
+            'planned_end' => $draft->planned_end->toDateString(),
+            'project_leader' => $draft->project_leader,
+        ]);
+
+        return [
+            'mooe_total' => (float) $budget['mooe_total'],
+            'co_total' => (float) $budget['co_total'],
         ];
     }
 

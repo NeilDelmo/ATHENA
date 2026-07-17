@@ -2611,4 +2611,257 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
+    nextId: 0,
+    workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
+    selectedWorkspacePerson: '',
+    researchAgenda: '',
+    sdgs: [],
+    leaderEmail: '',
+    leaderContact: '',
+    staff: [],
+    proponentDepartment: '',
+    proponentCollege: '',
+    proponentCampus: '',
+    cooperatingAgency: '',
+    executiveBrief: '',
+    rationale: '',
+    objectives: '',
+    expectedOutputs: {},
+    relatedLiterature: '',
+    methodology: {},
+    responsibilities: [],
+    references: '',
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
+        this.researchAgenda = String(data.research_agenda ?? '');
+        this.sdgs = Array.isArray(data.sdgs) ? data.sdgs.map((sdg) => Number(sdg)) : [];
+        this.leaderEmail = String(data.leader_email ?? '');
+        this.leaderContact = String(data.leader_contact ?? '');
+        this.staff = Array.isArray(data.staff)
+            ? data.staff.map((member) => this.newStaff(member))
+            : [];
+        this.proponentDepartment = String(data.proponent_department ?? '');
+        this.proponentCollege = String(data.proponent_college ?? '');
+        this.proponentCampus = String(data.proponent_campus ?? '');
+        this.cooperatingAgency = String(data.cooperating_agency ?? '');
+        this.executiveBrief = String(data.executive_brief ?? '');
+        this.rationale = String(data.rationale ?? '');
+        this.objectives = String(data.objectives ?? '');
+        this.expectedOutputs = Object.fromEntries(
+            (config.expectedOutputKeys || []).map((key) => [key, String(data.expected_outputs?.[key] ?? '')]),
+        );
+        this.relatedLiterature = String(data.related_literature ?? '');
+        this.methodology = Object.fromEntries(
+            (config.methodologyKeys || []).map((key) => [key, String(data.methodology?.[key] ?? '')]),
+        );
+        this.responsibilities = Array.isArray(data.responsibilities) && data.responsibilities.length
+            ? data.responsibilities.map((responsibility) => this.newResponsibility(responsibility))
+            : [this.newResponsibility({ name: config.projectLeader })];
+        this.references = String(data.references ?? '');
+    },
+
+    newStaff(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            key: String(values.key ?? ''),
+            name: String(values.name ?? ''),
+            email: String(values.email ?? ''),
+            contact: String(values.contact ?? ''),
+        };
+    },
+
+    newResponsibility(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            name: String(values.name ?? ''),
+            duties: String(values.duties ?? ''),
+        };
+    },
+
+    availableWorkspacePeople() {
+        const leaderEmail = String(this.leaderEmail || '').trim().toLowerCase();
+        const usedEmails = new Set(this.staff.map((member) => String(member.email || '').trim().toLowerCase()));
+
+        return this.workspacePeople.filter((person) => {
+            const email = String(person.email || '').trim().toLowerCase();
+
+            return email && email !== leaderEmail && !usedEmails.has(email);
+        });
+    },
+
+    addWorkspacePerson() {
+        const person = this.workspacePeople.find(
+            (candidate) => String(candidate.key) === String(this.selectedWorkspacePerson),
+        );
+
+        if (!person) return;
+
+        this.staff.push(this.newStaff(person));
+
+        if (!this.responsibilities.some(
+            (responsibility) => String(responsibility.name).trim().toLowerCase() === String(person.name).trim().toLowerCase(),
+        )) {
+            this.responsibilities.push(this.newResponsibility({ name: person.name }));
+        }
+
+        this.selectedWorkspacePerson = '';
+    },
+
+    addStaff() {
+        this.staff.push(this.newStaff());
+    },
+
+    syncStaff(member) {
+        const normalizedName = String(member.name || '').trim().toLowerCase();
+        const person = this.workspacePeople.find(
+            (candidate) => String(candidate.name || '').trim().toLowerCase() === normalizedName,
+        );
+
+        if (!person) return;
+
+        member.key = String(person.key || '');
+        member.name = String(person.name || member.name);
+        member.email = String(person.email || member.email);
+    },
+
+    removeStaff(index) {
+        this.staff.splice(index, 1);
+    },
+
+    addResponsibility() {
+        this.responsibilities.push(this.newResponsibility());
+    },
+
+    removeResponsibility(index) {
+        if (this.responsibilities.length === 1) return;
+
+        this.responsibilities.splice(index, 1);
+    },
+
+    validateForm() {
+        this.validationMessage = '';
+
+        if (this.sdgs.length === 0) {
+            this.validationMessage = 'Select at least one Sustainable Development Goal.';
+            this.$root.querySelector('[name="sdgs[]"]')?.focus();
+
+            return false;
+        }
+
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
+
+        if (!invalidField) return true;
+
+        invalidField.focus();
+        invalidField.reportValidity();
+
+        return false;
+    },
+
+    formData() {
+        const formData = new FormData(this.$refs.form);
+        formData.delete('_method');
+
+        return formData;
+    },
+
+    async generatePreview() {
+        if (!this.validateForm()) return;
+
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Detailed Research Proposal information.';
+                this.previewHtml = '';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The content preview could not be generated. Please try again.');
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error ? error.message : 'The content preview could not be generated.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    async downloadDocument() {
+        if (!this.validateForm()) return;
+
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Detailed Research Proposal information.';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The exact Word file could not be generated. Please try again.');
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'detailed-research-proposal.docx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error ? error.message : 'The exact Word file could not be generated.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
 Alpine.start();

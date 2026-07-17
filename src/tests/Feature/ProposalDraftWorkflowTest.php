@@ -67,12 +67,49 @@ beforeEach(function () {
         ...$overrides,
     ];
 
+    $this->detailedProposal = fn (): array => [
+        'research_agenda' => 'Environment and Climate Change',
+        'sdgs' => [13, 14, 17],
+        'leader_email' => $this->faculty->email,
+        'leader_contact' => '+63 917 123 4567',
+        'staff' => [],
+        'proponent_department' => 'Research Department',
+        'proponent_college' => 'College of Arts and Sciences',
+        'proponent_campus' => 'ARASOF-Nasugbu',
+        'cooperating_agency' => '',
+        'executive_brief' => 'This project restores priority coastal habitats through evidence-based community action.',
+        'rationale' => 'Coastal habitat degradation threatens biodiversity and local livelihoods.',
+        'objectives' => 'Document baseline conditions and validate a community restoration model.',
+        'expected_outputs' => [
+            'publication' => 'One peer-reviewed publication',
+            'patent' => '',
+            'product' => 'Validated restoration model',
+            'people_service' => 'Community training',
+            'place_partnership' => 'University-LGU partnership',
+            'policy' => 'Restoration protocol',
+            'social_impact' => 'Improved participation',
+            'economic_impact' => 'Protected livelihoods',
+        ],
+        'related_literature' => 'Recent literature supports participatory coastal habitat restoration.',
+        'methodology' => [
+            'research_design' => 'The project uses a mixed-method design.',
+            'specific_methods' => 'The team will conduct surveys, transects, and stakeholder workshops.',
+            'data_analysis' => 'Data will be analyzed with descriptive statistics and thematic analysis.',
+        ],
+        'responsibilities' => [[
+            'name' => 'Faculty Owner',
+            'duties' => 'Leads implementation, quality assurance, and reporting.',
+        ]],
+        'references' => 'Author, A. (2025). Coastal habitat restoration. Research Journal, 1(1), 1-10.',
+    ];
+
     $this->completeDraft = function (ProposalDraft $draft): ProposalDraft {
         $draft->update(($this->projectDetails)());
 
         foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
             if ($paper['mode'] === 'generated') {
                 $sourceData = match ($paper['slug']) {
+                    'detailed-proposal' => ($this->detailedProposal)(),
                     'work-plan' => ($this->workPlan)(),
                     'curriculum-vitae' => [
                         'people' => [[
@@ -259,10 +296,10 @@ test('paper and review pages render saved files and final readiness actions', fu
     $draft = ($this->completeDraft)(($this->createDraft)());
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.papers.edit', [$draft, 'detailed-proposal']))
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))
         ->assertOk()
         ->assertSee('Detailed Research Proposal')
-        ->assertSee('detailed-proposal.pdf')
+        ->assertSee('Environment and Climate Change')
         ->assertSee('Save changes')
         ->assertSee('Ctrl + S')
         ->assertSee('Ctrl + Enter')
@@ -317,22 +354,22 @@ test('single-file papers can be uploaded downloaded replaced and removed private
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
             'document_version' => 0,
             'documents' => [UploadedFile::fake()->create('first-proposal.pdf', 100, 'application/pdf')],
         ])
-        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'detailed-proposal']))
-        ->assertSessionHas('success', 'Detailed Research Proposal saved.');
+        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'gad-checklist']))
+        ->assertSessionHas('success', 'GAD Generic Checklist saved.');
 
     $first = $draft->documents()->sole();
     Storage::disk('local')->assertExists($first->file_path);
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.papers.download', [$draft, 'detailed-proposal', $first]))
+        ->get(route('faculty.proposal-drafts.papers.download', [$draft, 'gad-checklist', $first]))
         ->assertDownload('first-proposal.pdf');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
             'document_version' => 1,
             'documents' => [UploadedFile::fake()->create('replacement-proposal.docx', 120, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
             'exit_after_save' => '1',
@@ -348,7 +385,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
     Storage::disk('local')->assertExists($replacement->file_path);
 
     $this->actingAs($this->faculty)
-        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'detailed-proposal', $replacement]))
+        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'gad-checklist', $replacement]))
         ->assertRedirect();
 
     $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $replacement->id]);
@@ -365,7 +402,7 @@ test('paper uploads enforce file types and the 25 MB limit', function () {
         ->assertSessionHasErrors('documents.0');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'detailed-proposal']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
             'document_version' => 0,
             'documents' => [UploadedFile::fake()->create('oversized.pdf', 25601, 'application/pdf')],
         ])

@@ -10,6 +10,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
+use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
 use App\Http\Controllers\ProposalDraftMemberController;
@@ -80,6 +81,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
         Route::get('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'edit'])->name('details.edit');
         Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
+        Route::get('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'edit'])->name('detailed-proposal.edit');
+        Route::put('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'update'])->name('detailed-proposal.update');
+        Route::post('/{proposalDraft}/detailed-proposal/preview', [ProposalDraftDetailedProposalController::class, 'preview'])->name('detailed-proposal.preview');
+        Route::post('/{proposalDraft}/detailed-proposal/download', [ProposalDraftDetailedProposalController::class, 'download'])->name('detailed-proposal.download');
         Route::get('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'edit'])->name('work-plan.edit');
         Route::put('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'update'])->name('work-plan.update');
         Route::post('/{proposalDraft}/work-plan/preview', [ProposalDraftWorkPlanController::class, 'preview'])->name('work-plan.preview');

@@ -106,6 +106,12 @@ class ProposalDraftReadiness
             }
 
             return match ($paper['slug']) {
+                'detailed-proposal' => filled($document->source_data['research_agenda'] ?? null)
+                    && is_array($document->source_data['sdgs'] ?? null)
+                    && $document->source_data['sdgs'] !== []
+                    && filled($document->source_data['executive_brief'] ?? null)
+                    && is_array($document->source_data['responsibilities'] ?? null)
+                    && $document->source_data['responsibilities'] !== [],
                 'work-plan' => is_array($document->source_data['entries'] ?? null)
                     && $document->source_data['entries'] !== [],
                 'curriculum-vitae' => is_array($document->source_data['people'] ?? null)

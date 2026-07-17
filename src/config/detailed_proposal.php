@@ -1,0 +1,42 @@
+<?php
+
+return [
+    'template_path' => resource_path('documents/BatStateU-FO-RES-02-Detailed-Research-Proposal.docx'),
+    'proponent_agency' => 'Batangas State University, The National Engineering University',
+    'default_campus' => 'ARASOF-Nasugbu',
+    'maximum_narrative_length' => 100000,
+    'sdgs' => [
+        1 => 'No Poverty',
+        2 => 'Zero Hunger',
+        3 => 'Good Health & Well-being',
+        4 => 'Quality Education',
+        5 => 'Gender Equality',
+        6 => 'Clean Water & Sanitation',
+        7 => 'Affordable and Clean Energy',
+        8 => 'Decent Work & Economic Growth',
+        9 => 'Industry, Innovation, & Infrastructure',
+        10 => 'Reduced Inequalities',
+        11 => 'Sustainable Cities & Communities',
+        12 => 'Responsible Consumption & Production',
+        13 => 'Climate Action',
+        14 => 'Life Below Water',
+        15 => 'Life on Land',
+        16 => 'Peace, Justice, & Strong Institutions',
+        17 => 'Partnerships for the Goals',
+    ],
+    'expected_outputs' => [
+        'publication' => 'Publication',
+        'patent' => 'Patent',
+        'product' => 'Product',
+        'people_service' => 'People Service',
+        'place_partnership' => 'Place & Partnership',
+        'policy' => 'Policy',
+        'social_impact' => 'Social Impact',
+        'economic_impact' => 'Economic Impact',
+    ],
+    'methodology' => [
+        'research_design' => 'Research Design',
+        'specific_methods' => 'Specific Method to obtain the objectives',
+        'data_analysis' => 'Data Analysis',
+    ],
+];

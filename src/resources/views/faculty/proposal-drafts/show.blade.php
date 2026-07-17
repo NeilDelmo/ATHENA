@@ -141,6 +141,7 @@
                             && isset($sampleDefinition['path'])
                             && \Illuminate\Support\Facades\Storage::disk('local')->exists($sampleDefinition['path']);
                         $paperRoute = match ($paper['slug']) {
+                            'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft),
                             'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
                             'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
                             'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
