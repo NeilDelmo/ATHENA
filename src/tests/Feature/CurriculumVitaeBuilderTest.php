@@ -142,6 +142,16 @@ test('the preview repeats the complete official CV for every team member', funct
     expect(substr_count($response->getContent(), 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
         ->and(substr_count($response->getContent(), 'CURRICULUM VITAE'))->toBe(3);
 
+    $document = new DOMDocument;
+    $document->loadHTML($response->getContent(), LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+    $xpath = new DOMXPath($document);
+    $nameCells = $xpath->query('(//tr[contains(concat(" ", normalize-space(@class), " "), " cv-name-values ")])[1]/td');
+
+    expect($nameCells)->toHaveCount(3)
+        ->and(trim($nameCells->item(0)->textContent))->toBe('Leader')
+        ->and(trim($nameCells->item(1)->textContent))->toBe('Faculty')
+        ->and(trim($nameCells->item(2)->textContent))->toBe('Project');
+
     $response->assertSeeInOrder(['Faculty', 'Researcher', 'Researcher']);
 });
 
@@ -170,12 +180,11 @@ test('the generated Word file preserves the official form and adds one complete 
             $contentControlIds[] = $xpath->evaluate('string(@w:val)', $contentControlId);
         }
 
-        $nameParagraph = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]')->item(0);
-        expect($nameParagraph)->toBeInstanceOf(DOMElement::class);
+        $nameCells = $xpath->query('//w:body/w:tbl[1]/w:tr[4]/w:tc');
         $nameParts = [];
 
-        foreach ($xpath->query('./w:r/w:t', $nameParagraph) as $namePart) {
-            $nameParts[] = $namePart->textContent;
+        foreach ($nameCells as $nameCell) {
+            $nameParts[] = trim($xpath->evaluate('string(.//w:t)', $nameCell));
         }
 
         expect($xpath->query('//w:body/w:tbl')->length)->toBe(6)
@@ -189,9 +198,14 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:rFonts/@w:ascii)'))->toBe('Times New Roman')
             ->and($xpath->evaluate('string(//w:t[.="Community Coastal Information Systems"]/../w:rPr/w:sz/@w:val)'))->toBe('18')
             ->and($nameParts)->toBe(['Leader', 'Faculty', 'Project'])
-            ->and($xpath->query('./w:r/w:tab', $nameParagraph)->length)->toBe(2)
-            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[1]/@w:pos)', $nameParagraph))->toBe('3892')
-            ->and($xpath->evaluate('string(./w:pPr/w:tabs/w:tab[2]/@w:pos)', $nameParagraph))->toBe('6989')
+            ->and($nameCells)->toHaveCount(3)
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:tcW/@w:w)'))->toBe('3892')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:tcPr/w:tcW/@w:w)'))->toBe('3097')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:tcPr/w:tcW/@w:w)'))->toBe('3784')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:tcPr/w:gridSpan/@w:val)'))->toBe('6')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:tcPr/w:gridSpan/@w:val)'))->toBe('10')
+            ->and($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:tcPr/w:gridSpan/@w:val)'))->toBe('12')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr[4]//w:tab')->length)->toBe(0)
             ->and(substr_count($documentXml, 'Attachment C-BatStateU-FO-RES-02'))->toBe(3)
             ->and(substr_count($documentXml, 'CURRICULUM VITAE'))->toBe(3)
             ->and($documentXml)->toContain('Community Coastal Information Systems')

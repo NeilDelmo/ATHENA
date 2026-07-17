@@ -12,11 +12,21 @@
                 <p class="cv-form-code">Attachment C-BatStateU-FO-RES-02</p>
                 <h1>CURRICULUM VITAE</h1>
 
+                <table class="cv-table cv-name-table">
+                    <colgroup>
+                        <col class="cv-last-name-column">
+                        <col class="cv-first-name-column">
+                        <col class="cv-middle-name-column">
+                    </colgroup>
+                    <tbody>
+                        <tr class="cv-section-heading"><th colspan="3">PERSONAL INFORMATION</th></tr>
+                        <tr class="cv-name-labels"><th>Last Name</th><th>First Name</th><th>Middle Name</th></tr>
+                        <tr class="cv-name-values"><td>{{ $person['last_name'] }}</td><td>{{ $person['first_name'] }}</td><td>{{ $person['middle_name'] }}</td></tr>
+                    </tbody>
+                </table>
+
                 <table class="cv-table cv-personal-table">
                     <tbody>
-                        <tr class="cv-section-heading"><th colspan="4">PERSONAL INFORMATION</th></tr>
-                        <tr class="cv-name-labels"><th>Last Name</th><th>First Name</th><th colspan="2">Middle Name</th></tr>
-                        <tr class="cv-name-values"><td colspan="4"><span>{{ $person['last_name'] }}</span><span>{{ $person['first_name'] }}</span><span>{{ $person['middle_name'] }}</span></td></tr>
                         <tr><td>Agency: {{ $person['agency'] }}</td><td colspan="2">Gender: {{ $person['gender'] === 'male' ? '☒ Male  ☐ Female' : ($person['gender'] === 'female' ? '☐ Male  ☒ Female' : '☐ Male  ☐ Female') }}</td><td>Birthday (mm/dd/yyyy): {{ $person['birthday'] }}</td></tr>
                         <tr class="cv-section-heading"><th colspan="4">RESIDENTIAL ADDRESS</th></tr>
                         <tr class="cv-name-labels"><th>Street</th><th>Barangay</th><th>Municipality</th><th>Province</th></tr>
