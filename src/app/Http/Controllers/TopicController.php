@@ -47,9 +47,7 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
-
-        return view('faculty.dashboard', compact('topics', 'activeCalls', 'revisionResponseTemplates'));
+        return view('faculty.dashboard', compact('topics', 'activeCalls'));
     }
 
     public function create(Request $request)
@@ -154,7 +152,6 @@ class TopicController extends Controller
             ->whereNull('resolved_at')
             ->values();
         $screeningTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_INITIAL_SCREENING);
-        $revisionResponseTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_REVISION_RESPONSE);
 
         return view('topics.show', compact(
             'topic',
@@ -166,7 +163,6 @@ class TopicController extends Controller
             'expertAssignment',
             'pendingFileRevisions',
             'screeningTemplates',
-            'revisionResponseTemplates',
         ));
     }
 

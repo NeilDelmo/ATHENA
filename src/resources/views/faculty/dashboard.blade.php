@@ -242,13 +242,14 @@
                                 <div class="rounded-xl border border-blue-200 bg-white/70 p-3 text-xs leading-5 text-blue-800 sm:col-span-2">
                                     Upload only the files you changed. Files left empty will be carried forward from the previous version; uploading CVs replaces the previous CV set.
                                 </div>
-                                @if ($revisionResponseTemplates->isNotEmpty())
-                                    <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800 sm:col-span-2">
-                                        <p class="font-black">Comment-response form</p>
-                                        <p class="mt-1">Answer every evaluator comment and identify the exact page and paragraph changed.</p>
-                                        <div class="mt-2 flex flex-wrap gap-2">@foreach ($revisionResponseTemplates as $template)<a href="{{ route('proposal-templates.download', $template) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download {{ $template->name }}</a>@endforeach</div>
+                                <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800 sm:col-span-2">
+                                    <p class="font-black">Auto-filled Comment-Response Form</p>
+                                    <p class="mt-1">ATHENA fills the proposal title, Project Leader, known researcher details, and footer. Complete the evaluation type/date, comments, actions and responses, page-and-paragraph remarks, and signatures in Word, then upload the completed form below.</p>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <a href="{{ route('faculty.topics.comment-response-form.preview', $topic) }}" target="_blank" rel="noopener" class="rounded-lg border border-purple-300 bg-white px-3 py-2 text-[11px] font-bold text-purple-800">Preview auto-filled form</a>
+                                        <a href="{{ route('faculty.topics.comment-response-form.download', $topic) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download auto-filled Word file</a>
                                     </div>
-                                @endif
+                                </div>
                                 <div class="space-y-1 sm:col-span-2">
                                     <label for="revision_response_{{ $topic->id }}" class="text-xs font-bold text-gray-600">Completed comment-response form <span class="text-red-600">Required</span></label>
                                     <input id="revision_response_{{ $topic->id }}" name="comment_response" type="file" accept=".doc,.docx,.pdf" required class="block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs text-gray-600">

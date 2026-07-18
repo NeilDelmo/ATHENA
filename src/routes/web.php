@@ -26,6 +26,7 @@ use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\RoleSelectionController;
+use App\Http\Controllers\TopicCommentResponseFormController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\WorkPlanController;
 use App\Http\Controllers\WorkspaceController;
@@ -121,6 +122,8 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
     Route::post('/faculty/work-plans/preview', [WorkPlanController::class, 'preview'])->name('faculty.work-plans.preview');
     Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
+    Route::get('/faculty/topics/{topic}/comment-response-form/preview', [TopicCommentResponseFormController::class, 'preview'])->name('faculty.topics.comment-response-form.preview');
+    Route::get('/faculty/topics/{topic}/comment-response-form/download', [TopicCommentResponseFormController::class, 'download'])->name('faculty.topics.comment-response-form.download');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });
 

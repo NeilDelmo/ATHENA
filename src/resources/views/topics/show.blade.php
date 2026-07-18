@@ -178,7 +178,14 @@
                         <input type="hidden" name="redirect_to" value="topic">
                         <h3 class="text-sm font-black text-gray-900">Submit revision</h3>
                         <p class="text-xs leading-5 text-gray-500">Update the metadata and upload only changed files. Unchanged files carry forward.</p>
-                        @if ($revisionResponseTemplates->isNotEmpty())<div class="rounded-xl bg-purple-50 p-3 text-xs leading-5 text-purple-800"><p class="font-black">Document your responses to evaluator comments.</p><div class="mt-2 flex flex-wrap gap-2">@foreach ($revisionResponseTemplates as $template)<a href="{{ route('proposal-templates.download', $template) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download {{ $template->name }}</a>@endforeach</div></div>@endif
+                        <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800">
+                            <p class="font-black">Auto-filled Comment-Response Form</p>
+                            <p class="mt-1">ATHENA fills the proposal title, Project Leader, known researcher details, and footer. Complete the evaluation type/date, comments, actions and responses, page-and-paragraph remarks, and signatures in Word.</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <a href="{{ route('faculty.topics.comment-response-form.preview', $topic) }}" target="_blank" rel="noopener" class="rounded-lg border border-purple-300 bg-white px-3 py-2 text-[11px] font-bold text-purple-800">Preview auto-filled form</a>
+                                <a href="{{ route('faculty.topics.comment-response-form.download', $topic) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download auto-filled Word file</a>
+                            </div>
+                        </div>
                         <label class="block text-[11px] font-bold text-gray-500">Completed comment-response form <span class="text-red-600">Required</span><input name="comment_response" type="file" accept=".doc,.docx,.pdf" required class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
                         @if ($pendingFileRevisions->isNotEmpty())
                             <div class="rounded-xl border border-amber-200 bg-amber-50 p-3">

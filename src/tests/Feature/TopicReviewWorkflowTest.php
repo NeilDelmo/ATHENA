@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
@@ -282,13 +283,199 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->get('/faculty/dashboard')
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
-        ->assertSee('Revise and resubmit proposal');
+        ->assertSee('Revise and resubmit proposal')
+        ->assertSee('Auto-filled Comment-Response Form')
+        ->assertSee(route('faculty.topics.comment-response-form.preview', $topic), false)
+        ->assertSee(route('faculty.topics.comment-response-form.download', $topic), false);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Auto-filled Comment-Response Form')
+        ->assertSee('Completed comment-response form');
 
     $this->actingAs($head)
         ->get('/research-head/dashboard')
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
         ->assertSee('Waiting for faculty revision');
+});
+
+test('faculty can preview and download an auto-filled official Comment-Response Form during revision', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create([
+        'name' => 'Dr. Aurora Reyes',
+        'college' => User::COLLEGES['CICS'],
+    ]);
+    $faculty->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Coastal Habitat Restoration',
+        'estimated_budget' => 12000,
+        'initial_file_path' => 'proposals/original.pdf',
+        'status' => 'revision_requested',
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/original.pdf',
+        'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'estimated_budget' => 12000,
+        'estimated_duration_months' => 12,
+    ]);
+    $version->files()->createMany([
+        [
+            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            'position' => 0,
+            'file_path' => 'proposals/detailed.docx',
+            'original_filename' => 'detailed.docx',
+            'source_data' => [
+                'project_leader' => 'Dr. Aurora Reyes',
+                'proponent_campus' => 'Alangilan',
+                'proponent_college' => User::COLLEGES['CICS'],
+                'proponent_department' => 'Department of Computing Sciences',
+                'staff' => [
+                    ['name' => 'Bea Santos', 'email' => 'bea@example.test', 'contact' => '09170000001'],
+                    ['name' => 'Carlos Lim', 'email' => 'carlos@example.test', 'contact' => '09170000002'],
+                ],
+            ],
+        ],
+        [
+            'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            'position' => 0,
+            'file_path' => 'proposals/budget.docx',
+            'original_filename' => 'budget.docx',
+            'source_data' => [
+                'project_leader' => 'Dr. Aurora Reyes',
+                'leader_campus' => 'Alangilan',
+                'leader_college' => User::COLLEGES['CICS'],
+                'staff' => [
+                    ['name' => 'Bea Santos', 'campus' => 'Alangilan', 'college' => User::COLLEGES['CICS']],
+                    ['name' => 'Carlos Lim', 'campus' => 'Lipa', 'college' => User::COLLEGES['CTE']],
+                ],
+            ],
+        ],
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.preview', $topic))
+        ->assertOk()
+        ->assertSee('BatStateU Comment-Response Form')
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Dr. Aurora Reyes')
+        ->assertSee('Alangilan')
+        ->assertSee('CICS')
+        ->assertSee('Department of Computing Sciences')
+        ->assertSee('Bea Santos')
+        ->assertSee('Carlos Lim');
+
+    $download = $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.download', $topic))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        ->assertDownload('coastal-habitat-restoration-comment-response-form.docx');
+
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-comment-response-test-');
+    expect($temporaryPath)->not->toBeFalse();
+    file_put_contents($temporaryPath, $download->streamedContent());
+
+    $generated = new ZipArchive;
+    $template = new ZipArchive;
+
+    try {
+        expect($generated->open($temporaryPath))->toBeTrue()
+            ->and($template->open(config('comment_response_form.template_path')))->toBeTrue();
+
+        $documentXml = $generated->getFromName('word/document.xml');
+        $footerXml = $generated->getFromName('word/footer1.xml');
+        expect($documentXml)->not->toBeFalse()
+            ->and($footerXml)->not->toBeFalse();
+
+        $documentDom = new DOMDocument;
+        $footerDom = new DOMDocument;
+        expect($documentDom->loadXML($documentXml, LIBXML_NONET))->toBeTrue()
+            ->and($footerDom->loadXML($footerXml, LIBXML_NONET))->toBeTrue();
+
+        expect($documentDom->textContent)
+            ->toContain('Coastal Habitat Restoration')
+            ->toContain('Dr. Aurora Reyes')
+            ->toContain('Alangilan')
+            ->toContain('CICS')
+            ->toContain('Department of Computing Sciences')
+            ->toContain('Bea Santos')
+            ->toContain('Carlos Lim')
+            ->toContain('Initial Screening')
+            ->toContain('Evaluation by the Local Research Evaluation Committee (LREC)')
+            ->toContain('COMMENTS AND SUGGESTIONS')
+            ->toContain('ACTION AND RESPONSE')
+            ->toContain('REMARKS')
+            ->toContain('Research Head/ RDES Head')
+            ->toContain('Vice Chancellor for Research, Development and Extension Services');
+        expect($footerDom->textContent)
+            ->toContain('Comment-Response Form | Coastal Habitat Restoration')
+            ->not->toContain('insert the research proposal title here');
+
+        $footerXpath = new DOMXPath($footerDom);
+        $footerXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        expect($footerXpath->query('//w:p[.//w:instrText[contains(., "PAGE")]]//w:t[text() = "1"]')->length)->toBe(2);
+
+        $xpath = new DOMXPath($documentDom);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        foreach ($xpath->query('/w:document/w:body/w:tbl[3]/w:tr[position() > 1]/w:tc[position() > 1]') as $responseCell) {
+            expect(trim($responseCell->textContent))->toBe('');
+        }
+
+        for ($index = 0; $index < $template->numFiles; $index++) {
+            $entry = $template->statIndex($index);
+            $name = $entry['name'];
+
+            if (! in_array($name, ['word/document.xml', 'word/footer1.xml'], true)) {
+                expect($generated->getFromName($name))->toBe($template->getFromName($name));
+            }
+        }
+    } finally {
+        $generated->close();
+        $template->close();
+        unlink($temporaryPath);
+    }
+});
+
+test('Comment-Response Form generation is private to the revision owner', function () {
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty');
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole('faculty');
+
+    $revision = TopicProposal::create([
+        'user_id' => $owner->id,
+        'title' => 'Private revision',
+        'estimated_budget' => 12000,
+        'status' => 'revision_requested',
+    ]);
+    $pending = TopicProposal::create([
+        'user_id' => $owner->id,
+        'title' => 'No revision requested',
+        'estimated_budget' => 12000,
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($otherFaculty)
+        ->get(route('faculty.topics.comment-response-form.preview', $revision))
+        ->assertForbidden();
+    $this->actingAs($otherFaculty)
+        ->get(route('faculty.topics.comment-response-form.download', $revision))
+        ->assertForbidden();
+    $this->actingAs($owner)
+        ->get(route('faculty.topics.comment-response-form.preview', $pending))
+        ->assertForbidden();
 });
 
 test('faculty researchers can browse and open only their own research records', function () {
