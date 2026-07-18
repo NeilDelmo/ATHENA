@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Services\DetailedProposalDocumentService;
+use App\Services\GADChecklistDocumentService;
 use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
@@ -16,6 +17,7 @@ use App\Support\CurriculumVitaeData;
 use App\Support\CurriculumVitaeRules;
 use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
+use App\Support\GADChecklistData;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
@@ -40,6 +42,7 @@ class SubmitProposalDraft
         private readonly WorkPlanDocumentService $workPlanDocumentService,
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
+        private readonly GADChecklistDocumentService $gadChecklistDocumentService,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -100,6 +103,7 @@ class SubmitProposalDraft
                             'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
                             'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
                             'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
+                            'gad-checklist' => $this->generateGADChecklist($lockedDraft, $document, $permanentDirectory),
                             default => throw ValidationException::withMessages([
                                 'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
                             ]),
@@ -343,6 +347,26 @@ class SubmitProposalDraft
             $permanentDirectory,
             $draft->project_title,
             $validated,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function generateGADChecklist(
+        ProposalDraft $draft,
+        ProposalDraftDocument $document,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = [
+            'project_title' => $draft->project_title,
+            'project_leader' => $draft->project_leader,
+        ];
+        $checklist = GADChecklistData::fromValidated($sourceData);
+
+        return $this->packageService->storeGeneratedGADChecklist(
+            $this->gadChecklistDocumentService->generate($checklist),
+            $permanentDirectory,
+            $draft->project_title,
+            $sourceData,
         );
     }
 }

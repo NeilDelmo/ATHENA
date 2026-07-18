@@ -12,6 +12,7 @@ use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
+use App\Http\Controllers\ProposalDraftGADChecklistController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
 use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
@@ -97,6 +98,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
         Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');
         Route::post('/{proposalDraft}/curriculum-vitae/download', [ProposalDraftCurriculumVitaeController::class, 'download'])->name('curriculum-vitae.download');
+        Route::get('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'edit'])->name('gad-checklist.edit');
+        Route::put('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'update'])->name('gad-checklist.update');
+        Route::post('/{proposalDraft}/gad-checklist/preview', [ProposalDraftGADChecklistController::class, 'preview'])->name('gad-checklist.preview');
+        Route::post('/{proposalDraft}/gad-checklist/download', [ProposalDraftGADChecklistController::class, 'download'])->name('gad-checklist.download');
         Route::post('/{proposalDraft}/members', [ProposalDraftMemberController::class, 'store'])->name('members.store');
         Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');

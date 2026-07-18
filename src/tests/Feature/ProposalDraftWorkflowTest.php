@@ -131,6 +131,10 @@ beforeEach(function () {
                                 ->all(),
                         ]],
                     ],
+                    'gad-checklist' => [
+                        'project_title' => $draft->project_title,
+                        'project_leader' => $draft->project_leader,
+                    ],
                     default => [],
                 };
                 $draft->documents()->create([
@@ -257,6 +261,10 @@ test('every draft paper and submission endpoint is protected from another owner'
         fn () => $this->put(route('faculty.proposal-drafts.curriculum-vitae.update', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.preview', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.download', $draft), []),
+        fn () => $this->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft)),
+        fn () => $this->put(route('faculty.proposal-drafts.gad-checklist.update', $draft), ['document_version' => 1]),
+        fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft)),
+        fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.download', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.review', $draft)),
         fn () => $this->post(route('faculty.proposal-drafts.submit', $draft)),
         fn () => $this->delete(route('faculty.proposal-drafts.destroy', $draft)),
@@ -350,42 +358,129 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSee('Faculty Owner');
 });
 
+test('the GAD checklist preserves the supplied seven-page document and fills shared project details automatically', function () {
+    $draft = ($this->createDraft)();
+    $draft->update(($this->projectDetails)());
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
+        ->assertOk()
+        ->assertSee('Auto-filled from shared project information')
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Faculty Owner')
+        ->assertDontSee('name="project_title"', false)
+        ->assertDontSee('name="project_leader"', false);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.gad-checklist.update', $draft), [
+            'document_version' => 0,
+            'project_title' => 'Ignored request title',
+            'project_leader' => 'Ignored request leader',
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
+        ->assertSessionHas('success', 'GAD Generic Checklist saved.');
+
+    $document = $draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+
+    expect($document->source_data)->toBe([
+        'project_title' => 'Coastal Habitat Restoration',
+        'project_leader' => 'Faculty Owner',
+    ])->and($document->completed_at)->not->toBeNull();
+
+    $preview = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft), [
+            'project_title' => 'Ignored preview title',
+            'project_leader' => 'Ignored preview leader',
+        ])
+        ->assertOk()
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Faculty Owner')
+        ->assertSee('12.32')
+        ->assertSee('Guide for accomplishing Box 7a')
+        ->assertDontSee('Ignored preview title')
+        ->assertDontSee('Ignored preview leader');
+
+    expect(substr_count($preview->getContent(), 'aria-label="Box 7a GAD Generic Checklist page'))->toBe(7);
+
+    $download = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.gad-checklist.download', $draft))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        ->assertDownload('coastal-habitat-restoration-gad-checklist.docx');
+
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-gad-test-');
+    expect($temporaryPath)->not->toBeFalse();
+    file_put_contents($temporaryPath, $download->streamedContent());
+
+    $generated = new ZipArchive;
+    $template = new ZipArchive;
+
+    try {
+        expect($generated->open($temporaryPath))->toBeTrue()
+            ->and($template->open(config('gad_checklist.template_path')))->toBeTrue();
+
+        $documentXml = $generated->getFromName('word/document.xml');
+        expect($documentXml)->not->toBeFalse();
+
+        $documentDom = new DOMDocument;
+        expect($documentDom->loadXML($documentXml, LIBXML_NONET))->toBeTrue();
+        $documentText = $documentDom->textContent;
+
+        expect($documentText)->toContain('Research Project Title:')
+            ->toContain('Coastal Habitat Restoration')
+            ->toContain('Faculty Owner')
+            ->toContain('12.32')
+            ->not->toContain('Ignored request title')
+            ->not->toContain('Ignored request leader');
+
+        foreach (['word/footer1.xml', 'word/footnotes.xml', 'word/numbering.xml', 'word/styles.xml', 'word/media/image1.png'] as $preservedPart) {
+            expect($generated->getFromName($preservedPart))->toBe($template->getFromName($preservedPart));
+        }
+    } finally {
+        $generated->close();
+        $template->close();
+        unlink($temporaryPath);
+    }
+});
+
 test('single-file papers can be uploaded downloaded replaced and removed privately', function () {
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 0,
-            'documents' => [UploadedFile::fake()->create('first-proposal.pdf', 100, 'application/pdf')],
+            'documents' => [UploadedFile::fake()->create('first-expenses.xlsx', 100, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
         ])
-        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'gad-checklist']))
-        ->assertSessionHas('success', 'GAD Generic Checklist saved.');
+        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
+        ->assertSessionHas('success', 'Estimated Expense Breakdown saved.');
 
     $first = $draft->documents()->sole();
     Storage::disk('local')->assertExists($first->file_path);
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.papers.download', [$draft, 'gad-checklist', $first]))
-        ->assertDownload('first-proposal.pdf');
+        ->get(route('faculty.proposal-drafts.papers.download', [$draft, 'expense-breakdown', $first]))
+        ->assertDownload('first-expenses.xlsx');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 1,
-            'documents' => [UploadedFile::fake()->create('replacement-proposal.docx', 120, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')],
+            'documents' => [UploadedFile::fake()->create('replacement-expenses.xls', 120, 'application/vnd.ms-excel')],
             'exit_after_save' => '1',
         ])
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
 
     $replacement = $draft->documents()->sole();
     expect($replacement->id)->toBe($first->id)
-        ->and($replacement->original_filename)->toBe('replacement-proposal.docx')
+        ->and($replacement->original_filename)->toBe('replacement-expenses.xls')
         ->and($replacement->checksum)->toHaveLength(64)
         ->and($replacement->completed_at)->not->toBeNull();
     Storage::disk('local')->assertMissing($first->file_path);
     Storage::disk('local')->assertExists($replacement->file_path);
 
     $this->actingAs($this->faculty)
-        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'gad-checklist', $replacement]))
+        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'expense-breakdown', $replacement]))
         ->assertRedirect();
 
     $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $replacement->id]);
@@ -402,9 +497,9 @@ test('paper uploads enforce file types and the 25 MB limit', function () {
         ->assertSessionHasErrors('documents.0');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'gad-checklist']), [
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 0,
-            'documents' => [UploadedFile::fake()->create('oversized.pdf', 25601, 'application/pdf')],
+            'documents' => [UploadedFile::fake()->create('oversized.xlsx', 25601, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
         ])
         ->assertSessionHasErrors('documents.0');
 
@@ -519,6 +614,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $topic = TopicProposal::query()->sole();
     $version = $topic->versions()->with('files')->sole();
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
+    $gadChecklist = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
 
     expect($topic->user_id)->toBe($this->faculty->id)
         ->and($topic->research_call_id)->toBe($this->call->id)
@@ -539,7 +635,9 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($version->files->every(fn (ProposalVersionFile $file): bool => strlen((string) $file->checksum) === 64))->toBeTrue()
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
-        ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner');
+        ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner')
+        ->and($gadChecklist->source_data['project_title'])->toBe('Coastal Habitat Restoration')
+        ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner');
 
     $version->files->each(
         fn (ProposalVersionFile $file) => Storage::disk('local')->assertExists($file->file_path),

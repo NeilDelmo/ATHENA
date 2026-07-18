@@ -145,6 +145,7 @@
                             'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
                             'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
                             'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
+                            'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft),
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
                     @endphp

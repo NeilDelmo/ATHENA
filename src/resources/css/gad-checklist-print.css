@@ -1,0 +1,483 @@
+@page {
+    size: 8.5in 13in;
+    margin: 0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+}
+
+body {
+    color: #000;
+    background: #e5e7eb;
+    font-family: "Times New Roman", Times, serif;
+}
+
+.gad-preview-page {
+    min-width: 8.5in;
+    padding: 24px;
+}
+
+.gad-page {
+    position: relative;
+    width: 8.5in;
+    min-height: 13in;
+    margin: 0 auto 24px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
+    break-after: page;
+    page-break-after: always;
+}
+
+.gad-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+}
+
+.gad-page-one {
+    padding: 0.72in 0.75in 0.65in 0.92in;
+}
+
+.gad-page-two {
+    padding: 0.4in 0.75in 0.65in 0.92in;
+}
+
+.gad-page-three {
+    padding: 0.9in 0.68in 0.65in 0.82in;
+}
+
+.gad-guide-page {
+    padding: 0.96in 0.75in 0.65in 0.92in;
+}
+
+.gad-requirements-page {
+    padding: 1in 1in 0.72in;
+}
+
+.gad-project-title {
+    min-height: 0.25in;
+    margin: 0;
+    font-size: 11pt;
+    line-height: 1.2;
+}
+
+.gad-assessment-title {
+    margin: 0.42in 0 0;
+    font-size: 12pt;
+    font-weight: 700;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.gad-page-one h1 {
+    margin: 0.2in 0 0;
+    font-size: 12pt;
+    line-height: 1.15;
+    text-align: center;
+}
+
+.gad-page sup {
+    position: relative;
+    top: -0.2em;
+    font-size: 7pt;
+    line-height: 0;
+}
+
+.gad-table {
+    width: 100%;
+    table-layout: fixed;
+    border: 0.75pt solid #000;
+    border-collapse: collapse;
+}
+
+.gad-table th,
+.gad-table td {
+    padding: 2pt 4pt;
+    border: 0.75pt solid #000;
+    font-size: 10.5pt;
+    font-weight: 400;
+    line-height: 1.06;
+    vertical-align: top;
+}
+
+.gad-table thead th {
+    background: #dedede;
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.gad-score-table {
+    margin-top: 0.35in;
+}
+
+.gad-page-two .gad-score-table,
+.gad-page-three .gad-score-table {
+    margin-top: 0;
+}
+
+.gad-score-table tbody td:not(:first-child) {
+    text-align: center;
+}
+
+.gad-score-table tbody td:nth-child(2),
+.gad-score-table tbody td:nth-child(3),
+.gad-score-table tbody td:nth-child(4),
+.gad-score-table tbody td:nth-child(5) {
+    vertical-align: top;
+}
+
+.gad-score-table .gad-element strong {
+    font-style: italic;
+}
+
+.gad-score-table .gad-element span,
+.gad-score-table td > span {
+    font-style: normal;
+}
+
+.gad-score-table .gad-mark {
+    padding-top: 5pt;
+    font-size: 12pt;
+}
+
+.gad-score-table .gad-thick-score {
+    border: 2.25pt solid #000;
+    font-weight: 700;
+}
+
+.gad-score-table .gad-total-row th {
+    background: #fff;
+    font-weight: 700;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.gad-score-table .gad-total-row td:not(.gad-thick-score) {
+    background: #dedede;
+}
+
+.gad-page-one .gad-element-column { width: 41.2%; }
+.gad-page-one .gad-response-column { width: 8.7%; }
+.gad-page-one .gad-score-column { width: 15.5%; }
+.gad-page-one .gad-comments-column { width: 17.2%; }
+
+.gad-page-two .gad-element-column { width: 51.2%; }
+.gad-page-two .gad-response-column { width: 7.4%; }
+.gad-page-two .gad-score-column { width: 14%; }
+.gad-page-two .gad-comments-column { width: 12.6%; }
+
+.gad-page-three .gad-element-column { width: 45.2%; }
+.gad-page-three .gad-response-column { width: 7.1%; }
+.gad-page-three .gad-score-column { width: 10.6%; }
+.gad-page-three .gad-comments-column { width: 22.9%; }
+
+.gad-page-one .gad-score-table tbody tr:nth-child(2),
+.gad-page-one .gad-score-table tbody tr:nth-child(3) {
+    height: 0.72in;
+}
+
+.gad-page-one .gad-score-table tbody tr:nth-child(6),
+.gad-page-one .gad-score-table tbody tr:nth-child(7) {
+    height: 0.9in;
+}
+
+.gad-page-one .gad-score-table tbody tr:last-child {
+    height: 0.63in;
+}
+
+.gad-page-two .gad-score-table tbody tr {
+    height: 0.62in;
+}
+
+.gad-page-two .gad-score-table tbody tr:nth-child(1),
+.gad-page-two .gad-score-table tbody tr:nth-child(2),
+.gad-page-two .gad-score-table tbody tr:nth-child(7),
+.gad-page-two .gad-score-table tbody tr:nth-child(8) {
+    height: 0.86in;
+}
+
+.gad-page-two .gad-score-table tbody tr:nth-child(10),
+.gad-page-two .gad-score-table tbody tr:nth-child(11) {
+    height: 0.96in;
+}
+
+.gad-score-table-final tbody tr:nth-child(1) { height: 0.62in; }
+.gad-score-table-final tbody tr:nth-child(2) { height: 1.45in; }
+.gad-score-table-final tbody tr:nth-child(3),
+.gad-score-table-final tbody tr:nth-child(4) { height: 0.55in; }
+
+.gad-footnotes {
+    position: absolute;
+    right: 0.75in;
+    bottom: 0.54in;
+    left: 0.92in;
+    padding-top: 4pt;
+    border-top: 0.75pt solid #000;
+    font-size: 8pt;
+    font-style: italic;
+    line-height: 1.1;
+}
+
+.gad-footnotes p {
+    margin: 0;
+}
+
+.gad-page footer {
+    position: absolute;
+    right: 0.68in;
+    bottom: 0.18in;
+    left: 0.74in;
+    display: flex;
+    min-height: 0.24in;
+    align-items: center;
+    border-top: 2pt solid #888;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9pt;
+    line-height: 1;
+}
+
+.gad-page footer strong {
+    width: 0.55in;
+    padding-right: 7pt;
+    border-right: 1.5pt solid #888;
+    font-size: 10pt;
+    text-align: right;
+}
+
+.gad-page footer span {
+    padding-left: 7pt;
+    font-style: italic;
+}
+
+.gad-interpretation-table {
+    width: 88%;
+    margin: 0.36in auto 0;
+}
+
+.gad-interpretation-table th,
+.gad-interpretation-table td {
+    padding: 1pt 5pt;
+    font-size: 9.5pt;
+    line-height: 1.02;
+}
+
+.gad-interpretation-table thead th {
+    background: #fff;
+    font-size: 10pt;
+}
+
+.gad-interpretation-table td:first-child {
+    width: 20%;
+    white-space: nowrap;
+}
+
+.gad-budget-heading {
+    margin: 0.18in 0 0;
+    font-size: 11pt;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.gad-formula-item {
+    display: grid;
+    grid-template-columns: 0.22in 1fr;
+    gap: 0.08in;
+    margin: 0.16in 0 0 0.38in;
+    font-size: 9.5pt;
+    line-height: 1.2;
+}
+
+.gad-fraction {
+    position: relative;
+    width: 1.65in;
+    margin: 0.2in auto 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8pt;
+    line-height: 1.2;
+    text-align: center;
+}
+
+.gad-fraction > span:first-child {
+    display: block;
+    padding-bottom: 2pt;
+    border-bottom: 0.75pt solid #000;
+}
+
+.gad-fraction b {
+    position: absolute;
+    top: 0.2in;
+    right: -0.55in;
+    font-weight: 400;
+}
+
+.gad-signatories {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.28in;
+    margin-top: 0.42in;
+    font-size: 10pt;
+    line-height: 1.05;
+}
+
+.gad-signatories p {
+    margin: 0 0 0.2in;
+}
+
+.gad-signatories strong,
+.gad-signatories span {
+    display: block;
+}
+
+.gad-signatories strong {
+    font-weight: 700;
+}
+
+.gad-guide-page h2 {
+    margin: 0 0 0.18in;
+    font-size: 11pt;
+    line-height: 1;
+    text-align: center;
+}
+
+.gad-guide-row,
+.gad-guide-subrow {
+    display: grid;
+    grid-template-columns: 0.42in 1fr;
+    gap: 0.06in;
+    margin: 0;
+    font-size: 10.4pt;
+    line-height: 1.08;
+    text-align: justify;
+}
+
+.gad-guide-row > span,
+.gad-guide-subrow > span {
+    text-align: left;
+}
+
+.gad-guide-row p,
+.gad-guide-subrow p {
+    margin: 0;
+}
+
+.gad-guide-subrow {
+    grid-template-columns: 0.28in 1fr;
+    gap: 0.04in;
+    margin-left: -0.08in;
+}
+
+.gad-guide-continuation {
+    margin-left: 0.46in;
+}
+
+.gad-page-five .gad-guide-row,
+.gad-page-five .gad-guide-subrow {
+    font-size: 10.5pt;
+    line-height: 1.12;
+}
+
+.gad-requirements-heading {
+    position: absolute;
+    width: auto;
+    right: 0.78in;
+    bottom: 0.51in;
+    left: 0.84in;
+}
+
+.gad-requirements-table th,
+.gad-requirements-table td {
+    padding: 2pt 6pt;
+    font-size: 10.5pt;
+    line-height: 1.08;
+    vertical-align: top;
+}
+
+.gad-requirements-table thead th {
+    background: #fff;
+    font-size: 10.5pt;
+}
+
+.gad-requirements-page .gad-requirements-table {
+    margin-top: 0;
+}
+
+.gad-requirement-column { width: 23%; }
+.gad-consideration-column { width: 45%; }
+.gad-notes-column { width: 32%; }
+
+.gad-requirements-table ul,
+.gad-requirements-table ol {
+    margin: 0;
+    padding-left: 0.22in;
+}
+
+.gad-requirements-table ol {
+    list-style-position: outside;
+}
+
+.gad-requirements-table li {
+    margin: 0;
+    padding-left: 0.02in;
+}
+
+.gad-requirements-table .gad-check-list {
+    list-style: none;
+    padding-left: 0.3in;
+}
+
+.gad-requirements-table .gad-check-list > li {
+    position: relative;
+}
+
+.gad-requirements-table .gad-check-list > li::before {
+    position: absolute;
+    left: -0.22in;
+    content: "✓";
+}
+
+.gad-row-number {
+    float: left;
+    width: 0.28in;
+    margin-left: -0.01in;
+}
+
+.gad-row-number + * {
+    margin-left: 0.28in;
+}
+
+.gad-requirements-page:nth-of-type(6) .gad-requirements-table tbody tr:nth-child(1) { height: 1.05in; }
+.gad-requirements-page:nth-of-type(6) .gad-requirements-table tbody tr:nth-child(2) { height: 1.72in; }
+.gad-requirements-page:nth-of-type(6) .gad-requirements-table tbody tr:nth-child(3) { height: 2.45in; }
+.gad-requirements-page:nth-of-type(6) .gad-requirements-table tbody tr:nth-child(4) { height: 1.75in; }
+.gad-requirements-page:nth-of-type(6) .gad-requirements-table tbody tr:nth-child(5) { height: 1.45in; }
+
+.gad-requirements-page:nth-of-type(7) .gad-requirements-table tbody tr:nth-child(1) { height: 3.0in; }
+.gad-requirements-page:nth-of-type(7) .gad-requirements-table tbody tr:nth-child(2) { height: 1.75in; }
+.gad-requirements-page:nth-of-type(7) .gad-requirements-table tbody tr:nth-child(3) { height: 1.55in; }
+.gad-requirements-page:nth-of-type(7) .gad-requirements-table tbody tr:nth-child(4) { height: 1.0in; }
+.gad-requirements-page:nth-of-type(7) .gad-requirements-table tbody tr:nth-child(5) { height: 1.05in; }
+
+@media print {
+    html,
+    body {
+        background: #fff;
+    }
+
+    .gad-preview-page {
+        min-width: 0;
+        padding: 0;
+    }
+
+    .gad-page {
+        margin: 0;
+        box-shadow: none;
+    }
+}
