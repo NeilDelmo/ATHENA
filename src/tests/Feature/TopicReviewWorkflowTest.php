@@ -499,6 +499,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         'expense_breakdown' => 'expenses.xlsx',
         'curriculum_vitae' => 'cv.pdf',
         'gad_checklist' => 'gad-checklist.docx',
+        'initial_screening_form' => 'initial-screening-form.docx',
     ] as $type => $filename) {
         $path = 'packages/'.$filename;
         Storage::disk('local')->put($path, $type);
@@ -523,7 +524,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Proposal package checklist')
-        ->assertSee('6/6 complete');
+        ->assertSee('7/7 complete');
 
     $this->actingAs($head)
         ->get(route('topics.show', $topic))

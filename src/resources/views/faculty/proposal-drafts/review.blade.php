@@ -61,7 +61,9 @@
                                     <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $item['complete'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $item['status'] }}</span>
                                 </div>
                                 <div class="mt-2 text-xs leading-5 text-gray-500">
-                                    @if ($item['documents']->isEmpty())
+                                    @if ($paper['mode'] === 'automatic')
+                                        <p>Generated automatically from the shared Project Title and Project Leader. Evaluator fields remain blank.</p>
+                                    @elseif ($item['documents']->isEmpty())
                                         <p>No saved paper.</p>
                                     @elseif ($paper['mode'] === 'generated')
                                         <p>Structured {{ $paper['label'] }} data saved {{ $item['documents']->first()->updated_at->diffForHumans() }}.</p>
@@ -70,7 +72,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), 'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
+                            <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), 'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft), 'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Complete paper') }}</a>
                         </div>
 
                         @if ($paper['slug'] === 'work-plan' && is_array($workPlanSource))
@@ -105,6 +107,11 @@
                                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $label }}</button>
                                     </form>
                                 @endforeach
+                            </div>
+                        @elseif ($paper['slug'] === 'initial-screening-form')
+                            <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                                <a href="{{ route('faculty.proposal-drafts.initial-screening-form.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Initial Screening Form</a>
+                                <a href="{{ route('faculty.proposal-drafts.initial-screening-form.download', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Download Word file</a>
                             </div>
                         @endif
                     </article>

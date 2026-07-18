@@ -84,6 +84,7 @@ class ProposalPackageService
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
             ProposalVersionFile::TYPE_CURRICULUM_VITAE,
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
             ProposalVersionFile::TYPE_COMMENT_RESPONSE,
         ] as $documentType) {
             $replacementFiles = collect($replacements)
@@ -300,6 +301,38 @@ class ProposalPackageService
         return [
             'source_version_file_id' => null,
             'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $originalFilename,
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
+            'is_carried_forward' => false,
+            'source_data' => $sourceData,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    public function storeGeneratedInitialScreeningForm(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $originalFilename = $filenameBase.'-initial-screening-form.docx';
+        $path = $directory.'/initial-screening-form/'.Str::uuid().'.docx';
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated Initial Screening Form could not be stored.');
+        }
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
             'position' => 0,
             'file_path' => $path,
             'original_filename' => $originalFilename,

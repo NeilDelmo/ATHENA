@@ -37,13 +37,19 @@ class ProposalDraftReadiness
                 ->where('document_type', $paper['document_type'])
                 ->sortBy('position')
                 ->values();
-            $complete = $this->paperIsComplete($paper, $documents);
+            $complete = $this->paperIsComplete($draft, $paper, $documents);
+            $status = match (true) {
+                $complete => 'Complete',
+                $paper['mode'] === 'automatic' => 'Waiting for project details',
+                $documents->isEmpty() => 'Not started',
+                default => 'In progress',
+            };
 
             return [$paper['slug'] => [
                 'paper' => $paper,
                 'documents' => $documents,
                 'complete' => $complete,
-                'status' => $complete ? 'Complete' : ($documents->isEmpty() ? 'Not started' : 'In progress'),
+                'status' => $status,
                 'count' => $documents->count(),
             ]];
         });
@@ -87,8 +93,15 @@ class ProposalDraftReadiness
      * @param  array<string, mixed>  $paper
      * @param  Collection<int, ProposalDraftDocument>  $documents
      */
-    private function paperIsComplete(array $paper, Collection $documents): bool
-    {
+    private function paperIsComplete(
+        ProposalDraft $draft,
+        array $paper,
+        Collection $documents,
+    ): bool {
+        if ($paper['mode'] === 'automatic') {
+            return $this->projectDetailsAreComplete($draft);
+        }
+
         $minimum = (int) $paper['min_files'];
         $maximum = (int) $paper['max_files'];
 

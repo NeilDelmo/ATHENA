@@ -146,6 +146,7 @@
                             'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
                             'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
                             'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft),
+                            'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
                     @endphp
@@ -158,7 +159,9 @@
                         <p class="mt-2 text-xs leading-5 text-gray-500">{{ $paper['description'] }}</p>
 
                         <div class="mt-4 min-h-10 text-xs text-gray-600">
-                            @if ($item['documents']->isNotEmpty())
+                            @if ($paper['mode'] === 'automatic')
+                                <p class="font-semibold">Generated automatically from Project Details. No faculty evaluation or signature is required.</p>
+                            @elseif ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
                                     <p class="font-semibold">Saved form data &middot; {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
                                 @elseif ($paper['multiple'])
@@ -178,7 +181,7 @@
                             </div>
                         @endif
 
-                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $item['complete'] ? 'Edit' : 'Open' }} {{ $paper['label'] }}">{{ $item['complete'] ? 'Edit paper' : 'Open paper' }}</a>
+                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Open') }} {{ $paper['label'] }}">{{ $paper['mode'] === 'automatic' ? 'Preview paper' : ($item['complete'] ? 'Edit paper' : 'Open paper') }}</a>
                     </article>
                 @endforeach
             </div>

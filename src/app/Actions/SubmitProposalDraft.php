@@ -10,6 +10,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\GADChecklistDocumentService;
+use App\Services\InitialScreeningFormDocumentService;
 use App\Services\LineItemBudgetDocumentService;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
@@ -43,6 +44,7 @@ class SubmitProposalDraft
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
+        private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -95,6 +97,17 @@ class SubmitProposalDraft
                         ->where('document_type', $paper['document_type'])
                         ->sortBy('position')
                         ->values();
+
+                    if ($paper['mode'] === 'automatic') {
+                        $permanentFiles[] = match ($paper['slug']) {
+                            'initial-screening-form' => $this->generateInitialScreeningForm($lockedDraft, $permanentDirectory),
+                            default => throw ValidationException::withMessages([
+                                'papers.'.$paper['slug'] => $paper['label'].' does not have an automatic document generator.',
+                            ]),
+                        };
+
+                        continue;
+                    }
 
                     if ($paper['mode'] === 'generated') {
                         $document = $paperDocuments->firstOrFail();
@@ -364,6 +377,24 @@ class SubmitProposalDraft
 
         return $this->packageService->storeGeneratedGADChecklist(
             $this->gadChecklistDocumentService->generate($checklist),
+            $permanentDirectory,
+            $draft->project_title,
+            $sourceData,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function generateInitialScreeningForm(
+        ProposalDraft $draft,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = [
+            'project_title' => $draft->project_title,
+            'project_leader' => $draft->project_leader,
+        ];
+
+        return $this->packageService->storeGeneratedInitialScreeningForm(
+            $this->initialScreeningFormDocumentService->generate($sourceData),
             $permanentDirectory,
             $draft->project_title,
             $sourceData,

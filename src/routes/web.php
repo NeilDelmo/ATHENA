@@ -13,6 +13,7 @@ use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftGADChecklistController;
+use App\Http\Controllers\ProposalDraftInitialScreeningFormController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
 use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
@@ -102,6 +103,9 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'update'])->name('gad-checklist.update');
         Route::post('/{proposalDraft}/gad-checklist/preview', [ProposalDraftGADChecklistController::class, 'preview'])->name('gad-checklist.preview');
         Route::post('/{proposalDraft}/gad-checklist/download', [ProposalDraftGADChecklistController::class, 'download'])->name('gad-checklist.download');
+        Route::get('/{proposalDraft}/initial-screening-form', [ProposalDraftInitialScreeningFormController::class, 'show'])->name('initial-screening-form.show');
+        Route::get('/{proposalDraft}/initial-screening-form/preview', [ProposalDraftInitialScreeningFormController::class, 'preview'])->name('initial-screening-form.preview');
+        Route::get('/{proposalDraft}/initial-screening-form/download', [ProposalDraftInitialScreeningFormController::class, 'download'])->name('initial-screening-form.download');
         Route::post('/{proposalDraft}/members', [ProposalDraftMemberController::class, 'store'])->name('members.store');
         Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');

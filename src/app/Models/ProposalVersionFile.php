@@ -20,6 +20,8 @@ class ProposalVersionFile extends Model
 
     public const TYPE_GAD_CHECKLIST = 'gad_checklist';
 
+    public const TYPE_INITIAL_SCREENING_FORM = 'initial_screening_form';
+
     public const TYPE_COMMENT_RESPONSE = 'comment_response';
 
     protected $fillable = [

@@ -6,6 +6,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
@@ -107,6 +108,10 @@ beforeEach(function () {
         $draft->update(($this->projectDetails)());
 
         foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
+            if ($paper['mode'] === 'automatic') {
+                continue;
+            }
+
             if ($paper['mode'] === 'generated') {
                 $sourceData = match ($paper['slug']) {
                     'detailed-proposal' => ($this->detailedProposal)(),
@@ -265,6 +270,9 @@ test('every draft paper and submission endpoint is protected from another owner'
         fn () => $this->put(route('faculty.proposal-drafts.gad-checklist.update', $draft), ['document_version' => 1]),
         fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft)),
         fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.download', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.show', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.preview', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.download', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.review', $draft)),
         fn () => $this->post(route('faculty.proposal-drafts.submit', $draft)),
         fn () => $this->delete(route('faculty.proposal-drafts.destroy', $draft)),
@@ -281,7 +289,7 @@ test('every draft paper and submission endpoint is protected from another owner'
     Storage::disk('local')->assertExists($document->file_path);
 });
 
-test('the proposal hub presents project details and the six code-owned required papers', function () {
+test('the proposal hub presents project details and the seven code-owned required papers', function () {
     $draft = ($this->createDraft)();
 
     $response = $this->actingAs($this->faculty)
@@ -295,6 +303,7 @@ test('the proposal hub presents project details and the six code-owned required 
             'Estimated Expense Breakdown',
             'Attachment C: Curriculum Vitae',
             'GAD Generic Checklist',
+            'Initial Screening Form',
         ]);
 
     expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(6);
@@ -446,6 +455,90 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
 
         foreach (['word/footer1.xml', 'word/footnotes.xml', 'word/numbering.xml', 'word/styles.xml', 'word/media/image1.png'] as $preservedPart) {
             expect($generated->getFromName($preservedPart))->toBe($template->getFromName($preservedPart));
+        }
+    } finally {
+        $generated->close();
+        $template->close();
+        unlink($temporaryPath);
+    }
+});
+
+test('the Initial Screening Form is automatic and preserves every evaluator-owned field', function () {
+    $draft = ($this->createDraft)();
+
+    $waitingItem = app(ProposalDraftReadiness::class)
+        ->checklist($draft)
+        ->get('initial-screening-form');
+
+    expect($waitingItem['complete'])->toBeFalse()
+        ->and($waitingItem['status'])->toBe('Waiting for project details');
+
+    $draft->update(($this->projectDetails)());
+
+    $automaticItem = app(ProposalDraftReadiness::class)
+        ->checklist($draft->fresh())
+        ->get('initial-screening-form');
+
+    expect($automaticItem['complete'])->toBeTrue()
+        ->and($automaticItem['documents'])->toBeEmpty();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.initial-screening-form.show', $draft))
+        ->assertOk()
+        ->assertSee('No faculty screening answers required')
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Faculty Owner')
+        ->assertSee('The Research/RDES Head and assigned central co-evaluator complete')
+        ->assertDontSee('name="project_title"', false)
+        ->assertDontSee('name="project_leader"', false);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.initial-screening-form.preview', $draft))
+        ->assertOk()
+        ->assertSee('BatStateU Initial Screening Form')
+        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Faculty Owner');
+
+    $download = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.initial-screening-form.download', $draft))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        ->assertDownload('coastal-habitat-restoration-initial-screening-form.docx');
+
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-screening-test-');
+    expect($temporaryPath)->not->toBeFalse();
+    file_put_contents($temporaryPath, $download->streamedContent());
+
+    $generated = new ZipArchive;
+    $template = new ZipArchive;
+
+    try {
+        expect($generated->open($temporaryPath))->toBeTrue()
+            ->and($template->open(config('initial_screening_form.template_path')))->toBeTrue();
+
+        $documentXml = $generated->getFromName('word/document.xml');
+        expect($documentXml)->not->toBeFalse();
+
+        $documentDom = new DOMDocument;
+        expect($documentDom->loadXML($documentXml, LIBXML_NONET))->toBeTrue();
+
+        expect($documentDom->textContent)
+            ->toContain('Research Project Title: Coastal Habitat Restoration')
+            ->toContain('Project Leader: Faculty Owner')
+            ->toContain('Checklist of Submitted Documents:')
+            ->toContain('Recommended Action')
+            ->toContain('Narrative Evaluation:')
+            ->toContain('Head, Research/ Head, Research and Extension')
+            ->toContain('Center Head/ Assistant Director for Research')
+            ->toContain('Director, Research/ Vice Chancellor for RDES');
+
+        for ($index = 0; $index < $template->numFiles; $index++) {
+            $entry = $template->statIndex($index);
+            $name = $entry['name'];
+
+            if ($name !== 'word/document.xml') {
+                expect($generated->getFromName($name))->toBe($template->getFromName($name));
+            }
         }
     } finally {
         $generated->close();
@@ -624,6 +717,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $version = $topic->versions()->with('files')->sole();
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
     $gadChecklist = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
+    $initialScreeningForm = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
 
     expect($topic->user_id)->toBe($this->faculty->id)
         ->and($topic->research_call_id)->toBe($this->call->id)
@@ -632,7 +726,7 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($topic->estimated_duration_months)->toBe(12)
         ->and($version->version_number)->toBe(1)
         ->and($version->submission_type)->toBe('initial')
-        ->and($version->files)->toHaveCount(6)
+        ->and($version->files)->toHaveCount(7)
         ->and($version->files->pluck('document_type')->sort()->values()->all())->toBe(collect([
             ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
             ProposalVersionFile::TYPE_WORK_PLAN,
@@ -640,13 +734,16 @@ test('final submission creates one immutable package then rejects a duplicate re
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
             ProposalVersionFile::TYPE_CURRICULUM_VITAE,
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
         ])->sort()->values()->all())
         ->and($version->files->every(fn (ProposalVersionFile $file): bool => strlen((string) $file->checksum) === 64))->toBeTrue()
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
         ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner')
         ->and($gadChecklist->source_data['project_title'])->toBe('Coastal Habitat Restoration')
-        ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner');
+        ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner')
+        ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
+        ->and($initialScreeningForm->source_data['project_leader'])->toBe('Faculty Owner');
 
     $version->files->each(
         fn (ProposalVersionFile $file) => Storage::disk('local')->assertExists($file->file_path),
