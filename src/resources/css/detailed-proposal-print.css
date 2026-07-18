@@ -1,0 +1,118 @@
+@page {
+    size: 8.5in 13in;
+    margin: 0.24in 0.75in 0.6in;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body { min-height: 100%; margin: 0; }
+
+body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, serif; }
+
+.detailed-proposal-preview-page { min-width: 8.5in; padding: 24px; }
+
+.detailed-proposal-sheet {
+    position: relative;
+    width: 8.5in;
+    min-height: 13in;
+    margin: 0 auto;
+    padding: 0.22in 0.75in 0.58in;
+    background: #fff;
+    box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
+    font-size: 11pt;
+}
+
+.detailed-proposal-table { width: 100%; table-layout: fixed; border: 1pt solid #000; border-collapse: collapse; }
+
+.detailed-proposal-table col.detailed-proposal-col-seal { width: 16%; }
+.detailed-proposal-table col.detailed-proposal-col-reference { width: 30%; }
+.detailed-proposal-table col.detailed-proposal-col-effectivity { width: 30%; }
+.detailed-proposal-table col.detailed-proposal-col-revision { width: 24%; }
+
+.detailed-proposal-table th,
+.detailed-proposal-table td {
+    padding: 2.4pt 5pt;
+    border: 1pt solid #000;
+    font-weight: 400;
+    line-height: 1.15;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+}
+
+.detailed-proposal-table p { margin: 0; }
+
+.detailed-proposal-header-cell { font-weight: 700; text-align: center !important; vertical-align: middle !important; }
+.detailed-proposal-seal { display: block; width: 0.95in; height: auto; margin: 0 auto; }
+
+.detailed-proposal-table-title { padding: 3pt 5pt !important; font-weight: 700; text-align: center !important; }
+
+.detailed-proposal-section-heading { font-weight: 700; }
+.detailed-proposal-section-note { font-weight: 400; font-style: italic; }
+.detailed-proposal-section-value { font-weight: 700; }
+.detailed-proposal-indent { padding-left: 0.45in; }
+
+.detailed-proposal-narrative p { margin: 0 0 8pt; line-height: 1.3; text-align: justify; }
+.detailed-proposal-narrative p:last-child { margin-bottom: 0; }
+.detailed-proposal-narrative .detailed-proposal-section-heading,
+.detailed-proposal-narrative p:has(.detailed-proposal-section-heading) { margin-bottom: 6pt; text-align: left; }
+
+.detailed-proposal-sdg-table { width: 100%; margin-top: 2pt; border-collapse: collapse; }
+.detailed-proposal-sdg-table td { padding: 1pt 4pt; border: 0; line-height: 1.3; }
+.detailed-proposal-sdg-box { display: inline-block; width: 0.24in; text-align: center; }
+
+.detailed-proposal-member-block + .detailed-proposal-member-block { margin-top: 10pt; }
+
+.detailed-proposal-output-list { margin: 2pt 0 0; padding-left: 0.35in; list-style: decimal outside; }
+.detailed-proposal-output-list li { margin: 0 0 2pt; padding-left: 4pt; }
+
+.detailed-proposal-methodology-heading { margin: 8pt 0 2pt !important; font-weight: 700; font-style: italic; text-align: left !important; }
+.detailed-proposal-responsibility-name { margin: 8pt 0 2pt !important; font-style: italic; text-align: left !important; }
+
+.detailed-proposal-budget-table { width: 100%; margin-top: 4pt; border: 1pt solid #000; border-collapse: collapse; }
+.detailed-proposal-budget-table th,
+.detailed-proposal-budget-table td { padding: 2.4pt 5pt; border: 1pt solid #000; text-align: left; }
+.detailed-proposal-budget-table .detailed-proposal-budget-number { width: 6%; }
+.detailed-proposal-budget-table .detailed-proposal-budget-amount { width: 26%; }
+
+.detailed-proposal-signature-cell { padding: 4pt 7pt !important; text-align: center !important; vertical-align: top !important; }
+.detailed-proposal-signature-cell p { line-height: 1.2; }
+.detailed-proposal-signature-heading { text-align: left; }
+.detailed-proposal-signature-space { height: 0.42in; }
+.detailed-proposal-signature-line { letter-spacing: -0.5pt; }
+.detailed-proposal-signature-name { font-weight: 700; text-decoration: underline; }
+.detailed-proposal-signature-date { margin-top: 0.1in !important; text-align: left; }
+
+.detailed-proposal-privacy { font-size: 9pt; line-height: 1.25; text-align: justify; }
+
+.detailed-proposal-office-heading { text-align: center !important; }
+
+.detailed-proposal-checklist p { margin: 0 0 3pt; }
+.detailed-proposal-checklist .detailed-proposal-sub-items { padding-left: 0.35in; }
+.detailed-proposal-checklist .detailed-proposal-sub-items p { margin: 0; }
+
+.detailed-proposal-notes { margin-top: 6pt; font-size: 9pt; font-style: italic; }
+.detailed-proposal-notes p { margin: 0 0 2pt; }
+.detailed-proposal-notes .detailed-proposal-note-heading { font-style: normal; }
+.detailed-proposal-notes .detailed-proposal-note-indented { padding-left: 0.45in; }
+.detailed-proposal-notes .detailed-proposal-note-detail { padding-left: 0.9in; }
+
+.detailed-proposal-sheet footer {
+    position: absolute;
+    right: 0.75in;
+    bottom: 0.22in;
+    left: 0.75in;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.2in;
+    font-size: 10pt;
+}
+
+@media print {
+    html,
+    body { background: #fff; }
+    .detailed-proposal-preview-page { min-width: 0; padding: 0; }
+    .detailed-proposal-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+    .detailed-proposal-sheet footer { position: static; margin-top: 0.2in; }
+}

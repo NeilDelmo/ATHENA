@@ -98,6 +98,56 @@ test('the detailed proposal editor uses the official sections and pulls the lead
         ->assertSee('Ctrl + S');
 });
 
+test('the preview mirrors the official bordered form layout', function () {
+    $response = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
+        ->assertOk()
+        ->assertSee('detailed-proposal-table')
+        ->assertSee('images/batstateu-logo.png')
+        ->assertSee('Reference No.: BatStateU-FO-RES-02')
+        ->assertSee('Effectivity Date: August 22, 2023')
+        ->assertSee('Revision No.: 04')
+        ->assertSee('DETAILED RESEARCH PROPOSAL')
+        ->assertSee('I. Research Project Title:')
+        ->assertSee('Community Coastal Research')
+        ->assertSee('II. BatStateU Research Agenda:')
+        ->assertSee('III. Sustainable Development Goal:')
+        ->assertSee('SDG17: Partnerships for the Goals')
+        ->assertSee('IV. Project Leader:')
+        ->assertSee('Project Staff (s):')
+        ->assertSee('staff@g.batstate-u.edu.ph')
+        ->assertSee('V. Proponent Agency:')
+        ->assertSee('VI. Cooperating Agency:')
+        ->assertSee('Municipality of Nasugbu')
+        ->assertSee('VII. Executive Brief:')
+        ->assertSee('VIII. Rationale:')
+        ->assertSee('IX. Objectives of the Project:')
+        ->assertSee('X. Expected Output of the Project:')
+        ->assertSee('One peer-reviewed journal article')
+        ->assertSee('XI. Review of Related Literature:')
+        ->assertSee('XII. Methodology:')
+        ->assertSee('XIII. Duties and Responsibilities of each member:')
+        ->assertSee('XIV. Major Activities/Workplan (Gantt Chart):')
+        ->assertSee('See attached Form A')
+        ->assertSee('XV. Line-Item Budget:')
+        ->assertSee('See attached Form B')
+        ->assertSee('Maintenance and Operating Expenses')
+        ->assertSee('Capital Outlay and Equipment')
+        ->assertSee('XVI. References:')
+        ->assertSee('XVII. Curriculum Vitae:')
+        ->assertSee('See attached Form C')
+        ->assertSee('Data Privacy Act of 2012')
+        ->assertSee('To be accomplished by the Research Office')
+        ->assertSee('To be accomplished by the Researcher/s')
+        ->assertSee('Tracking No.');
+
+    $content = $response->getContent();
+
+    expect(substr_count($content, '☒'))->toBe(3)
+        ->and(substr_count($content, '☐'))->toBe(18)
+        ->and(substr_count($content, 'Php 0.00'))->toBe(2);
+});
+
 test('structured detailed proposal data saves, resumes, and observes optimistic locking', function () {
     $payload = ($this->payload)();
 
