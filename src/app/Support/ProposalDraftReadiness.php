@@ -15,7 +15,7 @@ class ProposalDraftReadiness
     {
         return $draft->projectDetailsAreComplete()
             && $draft->duration_months >= 1
-            && $draft->duration_months <= 12
+            && $draft->duration_months <= (int) config('work_plan.max_duration_months')
             && $draft->planned_end->greaterThanOrEqualTo($draft->planned_start);
     }
 

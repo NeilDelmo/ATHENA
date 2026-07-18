@@ -330,32 +330,41 @@ test('project details are validated once and reused by the Work Plan workflow', 
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
-            'duration_months' => 13,
+            'duration_months' => 121,
             'planned_end' => '2026-07-31',
         ]))
         ->assertSessionHasErrors(['duration_months', 'planned_end']);
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)())
+        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+            'duration_months' => 18,
+            'planned_end' => '2028-01-31',
+        ]))
         ->assertRedirect(route('faculty.proposal-drafts.details.edit', $draft))
         ->assertSessionHas('success', 'Project details saved.');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)(['draft_version' => 1, 'exit_after_save' => '1']))
+        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+            'draft_version' => 1,
+            'duration_months' => 18,
+            'planned_end' => '2028-01-31',
+            'exit_after_save' => '1',
+        ]))
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
 
     $draft->refresh();
     expect($draft->project_title)->toBe('Coastal Habitat Restoration')
-        ->and($draft->duration_months)->toBe(12)
+        ->and($draft->duration_months)->toBe(18)
         ->and($draft->planned_start->toDateString())->toBe('2026-08-01')
-        ->and($draft->planned_end->toDateString())->toBe('2027-07-31')
+        ->and($draft->planned_end->toDateString())->toBe('2028-01-31')
         ->and($draft->project_leader)->toBe('Faculty Owner');
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.work-plan.edit', $draft))
         ->assertOk()
         ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Faculty Owner');
+        ->assertSee('Faculty Owner')
+        ->assertSee('Each 12-month block becomes a matching Attachment A year sheet.');
 });
 
 test('the GAD checklist preserves the supplied seven-page document and fills shared project details automatically', function () {

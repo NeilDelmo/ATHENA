@@ -85,11 +85,11 @@ test('the Work Plan preview and download are limited to faculty roles', function
         ->assertForbidden();
 });
 
-test('the Work Plan validates the fixed Year 1 layout and dynamic objectives', function () {
+test('the Work Plan validates the supported multi-year duration and dynamic objectives', function () {
     $payload = ($this->validWorkPlan)();
-    $payload['total_duration_months'] = 13;
+    $payload['total_duration_months'] = 121;
     $payload['planned_end'] = '2026-07-31';
-    $payload['entries'][0]['months'] = [13];
+    $payload['entries'][0]['months'] = [121];
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.work-plans.preview'), $payload)
@@ -214,6 +214,42 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->and($response->getContent())->not->toContain('>X<');
 });
 
+test('the preview reuses Attachment A for every 12-month project year', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['total_duration_months'] = 18;
+    $payload['planned_end'] = '2028-01-31';
+    $payload['entries'] = [
+        [
+            'objective' => 'Complete the multi-year habitat study',
+            'expected_output' => 'Longitudinal habitat study',
+            'activity' => 'Collect and compare annual habitat observations',
+            'months' => [1, 13, 18],
+        ],
+        [
+            'objective' => 'Complete the first-year community review',
+            'expected_output' => 'Community review report',
+            'activity' => 'Conduct the year-end community review',
+            'months' => [12],
+        ],
+    ];
+
+    $response = $this->actingAs($this->faculty)
+        ->post(route('faculty.work-plans.preview'), $payload)
+        ->assertOk()
+        ->assertSee('data-work-plan-year="1"', false)
+        ->assertSee('data-work-plan-year="2"', false)
+        ->assertSee('>Y1<', false)
+        ->assertSee('>Y2<', false)
+        ->assertSee('data-scheduled-month="13"', false)
+        ->assertSee('data-scheduled-month="18"', false);
+
+    expect(substr_count($response->getContent(), 'data-work-plan-year'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-work-plan-entry-row'))->toBe(4)
+        ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(4)
+        ->and(substr_count($response->getContent(), 'Attachment A-BatStateU-FO-RES-02'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(4);
+});
+
 test('the Word download patches only the official template body', function () {
     $payload = ($this->validWorkPlan)();
     $payload['entries'] = collect(range(1, 7))
@@ -318,6 +354,69 @@ test('the Word download patches only the official template body', function () {
         $generatedArchive->close();
         $templateArchive->close();
     } finally {
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
+test('the Word download clones the official Attachment A sheet for projects above 12 months', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['total_duration_months'] = 18;
+    $payload['planned_end'] = '2028-01-31';
+    $payload['entries'] = [
+        [
+            'objective' => 'Complete the multi-year habitat study',
+            'expected_output' => 'Longitudinal habitat study',
+            'activity' => 'Collect and compare annual habitat observations',
+            'months' => [1, 13, 18],
+        ],
+        [
+            'objective' => 'Complete the first-year community review',
+            'expected_output' => 'Community review report',
+            'activity' => 'Conduct the year-end community review',
+            'months' => [12],
+        ],
+    ];
+
+    $response = $this->actingAs($this->faculty)
+        ->post(route('faculty.work-plans.download'), $payload)
+        ->assertOk()
+        ->assertDownload('community-led-coastal-habitat-restoration-work-plan.docx');
+
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'multi-year-work-plan-test-');
+    file_put_contents($temporaryPath, $response->streamedContent());
+
+    $generatedArchive = new ZipArchive;
+    $templateArchive = new ZipArchive;
+
+    try {
+        expect($generatedArchive->open($temporaryPath))->toBeTrue()
+            ->and($templateArchive->open(config('work_plan.template_path')))->toBeTrue();
+
+        $documentXml = $generatedArchive->getFromName('word/document.xml');
+        $document = new DOMDocument;
+        $document->loadXML($documentXml, LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($xpath->query('//w:body/w:tbl')->length)->toBe(2)
+            ->and($xpath->query('//w:body/w:p[normalize-space(.) = "MAJOR ACTIVITIES/WORK PLAN"]')->length)->toBe(2)
+            ->and($xpath->query('//w:body/w:p/w:r/w:br[@w:type = "page"]')->length)->toBe(1)
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[4]/w:tc[last()])')))->toBe('Y1')
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[2]/w:tr)[4]/w:tc[last()])')))->toBe('Y2')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(8)
+            ->and($xpath->query('//w:body/w:tbl[2]/w:tr')->length)->toBe(8)
+            ->and($xpath->query('//w:body/w:tbl[1]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
+            ->and($xpath->query('//w:body/w:tbl[2]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
+            ->and(substr_count($documentXml, 'Community-led Coastal Habitat Restoration'))->toBe(2)
+            ->and(substr_count($documentXml, 'Faculty Project Leader'))->toBe(2)
+            ->and($generatedArchive->getFromName('word/header2.xml'))->toBe($templateArchive->getFromName('word/header2.xml'))
+            ->and($generatedArchive->getFromName('word/styles.xml'))->toBe($templateArchive->getFromName('word/styles.xml'));
+    } finally {
+        $generatedArchive->close();
+        $templateArchive->close();
+
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
         }

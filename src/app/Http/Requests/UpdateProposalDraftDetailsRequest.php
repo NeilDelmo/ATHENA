@@ -23,7 +23,7 @@ class UpdateProposalDraftDetailsRequest extends FormRequest
         return [
             'draft_version' => ['required', 'integer', 'min:0'],
             'project_title' => ['required', 'string', 'max:255'],
-            'duration_months' => ['required', 'integer', 'min:1', 'max:12'],
+            'duration_months' => ['required', 'integer', 'min:1', 'max:'.config('work_plan.max_duration_months')],
             'planned_start' => ['required', 'date'],
             'planned_end' => ['required', 'date', 'after_or_equal:planned_start'],
             'project_leader' => ['required', 'string', 'max:120'],

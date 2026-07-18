@@ -48,8 +48,8 @@
                 <div class="grid gap-6 md:grid-cols-3">
                     <div>
                         <label for="duration_months" class="block text-xs font-black uppercase tracking-wider text-gray-600">Total Duration <span class="text-red-600">Required</span></label>
-                        <div class="relative mt-2"><input id="duration_months" name="duration_months" type="number" min="1" max="12" value="{{ old('duration_months', $proposalDraft->duration_months) }}" required class="block w-full rounded-xl border-gray-300 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"><span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold text-gray-500">months</span></div>
-                        <p class="mt-2 text-[11px] text-gray-500">Attachment A supports Year 1, M1–M12.</p>
+                        <div class="relative mt-2"><input id="duration_months" name="duration_months" type="number" min="1" max="{{ config('work_plan.max_duration_months') }}" value="{{ old('duration_months', $proposalDraft->duration_months) }}" required class="block w-full rounded-xl border-gray-300 pr-20 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"><span class="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs font-bold text-gray-500">months</span></div>
+                        <p class="mt-2 text-[11px] text-gray-500">Attachment A adds one M1–M12 sheet for each 12-month project period.</p>
                         @error('duration_months')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>

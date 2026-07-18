@@ -1794,8 +1794,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     nextEntryId: 0,
     entries: [],
     maxEntries: Number(config.maxEntries || 20),
-    months: Array.from({ length: 12 }, (_, index) => index + 1),
     durationMonths: Number(config.durationMonths || 12),
+    months: Array.from(
+        { length: Math.max(1, Number(config.durationMonths || 12)) },
+        (_, index) => index + 1,
+    ),
     monthErrorIndexes: [],
     monthConflictIndexes: [],
     validationMessage: '',
@@ -1853,6 +1856,35 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.validationMessage = '';
     },
 
+    get yearGroups() {
+        const yearCount = Math.ceil(this.durationMonths / 12);
+
+        return Array.from({ length: yearCount }, (_, index) => {
+            const firstMonth = (index * 12) + 1;
+            const lastMonth = Math.min(firstMonth + 11, this.durationMonths);
+
+            return {
+                year: index + 1,
+                months: Array.from(
+                    { length: lastMonth - firstMonth + 1 },
+                    (_, monthIndex) => firstMonth + monthIndex,
+                ),
+            };
+        });
+    },
+
+    yearNumberForMonth(month) {
+        return Math.ceil(month / 12);
+    },
+
+    localMonthNumber(month) {
+        return ((month - 1) % 12) + 1;
+    },
+
+    monthScheduleLabel(month) {
+        return `Y${this.yearNumberForMonth(month)}/M${this.localMonthNumber(month)} (project M${month})`;
+    },
+
     isMonthWithinDuration(month) {
         return Number.isInteger(this.durationMonths)
             && this.durationMonths >= 1
@@ -1887,14 +1919,14 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
     monthSelectionTitle(entryIndex, month) {
         if (!this.isMonthWithinDuration(month)) {
-            return `M${month} is outside the project duration.`;
+            return `${this.monthScheduleLabel(month)} is outside the project duration.`;
         }
 
         const ownerIndex = this.monthOwnerIndex(entryIndex, month);
 
         return ownerIndex === -1
-            ? `Assign M${month} to Objective ${entryIndex + 1}`
-            : `M${month} is assigned to Objective ${ownerIndex + 1}`;
+            ? `Assign ${this.monthScheduleLabel(month)} to Objective ${entryIndex + 1}`
+            : `${this.monthScheduleLabel(month)} is assigned to Objective ${ownerIndex + 1}`;
     },
 
     monthConflicts() {
@@ -1965,7 +1997,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         const firstConflict = conflicts[0];
         this.monthConflictIndexes = [...new Set(conflicts.map((conflict) => conflict.entryIndex))];
-        this.validationMessage = `M${firstConflict.month} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
+        this.validationMessage = `${this.monthScheduleLabel(firstConflict.month)} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
         this.$nextTick(() => {
             this.$refs.form
                 ?.querySelector(`[name="entries[${firstConflict.entryIndex}][months][]"][value="${firstConflict.month}"]`)

@@ -21,7 +21,7 @@ return [
     'work-plan' => [
         'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
         'label' => 'Attachment A: Work Plan',
-        'description' => 'Objectives, expected outputs, activities, and the Year 1 M1–M12 schedule.',
+        'description' => 'Objectives, expected outputs, activities, and an M1–M12 Attachment A sheet for each project year.',
         'order' => 2,
         'mode' => 'generated',
         'template_slug' => null,

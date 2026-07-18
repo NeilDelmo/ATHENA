@@ -7,11 +7,12 @@
         @vite('resources/css/work-plan-print.css')
     </head>
     <body class="work-plan-preview-page">
-        <main class="work-plan-sheet" aria-label="BatStateU Attachment A Work Plan">
-            <p class="work-plan-form-code">Attachment A-BatStateU-FO-RES-02</p>
-            <h1>MAJOR ACTIVITIES/WORK PLAN</h1>
+        @for ($year = 1; $year <= $workPlan['year_count']; $year++)
+            <main class="work-plan-sheet" aria-label="BatStateU Attachment A Work Plan year {{ $year }}" data-work-plan-year="{{ $year }}">
+                <p class="work-plan-form-code">Attachment A-BatStateU-FO-RES-02</p>
+                <h1>MAJOR ACTIVITIES/WORK PLAN</h1>
 
-            <table class="work-plan-table">
+                <table class="work-plan-table">
                 <colgroup>
                     <col style="width: 22.7691%">
                     <col style="width: 18.3508%">
@@ -52,7 +53,7 @@
                         <th rowspan="2" scope="col">Objectives</th>
                         <th rowspan="2" scope="col">Expected Output</th>
                         <th rowspan="2" colspan="2" scope="col">Activities or Workplan</th>
-                        <th colspan="12" scope="colgroup">Y1</th>
+                        <th colspan="12" scope="colgroup">Y{{ $year }}</th>
                     </tr>
                     <tr class="work-plan-month-heading-row">
                         @for ($month = 1; $month <= 12; $month++)
@@ -64,10 +65,11 @@
                             <td class="work-plan-objective-cell">{{ $entry['objective'] }}</td>
                             <td class="work-plan-output-cell">{{ $entry['expected_output'] }}</td>
                             <td colspan="2" class="work-plan-activity-cell">{{ $entry['activity'] }}</td>
-                            @for ($month = 1; $month <= 12; $month++)
+                            @for ($localMonth = 1; $localMonth <= 12; $localMonth++)
+                                @php($globalMonth = (($year - 1) * 12) + $localMonth)
                                 <td
-                                    class="work-plan-month-mark {{ in_array($month, $entry['months'], true) ? 'is-active' : '' }}"
-                                    @if (in_array($month, $entry['months'], true)) data-scheduled-month="{{ $month }}" @endif
+                                    class="work-plan-month-mark {{ in_array($globalMonth, $entry['months'], true) ? 'is-active' : '' }}"
+                                    @if (in_array($globalMonth, $entry['months'], true)) data-scheduled-month="{{ $globalMonth }}" @endif
                                 ></td>
                             @endfor
                         </tr>
@@ -93,7 +95,8 @@
                         </td>
                     </tr>
                 </tbody>
-            </table>
-        </main>
+                </table>
+            </main>
+        @endfor
     </body>
 </html>

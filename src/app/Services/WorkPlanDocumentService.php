@@ -89,16 +89,41 @@ class WorkPlanDocumentService
         $xpath->registerNamespace('w', self::WORD_NAMESPACE);
         $xpath->registerNamespace('w14', self::WORD_2010_NAMESPACE);
 
+        $body = $this->firstElement($xpath, '//w:body');
+        $heading = $this->firstElement($xpath, './w:p[1]', $body);
         $table = $this->firstElement($xpath, '//w:body/w:tbl[1]');
-        $rows = $this->elements($xpath, './w:tr', $table);
+        $headingTemplate = $heading->cloneNode(true);
+        $tableTemplate = $table->cloneNode(true);
 
-        if (count($rows) < 12) {
-            throw new RuntimeException('The Work Plan template table structure is incomplete.');
+        if (! $headingTemplate instanceof DOMElement || ! $tableTemplate instanceof DOMElement) {
+            throw new RuntimeException('The Work Plan template page structure could not be cloned.');
         }
 
-        $this->fillMetadata($xpath, $rows, $workPlan);
-        $this->replaceObjectiveRows($xpath, $table, $rows, $workPlan['entries']);
-        $this->fillSignatures($xpath, $rows[11], $workPlan);
+        $insertionPoint = $this->nextElementSibling($table)
+            ?? $this->firstElement($xpath, './w:sectPr', $body);
+        $yearCount = max(1, (int) ($workPlan['year_count'] ?? ceil($workPlan['total_duration_months'] / 12)));
+
+        for ($year = 1; $year <= $yearCount; $year++) {
+            if ($year === 1) {
+                $yearTable = $table;
+            } else {
+                $body->insertBefore($this->createPageBreakParagraph($document), $insertionPoint);
+
+                $yearHeading = $headingTemplate->cloneNode(true);
+                $yearTable = $tableTemplate->cloneNode(true);
+
+                if (! $yearHeading instanceof DOMElement || ! $yearTable instanceof DOMElement) {
+                    throw new RuntimeException('An additional Work Plan year sheet could not be cloned.');
+                }
+
+                $this->removeWordIdentityAttributes($xpath, $yearHeading);
+                $this->removeWordIdentityAttributes($xpath, $yearTable);
+                $body->insertBefore($yearHeading, $insertionPoint);
+                $body->insertBefore($yearTable, $insertionPoint);
+            }
+
+            $this->renderYearTable($xpath, $yearTable, $workPlan, $year);
+        }
 
         $renderedXml = $document->saveXML();
 
@@ -107,6 +132,27 @@ class WorkPlanDocumentService
         }
 
         return $renderedXml;
+    }
+
+    /**
+     * @param  array<string, mixed>  $workPlan
+     */
+    private function renderYearTable(
+        DOMXPath $xpath,
+        DOMElement $table,
+        array $workPlan,
+        int $year,
+    ): void {
+        $rows = $this->elements($xpath, './w:tr', $table);
+
+        if (count($rows) < 12) {
+            throw new RuntimeException('The Work Plan template table structure is incomplete.');
+        }
+
+        $this->fillMetadata($xpath, $rows, $workPlan);
+        $this->fillYearHeading($xpath, $rows[3], $year);
+        $this->replaceObjectiveRows($xpath, $table, $rows, $workPlan['entries'], $year);
+        $this->fillSignatures($xpath, $rows[11], $workPlan);
     }
 
     /**
@@ -134,6 +180,18 @@ class WorkPlanDocumentService
         $this->appendMetadataValue($xpath, $durationCells[2], $workPlan['planned_end']);
     }
 
+    private function fillYearHeading(DOMXPath $xpath, DOMElement $headingRow, int $year): void
+    {
+        $cells = $this->elements($xpath, './w:tc', $headingRow);
+        $yearCell = $cells[array_key_last($cells)] ?? null;
+
+        if (! $yearCell instanceof DOMElement) {
+            throw new RuntimeException('The Work Plan year heading slot is missing.');
+        }
+
+        $this->replaceCellText($xpath, $yearCell, 'Y'.$year, false, 'center');
+    }
+
     /**
      * @param  array<int, array<string, mixed>>  $entries
      * @param  array<int, DOMElement>  $sourceRows
@@ -143,6 +201,7 @@ class WorkPlanDocumentService
         DOMElement $table,
         array $sourceRows,
         array $entries,
+        int $year,
     ): void {
         $rowTemplate = $sourceRows[5]->cloneNode(true);
         $signatureRow = $sourceRows[11];
@@ -170,10 +229,11 @@ class WorkPlanDocumentService
             $this->replaceCellText($xpath, $cells[2], $entry['activity'], false, 'left');
 
             for ($month = 1; $month <= 12; $month++) {
+                $globalMonth = (($year - 1) * 12) + $month;
                 $this->setMonthShading(
                     $xpath,
                     $cells[$month + 2],
-                    in_array($month, $entry['months'], true),
+                    in_array($globalMonth, $entry['months'], true),
                 );
             }
 
@@ -411,7 +471,7 @@ class WorkPlanDocumentService
 
     private function removeWordIdentityAttributes(DOMXPath $xpath, DOMElement $row): void
     {
-        foreach ($this->elements($xpath, './/*', $row) as $element) {
+        foreach ([$row, ...$this->elements($xpath, './/*', $row)] as $element) {
             foreach ([
                 [self::WORD_2010_NAMESPACE, 'paraId'],
                 [self::WORD_2010_NAMESPACE, 'textId'],
@@ -422,6 +482,29 @@ class WorkPlanDocumentService
                 $element->removeAttributeNS($namespace, $attribute);
             }
         }
+    }
+
+    private function createPageBreakParagraph(DOMDocument $document): DOMElement
+    {
+        $paragraph = $document->createElementNS(self::WORD_NAMESPACE, 'w:p');
+        $run = $document->createElementNS(self::WORD_NAMESPACE, 'w:r');
+        $break = $document->createElementNS(self::WORD_NAMESPACE, 'w:br');
+        $break->setAttributeNS(self::WORD_NAMESPACE, 'w:type', 'page');
+        $run->appendChild($break);
+        $paragraph->appendChild($run);
+
+        return $paragraph;
+    }
+
+    private function nextElementSibling(DOMElement $element): ?DOMElement
+    {
+        for ($sibling = $element->nextSibling; $sibling !== null; $sibling = $sibling->nextSibling) {
+            if ($sibling instanceof DOMElement) {
+                return $sibling;
+            }
+        }
+
+        return null;
     }
 
     private function dateSignedLabel(): string

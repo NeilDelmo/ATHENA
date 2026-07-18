@@ -15,7 +15,7 @@ class WorkPlanRules
     {
         return [
             'project_title' => [$presenceRule, 'string', 'max:255'],
-            'total_duration_months' => [$presenceRule, 'integer', 'min:1', 'max:12'],
+            'total_duration_months' => [$presenceRule, 'integer', 'min:1', 'max:'.config('work_plan.max_duration_months')],
             'planned_start' => [$presenceRule, 'date'],
             'planned_end' => [$presenceRule, 'date', 'after_or_equal:planned_start'],
             'entries' => [$presenceRule, 'array', 'min:1', 'max:'.config('work_plan.max_objectives')],
@@ -23,8 +23,8 @@ class WorkPlanRules
             'entries.*.objective' => [$presenceRule, 'string', 'max:500'],
             'entries.*.expected_output' => [$presenceRule, 'string', 'max:500'],
             'entries.*.activity' => [$presenceRule, 'string', 'max:1500'],
-            'entries.*.months' => [$presenceRule, 'array', 'min:1', 'max:12'],
-            'entries.*.months.*' => ['integer', Rule::in(range(1, 12)), 'lte:total_duration_months'],
+            'entries.*.months' => [$presenceRule, 'array', 'min:1', 'max:'.config('work_plan.max_duration_months')],
+            'entries.*.months.*' => ['integer', Rule::in(range(1, (int) config('work_plan.max_duration_months'))), 'lte:total_duration_months'],
             'prepared_by' => [$presenceRule, 'string', 'max:120'],
         ];
     }

@@ -13,6 +13,7 @@ class WorkPlanData
      *     project_title: string,
      *     total_duration_months: int,
      *     total_duration_label: string,
+     *     year_count: int,
      *     planned_start: string,
      *     planned_end: string,
      *     entries: array<int, array{objective: string, expected_output: string, activity: string, months: array<int, int>}>,
@@ -29,6 +30,7 @@ class WorkPlanData
             'project_title' => $validated['project_title'],
             'total_duration_months' => $duration,
             'total_duration_label' => $duration.' '.Str::plural('month', $duration),
+            'year_count' => (int) ceil($duration / 12),
             'planned_start' => Carbon::parse($validated['planned_start'])->format('F j, Y'),
             'planned_end' => Carbon::parse($validated['planned_end'])->format('F j, Y'),
             'entries' => collect($validated['entries'])

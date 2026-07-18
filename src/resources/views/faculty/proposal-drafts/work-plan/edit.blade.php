@@ -113,19 +113,30 @@
                         </div>
 
                         <fieldset class="mt-5">
-                            <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Y1 Gantt Schedule <span class="text-red-600">Required</span></legend>
-                            <p class="mt-2 text-xs leading-5 text-gray-500">Months assigned to another objective are locked. Remove that month from its current objective before reassigning it.</p>
-                            <div class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
-                                <template x-for="month in months" :key="month">
-                                    <label
-                                        class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
-                                        x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : (isMonthSelectable(index, month) ? 'border-gray-200 bg-white text-gray-600 hover:border-gray-300' : (isMonthWithinDuration(month) ? 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700' : 'cursor-not-allowed border-gray-100 bg-gray-100 text-gray-300'))"
-                                        x-bind:title="monthSelectionTitle(index, month)"
-                                    >
-                                        <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
-                                        <span x-text="`M${month}`"></span>
-                                        <span x-show="monthOwnerLabel(index, month)" x-text="monthOwnerLabel(index, month)" class="mt-0.5 text-[9px] font-bold uppercase tracking-wide"></span>
-                                    </label>
+                            <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <span class="text-red-600">Required</span></legend>
+                            <p class="mt-2 text-xs leading-5 text-gray-500">Each 12-month block becomes a matching Attachment A year sheet. Months assigned to another objective are locked until they are removed from that objective.</p>
+                            <div class="mt-3 grid gap-4">
+                                <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
+                                    <section class="rounded-xl border border-gray-200 bg-gray-50 p-3" x-bind:aria-label="`Year ${yearGroup.year} schedule`">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <p class="text-xs font-black uppercase tracking-wider text-gray-700" x-text="`Y${yearGroup.year}`"></p>
+                                            <p class="text-[10px] font-semibold text-gray-500" x-text="`Project months ${yearGroup.months[0]}-${yearGroup.months[yearGroup.months.length - 1]}`"></p>
+                                        </div>
+                                        <div class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+                                            <template x-for="month in yearGroup.months" :key="month">
+                                                <label
+                                                    class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
+                                                    x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : (isMonthSelectable(index, month) ? 'border-gray-200 bg-white text-gray-600 hover:border-gray-300' : 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700')"
+                                                    x-bind:title="monthSelectionTitle(index, month)"
+                                                >
+                                                    <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
+                                                    <span x-text="`M${localMonthNumber(month)}`"></span>
+                                                    <span x-show="yearGroup.year > 1" class="mt-0.5 text-[9px] font-semibold text-gray-500" x-text="`Project M${month}`"></span>
+                                                    <span x-show="monthOwnerLabel(index, month)" x-text="monthOwnerLabel(index, month)" class="mt-0.5 text-[9px] font-bold uppercase tracking-wide"></span>
+                                                </label>
+                                            </template>
+                                        </div>
+                                    </section>
                                 </template>
                             </div>
                             <p x-show="monthErrorIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">Select at least one month for this objective.</p>
