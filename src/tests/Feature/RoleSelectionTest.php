@@ -22,9 +22,19 @@ test('dual role users are asked which workspace they want to use', function () {
     $this->actingAs($this->dualRoleUser)
         ->get(route('role-selection.show'))
         ->assertOk()
-        ->assertSee('How would you like to continue?')
+        ->assertSee('Choose your workspace')
         ->assertSee('Continue as Faculty')
-        ->assertSee('Continue as Research Coordinator');
+        ->assertSee('Continue as Research Coordinator')
+        ->assertSee('Open workspace');
+});
+
+test('dual role users can open workspace switching from the account menu', function () {
+    $this->actingAs($this->dualRoleUser)
+        ->withSession(['active_role' => 'faculty'])
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Switch Workspace')
+        ->assertSee(route('role-selection.show'), false);
 });
 
 test('users can continue as faculty for the current session', function () {
