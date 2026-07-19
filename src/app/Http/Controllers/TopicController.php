@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class TopicController extends Controller
@@ -98,9 +99,26 @@ class TopicController extends Controller
             ->sortByDesc('version_number')
             ->first();
 
-        $requiredDocuments = app(ProposalPaperCatalog::class)
-            ->all()
+        $paperCatalog = app(ProposalPaperCatalog::class);
+        $requiredDocuments = $paperCatalog->all()
             ->mapWithKeys(fn (array $paper): array => [$paper['document_type'] => $paper['label']]);
+        $paperOrder = $paperCatalog->all()
+            ->pluck('order', 'document_type');
+        $submittedFiles = ($latestVersion?->files ?? collect())
+            ->sortBy(fn (ProposalVersionFile $file): string => sprintf(
+                '%03d-%03d',
+                (int) $paperOrder->get($file->document_type, 999),
+                $file->position,
+            ))
+            ->values();
+        $availableSubmittedFileIds = $submittedFiles
+            ->filter(fn (ProposalVersionFile $file): bool => Storage::disk('local')->exists($file->file_path))
+            ->pluck('id');
+        $viewableSubmittedFileIds = $submittedFiles
+            ->filter(fn (ProposalVersionFile $file): bool => $availableSubmittedFileIds->contains($file->id)
+                && ($file->mime_type === 'application/pdf'
+                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+            ->pluck('id');
 
         $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
             $files = $latestVersion?->files->where('document_type', $type) ?? collect();
@@ -165,6 +183,9 @@ class TopicController extends Controller
             'pendingFileRevisions',
             'screeningTemplates',
             'draftHistoryCount',
+            'submittedFiles',
+            'availableSubmittedFileIds',
+            'viewableSubmittedFileIds',
         ));
     }
 
@@ -467,6 +488,32 @@ class TopicController extends Controller
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
 
         return Storage::disk('local')->download($file->file_path, $file->original_filename);
+    }
+
+    public function viewVersionFile(
+        Request $request,
+        TopicProposal $topic,
+        ProposalVersion $version,
+        ProposalVersionFile $file,
+    ): StreamedResponse {
+        $this->ensureCanViewTopic($request, $topic);
+        abort_unless($version->topic_id === $topic->id, 404);
+        abort_unless($file->proposal_version_id === $version->id, 404);
+        abort_unless(Storage::disk('local')->exists($file->file_path), 404);
+        abort_unless(
+            $file->mime_type === 'application/pdf'
+                || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf',
+            415,
+        );
+
+        return Storage::disk('local')->response(
+            $file->file_path,
+            $file->original_filename,
+            [
+                'Content-Type' => 'application/pdf',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
+        );
     }
 
     public function downloadApproval(TopicProposal $topic)

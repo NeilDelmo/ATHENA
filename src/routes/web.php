@@ -149,6 +149,9 @@ Route::get('/topics/{topic}/versions/{version}/download', [TopicController::clas
 Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicController::class, 'downloadVersionFile'])
     ->middleware('auth')
     ->name('topics.versions.files.download');
+Route::get('/topics/{topic}/versions/{version}/files/{file}/view', [TopicController::class, 'viewVersionFile'])
+    ->middleware('auth')
+    ->name('topics.versions.files.view');
 Route::get('/topics/{topic}/draft-history', [ProposalDraftDocumentVersionController::class, 'archived'])
     ->middleware('auth')
     ->name('topics.draft-history.index');

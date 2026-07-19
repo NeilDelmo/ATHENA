@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProposalTemplate;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -29,8 +28,7 @@ class ResearchHeadTopicController extends Controller
         ];
 
         $topics = TopicProposal::with([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports:id,topic_id,review_status',
-            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
+            'user', 'researchCall', 'category', 'versions.submitter', 'versions.files', 'reviews.reviewer', 'progressReports:id,topic_id,review_status',
         ])
             ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
             ->when($search !== '', function ($query) use ($search) {
@@ -44,14 +42,7 @@ class ResearchHeadTopicController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $experts = User::role('expert')->orderBy('name')->get();
-        $screeningTemplates = ProposalTemplate::active()
-            ->where('workflow_stage', ProposalTemplate::STAGE_INITIAL_SCREENING)
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path));
-
-        return view('research_head.dashboard', compact('topics', 'experts', 'screeningTemplates', 'summary', 'status', 'search'));
+        return view('research_head.dashboard', compact('topics', 'summary', 'status', 'search'));
     }
 
     public function updateStatus(Request $request, TopicProposal $topic)

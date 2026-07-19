@@ -554,7 +554,7 @@ test('the research catalog is unavailable to regular faculty and the research he
         ->assertForbidden();
 });
 
-test('research support is available to faculty and faculty researchers', function () {
+test('research support is available to authenticated users', function () {
     $this->withoutVite();
 
     $researcher = User::factory()->create();
@@ -576,7 +576,9 @@ test('research support is available to faculty and faculty researchers', functio
         ->assertOk()
         ->assertSee('Research Help Facility');
 
-    $this->actingAs($head)->get('/research-support')->assertForbidden();
+    $this->actingAs($head)
+        ->get('/research-support')
+        ->assertOk();
 });
 
 test('proposal versions are downloadable only by authorized topic participants', function () {
@@ -634,12 +636,26 @@ test('proposal versions are downloadable only by authorized topic participants',
         ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
         ->assertDownload('audited-proposal.pdf');
 
+    $inlineResponse = $this->actingAs($head)
+        ->get(route('topics.versions.files.view', [$topic, $version, $packageFile]))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('x-content-type-options', 'nosniff');
+
+    expect($inlineResponse->headers->get('content-disposition'))
+        ->toContain('inline')
+        ->toContain('audited-proposal.pdf');
+
     $this->actingAs($otherFaculty)
         ->get(route('topics.versions.download', [$topic, $version]))
         ->assertForbidden();
 
     $this->actingAs($otherFaculty)
         ->get(route('topics.versions.files.download', [$topic, $version, $packageFile]))
+        ->assertForbidden();
+
+    $this->actingAs($otherFaculty)
+        ->get(route('topics.versions.files.view', [$topic, $version, $packageFile]))
         ->assertForbidden();
 });
 
@@ -716,6 +732,12 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($head)
         ->get(route('topics.show', $topic))
         ->assertOk()
+        ->assertSee('Submitted proposal files')
+        ->assertSee('7/7 PDFs available')
+        ->assertSee('Detailed Research Proposal')
+        ->assertSee('Initial Screening Form')
+        ->assertSee('View PDF')
+        ->assertSee('Download PDF')
         ->assertSee('Research Head action');
 
     $this->actingAs($expert)

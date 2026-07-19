@@ -52,6 +52,63 @@
 
         <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div class="space-y-6">
+                <section id="submitted-files" aria-labelledby="submitted-files-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm scroll-mt-6">
+                    <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-wider text-red-600">Received package</p>
+                            <h3 id="submitted-files-heading" class="mt-1 text-base font-black text-gray-900">Submitted proposal files</h3>
+                            <p class="mt-1 text-xs text-gray-500">
+                                @if ($latestVersion)
+                                    Version {{ $latestVersion->version_number }} submitted by {{ $latestVersion->submitter?->name ?? $topic->user->name }} on {{ $latestVersion->created_at->format('M j, Y g:i A') }}.
+                                @else
+                                    No submitted version is available.
+                                @endif
+                            </p>
+                        </div>
+                        <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800' }}">
+                            {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} PDFs available
+                        </span>
+                    </div>
+
+                    <div class="divide-y divide-gray-100">
+                        @forelse ($submittedFiles as $file)
+                            @php
+                                $fileAvailable = $availableSubmittedFileIds->contains($file->id);
+                                $fileViewable = $viewableSubmittedFileIds->contains($file->id);
+                            @endphp
+                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                                <div class="flex min-w-0 items-start gap-3">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $fileAvailable ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400' }} text-[10px] font-black">PDF</span>
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <h4 class="text-sm font-black text-gray-900">{{ $file->label() }}</h4>
+                                            @unless ($fileAvailable)
+                                                <span class="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-red-700">File unavailable</span>
+                                            @endunless
+                                        </div>
+                                        <p class="mt-1 break-all text-xs font-semibold text-gray-600">{{ $file->original_filename }}</p>
+                                        <p class="mt-1 text-[11px] text-gray-400">{{ $file->file_size ? \Illuminate\Support\Number::fileSize($file->file_size) : 'Size unavailable' }}@if ($file->is_carried_forward) &middot; Carried forward from an earlier version @endif</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex w-full shrink-0 gap-2 sm:w-auto">
+                                    @if ($fileViewable)
+                                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $file]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:flex-none">View PDF</a>
+                                    @endif
+                                    @if ($fileAvailable)
+                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $file]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:flex-none">Download PDF</a>
+                                    @endif
+                                </div>
+                            </article>
+                        @empty
+                            <div class="p-8 text-center">
+                                <p class="text-sm font-black text-gray-800">No individual submitted files are available</p>
+                                <p class="mt-1 text-xs text-gray-500">Legacy proposals may only provide a combined proposal download.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                </section>
+
                 <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div><h3 class="text-sm font-black text-gray-900">Proposal package checklist</h3><p class="mt-1 text-xs text-gray-500">Latest version: {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No version available' }}</p></div>

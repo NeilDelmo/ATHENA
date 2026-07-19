@@ -4,6 +4,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -54,6 +55,57 @@ test('proposal dashboard supports search and status filters', function () {
         ->assertOk()
         ->assertSee('Mangrove Restoration')
         ->assertDontSee('Solar Irrigation');
+});
+
+test('proposal dashboard shows received files and opens the submitted package', function () {
+    Storage::fake('local');
+
+    $topic = createDashboardTopic($this->researcher, $this->call);
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->researcher->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'packages/proposal.pdf',
+        'original_filename' => 'proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'description' => $topic->description,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+
+    foreach ([
+        'detailed_proposal',
+        'work_plan',
+        'line_item_budget',
+        'expense_breakdown',
+        'curriculum_vitae',
+        'gad_checklist',
+        'initial_screening_form',
+    ] as $position => $documentType) {
+        $path = "packages/{$documentType}.pdf";
+        Storage::disk('local')->put($path, $documentType);
+        $version->files()->create([
+            'document_type' => $documentType,
+            'position' => $position,
+            'file_path' => $path,
+            'original_filename' => "{$documentType}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => strlen($documentType),
+            'checksum' => hash('sha256', $documentType),
+            'is_carried_forward' => false,
+        ]);
+    }
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.dashboard'))
+        ->assertOk()
+        ->assertSee('Received proposal inbox')
+        ->assertSee('7 PDFs received')
+        ->assertSee('Open submitted package')
+        ->assertSee(route('topics.show', $topic).'#submitted-files', false);
 });
 
 test('proposal dashboard paginates and preserves filters', function () {
