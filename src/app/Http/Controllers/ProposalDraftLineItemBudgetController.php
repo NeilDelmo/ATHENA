@@ -80,6 +80,7 @@ class ProposalDraftLineItemBudgetController extends Controller
                 'checksum' => null,
                 'completed_at' => now(),
             ],
+            changeNote: $request->string('change_note')->toString(),
         );
 
         return redirect()

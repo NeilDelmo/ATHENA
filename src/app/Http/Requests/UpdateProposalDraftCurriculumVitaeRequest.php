@@ -44,6 +44,7 @@ class UpdateProposalDraftCurriculumVitaeRequest extends FormRequest
         return [
             ...CurriculumVitaeRules::rules(),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
         ];
     }
 

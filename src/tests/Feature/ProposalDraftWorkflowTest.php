@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -785,6 +787,10 @@ test('a PDF conversion failure keeps the complete draft available for another Tu
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents->each(
+        fn ($document) => app(RecordProposalDraftDocumentVersion::class)
+            ->handle($document, $this->faculty, 'Ready for Turn in.'),
+    );
     $draftId = $draft->id;
     $draftDocumentIds = $draft->documents->pluck('id')->all();
     $stagedPaths = $draft->documents->pluck('file_path')->filter()->values();
@@ -841,6 +847,39 @@ test('final submission creates one immutable package then rejects a duplicate re
     foreach ($draftDocumentIds as $draftDocumentId) {
         $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $draftDocumentId]);
     }
+
+    $archivedHistory = ProposalDraftDocumentVersion::query()
+        ->where('topic_id', $topic->id)
+        ->get();
+    $archivedFileVersion = $archivedHistory->first(
+        fn (ProposalDraftDocumentVersion $history): bool => $history->hasStoredFile(),
+    );
+
+    expect($archivedHistory)->toHaveCount(6)
+        ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_id === null))->toBeTrue()
+        ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_document_id === null))->toBeTrue()
+        ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->is_current === false))->toBeTrue()
+        ->and($archivedFileVersion)->not->toBeNull();
+    Storage::disk('local')->assertExists($archivedFileVersion->file_path);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Draft history (6)');
+    $this->actingAs($this->faculty)
+        ->get(route('topics.draft-history.index', $topic))
+        ->assertOk()
+        ->assertSee('Archived draft history')
+        ->assertSee('Ready for Turn in.');
+    $this->actingAs($this->faculty)
+        ->get(route('topics.draft-history.download', [$topic, $archivedFileVersion]))
+        ->assertDownload($archivedFileVersion->original_filename);
+    $this->actingAs($this->head)
+        ->get(route('topics.draft-history.index', $topic))
+        ->assertOk();
+    $this->actingAs($this->otherFaculty)
+        ->get(route('topics.draft-history.index', $topic))
+        ->assertForbidden();
 
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
 

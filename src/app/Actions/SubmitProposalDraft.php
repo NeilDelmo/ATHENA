@@ -45,6 +45,7 @@ class SubmitProposalDraft
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
+        private readonly ArchiveProposalDraftDocumentHistory $archiveDocumentHistory,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -154,6 +155,7 @@ class SubmitProposalDraft
                     'estimated_duration_months' => $lockedDraft->duration_months,
                 ]);
                 $version->files()->createMany($permanentFiles);
+                $this->archiveDocumentHistory->handle($lockedDraft, $topic, $permanentDirectory);
                 $lockedDraft->delete();
 
                 return $topic;

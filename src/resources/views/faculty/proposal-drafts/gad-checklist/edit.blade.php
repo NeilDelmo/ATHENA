@@ -72,6 +72,10 @@
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ $gadDocument?->lock_version ?? 0 }}">
 
+            @unless ($gadDocument?->completed_at)
+                @include('faculty.proposal-drafts.partials.change-note')
+            @endunless
+
             <div class="rounded-2xl border {{ $gadDocument?->completed_at ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white' }} p-4 shadow-sm sm:p-5">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>

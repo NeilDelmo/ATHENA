@@ -38,6 +38,7 @@ class UpdateProposalDraftGADChecklistRequest extends FormRequest
             'project_title' => ['required', 'string', 'max:500'],
             'project_leader' => ['required', 'string', 'max:255'],
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
         ];
     }
 

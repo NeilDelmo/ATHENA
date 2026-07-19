@@ -152,6 +152,7 @@ class TopicController extends Controller
             ->whereNull('resolved_at')
             ->values();
         $screeningTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_INITIAL_SCREENING);
+        $draftHistoryCount = $topic->documentHistory()->count();
 
         return view('topics.show', compact(
             'topic',
@@ -163,6 +164,7 @@ class TopicController extends Controller
             'expertAssignment',
             'pendingFileRevisions',
             'screeningTemplates',
+            'draftHistoryCount',
         ));
     }
 

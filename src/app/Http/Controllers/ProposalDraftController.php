@@ -78,6 +78,10 @@ class ProposalDraftController extends Controller
             ? $this->memberCandidates($proposalDraft)
             : collect();
         $historyCount = $proposalDraft->documentVersions()->count();
+        $recentActivity = $proposalDraft->documentVersions()
+            ->with('creator:id,name')
+            ->limit(5)
+            ->get();
 
         return view('faculty.proposal-drafts.show', compact(
             'proposalDraft',
@@ -87,6 +91,7 @@ class ProposalDraftController extends Controller
             'templates',
             'memberCandidates',
             'historyCount',
+            'recentActivity',
         ));
     }
 

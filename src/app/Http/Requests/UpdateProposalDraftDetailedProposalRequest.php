@@ -51,6 +51,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         return [
             ...DetailedProposalRules::rules(),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
         ];
     }
 

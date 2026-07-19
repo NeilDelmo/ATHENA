@@ -74,6 +74,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
                 'checksum' => null,
                 'completed_at' => now(),
             ],
+            changeNote: $request->string('change_note')->toString(),
         );
         $proposalDraft->documents()
             ->where('document_type', $paper['document_type'])

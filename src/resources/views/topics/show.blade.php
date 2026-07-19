@@ -25,6 +25,9 @@
                     <p class="mt-1 text-xs text-gray-500">Proposal #{{ $topic->id }} · {{ $topic->user->name }} · {{ $topic->researchCall->title }}</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    @if ($draftHistoryCount > 0)
+                        <a href="{{ route('topics.draft-history.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-[11px] font-black text-gray-700 shadow-sm transition hover:bg-gray-50">Draft history ({{ $draftHistoryCount }})</a>
+                    @endif
                     @if ($canAskAthenaAboutProposal)
                         <button type="button" @click="$store.researchAssistant.openWithContext({{ $topic->id }})" class="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-[11px] font-black text-red-700 shadow-sm transition hover:bg-red-50">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">

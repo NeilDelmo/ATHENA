@@ -45,6 +45,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
         return [
             ...LineItemBudgetRules::rules(),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
         ];
     }
 

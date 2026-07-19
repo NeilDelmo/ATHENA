@@ -214,3 +214,180 @@ test('the proposal package links to its chronological history', function () {
         ->assertOk()
         ->assertSee('No saved versions yet');
 });
+
+test('an identical upload does not create a duplicate version or retain an unused file', function () {
+    $upload = fn (): UploadedFile => UploadedFile::fake()->create(
+        'same-expenses.pdf',
+        100,
+        'application/pdf',
+    );
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 0,
+            'documents' => [$upload()],
+        ])
+        ->assertRedirect();
+
+    $document = $this->draft->documents()->sole();
+    $originalPath = $document->file_path;
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 1,
+            'change_note' => 'This should not create a duplicate.',
+            'documents' => [$upload()],
+        ])
+        ->assertRedirect();
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(1)
+        ->and($document->fresh()->lock_version)->toBe(1)
+        ->and($document->fresh()->file_path)->toBe($originalPath)
+        ->and(Storage::disk('local')->allFiles($this->draft->storageDirectory()))->toHaveCount(1);
+});
+
+test('save notes automatic summaries and meaningful differences appear in history', function () {
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 0,
+            'change_note' => 'Initial estimate from the finance meeting.',
+            'documents' => [UploadedFile::fake()->createWithContent('expenses-original.pdf', "%PDF-1.7\noriginal expense estimate")],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->collaborator)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 1,
+            'change_note' => 'Recalculated travel and supplies.',
+            'documents' => [UploadedFile::fake()->createWithContent('expenses-revised.pdf', "%PDF-1.7\nrevised travel and supplies estimate")],
+        ])
+        ->assertRedirect();
+
+    $latest = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
+
+    expect($latest->change_note)->toBe('Recalculated travel and supplies.')
+        ->and($latest->change_summary)->toContain('Replaced Estimated Expense Breakdown')
+        ->and(collect($latest->changes)->pluck('label')->all())->toContain(
+            'File name',
+            'File contents',
+            'File size',
+        );
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.history.index', $this->draft))
+        ->assertOk()
+        ->assertSee('Recalculated travel and supplies.')
+        ->assertSee('See 3 changes')
+        ->assertSee('File contents')
+        ->assertSee('Restore this version');
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Recent activity')
+        ->assertSee('Recalculated travel and supplies.');
+});
+
+test('generated forms skip identical saves and describe changed structured content', function () {
+    $payload = [
+        'document_version' => 0,
+        'change_note' => 'Created the initial timeline.',
+        'entries' => [[
+            'objective' => 'Create the baseline',
+            'expected_output' => 'Baseline report',
+            'activity' => 'Conduct field assessment',
+            'months' => [1, 2],
+        ]],
+    ];
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $payload)
+        ->assertRedirect();
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
+            ...$payload,
+            'document_version' => 1,
+            'change_note' => 'No actual change.',
+        ])
+        ->assertRedirect();
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(1)
+        ->and($this->draft->documents()->sole()->lock_version)->toBe(1);
+
+    $changedPayload = $payload;
+    $changedPayload['document_version'] = 1;
+    $changedPayload['change_note'] = 'Expanded the baseline objective.';
+    $changedPayload['entries'][0]['objective'] = 'Create and validate the baseline';
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $changedPayload)
+        ->assertRedirect();
+
+    $latest = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(2)
+        ->and($latest->change_summary)->toBe('Updated Attachment A: Work Plan (1 field changed).')
+        ->and($latest->changes)->toHaveCount(1)
+        ->and($latest->changes[0]['label'])->toBe('Work-plan entries');
+});
+
+test('an earlier PDF can be restored as a new version without overwriting history', function () {
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 0,
+            'documents' => [UploadedFile::fake()->create('expenses-v1.pdf', 100, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 1,
+            'documents' => [UploadedFile::fake()->create('expenses-v2.pdf', 120, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    [$firstVersion, $secondVersion] = ProposalDraftDocumentVersion::query()
+        ->orderBy('version_number')
+        ->get();
+
+    $this->actingAs($this->collaborator)
+        ->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $firstVersion]), [
+            'document_version' => 2,
+            'change_note' => 'The earlier estimate was approved by the team.',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $restored = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
+    $document = $this->draft->documents()->sole();
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(3)
+        ->and($restored->version_number)->toBe(3)
+        ->and($restored->action)->toBe('restored')
+        ->and($restored->restored_from_version_id)->toBe($firstVersion->id)
+        ->and($restored->creator->is($this->collaborator))->toBeTrue()
+        ->and($restored->change_note)->toBe('The earlier estimate was approved by the team.')
+        ->and($document->lock_version)->toBe(3)
+        ->and($document->original_filename)->toBe('expenses-v1.pdf')
+        ->and($document->file_path)->not->toBe($firstVersion->file_path)
+        ->and($restored->file_path)->toBe($document->file_path);
+    Storage::disk('local')->assertExists($firstVersion->file_path);
+    Storage::disk('local')->assertExists($secondVersion->file_path);
+    Storage::disk('local')->assertExists($restored->file_path);
+
+    $this->actingAs($this->owner)
+        ->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $firstVersion]), [
+            'document_version' => 3,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('warning');
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(3);
+
+    $this->actingAs($this->outsider)
+        ->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $firstVersion]), [
+            'document_version' => 3,
+        ])
+        ->assertForbidden();
+});

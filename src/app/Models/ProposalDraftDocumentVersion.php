@@ -10,12 +10,18 @@ class ProposalDraftDocumentVersion extends Model
 {
     protected $fillable = [
         'proposal_draft_id',
+        'topic_id',
         'proposal_draft_document_id',
         'created_by',
         'document_type',
         'position',
         'version_number',
         'is_current',
+        'action',
+        'change_note',
+        'change_summary',
+        'changes',
+        'restored_from_version_id',
         'source_data',
         'file_path',
         'original_filename',
@@ -31,6 +37,7 @@ class ProposalDraftDocumentVersion extends Model
             'position' => 'integer',
             'version_number' => 'integer',
             'is_current' => 'boolean',
+            'changes' => 'array',
             'source_data' => 'array',
             'file_size' => 'integer',
             'completed_at' => 'datetime',
@@ -47,9 +54,19 @@ class ProposalDraftDocumentVersion extends Model
         return $this->belongsTo(ProposalDraftDocument::class, 'proposal_draft_document_id');
     }
 
+    public function topic(): BelongsTo
+    {
+        return $this->belongsTo(TopicProposal::class, 'topic_id');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function restoredFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'restored_from_version_id');
     }
 
     public function label(): string

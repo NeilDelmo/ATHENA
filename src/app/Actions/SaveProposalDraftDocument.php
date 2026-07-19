@@ -4,7 +4,9 @@ namespace App\Actions;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftDocumentVersion;
 use App\Models\User;
+use App\Support\ProposalDocumentVersionDiff;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -13,6 +15,7 @@ class SaveProposalDraftDocument
 {
     public function __construct(
         private readonly RecordProposalDraftDocumentVersion $recordDocumentVersion,
+        private readonly ProposalDocumentVersionDiff $diff,
     ) {}
 
     /** @param array<string, mixed> $attributes */
@@ -23,8 +26,11 @@ class SaveProposalDraftDocument
         int $position,
         int $expectedVersion,
         array $attributes,
+        ?string $changeNote = null,
+        string $action = 'saved',
+        ?ProposalDraftDocumentVersion $restoredFrom = null,
     ): ProposalDraftDocument {
-        return DB::transaction(function () use ($draft, $actor, $documentType, $position, $expectedVersion, $attributes): ProposalDraftDocument {
+        return DB::transaction(function () use ($draft, $actor, $documentType, $position, $expectedVersion, $attributes, $changeNote, $action, $restoredFrom): ProposalDraftDocument {
             $lockedDraft = ProposalDraft::query()
                 ->whereKey($draft->getKey())
                 ->lockForUpdate()
@@ -44,7 +50,7 @@ class SaveProposalDraftDocument
             }
 
             if ($document && ! $document->versions()->exists()) {
-                $this->recordDocumentVersion->handle($document, null);
+                $this->recordDocumentVersion->handle($document, null, action: 'captured');
             }
 
             $safeAttributes = Arr::except($attributes, [
@@ -54,6 +60,10 @@ class SaveProposalDraftDocument
                 'lock_version',
             ]);
 
+            if ($document && $this->diff->isEquivalent($document, $safeAttributes)) {
+                return $document;
+            }
+
             if ($document) {
                 $document->update([
                     ...$safeAttributes,
@@ -61,7 +71,13 @@ class SaveProposalDraftDocument
                 ]);
 
                 $savedDocument = $document->refresh();
-                $this->recordDocumentVersion->handle($savedDocument, $actor);
+                $this->recordDocumentVersion->handle(
+                    $savedDocument,
+                    $actor,
+                    $changeNote,
+                    $action,
+                    $restoredFrom,
+                );
 
                 return $savedDocument;
             }
@@ -73,7 +89,13 @@ class SaveProposalDraftDocument
                 'lock_version' => 1,
             ]);
 
-            $this->recordDocumentVersion->handle($savedDocument, $actor);
+            $this->recordDocumentVersion->handle(
+                $savedDocument,
+                $actor,
+                $changeNote,
+                $action,
+                $restoredFrom,
+            );
 
             return $savedDocument;
         }, 3);

@@ -57,6 +57,33 @@
             </div>
         </section>
 
+        <section aria-labelledby="recent-activity-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h3 id="recent-activity-heading" class="text-base font-black text-gray-900">Recent activity</h3>
+                    <p class="mt-1 text-sm text-gray-500">The latest meaningful paper saves from this workspace.</p>
+                </div>
+                <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="text-xs font-black text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">View full history</a>
+            </div>
+
+            <div class="mt-5 divide-y divide-gray-100 border-y border-gray-100">
+                @forelse ($recentActivity as $activity)
+                    <article class="flex gap-3 py-4">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $activity->action === 'restored' ? 'bg-blue-700' : 'bg-gray-900' }} text-[10px] font-black text-white">v{{ $activity->version_number }}</span>
+                        <div class="min-w-0">
+                            <p class="text-sm font-black text-gray-900">{{ $activity->change_summary ?: 'Saved '.$activity->label() }}</p>
+                            @if (filled($activity->change_note))
+                                <p class="mt-1 break-words text-xs text-blue-800">“{{ $activity->change_note }}”</p>
+                            @endif
+                            <p class="mt-1 text-xs text-gray-500">{{ $activity->creator?->name ?? 'ATHENA' }} &middot; {{ $activity->created_at->diffForHumans() }}</p>
+                        </div>
+                    </article>
+                @empty
+                    <p class="py-6 text-center text-sm text-gray-500">Paper activity will appear after the first save or upload.</p>
+                @endforelse
+            </div>
+        </section>
+
         <section id="workspace-members" aria-labelledby="workspace-members-heading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>

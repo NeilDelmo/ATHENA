@@ -63,6 +63,12 @@ class TopicProposal extends Model
         return $this->hasMany(ProposalVersion::class, 'topic_id')->orderBy('version_number');
     }
 
+    public function documentHistory(): HasMany
+    {
+        return $this->hasMany(ProposalDraftDocumentVersion::class, 'topic_id')
+            ->latest();
+    }
+
     public function latestVersion(): HasOne
     {
         return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');

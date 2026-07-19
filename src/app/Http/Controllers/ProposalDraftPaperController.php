@@ -69,6 +69,7 @@ class ProposalDraftPaperController extends Controller
                 $paper,
                 $storedFiles,
                 $recordDocumentVersion,
+                $request->string('change_note')->toString(),
             )
             : $this->replaceDocument(
                 $proposalDraft,
@@ -77,6 +78,7 @@ class ProposalDraftPaperController extends Controller
                 $storedFiles[0],
                 $request->integer('document_version'),
                 $saveProposalDraftDocument,
+                $request->string('change_note')->toString(),
             );
 
         return redirect()
@@ -224,9 +226,10 @@ class ProposalDraftPaperController extends Controller
         array $storedFile,
         int $expectedVersion,
         SaveProposalDraftDocument $saveProposalDraftDocument,
+        ?string $changeNote,
     ): void {
         try {
-            $saveProposalDraftDocument->handle(
+            $savedDocument = $saveProposalDraftDocument->handle(
                 $proposalDraft,
                 $actor,
                 $paper['document_type'],
@@ -237,7 +240,12 @@ class ProposalDraftPaperController extends Controller
                     'source_data' => null,
                     'completed_at' => now(),
                 ],
+                changeNote: $changeNote,
             );
+
+            if ($savedDocument->file_path !== $storedFile['file_path']) {
+                Storage::disk('local')->delete($storedFile['file_path']);
+            }
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($storedFile['file_path']);
 
@@ -255,9 +263,10 @@ class ProposalDraftPaperController extends Controller
         array $paper,
         array $storedFiles,
         RecordProposalDraftDocumentVersion $recordDocumentVersion,
+        ?string $changeNote,
     ): void {
         try {
-            DB::transaction(function () use ($proposalDraft, $actor, $paper, $storedFiles, $recordDocumentVersion): void {
+            DB::transaction(function () use ($proposalDraft, $actor, $paper, $storedFiles, $recordDocumentVersion, $changeNote): void {
                 ProposalDraft::query()
                     ->whereKey($proposalDraft->getKey())
                     ->lockForUpdate()
@@ -284,7 +293,7 @@ class ProposalDraftPaperController extends Controller
                         'completed_at' => now(),
                         'lock_version' => 1,
                     ]);
-                    $recordDocumentVersion->handle($document, $actor);
+                    $recordDocumentVersion->handle($document, $actor, $changeNote);
                 }
             });
         } catch (Throwable $exception) {

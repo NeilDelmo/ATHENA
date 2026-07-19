@@ -113,6 +113,7 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
         Route::get('/{proposalDraft}/history', [ProposalDraftDocumentVersionController::class, 'index'])->name('history.index');
         Route::get('/{proposalDraft}/history/{documentVersion}/download', [ProposalDraftDocumentVersionController::class, 'download'])->name('history.download');
+        Route::post('/{proposalDraft}/history/{documentVersion}/restore', [ProposalDraftDocumentVersionController::class, 'restore'])->name('history.restore');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
@@ -148,6 +149,12 @@ Route::get('/topics/{topic}/versions/{version}/download', [TopicController::clas
 Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicController::class, 'downloadVersionFile'])
     ->middleware('auth')
     ->name('topics.versions.files.download');
+Route::get('/topics/{topic}/draft-history', [ProposalDraftDocumentVersionController::class, 'archived'])
+    ->middleware('auth')
+    ->name('topics.draft-history.index');
+Route::get('/topics/{topic}/draft-history/{documentVersion}/download', [ProposalDraftDocumentVersionController::class, 'downloadArchived'])
+    ->middleware('auth')
+    ->name('topics.draft-history.download');
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
     ->name('topics.approval');

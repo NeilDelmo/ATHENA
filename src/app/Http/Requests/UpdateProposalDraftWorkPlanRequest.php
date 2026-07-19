@@ -42,6 +42,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         return [
             ...WorkPlanRules::rules(),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
         ];
     }
 

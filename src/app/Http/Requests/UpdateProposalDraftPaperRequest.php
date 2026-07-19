@@ -27,6 +27,7 @@ class UpdateProposalDraftPaperRequest extends FormRequest
 
         return [
             'document_version' => [$paper['multiple'] ? 'nullable' : 'required', 'integer', 'min:0'],
+            'change_note' => ['nullable', 'string', 'max:500'],
             'documents' => ['required', 'array', 'min:1', 'max:'.$remainingSlots],
             'documents.*' => [
                 'required',
