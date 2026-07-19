@@ -296,6 +296,9 @@ test('the proposal hub presents project details and the seven code-owned require
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('Project Details')
+        ->assertSee('Upload spreadsheet')
+        ->assertSee('Review automatic paper')
+        ->assertSee('Preview paper')
         ->assertSeeInOrder([
             'Detailed Research Proposal',
             'Attachment A: Work Plan',
@@ -307,6 +310,39 @@ test('the proposal hub presents project details and the seven code-owned require
         ]);
 
     expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(6);
+});
+
+test('upload-only papers use a dedicated upload layout without editor shortcuts', function () {
+    $draft = ($this->createDraft)();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
+        ->assertOk()
+        ->assertSee('Upload only')
+        ->assertSee('Upload the completed spreadsheet')
+        ->assertSee('Complete this spreadsheet outside ATHENA')
+        ->assertSee('Choose completed spreadsheet')
+        ->assertSee('How this paper works')
+        ->assertDontSee('Editor shortcuts')
+        ->assertDontSee('Ctrl + S')
+        ->assertDontSee('data-paper-editor', false)
+        ->assertDontSee('Discard changes')
+        ->assertDontSee('Save changes');
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
+            'document_version' => 0,
+            'documents' => [UploadedFile::fake()->create('completed-expenses.xlsx', 100, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']));
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
+        ->assertOk()
+        ->assertSee('Ready in draft')
+        ->assertSee('completed-expenses.xlsx')
+        ->assertSee('Replace the uploaded spreadsheet')
+        ->assertSee('Replace spreadsheet');
 });
 
 test('paper and review pages render saved files and final readiness actions', function () {
@@ -383,9 +419,15 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
         ->assertOk()
+        ->assertSee('No form fields to answer')
         ->assertSee('Auto-filled from shared project information')
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
+        ->assertSee('There are no answers to enter')
+        ->assertSee('Mark paper ready')
+        ->assertDontSee('Editor shortcuts')
+        ->assertDontSee('data-paper-editor', false)
+        ->assertDontSee('Save and exit')
         ->assertDontSee('name="project_title"', false)
         ->assertDontSee('name="project_leader"', false);
 
@@ -406,6 +448,12 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
         'project_title' => 'Coastal Habitat Restoration',
         'project_leader' => 'Faculty Owner',
     ])->and($document->completed_at)->not->toBeNull();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
+        ->assertOk()
+        ->assertSee('Automatic paper marked ready')
+        ->assertDontSee('Mark paper ready');
 
     $preview = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft), [
@@ -489,6 +537,9 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('The Research/RDES Head and assigned central co-evaluator complete')
+        ->assertDontSee('Editor shortcuts')
+        ->assertDontSee('data-paper-editor', false)
+        ->assertDontSee('Save changes')
         ->assertDontSee('name="project_title"', false)
         ->assertDontSee('name="project_leader"', false);
 

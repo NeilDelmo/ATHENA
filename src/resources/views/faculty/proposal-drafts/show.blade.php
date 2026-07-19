@@ -128,7 +128,7 @@
         <section aria-labelledby="required-papers-heading">
             <div class="mb-4">
                 <h3 id="required-papers-heading" class="text-lg font-black text-gray-900">Required papers</h3>
-                <p class="mt-1 text-sm text-gray-500">Open each paper on its dedicated page, save it, and return here.</p>
+                <p class="mt-1 text-sm text-gray-500">Open each paper to add information, upload a required file, or review an automatically prepared copy.</p>
             </div>
 
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -149,6 +149,13 @@
                             'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
+                        $paperAction = match (true) {
+                            $paper['mode'] === 'automatic' => 'Preview paper',
+                            $paper['slug'] === 'gad-checklist' => $item['complete'] ? 'Preview paper' : 'Review automatic paper',
+                            $paper['slug'] === 'expense-breakdown' => $item['complete'] ? 'Replace spreadsheet' : 'Upload spreadsheet',
+                            $item['complete'] => 'Edit paper',
+                            default => 'Open paper',
+                        };
                     @endphp
                     <article class="flex min-h-80 flex-col rounded-2xl border {{ $item['complete'] ? 'border-green-200' : 'border-gray-200' }} bg-white p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
@@ -161,6 +168,8 @@
                         <div class="mt-4 min-h-10 text-xs text-gray-600">
                             @if ($paper['mode'] === 'automatic')
                                 <p class="font-semibold">Generated automatically from Project Details. No faculty evaluation or signature is required.</p>
+                            @elseif ($paper['slug'] === 'gad-checklist')
+                                <p class="font-semibold">Prepared automatically from Project Details. Review the generated copy and mark it ready.</p>
                             @elseif ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
                                     <p class="font-semibold">Saved form data &middot; {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
@@ -170,7 +179,7 @@
                                     <p class="break-all font-semibold">{{ $item['documents']->first()->original_filename }}</p>
                                 @endif
                             @else
-                                <p>No file or form data saved yet.</p>
+                                <p>{{ $paper['slug'] === 'expense-breakdown' ? 'Upload the completed official spreadsheet.' : 'No file or form data saved yet.' }}</p>
                             @endif
                         </div>
 
@@ -181,7 +190,7 @@
                             </div>
                         @endif
 
-                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Open') }} {{ $paper['label'] }}">{{ $paper['mode'] === 'automatic' ? 'Preview paper' : ($item['complete'] ? 'Edit paper' : 'Open paper') }}</a>
+                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $paperAction }}: {{ $paper['label'] }}">{{ $paperAction }}</a>
                     </article>
                 @endforeach
             </div>

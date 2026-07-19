@@ -20,10 +20,6 @@
 
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
-        data-paper-editor
-        data-paper-dirty="false"
-        data-paper-edit-url="{{ route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft) }}"
-        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
         x-data="proposalDraftGadChecklist({
             previewUrl: @js(route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.gad-checklist.download', $proposalDraft)),
@@ -44,9 +40,6 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
-        <x-paper-editor-submit-status />
-        <x-paper-editor-shortcuts />
-
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-black">Complete Project Details first</p>
@@ -55,13 +48,14 @@
             </div>
         @endunless
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 class="text-base font-black text-gray-900">Auto-filled from shared project information</h3>
-                    <p class="mt-1 text-xs text-gray-500">The Project Title and Project Leader are pulled from Project Details. Every other mark, score, instruction, and signatory stays exactly as provided in the source document.</p>
+                    <p class="text-[10px] font-black uppercase tracking-wider text-blue-700">No form fields to answer</p>
+                    <h3 class="mt-1 text-base font-black text-gray-900">Auto-filled from shared project information</h3>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600">ATHENA pulls the Project Title and Project Leader from Project Details. Every checklist mark, score, instruction, and signatory stays exactly as provided in the source document.</p>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex shrink-0 flex-wrap gap-2">
                     @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View sample</a>@endif
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
                 </div>
@@ -73,17 +67,26 @@
             </dl>
         </section>
 
-        <form data-paper-form x-ref="form" action="{{ route('faculty.proposal-drafts.gad-checklist.update', $proposalDraft) }}" method="POST" class="space-y-6">
+        <form x-ref="form" action="{{ route('faculty.proposal-drafts.gad-checklist.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ $gadDocument?->lock_version ?? 0 }}">
 
-            <div class="flex flex-col-reverse gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
-                <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Cancel and exit</a>
-                <button type="button" x-on:click="generatePreview" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Refresh preview</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
-                <button type="button" x-on:click="downloadDocument" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
-                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Save and exit</button>
-                <button data-paper-save type="submit" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Mark as complete</button>
+            <div class="rounded-2xl border {{ $gadDocument?->completed_at ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white' }} p-4 shadow-sm sm:p-5">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p class="text-sm font-black {{ $gadDocument?->completed_at ? 'text-green-900' : 'text-gray-900' }}">{{ $gadDocument?->completed_at ? 'Automatic paper marked ready' : 'Review the automatic preview' }}</p>
+                        <p class="mt-1 text-xs leading-5 {{ $gadDocument?->completed_at ? 'text-green-800' : 'text-gray-500' }}">{{ $gadDocument?->completed_at ? 'No further action is required unless you change the shared Project Details.' : 'There are no answers to enter. Check the generated copy, then mark it ready for the proposal package.' }}</p>
+                    </div>
+                    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:justify-end">
+                        <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Return to proposal package</a>
+                        <button type="button" x-on:click="generatePreview" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Refresh preview</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
+                        <button type="button" x-on:click="downloadDocument" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
+                        @unless ($gadDocument?->completed_at)
+                            <button type="submit" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Mark paper ready</button>
+                        @endunless
+                    </div>
+                </div>
             </div>
         </form>
 
