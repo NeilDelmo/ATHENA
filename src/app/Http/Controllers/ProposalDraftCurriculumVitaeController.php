@@ -61,6 +61,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
 
         $document = $saveProposalDraftDocument->handle(
             $proposalDraft,
+            $request->user(),
             $paper['document_type'],
             0,
             $request->integer('document_version'),

@@ -56,6 +56,12 @@ class ProposalDraft extends Model
             ->orderBy('position');
     }
 
+    public function documentVersions(): HasMany
+    {
+        return $this->hasMany(ProposalDraftDocumentVersion::class)
+            ->latest();
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(ProposalDraftMember::class)

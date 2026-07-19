@@ -7,7 +7,10 @@
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->researchCall->title }} · Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</p>
                 <p class="mt-1 text-xs font-bold text-blue-700">{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</p>
             </div>
-            <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto">Review &amp; turn in</a>
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">History{{ $historyCount > 0 ? ' ('.$historyCount.')' : '' }}</a>
+                <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto">Review &amp; turn in</a>
+            </div>
         </div>
     </x-slot>
 

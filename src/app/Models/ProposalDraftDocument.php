@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProposalDraftDocument extends Model
 {
@@ -35,6 +36,12 @@ class ProposalDraftDocument extends Model
     public function draft(): BelongsTo
     {
         return $this->belongsTo(ProposalDraft::class, 'proposal_draft_id');
+    }
+
+    public function versions(): HasMany
+    {
+        return $this->hasMany(ProposalDraftDocumentVersion::class)
+            ->orderByDesc('version_number');
     }
 
     public function isComplete(): bool

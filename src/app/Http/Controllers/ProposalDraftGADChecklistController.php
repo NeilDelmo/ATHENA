@@ -46,6 +46,7 @@ class ProposalDraftGADChecklistController extends Controller
         $paper = $catalog->get('gad-checklist');
         $saveProposalDraftDocument->handle(
             $proposalDraft,
+            $request->user(),
             $paper['document_type'],
             0,
             $request->integer('document_version'),

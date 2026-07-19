@@ -77,6 +77,7 @@ class ProposalDraftDetailedProposalController extends Controller
         $paper = $catalog->get('detailed-proposal');
         $saveProposalDraftDocument->handle(
             $proposalDraft,
+            $request->user(),
             $paper['document_type'],
             0,
             $request->integer('document_version'),

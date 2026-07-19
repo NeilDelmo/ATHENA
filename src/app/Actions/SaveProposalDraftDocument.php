@@ -4,21 +4,27 @@ namespace App\Actions;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class SaveProposalDraftDocument
 {
+    public function __construct(
+        private readonly RecordProposalDraftDocumentVersion $recordDocumentVersion,
+    ) {}
+
     /** @param array<string, mixed> $attributes */
     public function handle(
         ProposalDraft $draft,
+        User $actor,
         string $documentType,
         int $position,
         int $expectedVersion,
         array $attributes,
     ): ProposalDraftDocument {
-        return DB::transaction(function () use ($draft, $documentType, $position, $expectedVersion, $attributes): ProposalDraftDocument {
+        return DB::transaction(function () use ($draft, $actor, $documentType, $position, $expectedVersion, $attributes): ProposalDraftDocument {
             $lockedDraft = ProposalDraft::query()
                 ->whereKey($draft->getKey())
                 ->lockForUpdate()
@@ -37,6 +43,10 @@ class SaveProposalDraftDocument
                 ]);
             }
 
+            if ($document && ! $document->versions()->exists()) {
+                $this->recordDocumentVersion->handle($document, null);
+            }
+
             $safeAttributes = Arr::except($attributes, [
                 'proposal_draft_id',
                 'document_type',
@@ -50,15 +60,22 @@ class SaveProposalDraftDocument
                     'lock_version' => $currentVersion + 1,
                 ]);
 
-                return $document->refresh();
+                $savedDocument = $document->refresh();
+                $this->recordDocumentVersion->handle($savedDocument, $actor);
+
+                return $savedDocument;
             }
 
-            return $lockedDraft->documents()->create([
+            $savedDocument = $lockedDraft->documents()->create([
                 ...$safeAttributes,
                 'document_type' => $documentType,
                 'position' => $position,
                 'lock_version' => 1,
             ]);
+
+            $this->recordDocumentVersion->handle($savedDocument, $actor);
+
+            return $savedDocument;
         }, 3);
     }
 }

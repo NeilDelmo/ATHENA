@@ -637,7 +637,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
         ->and($replacement->original_filename)->toBe('replacement-expenses.pdf')
         ->and($replacement->checksum)->toHaveLength(64)
         ->and($replacement->completed_at)->not->toBeNull();
-    Storage::disk('local')->assertMissing($first->file_path);
+    Storage::disk('local')->assertExists($first->file_path);
     Storage::disk('local')->assertExists($replacement->file_path);
 
     $this->actingAs($this->faculty)
@@ -645,7 +645,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
         ->assertRedirect();
 
     $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $replacement->id]);
-    Storage::disk('local')->assertMissing($replacement->file_path);
+    Storage::disk('local')->assertExists($replacement->file_path);
 });
 
 test('paper uploads enforce file types and the 25 MB limit', function () {

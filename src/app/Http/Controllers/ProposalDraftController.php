@@ -77,6 +77,7 @@ class ProposalDraftController extends Controller
         $memberCandidates = Gate::allows('manageMembers', $proposalDraft)
             ? $this->memberCandidates($proposalDraft)
             : collect();
+        $historyCount = $proposalDraft->documentVersions()->count();
 
         return view('faculty.proposal-drafts.show', compact(
             'proposalDraft',
@@ -85,6 +86,7 @@ class ProposalDraftController extends Controller
             'readinessErrors',
             'templates',
             'memberCandidates',
+            'historyCount',
         ));
     }
 

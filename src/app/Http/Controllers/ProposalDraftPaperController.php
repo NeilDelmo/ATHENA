@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftPaperRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalTemplate;
+use App\Models\User;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -48,6 +51,7 @@ class ProposalDraftPaperController extends Controller
         string $paper,
         ProposalPaperCatalog $catalog,
         SaveProposalDraftDocument $saveProposalDraftDocument,
+        RecordProposalDraftDocumentVersion $recordDocumentVersion,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
@@ -59,9 +63,16 @@ class ProposalDraftPaperController extends Controller
         );
 
         $paper['multiple']
-            ? $this->appendDocuments($proposalDraft, $paper, $storedFiles)
+            ? $this->appendDocuments(
+                $proposalDraft,
+                $request->user(),
+                $paper,
+                $storedFiles,
+                $recordDocumentVersion,
+            )
             : $this->replaceDocument(
                 $proposalDraft,
+                $request->user(),
                 $paper,
                 $storedFiles[0],
                 $request->integer('document_version'),
@@ -83,24 +94,37 @@ class ProposalDraftPaperController extends Controller
         string $paper,
         int $document,
         ProposalPaperCatalog $catalog,
+        RecordProposalDraftDocumentVersion $recordDocumentVersion,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
         $paper = $this->uploadPaper($catalog, $paper);
         $proposalDraftDocument = $this->documentsFor($proposalDraft, $paper)
             ->findOrFail($document);
-        $filePath = $proposalDraftDocument->file_path;
 
-        DB::transaction(function () use ($proposalDraftDocument, $proposalDraft, $paper): void {
-            $proposalDraftDocument->delete();
-            $this->normalizePositions($proposalDraft, $paper);
+        DB::transaction(function () use ($proposalDraft, $proposalDraftDocument, $recordDocumentVersion): void {
+            ProposalDraft::query()
+                ->whereKey($proposalDraft->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+            $lockedDocument = ProposalDraftDocument::query()
+                ->whereKey($proposalDraftDocument->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if (! $lockedDocument->versions()->exists()) {
+                $recordDocumentVersion->handle($lockedDocument, null);
+            }
+
+            ProposalDraftDocumentVersion::query()
+                ->where('proposal_draft_document_id', $lockedDocument->getKey())
+                ->update(['is_current' => false]);
+            $lockedDocument->delete();
         });
-
-        $this->deleteStagedFile($proposalDraft, $filePath);
 
         return redirect()
             ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
-            ->with('success', $paper['label'].' file removed.');
+            ->with('success', $paper['label'].' file removed. Previous versions remain available in history.');
     }
 
     public function download(
@@ -195,17 +219,16 @@ class ProposalDraftPaperController extends Controller
      */
     private function replaceDocument(
         ProposalDraft $proposalDraft,
+        User $actor,
         array $paper,
         array $storedFile,
         int $expectedVersion,
         SaveProposalDraftDocument $saveProposalDraftDocument,
     ): void {
-        $existingDocument = $this->documentsFor($proposalDraft, $paper)->first();
-        $oldPath = $existingDocument?->file_path;
-
         try {
             $saveProposalDraftDocument->handle(
                 $proposalDraft,
+                $actor,
                 $paper['document_type'],
                 0,
                 $expectedVersion,
@@ -220,20 +243,21 @@ class ProposalDraftPaperController extends Controller
 
             throw $exception;
         }
-
-        if ($oldPath !== $storedFile['file_path']) {
-            $this->deleteStagedFile($proposalDraft, $oldPath);
-        }
     }
 
     /**
      * @param  array<string, mixed>  $paper
      * @param  array<int, array<string, mixed>>  $storedFiles
      */
-    private function appendDocuments(ProposalDraft $proposalDraft, array $paper, array $storedFiles): void
-    {
+    private function appendDocuments(
+        ProposalDraft $proposalDraft,
+        User $actor,
+        array $paper,
+        array $storedFiles,
+        RecordProposalDraftDocumentVersion $recordDocumentVersion,
+    ): void {
         try {
-            DB::transaction(function () use ($proposalDraft, $paper, $storedFiles): void {
+            DB::transaction(function () use ($proposalDraft, $actor, $paper, $storedFiles, $recordDocumentVersion): void {
                 ProposalDraft::query()
                     ->whereKey($proposalDraft->getKey())
                     ->lockForUpdate()
@@ -252,13 +276,15 @@ class ProposalDraftPaperController extends Controller
                 $nextPosition = $maximumPosition === null ? 0 : (int) $maximumPosition + 1;
 
                 foreach ($storedFiles as $offset => $storedFile) {
-                    $proposalDraft->documents()->create([
+                    $document = $proposalDraft->documents()->create([
                         ...$storedFile,
                         'document_type' => $paper['document_type'],
                         'position' => $nextPosition + $offset,
                         'source_data' => null,
                         'completed_at' => now(),
+                        'lock_version' => 1,
                     ]);
+                    $recordDocumentVersion->handle($document, $actor);
                 }
             });
         } catch (Throwable $exception) {
@@ -266,18 +292,6 @@ class ProposalDraftPaperController extends Controller
 
             throw $exception;
         }
-    }
-
-    /** @param array<string, mixed> $paper */
-    private function normalizePositions(ProposalDraft $proposalDraft, array $paper): void
-    {
-        $this->documentsFor($proposalDraft, $paper)
-            ->get()
-            ->each(function (ProposalDraftDocument $document, int $position): void {
-                if ($document->position !== $position) {
-                    $document->update(['position' => $position]);
-                }
-            });
     }
 
     /** @param array<string, mixed> $paper */
@@ -298,12 +312,5 @@ class ProposalDraftPaperController extends Controller
         }
 
         return $template;
-    }
-
-    private function deleteStagedFile(ProposalDraft $proposalDraft, ?string $path): void
-    {
-        if (filled($path) && Str::startsWith($path, $proposalDraft->storageDirectory().'/')) {
-            Storage::disk('local')->delete($path);
-        }
     }
 }

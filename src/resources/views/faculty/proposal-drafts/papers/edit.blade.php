@@ -1,12 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
-            <div class="mt-2 flex flex-wrap items-center gap-3">
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $documents->count() >= $paper['min_files'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $documents->count() >= $paper['min_files'] ? 'Uploaded' : 'Upload required' }}</span>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
+                <div class="mt-2 flex flex-wrap items-center gap-3">
+                    <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $documents->count() >= $paper['min_files'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $documents->count() >= $paper['min_files'] ? 'Uploaded' : 'Upload required' }}</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->project_title }}</p>
             </div>
-            <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->project_title }}</p>
+            <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">View version history</a>
         </div>
     </x-slot>
 

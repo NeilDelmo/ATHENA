@@ -12,6 +12,7 @@ use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
+use App\Http\Controllers\ProposalDraftDocumentVersionController;
 use App\Http\Controllers\ProposalDraftGADChecklistController;
 use App\Http\Controllers\ProposalDraftInitialScreeningFormController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
@@ -110,6 +111,8 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::post('/{proposalDraft}/members', [ProposalDraftMemberController::class, 'store'])->name('members.store');
         Route::post('/{proposalDraft}/members/{member}/invitation', [ProposalDraftMemberController::class, 'resend'])->middleware('throttle:6,1')->name('members.invitation');
         Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
+        Route::get('/{proposalDraft}/history', [ProposalDraftDocumentVersionController::class, 'index'])->name('history.index');
+        Route::get('/{proposalDraft}/history/{documentVersion}/download', [ProposalDraftDocumentVersionController::class, 'download'])->name('history.download');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
