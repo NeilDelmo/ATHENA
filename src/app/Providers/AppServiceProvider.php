@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\LibreOfficeDocumentPdfConverter;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -15,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(DocumentPdfConverter::class, LibreOfficeDocumentPdfConverter::class);
     }
 
     /**

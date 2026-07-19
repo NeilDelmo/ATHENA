@@ -25,7 +25,8 @@ class ProposalDraftReadiness
      *     documents: Collection<int, ProposalDraftDocument>,
      *     complete: bool,
      *     status: string,
-     *     count: int
+     *     count: int,
+     *     submission_filename: string
      * }>
      */
     public function checklist(ProposalDraft $draft): Collection
@@ -51,6 +52,8 @@ class ProposalDraftReadiness
                 'complete' => $complete,
                 'status' => $status,
                 'count' => $documents->count(),
+                'submission_filename' => $documents->first()?->original_filename
+                    ?: $this->catalog->submissionFilename($paper, (string) $draft->project_title),
             ]];
         });
     }

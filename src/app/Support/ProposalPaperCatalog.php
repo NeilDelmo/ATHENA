@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class ProposalPaperCatalog
@@ -52,5 +53,13 @@ class ProposalPaperCatalog
     public function label(string $documentType): ?string
     {
         return $this->forDocumentType($documentType)['label'] ?? null;
+    }
+
+    /** @param array<string, mixed> $paper */
+    public function submissionFilename(array $paper, string $projectTitle): string
+    {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $filenameBase.'-'.$paper['filename_suffix'].'.pdf';
     }
 }

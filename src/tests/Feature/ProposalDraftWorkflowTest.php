@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -37,6 +38,13 @@ beforeEach(function () {
 
     Storage::fake('local');
     $this->withoutVite();
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+    });
 
     $this->createDraft = function (array $overrides = []): ProposalDraft {
         return ProposalDraft::create([
@@ -296,7 +304,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('Project Details')
-        ->assertSee('Upload spreadsheet')
+        ->assertSee('Upload PDF')
         ->assertSee('Review automatic paper')
         ->assertSee('Preview paper')
         ->assertSeeInOrder([
@@ -318,10 +326,10 @@ test('upload-only papers use a dedicated upload layout without editor shortcuts'
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
         ->assertOk()
-        ->assertSee('Upload only')
-        ->assertSee('Upload the completed spreadsheet')
-        ->assertSee('Complete this spreadsheet outside ATHENA')
-        ->assertSee('Choose completed spreadsheet')
+        ->assertSee('PDF upload')
+        ->assertSee('Upload the completed PDF')
+        ->assertSee('export or save it as a PDF')
+        ->assertSee('Choose completed PDF')
         ->assertSee('How this paper works')
         ->assertDontSee('Editor shortcuts')
         ->assertDontSee('Ctrl + S')
@@ -332,17 +340,17 @@ test('upload-only papers use a dedicated upload layout without editor shortcuts'
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 0,
-            'documents' => [UploadedFile::fake()->create('completed-expenses.xlsx', 100, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+            'documents' => [UploadedFile::fake()->create('completed-expenses.pdf', 100, 'application/pdf')],
         ])
         ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']));
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
         ->assertOk()
-        ->assertSee('Ready in draft')
-        ->assertSee('completed-expenses.xlsx')
-        ->assertSee('Replace the uploaded spreadsheet')
-        ->assertSee('Replace spreadsheet');
+        ->assertSee('Attached')
+        ->assertSee('completed-expenses.pdf')
+        ->assertSee('Replace the uploaded PDF')
+        ->assertSee('Replace PDF');
 });
 
 test('paper and review pages render saved files and final readiness actions', function () {
@@ -362,12 +370,12 @@ test('paper and review pages render saved files and final readiness actions', fu
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.review', $draft))
         ->assertOk()
-        ->assertSee('Review Proposal Package')
-        ->assertSee('Ready to submit')
+        ->assertSee('Review and Turn In')
+        ->assertSee('Ready to turn in')
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
-        ->assertSee('Download Word file')
-        ->assertSee('Submit Proposal Package');
+        ->assertSee('seven immutable PDF attachments')
+        ->assertSee('Turn in proposal');
 });
 
 test('project details are validated once and reused by the Work Plan workflow', function () {
@@ -604,7 +612,7 @@ test('single-file papers can be uploaded downloaded replaced and removed private
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 0,
-            'documents' => [UploadedFile::fake()->create('first-expenses.xlsx', 100, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+            'documents' => [UploadedFile::fake()->create('first-expenses.pdf', 100, 'application/pdf')],
         ])
         ->assertRedirect(route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']))
         ->assertSessionHas('success', 'Estimated Expense Breakdown saved.');
@@ -614,19 +622,19 @@ test('single-file papers can be uploaded downloaded replaced and removed private
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.papers.download', [$draft, 'expense-breakdown', $first]))
-        ->assertDownload('first-expenses.xlsx');
+        ->assertDownload('first-expenses.pdf');
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 1,
-            'documents' => [UploadedFile::fake()->create('replacement-expenses.xls', 120, 'application/vnd.ms-excel')],
+            'documents' => [UploadedFile::fake()->create('replacement-expenses.pdf', 120, 'application/pdf')],
             'exit_after_save' => '1',
         ])
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
 
     $replacement = $draft->documents()->sole();
     expect($replacement->id)->toBe($first->id)
-        ->and($replacement->original_filename)->toBe('replacement-expenses.xls')
+        ->and($replacement->original_filename)->toBe('replacement-expenses.pdf')
         ->and($replacement->checksum)->toHaveLength(64)
         ->and($replacement->completed_at)->not->toBeNull();
     Storage::disk('local')->assertMissing($first->file_path);
@@ -645,14 +653,15 @@ test('paper uploads enforce file types and the 25 MB limit', function () {
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
-            'documents' => [UploadedFile::fake()->create('expenses.pdf', 10, 'application/pdf')],
+            'document_version' => 0,
+            'documents' => [UploadedFile::fake()->create('expenses.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
         ])
         ->assertSessionHasErrors('documents.0');
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
             'document_version' => 0,
-            'documents' => [UploadedFile::fake()->create('oversized.xlsx', 25601, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+            'documents' => [UploadedFile::fake()->create('oversized.pdf', 25601, 'application/pdf')],
         ])
         ->assertSessionHasErrors('documents.0');
 
@@ -753,6 +762,26 @@ test('incomplete and closed-call drafts remain available and cannot be submitted
     expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->not->toBeEmpty();
 });
 
+test('a PDF conversion failure keeps the complete draft available for another Turn in attempt', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            throw new RuntimeException('LibreOffice is unavailable.');
+        }
+    });
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect()
+        ->assertSessionHasErrors('submission');
+
+    expect(ProposalDraft::find($draft->id))->not->toBeNull()
+        ->and(TopicProposal::query()->count())->toBe(0);
+    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
+});
+
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
@@ -787,6 +816,8 @@ test('final submission creates one immutable package then rejects a duplicate re
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
             ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
         ])->sort()->values()->all())
+        ->and($version->files->every(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'))->toBeTrue()
+        ->and($version->files->every(fn (ProposalVersionFile $file): bool => str_ends_with($file->original_filename, '.pdf')))->toBeTrue()
         ->and($version->files->every(fn (ProposalVersionFile $file): bool => strlen((string) $file->checksum) === 64))->toBeTrue()
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
@@ -796,9 +827,13 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($initialScreeningForm->source_data['project_leader'])->toBe('Faculty Owner');
 
-    $version->files->each(
-        fn (ProposalVersionFile $file) => Storage::disk('local')->assertExists($file->file_path),
-    );
+    $version->files->each(function (ProposalVersionFile $file): void {
+        Storage::disk('local')->assertExists($file->file_path);
+
+        if ($file->document_type !== ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN) {
+            expect(Storage::disk('local')->get($file->file_path))->toStartWith('%PDF-');
+        }
+    });
     $stagedPaths->each(
         fn (string $path) => Storage::disk('local')->assertMissing($path),
     );

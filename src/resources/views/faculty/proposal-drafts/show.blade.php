@@ -7,7 +7,7 @@
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->researchCall->title }} · Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</p>
                 <p class="mt-1 text-xs font-bold text-blue-700">{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</p>
             </div>
-            <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto">Review package</a>
+            <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-gray-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto">Review &amp; turn in</a>
         </div>
     </x-slot>
 
@@ -43,10 +43,10 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h3 id="package-progress-heading" class="text-base font-black text-gray-900">Proposal package progress</h3>
-                    <p class="mt-1 text-sm text-gray-500">{{ $completedPaperCount }} of {{ $paperCount }} required papers complete</p>
+                    <p class="mt-1 text-sm text-gray-500">{{ $completedPaperCount }} of {{ $paperCount }} required PDF attachments ready</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full px-3 py-1 text-xs font-black {{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">
-                    {{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'Ready for review' : 'Draft in progress' }}
+                    {{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'Ready to turn in' : 'Draft in progress' }}
                 </span>
             </div>
             <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-gray-100" aria-hidden="true">
@@ -143,8 +143,8 @@
 
         <section aria-labelledby="required-papers-heading">
             <div class="mb-4">
-                <h3 id="required-papers-heading" class="text-lg font-black text-gray-900">Required papers</h3>
-                <p class="mt-1 text-sm text-gray-500">Open each paper to add information, upload a required file, or review an automatically prepared copy.</p>
+                <h3 id="required-papers-heading" class="text-lg font-black text-gray-900">Required PDF attachments</h3>
+                <p class="mt-1 text-sm text-gray-500">Complete each paper here. ATHENA prepares generated forms as PDFs when the owner turns in the package.</p>
             </div>
 
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -168,7 +168,7 @@
                         $paperAction = match (true) {
                             $paper['mode'] === 'automatic' => 'Preview paper',
                             $paper['slug'] === 'gad-checklist' => $item['complete'] ? 'Preview paper' : 'Review automatic paper',
-                            $paper['slug'] === 'expense-breakdown' => $item['complete'] ? 'Replace spreadsheet' : 'Upload spreadsheet',
+                            $paper['slug'] === 'expense-breakdown' => $item['complete'] ? 'Replace PDF' : 'Upload PDF',
                             $item['complete'] => 'Edit paper',
                             default => 'Open paper',
                         };
@@ -183,19 +183,20 @@
 
                         <div class="mt-4 min-h-10 text-xs text-gray-600">
                             @if ($paper['mode'] === 'automatic')
-                                <p class="font-semibold">Generated automatically from Project Details. No faculty evaluation or signature is required.</p>
+                                <p class="font-semibold">PDF prepared automatically from Project Details when the package is turned in.</p>
                             @elseif ($paper['slug'] === 'gad-checklist')
                                 <p class="font-semibold">Prepared automatically from Project Details. Review the generated copy and mark it ready.</p>
                             @elseif ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
-                                    <p class="font-semibold">Saved form data &middot; {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
+                                    <p class="font-semibold">{{ $item['submission_filename'] }}</p>
+                                    <p class="mt-1 text-[11px] text-gray-500">PDF ready to generate &middot; Saved {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
                                 @elseif ($paper['multiple'])
                                     <p class="font-semibold">{{ $item['count'] }} {{ Str::plural('file', $item['count']) }} staged</p>
                                 @else
                                     <p class="break-all font-semibold">{{ $item['documents']->first()->original_filename }}</p>
                                 @endif
                             @else
-                                <p>{{ $paper['slug'] === 'expense-breakdown' ? 'Upload the completed official spreadsheet.' : 'No file or form data saved yet.' }}</p>
+                                <p>{{ $paper['slug'] === 'expense-breakdown' ? 'Export the completed official spreadsheet as PDF, then attach it here.' : 'No file or form data saved yet.' }}</p>
                             @endif
                         </div>
 
@@ -213,8 +214,8 @@
         </section>
 
         <div class="flex flex-col gap-3 rounded-2xl bg-gray-900 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-            <div><p class="font-black text-white">Ready to check the whole package?</p><p class="mt-1 text-xs text-gray-300">The Review page explains anything that is still missing.</p></div>
-            <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review package</a>
+            <div><p class="font-black text-white">Ready to turn in the proposal?</p><p class="mt-1 text-xs text-gray-300">Review the seven PDF attachments before sending the immutable package.</p></div>
+            <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</a>
         </div>
     </div>
 </x-app-layout>

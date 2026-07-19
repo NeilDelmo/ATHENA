@@ -57,6 +57,6 @@ class ProposalDraftSubmissionController extends Controller
 
         return redirect()
             ->route('faculty.dashboard')
-            ->with('success', 'Proposal submitted successfully and sent to the Research Head.');
+            ->with('success', 'Proposal turned in successfully as a seven-PDF package and sent to the Research Head.');
     }
 }

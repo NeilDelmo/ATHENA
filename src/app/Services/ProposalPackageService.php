@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
@@ -14,6 +15,8 @@ use Throwable;
 
 class ProposalPackageService
 {
+    public function __construct(private readonly DocumentPdfConverter $pdfConverter) {}
+
     /**
      * Store every package file present in the request.
      *
@@ -163,25 +166,14 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-work-plan.docx';
-        $path = $directory.'/work-plan/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated Work Plan could not be stored.');
-        }
-
-        return [
-            'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'position' => 0,
-            'file_path' => $path,
-            'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
-            'is_carried_forward' => false,
-            'source_data' => $sourceData,
-        ];
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/work-plan',
+            $filenameBase.'-work-plan.pdf',
+            ProposalVersionFile::TYPE_WORK_PLAN,
+            $sourceData,
+        );
     }
 
     /**
@@ -195,25 +187,14 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-detailed-research-proposal.docx';
-        $path = $directory.'/detailed-proposal/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated Detailed Research Proposal could not be stored.');
-        }
-
-        return [
-            'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
-            'position' => 0,
-            'file_path' => $path,
-            'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
-            'is_carried_forward' => false,
-            'source_data' => $sourceData,
-        ];
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/detailed-proposal',
+            $filenameBase.'-detailed-research-proposal.pdf',
+            ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            $sourceData,
+        );
     }
 
     /**
@@ -227,25 +208,14 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-line-item-budget.docx';
-        $path = $directory.'/line-item-budget/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated Line-Item Budget could not be stored.');
-        }
-
-        return [
-            'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
-            'position' => 0,
-            'file_path' => $path,
-            'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
-            'is_carried_forward' => false,
-            'source_data' => $sourceData,
-        ];
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/line-item-budget',
+            $filenameBase.'-line-item-budget.pdf',
+            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            $sourceData,
+        );
     }
 
     /**
@@ -259,25 +229,14 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-curriculum-vitae.docx';
-        $path = $directory.'/curriculum-vitae/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated Curriculum Vitae could not be stored.');
-        }
-
-        return [
-            'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
-            'position' => 0,
-            'file_path' => $path,
-            'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
-            'is_carried_forward' => false,
-            'source_data' => $sourceData,
-        ];
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/curriculum-vitae',
+            $filenameBase.'-curriculum-vitae.pdf',
+            ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            $sourceData,
+        );
     }
 
     /**
@@ -291,25 +250,14 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-gad-checklist.docx';
-        $path = $directory.'/gad-checklist/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated GAD Generic Checklist could not be stored.');
-        }
-
-        return [
-            'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
-            'position' => 0,
-            'file_path' => $path,
-            'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
-            'is_carried_forward' => false,
-            'source_data' => $sourceData,
-        ];
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/gad-checklist',
+            $filenameBase.'-gad-checklist.pdf',
+            ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            $sourceData,
+        );
     }
 
     /**
@@ -323,22 +271,43 @@ class ProposalPackageService
         ?array $sourceData = null,
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
-        $originalFilename = $filenameBase.'-initial-screening-form.docx';
-        $path = $directory.'/initial-screening-form/'.Str::uuid().'.docx';
 
-        if (! Storage::disk('local')->put($path, $contents)) {
-            throw new RuntimeException('The generated Initial Screening Form could not be stored.');
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/initial-screening-form',
+            $filenameBase.'-initial-screening-form.pdf',
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            $sourceData,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    private function storeGeneratedPdf(
+        string $docxContents,
+        string $directory,
+        string $originalFilename,
+        string $documentType,
+        ?array $sourceData,
+    ): array {
+        $pdfContents = $this->pdfConverter->convertDocx($docxContents);
+        $path = $directory.'/'.Str::uuid().'.pdf';
+
+        if (! Storage::disk('local')->put($path, $pdfContents)) {
+            throw new RuntimeException('The generated PDF could not be stored.');
         }
 
         return [
             'source_version_file_id' => null,
-            'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'document_type' => $documentType,
             'position' => 0,
             'file_path' => $path,
             'original_filename' => $originalFilename,
-            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'file_size' => strlen($contents),
-            'checksum' => hash('sha256', $contents),
+            'mime_type' => 'application/pdf',
+            'file_size' => strlen($pdfContents),
+            'checksum' => hash('sha256', $pdfContents),
             'is_carried_forward' => false,
             'source_data' => $sourceData,
         ];

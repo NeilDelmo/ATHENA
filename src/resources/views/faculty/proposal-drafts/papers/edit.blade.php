@@ -20,7 +20,7 @@
             : 1;
         $accept = collect($paper['accepted_extensions'])->map(fn ($extension) => '.'.$extension)->implode(',');
         $isExpenseBreakdown = $paper['slug'] === 'expense-breakdown';
-        $fileLabel = $isExpenseBreakdown ? 'spreadsheet' : 'file';
+        $fileLabel = 'PDF';
         $uploadHeading = $paper['multiple'] && $documents->isNotEmpty()
             ? 'Add completed files'
             : ($documents->isNotEmpty() ? 'Replace the uploaded '.$fileLabel : 'Upload the completed '.$fileLabel);
@@ -47,10 +47,10 @@
                     <section aria-labelledby="uploaded-files-heading" class="rounded-2xl border border-green-200 bg-white p-5 shadow-sm sm:p-6">
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p class="text-[10px] font-black uppercase tracking-wider text-green-700">Current submission</p>
-                                <h3 id="uploaded-files-heading" class="mt-1 text-base font-black text-gray-900">Uploaded {{ Str::plural($fileLabel, $documents->count()) }}</h3>
+                                <p class="text-[10px] font-black uppercase tracking-wider text-green-700">Attached to this draft</p>
+                                <h3 id="uploaded-files-heading" class="mt-1 text-base font-black text-gray-900">PDF attachment</h3>
                             </div>
-                            <span class="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-800">Ready in draft</span>
+                            <span class="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-800">Attached</span>
                         </div>
 
                         <div class="mt-4 divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
@@ -75,11 +75,11 @@
                 @endif
 
                 <section aria-labelledby="upload-paper-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-red-700">Upload only</p>
+                    <p class="text-[10px] font-black uppercase tracking-wider text-red-700">PDF upload</p>
                     <h3 id="upload-paper-heading" class="mt-1 text-lg font-black text-gray-900">{{ $uploadHeading }}</h3>
                     <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
                         @if ($isExpenseBreakdown)
-                            Complete this spreadsheet outside ATHENA, then upload the finished Excel file here. ATHENA will include the uploaded copy in your proposal package without changing its contents.
+                            Complete the official spreadsheet outside ATHENA, export or save it as a PDF, then attach that final PDF here. ATHENA will preserve it exactly as uploaded.
                         @else
                             Complete the required file outside ATHENA, then upload the finished copy here for inclusion in your proposal package.
                         @endif
@@ -94,7 +94,7 @@
                             <input type="hidden" name="document_version" value="{{ $documents->first()?->lock_version ?? 0 }}">
 
                             <div>
-                                <label for="documents" class="block text-xs font-black uppercase tracking-wider text-gray-700">Choose completed {{ $paper['multiple'] ? 'files' : $fileLabel }} <span class="text-red-600">Required</span></label>
+                                <label for="documents" class="block text-xs font-black uppercase tracking-wider text-gray-700">Choose completed PDF <span class="text-red-600">Required</span></label>
                                 <div class="mt-2 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 sm:p-5">
                                     <input id="documents" name="documents[]" type="file" accept="{{ $accept }}" @if ($paper['multiple']) multiple @endif required class="block w-full cursor-pointer rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-900 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:file:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
                                     <p class="mt-3 text-[11px] leading-5 text-gray-500">
@@ -130,11 +130,11 @@
                     </li>
                     <li class="flex gap-3">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">2</span>
-                        <div><p class="text-sm font-bold text-gray-900">Complete it outside ATHENA</p><p class="mt-1 text-xs leading-5 text-gray-500">Fill in and review the official {{ $fileLabel }} using the appropriate desktop application.</p></div>
+                        <div><p class="text-sm font-bold text-gray-900">Complete and export it</p><p class="mt-1 text-xs leading-5 text-gray-500">Fill in the official spreadsheet using the appropriate desktop application, then export the finished copy as PDF.</p></div>
                     </li>
                     <li class="flex gap-3">
                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-black text-white">3</span>
-                        <div><p class="text-sm font-bold text-gray-900">Upload the finished copy</p><p class="mt-1 text-xs leading-5 text-gray-500">The uploaded file becomes the version included in this draft package.</p></div>
+                        <div><p class="text-sm font-bold text-gray-900">Attach the finished PDF</p><p class="mt-1 text-xs leading-5 text-gray-500">This exact PDF becomes the version included when the proposal is turned in.</p></div>
                     </li>
                 </ol>
 
