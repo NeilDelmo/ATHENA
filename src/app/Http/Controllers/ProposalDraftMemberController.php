@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SendProposalWorkspaceInvitation;
 use App\Http\Requests\StoreProposalDraftMemberRequest;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftMember;
 use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +18,12 @@ class ProposalDraftMemberController extends Controller
     public function store(
         StoreProposalDraftMemberRequest $request,
         ProposalDraft $proposalDraft,
+        SendProposalWorkspaceInvitation $sendInvitation,
     ): RedirectResponse {
         $validated = $request->validated();
         $linkedUser = $request->linkedUser();
 
-        DB::transaction(function () use ($proposalDraft, $validated, $linkedUser): void {
+        $membership = DB::transaction(function () use ($proposalDraft, $validated, $linkedUser): ProposalDraftMember {
             $lockedDraft = ProposalDraft::query()
                 ->whereKey($proposalDraft->getKey())
                 ->lockForUpdate()
@@ -32,7 +35,7 @@ class ProposalDraftMemberController extends Controller
                 ]);
             }
 
-            $lockedDraft->members()->create([
+            return $lockedDraft->members()->create([
                 'user_id' => $linkedUser?->getKey(),
                 'name' => $linkedUser?->name ?? $validated['name'],
                 'email' => $linkedUser?->email ?? $validated['email'],
@@ -51,11 +54,49 @@ class ProposalDraftMemberController extends Controller
             }
         }
 
+        try {
+            $sendInvitation->handle($proposalDraft, $membership);
+            $invitationQueued = true;
+        } catch (Throwable $exception) {
+            report($exception);
+            $invitationQueued = false;
+        }
+
+        if (! $invitationQueued) {
+            return redirect()
+                ->route('faculty.proposal-drafts.show', $proposalDraft)
+                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the collaborator card.');
+        }
+
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
-                ? $linkedUser->name.' can now contribute to this proposal workspace.'
-                : $validated['name'].' was added as an external member. Their details can be reused, but they cannot sign in yet.');
+                ? 'Invitation sent to '.$linkedUser->name.'. They can now contribute to this proposal workspace.'
+                : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.');
+    }
+
+    public function resend(
+        ProposalDraft $proposalDraft,
+        int $member,
+        SendProposalWorkspaceInvitation $sendInvitation,
+    ): RedirectResponse {
+        Gate::authorize('manageMembers', $proposalDraft);
+
+        $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
+
+        try {
+            $sendInvitation->handle($proposalDraft, $proposalDraftMember);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return redirect()
+                ->route('faculty.proposal-drafts.show', $proposalDraft)
+                ->withErrors(['invitation' => 'ATHENA could not queue the invitation email. Please try again.']);
+        }
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', 'Invitation email queued for '.$proposalDraftMember->name.'.');
     }
 
     public function destroy(

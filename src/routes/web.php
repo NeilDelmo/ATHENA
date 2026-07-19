@@ -108,6 +108,7 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::get('/{proposalDraft}/initial-screening-form/preview', [ProposalDraftInitialScreeningFormController::class, 'preview'])->name('initial-screening-form.preview');
         Route::get('/{proposalDraft}/initial-screening-form/download', [ProposalDraftInitialScreeningFormController::class, 'download'])->name('initial-screening-form.download');
         Route::post('/{proposalDraft}/members', [ProposalDraftMemberController::class, 'store'])->name('members.store');
+        Route::post('/{proposalDraft}/members/{member}/invitation', [ProposalDraftMemberController::class, 'resend'])->middleware('throttle:6,1')->name('members.invitation');
         Route::delete('/{proposalDraft}/members/{member}', [ProposalDraftMemberController::class, 'destroy'])->name('members.destroy');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');

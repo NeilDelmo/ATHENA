@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
 use App\Models\User;
+use App\Support\InstitutionalEmail;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -69,6 +70,13 @@ class StoreProposalDraftMemberRequest extends FormRequest
 
             if (Str::lower($draft->owner()->value('email')) === $this->input('email')) {
                 $validator->errors()->add('email', 'The proposal owner is already part of this workspace.');
+            }
+
+            if (! InstitutionalEmail::isAllowed(
+                $this->input('email'),
+                config('services.google.allowed_domains', []),
+            )) {
+                $validator->errors()->add('email', 'Invite a BatStateU Google account that can sign in to ATHENA.');
             }
 
             if ($draft->members()->count() >= 50) {

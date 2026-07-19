@@ -6,6 +6,8 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Notifications\ProposalWorkspaceInvitation;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Permission\Models\Role;
 
@@ -62,17 +64,17 @@ beforeEach(function () {
     ];
 
     $this->withoutVite();
+    Notification::fake();
 });
 
 test('an owner can tag an existing account and the collaborator can edit but not control the workspace', function () {
-    Notification::fake();
-
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Proposal collaborators')
         ->assertSee($this->collaborator->email)
-        ->assertSee('Add collaborator');
+        ->assertSee('Send a workspace invitation')
+        ->assertSee('Send invitation');
 
     $this->actingAs($this->owner)
         ->post(route('faculty.proposal-drafts.members.store', $this->draft), [
@@ -87,6 +89,21 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->and($membership->name)->toBe($this->collaborator->name)
         ->and($membership->email)->toBe($this->collaborator->email);
     Notification::assertSentTo($this->collaborator, ProposalActivityNotification::class);
+    Notification::assertSentOnDemand(
+        ProposalWorkspaceInvitation::class,
+        function (ProposalWorkspaceInvitation $notification, array $channels, object $notifiable): bool {
+            return in_array('mail', $channels, true)
+                && isset($notifiable->routes['mail'][$this->collaborator->email])
+                && $notification->accountLinked;
+        },
+    );
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Joined')
+        ->assertSee('Can open and edit every draft paper.')
+        ->assertSee('Resend invitation');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.index'))
@@ -101,6 +118,9 @@ test('an owner can tag an existing account and the collaborator can edit but not
             'name' => 'Not Allowed',
             'email' => 'not-allowed@example.test',
         ])
+        ->assertForbidden();
+    $this->actingAs($this->collaborator)
+        ->post(route('faculty.proposal-drafts.members.invitation', [$this->draft, $membership]))
         ->assertForbidden();
     $this->actingAs($this->collaborator)
         ->delete(route('faculty.proposal-drafts.destroy', $this->draft))
@@ -137,6 +157,21 @@ test('an unregistered person remains external and is linked after verified Googl
         ->and($membership->name)->toBe('Future Account Member')
         ->and($membership->isLinked())->toBeFalse();
 
+    Notification::assertSentOnDemand(
+        ProposalWorkspaceInvitation::class,
+        function (ProposalWorkspaceInvitation $notification, array $channels, object $notifiable): bool {
+            return in_array('mail', $channels, true)
+                && isset($notifiable->routes['mail']['future.member@g.batstate-u.edu.ph'])
+                && ! $notification->accountLinked;
+        },
+    );
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Pending sign-in')
+        ->assertSee('Waiting for this exact email to sign in to ATHENA.');
+
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
         ->assertOk()
@@ -160,6 +195,52 @@ test('an unregistered person remains external and is linked after verified Googl
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Shared with you by Workspace Owner');
+});
+
+test('an owner can resend a collaborator invitation email', function () {
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+    ]);
+
+    $this->actingAs($this->owner)
+        ->post(route('faculty.proposal-drafts.members.invitation', [$this->draft, $membership]))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertSessionHas('success', 'Invitation email queued for Linked Collaborator.');
+
+    Notification::assertSentOnDemand(ProposalWorkspaceInvitation::class);
+});
+
+test('workspace invitations require an institutional Google email', function () {
+    $this->actingAs($this->owner)
+        ->post(route('faculty.proposal-drafts.members.store', $this->draft), [
+            'name' => 'Personal Email Member',
+            'email' => 'personal@example.com',
+        ])
+        ->assertSessionHasErrors('email');
+
+    expect($this->draft->members()->count())->toBe(0);
+    Notification::assertNothingSent();
+});
+
+test('the invitation email explains linked access and owner-only actions', function () {
+    $notification = new ProposalWorkspaceInvitation(
+        recipientName: 'Linked Collaborator',
+        inviterName: 'Workspace Owner',
+        projectTitle: 'Shared Coastal Research',
+        invitedEmail: 'collaborator@g.batstate-u.edu.ph',
+        workspaceUrl: route('faculty.proposal-drafts.show', $this->draft),
+        accountLinked: true,
+    );
+
+    $mail = $notification->toMail(new AnonymousNotifiable);
+
+    expect($mail->subject)->toBe('ATHENA proposal invitation: Shared Coastal Research')
+        ->and($mail->actionText)->toBe('Open ATHENA')
+        ->and(implode(' ', $mail->introLines))->toContain('Your verified ATHENA account is already linked')
+        ->and(implode(' ', $mail->outroLines))
+        ->toContain('Only the proposal owner can manage invitations, submit, or delete the proposal.');
 });
 
 test('workspace account details autofill member fields in project papers', function () {
