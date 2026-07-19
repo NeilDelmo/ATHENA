@@ -91,8 +91,8 @@
                 </div>
 
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
-                    <div><label for="leader-campus" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader campus <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="leader-campus" name="leader_campus" type="text" maxlength="120" x-model="leaderCampus" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    <div><label for="leader-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader college <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="leader-college" name="leader_college" type="text" list="line-item-budget-colleges" maxlength="120" x-model="leaderCollege" placeholder="Select or type a college" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    <div><label for="leader-campus" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader campus</label><input id="leader-campus" name="leader_campus" type="text" maxlength="120" x-model="leaderCampus" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    <div><label for="leader-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project leader college</label><input id="leader-college" name="leader_college" type="text" list="line-item-budget-colleges" maxlength="120" x-model="leaderCollege" placeholder="Select or type a college" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
 
                 <div class="mt-5 space-y-3">

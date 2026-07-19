@@ -97,6 +97,10 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('value="CAS"', false)
         ->assertSee('value="CHS"', false)
         ->assertDontSee('College of Informatics and Computing Sciences')
+        ->assertSee('>Project leader campus</label>', false)
+        ->assertSee('>Project leader college</label>', false)
+        ->assertDontSee('Project leader campus <span', false)
+        ->assertDontSee('Project leader college <span', false)
         ->assertSee('Ctrl + S')
         ->assertSee('Save and exit');
 
