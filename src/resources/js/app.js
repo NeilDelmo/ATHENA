@@ -681,6 +681,16 @@ Alpine.store('researchAssistant', {
         composer.style.height = `${Math.min(composer.scrollHeight, 176)}px`;
     },
 
+    handleComposerKeydown(event) {
+        if (event.defaultPrevented) return;
+        if (event.key !== 'Enter') return;
+        if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.isComposing) return;
+
+        event.preventDefault();
+        this.send();
+    },
+
     resetComposers() {
         window.setTimeout(() => {
             document.querySelectorAll('[data-assistant-composer]').forEach((composer) => {
