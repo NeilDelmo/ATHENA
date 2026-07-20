@@ -151,8 +151,8 @@
                                 Account Profile
                             </a>
 
-                            @if (Auth::user()->hasMultipleWorkspaces())
-                                <a href="{{ route('workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                            @if (Auth::user()->hasMultipleWorkspaces() || (Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher'])))
+                                <a href="{{ route(Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']) ? 'role-selection.show' : 'workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
                                     Switch Workspace
                                 </a>
                             @endif
