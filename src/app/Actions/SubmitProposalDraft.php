@@ -105,6 +105,7 @@ class SubmitProposalDraft
 
                     if ($paper['mode'] === 'automatic') {
                         $permanentFiles[] = match ($paper['slug']) {
+                            'gad-checklist' => $this->generateGADChecklist($lockedDraft, $permanentDirectory),
                             'initial-screening-form' => $this->generateInitialScreeningForm($lockedDraft, $permanentDirectory),
                             default => throw ValidationException::withMessages([
                                 'papers.'.$paper['slug'] => $paper['label'].' does not have an automatic document generator.',
@@ -122,7 +123,6 @@ class SubmitProposalDraft
                             'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
                             'expense-breakdown' => $this->generateExpenseBreakdown($lockedDraft, $document, $permanentDirectory),
                             'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
-                            'gad-checklist' => $this->generateGADChecklist($lockedDraft, $document, $permanentDirectory),
                             default => throw ValidationException::withMessages([
                                 'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
                             ]),
@@ -399,7 +399,6 @@ class SubmitProposalDraft
     /** @return array<string, mixed> */
     private function generateGADChecklist(
         ProposalDraft $draft,
-        ProposalDraftDocument $document,
         string $permanentDirectory,
     ): array {
         $sourceData = [

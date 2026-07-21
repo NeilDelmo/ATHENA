@@ -2,15 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\SaveProposalDraftDocument;
-use App\Http\Requests\UpdateProposalDraftGADChecklistRequest;
 use App\Models\ProposalDraft;
-use App\Models\ProposalDraftDocument;
 use App\Services\GADChecklistDocumentService;
 use App\Support\GADChecklistData;
+use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -18,79 +14,39 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProposalDraftGADChecklistController extends Controller
 {
-    public function edit(
+    public function show(
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        ProposalDraftReadiness $readiness,
     ): View {
-        Gate::authorize('update', $proposalDraft);
+        Gate::authorize('view', $proposalDraft);
 
-        $proposalDraft->load('researchCall');
         $paper = $catalog->get('gad-checklist');
-        $gadDocument = $this->document($proposalDraft);
+        $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
 
-        return view('faculty.proposal-drafts.gad-checklist.edit', compact(
+        return view('faculty.proposal-drafts.gad-checklist.show', compact(
             'proposalDraft',
             'paper',
-            'gadDocument',
+            'projectDetailsComplete',
         ));
     }
 
-    public function update(
-        UpdateProposalDraftGADChecklistRequest $request,
-        ProposalDraft $proposalDraft,
-        ProposalPaperCatalog $catalog,
-        SaveProposalDraftDocument $saveProposalDraftDocument,
-    ): RedirectResponse {
-        Gate::authorize('update', $proposalDraft);
+    public function preview(ProposalDraft $proposalDraft): View
+    {
+        Gate::authorize('view', $proposalDraft);
 
-        $paper = $catalog->get('gad-checklist');
-        $saveProposalDraftDocument->handle(
-            $proposalDraft,
-            $request->user(),
-            $paper['document_type'],
-            0,
-            $request->integer('document_version'),
-            [
-                'source_data' => Arr::only($request->validated(), ['project_title', 'project_leader']),
-                'file_path' => null,
-                'original_filename' => null,
-                'mime_type' => null,
-                'file_size' => null,
-                'checksum' => null,
-                'completed_at' => now(),
-            ],
-            changeNote: $request->string('change_note')->toString(),
-        );
-
-        return redirect()
-            ->route(
-                $request->boolean('exit_after_save')
-                    ? 'faculty.proposal-drafts.show'
-                    : 'faculty.proposal-drafts.gad-checklist.edit',
-                $proposalDraft,
-            )
-            ->with('success', 'GAD Generic Checklist saved.');
-    }
-
-    public function preview(
-        UpdateProposalDraftGADChecklistRequest $request,
-        ProposalDraft $proposalDraft,
-    ): View {
-        Gate::authorize('update', $proposalDraft);
-
-        $gadChecklist = GADChecklistData::fromValidated($request->validated());
+        $gadChecklist = GADChecklistData::fromValidated($this->gadChecklistData($proposalDraft));
 
         return view('faculty.gad-checklist.preview', compact('gadChecklist'));
     }
 
     public function download(
-        UpdateProposalDraftGADChecklistRequest $request,
         ProposalDraft $proposalDraft,
         GADChecklistDocumentService $documentService,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
 
-        $gadChecklist = GADChecklistData::fromValidated($request->validated());
+        $gadChecklist = GADChecklistData::fromValidated($this->gadChecklistData($proposalDraft));
         $contents = $documentService->generate($gadChecklist);
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
 
@@ -103,11 +59,12 @@ class ProposalDraftGADChecklistController extends Controller
         );
     }
 
-    private function document(ProposalDraft $proposalDraft): ?ProposalDraftDocument
+    /** @return array{project_title: string, project_leader: string} */
+    private function gadChecklistData(ProposalDraft $proposalDraft): array
     {
-        return $proposalDraft->documents()
-            ->where('document_type', config('proposal_papers.gad-checklist.document_type'))
-            ->where('position', 0)
-            ->first();
+        return [
+            'project_title' => (string) $proposalDraft->project_title,
+            'project_leader' => (string) $proposalDraft->project_leader,
+        ];
     }
 }

@@ -199,7 +199,7 @@
                             'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
                             'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft),
                             'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
-                            'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft),
+                            'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft),
                             'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
@@ -216,8 +216,6 @@
                         <div class="mt-4 min-h-10 text-xs text-gray-600">
                             @if ($paper['mode'] === 'automatic')
                                 <p class="font-semibold">PDF prepared automatically from Project Details when the package is turned in.</p>
-                            @elseif ($paper['slug'] === 'gad-checklist')
-                                <p class="font-semibold">Prepared automatically from Project Details. Review the generated copy and mark it ready.</p>
                             @elseif ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
                                     <p class="font-semibold">{{ $item['submission_filename'] }}</p>

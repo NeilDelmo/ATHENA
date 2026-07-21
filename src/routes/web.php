@@ -106,10 +106,9 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
         Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');
         Route::post('/{proposalDraft}/curriculum-vitae/download', [ProposalDraftCurriculumVitaeController::class, 'download'])->name('curriculum-vitae.download');
-        Route::get('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'edit'])->name('gad-checklist.edit');
-        Route::put('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'update'])->name('gad-checklist.update');
-        Route::post('/{proposalDraft}/gad-checklist/preview', [ProposalDraftGADChecklistController::class, 'preview'])->name('gad-checklist.preview');
-        Route::post('/{proposalDraft}/gad-checklist/download', [ProposalDraftGADChecklistController::class, 'download'])->name('gad-checklist.download');
+        Route::get('/{proposalDraft}/gad-checklist', [ProposalDraftGADChecklistController::class, 'show'])->name('gad-checklist.show');
+        Route::get('/{proposalDraft}/gad-checklist/preview', [ProposalDraftGADChecklistController::class, 'preview'])->name('gad-checklist.preview');
+        Route::get('/{proposalDraft}/gad-checklist/download', [ProposalDraftGADChecklistController::class, 'download'])->name('gad-checklist.download');
         Route::get('/{proposalDraft}/initial-screening-form', [ProposalDraftInitialScreeningFormController::class, 'show'])->name('initial-screening-form.show');
         Route::get('/{proposalDraft}/initial-screening-form/preview', [ProposalDraftInitialScreeningFormController::class, 'preview'])->name('initial-screening-form.preview');
         Route::get('/{proposalDraft}/initial-screening-form/download', [ProposalDraftInitialScreeningFormController::class, 'download'])->name('initial-screening-form.download');

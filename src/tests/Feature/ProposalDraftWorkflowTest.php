@@ -168,10 +168,6 @@ beforeEach(function () {
                                 ->all(),
                         ]],
                     ],
-                    'gad-checklist' => [
-                        'project_title' => $draft->project_title,
-                        'project_leader' => $draft->project_leader,
-                    ],
                     default => [],
                 };
                 $draft->documents()->create([
@@ -298,10 +294,9 @@ test('every draft paper and submission endpoint is protected from another owner'
         fn () => $this->put(route('faculty.proposal-drafts.curriculum-vitae.update', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.preview', $draft), []),
         fn () => $this->post(route('faculty.proposal-drafts.curriculum-vitae.download', $draft), []),
-        fn () => $this->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft)),
-        fn () => $this->put(route('faculty.proposal-drafts.gad-checklist.update', $draft), ['document_version' => 1]),
-        fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft)),
-        fn () => $this->post(route('faculty.proposal-drafts.gad-checklist.download', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.gad-checklist.show', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.gad-checklist.preview', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.gad-checklist.download', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.show', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.preview', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.download', $draft)),
@@ -351,7 +346,7 @@ test('the proposal hub presents project details and the seven code-owned require
             'Initial Screening Form',
         ]);
 
-    expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(6);
+    expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(5);
 
     $workspaceView = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
 
@@ -480,66 +475,54 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSee('Each 12-month block becomes a matching Attachment A year sheet.');
 });
 
-test('the GAD checklist preserves the supplied seven-page document and fills shared project details automatically', function () {
+test('the GAD checklist is automatic and preserves every page of the supplied Box 7a document', function () {
     $draft = ($this->createDraft)();
+
+    $waitingItem = app(ProposalDraftReadiness::class)
+        ->checklist($draft)
+        ->get('gad-checklist');
+
+    expect($waitingItem['complete'])->toBeFalse()
+        ->and($waitingItem['status'])->toBe('Waiting for project details')
+        ->and($waitingItem['documents'])->toBeEmpty();
+
     $draft->update(($this->projectDetails)());
 
+    $automaticItem = app(ProposalDraftReadiness::class)
+        ->checklist($draft->fresh())
+        ->get('gad-checklist');
+
+    expect($automaticItem['complete'])->toBeTrue()
+        ->and($automaticItem['documents'])->toBeEmpty();
+
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
+        ->get(route('faculty.proposal-drafts.gad-checklist.show', $draft))
         ->assertOk()
         ->assertSee('No form fields to answer')
         ->assertSee('Auto-filled from shared project information')
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('There are no answers to enter')
-        ->assertSee('Mark paper ready')
+        ->assertDontSee('Mark paper ready')
         ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
         ->assertDontSee('data-paper-save-exit', false)
+        ->assertDontSee('data-paper-save', false)
         ->assertDontSee('name="project_title"', false)
         ->assertDontSee('name="project_leader"', false);
 
-    $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.gad-checklist.update', $draft), [
-            'document_version' => 0,
-            'project_title' => 'Ignored request title',
-            'project_leader' => 'Ignored request leader',
-        ])
-        ->assertRedirect(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
-        ->assertSessionHas('success', 'GAD Generic Checklist saved.');
-
-    $document = $draft->documents()
-        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
-        ->sole();
-
-    expect($document->source_data)->toBe([
-        'project_title' => 'Coastal Habitat Restoration',
-        'project_leader' => 'Faculty Owner',
-    ])->and($document->completed_at)->not->toBeNull();
-
-    $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.gad-checklist.edit', $draft))
-        ->assertOk()
-        ->assertSee('Automatic paper marked ready')
-        ->assertDontSee('Mark paper ready');
-
     $preview = $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.gad-checklist.preview', $draft), [
-            'project_title' => 'Ignored preview title',
-            'project_leader' => 'Ignored preview leader',
-        ])
+        ->get(route('faculty.proposal-drafts.gad-checklist.preview', $draft))
         ->assertOk()
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('12.32')
-        ->assertSee('Guide for accomplishing Box 7a')
-        ->assertDontSee('Ignored preview title')
-        ->assertDontSee('Ignored preview leader');
+        ->assertSee('Guide for accomplishing Box 7a');
 
     expect(substr_count($preview->getContent(), 'aria-label="Box 7a GAD Generic Checklist page'))->toBe(7);
 
     $download = $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.gad-checklist.download', $draft))
+        ->get(route('faculty.proposal-drafts.gad-checklist.download', $draft))
         ->assertOk()
         ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         ->assertDownload('coastal-habitat-restoration-gad-checklist.docx');
@@ -565,9 +548,7 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
         expect($documentText)->toContain('Research Project Title:')
             ->toContain('Coastal Habitat Restoration')
             ->toContain('Faculty Owner')
-            ->toContain('12.32')
-            ->not->toContain('Ignored request title')
-            ->not->toContain('Ignored request leader');
+            ->toContain('12.32');
 
         foreach (['word/footer1.xml', 'word/footnotes.xml', 'word/numbering.xml', 'word/styles.xml', 'word/media/image1.png'] as $preservedPart) {
             expect($generated->getFromName($preservedPart))->toBe($template->getFromName($preservedPart));
@@ -577,6 +558,10 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
         $template->close();
         unlink($temporaryPath);
     }
+
+    expect($draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->count())->toBe(0);
 });
 
 test('the Initial Screening Form is automatic and preserves every evaluator-owned field', function () {
@@ -933,7 +918,7 @@ test('final submission creates one immutable package then rejects a duplicate re
         fn (ProposalDraftDocumentVersion $history): bool => $history->hasStoredFile(),
     );
 
-    expect($archivedHistory)->toHaveCount(6)
+    expect($archivedHistory)->toHaveCount(5)
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_document_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->is_current === false))->toBeTrue()
@@ -942,7 +927,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Draft history (6)');
+        ->assertSee('Draft history (5)');
     $this->actingAs($this->faculty)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk()
