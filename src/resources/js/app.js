@@ -1,7 +1,11 @@
 
 import Alpine from 'alpinejs';
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+import { addCalendarMonths } from './proposal-draft-dates';
 
 window.Alpine = Alpine;
+window.Swal = Swal;
 
 const themeStorageKey = 'athena-theme';
 const legacyThemeKeys = ['athena-auth-theme', 'theme'];
@@ -86,15 +90,123 @@ function paperEditorHasUnsavedChanges(editor) {
     return editor?.dataset.paperDirty === 'true';
 }
 
-function confirmPaperEditorNavigation(editor, message) {
-    return !paperEditorHasUnsavedChanges(editor) || window.confirm(message);
+function proposalDialogTheme() {
+    const isDark = document.documentElement.classList.contains('dark');
+
+    return {
+        background: isDark ? '#0f172a' : '#ffffff',
+        color: isDark ? '#f8fafc' : '#111827',
+        cancelButtonColor: isDark ? '#475569' : '#6b7280',
+    };
 }
 
-function navigateFromPaperEditor(editor, destination, message) {
-    if (!destination || !confirmPaperEditorNavigation(editor, message)) return;
+async function showProposalConfirmation({
+    title,
+    text,
+    confirmButtonText = 'Continue',
+    cancelButtonText = 'Cancel',
+    icon = 'warning',
+}) {
+    const result = await Swal.fire({
+        title,
+        text,
+        icon,
+        showCancelButton: true,
+        confirmButtonText,
+        cancelButtonText,
+        confirmButtonColor: '#dc2626',
+        reverseButtons: true,
+        focusCancel: true,
+        ...proposalDialogTheme(),
+    });
+
+    return result.isConfirmed;
+}
+
+async function initializeProposalAlerts() {
+    const alerts = Array.from(document.querySelectorAll('[data-proposal-alert]'))
+        .filter((alert) => alert.dataset.proposalAlertReady !== 'true');
+
+    alerts.forEach((alert) => {
+        alert.dataset.proposalAlertReady = 'true';
+        alert.hidden = true;
+    });
+
+    const alertTitles = {
+        success: 'Success',
+        warning: 'Please note',
+        error: 'Something needs attention',
+    };
+
+    for (const alert of alerts) {
+        const icon = ['success', 'warning', 'error'].includes(alert.dataset.alertIcon)
+            ? alert.dataset.alertIcon
+            : 'info';
+
+        await Swal.fire({
+            title: alert.dataset.alertTitle || alertTitles[icon] || 'Notification',
+            html: alert.innerHTML.trim(),
+            icon,
+            confirmButtonText: alert.dataset.alertButton || 'OK',
+            confirmButtonColor: '#dc2626',
+            customClass: {
+                htmlContainer: alert.querySelector('ul') ? 'text-left' : '',
+            },
+            ...proposalDialogTheme(),
+        });
+    }
+}
+
+void initializeProposalAlerts();
+document.addEventListener('livewire:navigated', () => void initializeProposalAlerts());
+
+async function confirmPaperEditorNavigation(editor, message) {
+    if (!paperEditorHasUnsavedChanges(editor)) return true;
+
+    return showProposalConfirmation({
+        title: 'Discard unsaved changes?',
+        text: message,
+        confirmButtonText: 'Discard changes',
+    });
+}
+
+async function navigateFromPaperEditor(editor, destination, message) {
+    if (!destination || !await confirmPaperEditorNavigation(editor, message)) return;
 
     window.location.assign(destination);
 }
+
+document.addEventListener('submit', async (event) => {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+
+    if (!form?.matches('[data-proposal-confirm]')) return;
+
+    if (form.dataset.proposalConfirmAccepted === 'true') {
+        delete form.dataset.proposalConfirmAccepted;
+
+        return;
+    }
+
+    event.preventDefault();
+
+    const isConfirmed = await showProposalConfirmation({
+        title: form.dataset.confirmTitle || 'Continue with this action?',
+        text: form.dataset.confirmText || 'Please confirm that you want to continue.',
+        confirmButtonText: form.dataset.confirmButton || 'Continue',
+        cancelButtonText: form.dataset.cancelButton || 'Cancel',
+        icon: form.dataset.confirmIcon || 'warning',
+    });
+
+    if (!isConfirmed) return;
+
+    form.dataset.proposalConfirmAccepted = 'true';
+
+    if (event.submitter instanceof HTMLButtonElement || event.submitter instanceof HTMLInputElement) {
+        form.requestSubmit(event.submitter);
+    } else {
+        form.requestSubmit();
+    }
+});
 
 function submitPaperEditor(editor, submitterSelector) {
     if (editor.dataset.paperSubmitting === 'true') return;
@@ -164,7 +276,7 @@ document.addEventListener('submit', (event) => {
     showPaperEditorSubmitStatus(editor, event.submitter);
 });
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', async (event) => {
     const action = event.target instanceof Element
         ? event.target.closest('[data-paper-discard], [data-paper-cancel-exit]')
         : null;
@@ -172,11 +284,18 @@ document.addEventListener('click', (event) => {
     if (!action) return;
 
     const editor = action.closest('[data-paper-editor]');
-    const message = action.matches('[data-paper-discard]')
-        ? 'Discard unsaved changes and reload this paper?'
-        : 'Discard unsaved changes and return to the proposal package?';
 
-    if (!confirmPaperEditorNavigation(editor, message)) event.preventDefault();
+    if (!paperEditorHasUnsavedChanges(editor)) return;
+
+    const message = action.matches('[data-paper-discard]')
+        ? 'Your changes to this paper will be lost when the saved version is reloaded.'
+        : 'Your changes to this paper will be lost when you return to the proposal package.';
+
+    event.preventDefault();
+
+    if (await confirmPaperEditorNavigation(editor, message)) {
+        window.location.assign(action.href);
+    }
 });
 
 document.addEventListener('keydown', (event) => {
@@ -203,10 +322,10 @@ document.addEventListener('keydown', (event) => {
 
     if (commandKey && event.altKey && !event.shiftKey && key === 'r') {
         event.preventDefault();
-        navigateFromPaperEditor(
+        void navigateFromPaperEditor(
             editor,
             editor.dataset.paperEditUrl,
-            'Discard unsaved changes and reload this paper?',
+            'Your changes to this paper will be lost when the saved version is reloaded.',
         );
 
         return;
@@ -214,10 +333,10 @@ document.addEventListener('keydown', (event) => {
 
     if (commandKey && event.altKey && !event.shiftKey && key === 'x') {
         event.preventDefault();
-        navigateFromPaperEditor(
+        void navigateFromPaperEditor(
             editor,
             editor.dataset.paperExitUrl,
-            'Discard unsaved changes and return to the proposal package?',
+            'Your changes to this paper will be lost when you return to the proposal package.',
         );
     }
 });
@@ -709,6 +828,7 @@ Alpine.store('literatureSearch', {
         open_access: false,
     },
     results: [],
+    selectedIndex: null,
     failedSources: [],
     isLoading: false,
     hasSearched: false,
@@ -722,6 +842,7 @@ Alpine.store('literatureSearch', {
 
         if (query.length < 3) {
             this.results = [];
+            this.selectedIndex = null;
             this.error = 'Enter at least 3 characters to search for related literature.';
             return;
         }
@@ -749,6 +870,7 @@ Alpine.store('literatureSearch', {
 
             if (!response.ok) {
                 this.results = [];
+                this.selectedIndex = null;
 
                 if (response.status === 419) {
                     this.error = 'Refresh the page, then try the search again.';
@@ -775,8 +897,10 @@ Alpine.store('literatureSearch', {
             }
 
             this.results = Array.isArray(payload.results) ? payload.results : [];
+            this.selectedIndex = this.results.length > 0 ? 0 : null;
         } catch (error) {
             this.results = [];
+            this.selectedIndex = null;
             this.error = error.message || 'A network error interrupted the literature search.';
         } finally {
             this.isLoading = false;
@@ -803,6 +927,28 @@ Alpine.store('literatureSearch', {
         const number = Number(value);
 
         return Number.isFinite(number) ? number : null;
+    },
+
+    activeFilterCount() {
+        const numericFilters = [
+            this.filters.year_from,
+            this.filters.year_to,
+            this.filters.min_citations,
+        ].filter((value) => value !== '' && value !== null && value !== undefined).length;
+
+        return numericFilters + (this.filters.open_access ? 1 : 0);
+    },
+
+    selectResult(index) {
+        if (!Number.isInteger(index) || !this.results[index]) return;
+
+        this.selectedIndex = index;
+    },
+
+    selectedResult() {
+        return Number.isInteger(this.selectedIndex)
+            ? this.results[this.selectedIndex] || null
+            : null;
     },
 
     filterSummary() {
@@ -878,6 +1024,7 @@ Alpine.store('literatureSearch', {
             open_access: false,
         };
         this.results = [];
+        this.selectedIndex = null;
         this.failedSources = [];
         this.error = '';
         this.hasSearched = false;
@@ -1050,6 +1197,23 @@ Alpine.store('conferenceSearch', {
     },
 });
 
+Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
+    durationMonths: config.initialDuration ?? '',
+    plannedStart: normalizeIsoDate(config.initialStart),
+    plannedEnd: normalizeIsoDate(config.initialEnd),
+
+    init() {
+        this.$watch('durationMonths', () => this.syncPlannedEnd());
+        this.$watch('plannedStart', () => this.syncPlannedEnd());
+
+        if (!this.plannedEnd) this.syncPlannedEnd();
+    },
+
+    syncPlannedEnd() {
+        this.plannedEnd = addCalendarMonths(this.plannedStart, this.durationMonths);
+    },
+}));
+
 Alpine.data('datePicker', (config = {}) => ({
     value: normalizeIsoDate(config.initialValue),
     min: normalizeIsoDate(config.min) || '1900-01-01',
@@ -1062,7 +1226,6 @@ Alpine.data('datePicker', (config = {}) => ({
     panelId: `athena-date-picker-${Math.random().toString(36).slice(2, 10)}`,
     monthSelectId: `athena-date-picker-month-${Math.random().toString(36).slice(2, 10)}`,
     yearInputId: `athena-date-picker-year-${Math.random().toString(36).slice(2, 10)}`,
-    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
 
     get formattedValue() {
@@ -2503,6 +2666,242 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
+        } finally {
+            this.downloadLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
+Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
+    nextId: 0,
+    items: [],
+    accountCatalog: config.accountCatalog && typeof config.accountCatalog === 'object'
+        ? config.accountCatalog
+        : {},
+    validationMessage: '',
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    downloadError: '',
+    downloadLoading: false,
+
+    init() {
+        const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
+        const initialItems = Array.isArray(data.items) ? data.items : [];
+        this.items = initialItems.length > 0
+            ? initialItems.map((item) => this.newItem(item))
+            : [this.newItem()];
+    },
+
+    newItem(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            category: String(values.category ?? 'mooe'),
+            account: String(values.account ?? ''),
+            sub_account: String(values.sub_account ?? ''),
+            particulars: String(values.particulars ?? ''),
+            details: String(values.details ?? ''),
+            purpose: String(values.purpose ?? ''),
+            unit: String(values.unit ?? ''),
+            quantity: values.quantity ?? '',
+            unit_cost: values.unit_cost ?? '',
+        };
+    },
+
+    accountsFor(item) {
+        return Array.isArray(this.accountCatalog[item.category])
+            ? this.accountCatalog[item.category]
+            : [];
+    },
+
+    accountFor(item) {
+        return this.accountsFor(item).find((account) => account.label === item.account) || null;
+    },
+
+    subAccountsFor(item) {
+        const account = this.accountFor(item);
+
+        return Array.isArray(account?.sub_accounts) ? account.sub_accounts : [];
+    },
+
+    isContingency(item) {
+        return this.accountFor(item)?.is_contingency === true;
+    },
+
+    syncGrouping(item, resetAccount = false) {
+        const accounts = this.accountsFor(item);
+
+        if (resetAccount || !accounts.some((account) => account.label === item.account)) {
+            item.account = '';
+            item.sub_account = '';
+        }
+
+        const subAccounts = this.subAccountsFor(item);
+
+        if (!subAccounts.some((subAccount) => subAccount.label === item.sub_account)) {
+            item.sub_account = subAccounts.length === 1 ? subAccounts[0].label : '';
+        }
+
+        if (this.isContingency(item)) {
+            item.particulars = 'N/A';
+            item.details = 'N/A';
+            item.unit = 'N/A';
+            item.quantity = 1;
+
+            if (!item.purpose) item.purpose = 'For unexpected/unforeseen expenses';
+        }
+    },
+
+    addItem(copyGrouping = false) {
+        const previousItem = this.items[this.items.length - 1] || {};
+        const grouping = copyGrouping
+            ? {
+                category: previousItem.category,
+                account: previousItem.account,
+                sub_account: previousItem.sub_account,
+            }
+            : {};
+
+        const item = this.newItem(grouping);
+        this.syncGrouping(item);
+        this.items.push(item);
+    },
+
+    removeItem(index) {
+        if (this.items.length === 1) return;
+
+        this.items.splice(index, 1);
+    },
+
+    numeric(value) {
+        const number = Number(value);
+
+        return Number.isFinite(number) ? number : 0;
+    },
+
+    itemTotal(item) {
+        return this.numeric(item.quantity) * this.numeric(item.unit_cost);
+    },
+
+    categoryTotal(category) {
+        return this.items
+            .filter((item) => item.category === category)
+            .reduce((total, item) => total + this.itemTotal(item), 0);
+    },
+
+    grandTotal() {
+        return this.items.reduce((total, item) => total + this.itemTotal(item), 0);
+    },
+
+    formatMoney(value) {
+        return new Intl.NumberFormat('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(this.numeric(value));
+    },
+
+    validateForm() {
+        this.validationMessage = '';
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
+
+        if (!invalidField) return true;
+
+        invalidField.reportValidity();
+        invalidField.focus();
+
+        return false;
+    },
+
+    formData() {
+        const formData = new FormData(this.$refs.form);
+        formData.delete('_method');
+
+        return formData;
+    },
+
+    async generatePreview() {
+        if (!this.validateForm()) return;
+
+        this.previewError = '';
+        this.downloadError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: { Accept: 'application/json', 'X-CSRF-TOKEN': config.csrfToken },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Estimated Expense Breakdown information.';
+                this.previewHtml = '';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The preview could not be generated. Please try again.');
+            this.previewHtml = await response.text();
+        } catch (error) {
+            this.previewHtml = '';
+            this.previewError = error instanceof Error ? error.message : 'The preview could not be generated.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    async downloadDocument() {
+        if (!this.validateForm()) return;
+
+        this.downloadError = '';
+        this.downloadLoading = true;
+
+        try {
+            const response = await fetch(config.downloadUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: this.formData(),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Estimated Expense Breakdown information.';
+
+                return;
+            }
+
+            if (!response.ok) throw new Error('The Excel file could not be generated. Please try again.');
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = filenameMatch?.[1] || 'estimated-expense-breakdown.xlsx';
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            this.downloadError = error instanceof Error ? error.message : 'The Excel file could not be generated.';
         } finally {
             this.downloadLoading = false;
         }

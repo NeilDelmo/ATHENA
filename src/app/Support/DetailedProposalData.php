@@ -25,7 +25,7 @@ class DetailedProposalData
             'leader_contact' => self::text($validated['leader_contact']),
             'staff' => self::rows($validated['staff'] ?? [], ['name', 'email', 'contact']),
             'proponent_agency' => (string) config('detailed_proposal.proponent_agency'),
-            'proponent_department' => self::text($validated['proponent_department']),
+            'proponent_department' => self::text($validated['proponent_department'] ?? ''),
             'proponent_college' => self::text($validated['proponent_college']),
             'proponent_campus' => self::text($validated['proponent_campus']),
             'cooperating_agency' => self::text($validated['cooperating_agency'] ?? ''),

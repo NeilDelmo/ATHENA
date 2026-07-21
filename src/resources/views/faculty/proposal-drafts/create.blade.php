@@ -10,10 +10,10 @@
     <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
             @if ($errors->any())
-                <div role="alert" class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <x-proposal-alert type="error" class="mb-6">
                     <p class="font-bold">Please correct the following:</p>
                     <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-                </div>
+                </x-proposal-alert>
             @endif
 
             @if ($researchCalls->isEmpty())

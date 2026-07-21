@@ -13,14 +13,24 @@ class LibreOfficeDocumentPdfConverter implements DocumentPdfConverter
 {
     public function convertDocx(string $contents): string
     {
+        return $this->convert($contents, 'docx', 'pdf:writer_pdf_Export');
+    }
+
+    public function convertXlsx(string $contents): string
+    {
+        return $this->convert($contents, 'xlsx', 'pdf:calc_pdf_Export');
+    }
+
+    private function convert(string $contents, string $extension, string $filter): string
+    {
         $temporaryDirectory = $this->makeTemporaryDirectory();
-        $sourcePath = $temporaryDirectory.DIRECTORY_SEPARATOR.'source.docx';
+        $sourcePath = $temporaryDirectory.DIRECTORY_SEPARATOR.'source.'.$extension;
         $pdfPath = $temporaryDirectory.DIRECTORY_SEPARATOR.'source.pdf';
         $profilePath = $temporaryDirectory.DIRECTORY_SEPARATOR.'libreoffice-profile';
 
         try {
             if (File::put($sourcePath, $contents) === false) {
-                throw new RuntimeException('A temporary Word document could not be created for PDF conversion.');
+                throw new RuntimeException('A temporary document could not be created for PDF conversion.');
             }
 
             File::makeDirectory($profilePath);
@@ -33,7 +43,7 @@ class LibreOfficeDocumentPdfConverter implements DocumentPdfConverter
                     '--nolockcheck',
                     '-env:UserInstallation='.$this->fileUri($profilePath),
                     '--convert-to',
-                    'pdf:writer_pdf_Export',
+                    $filter,
                     '--outdir',
                     $temporaryDirectory,
                     $sourcePath,

@@ -28,17 +28,27 @@ class FacultyDirectoryController extends Controller
         $members = User::query()
             ->select(['id', 'name', 'email', 'avatar', 'college'])
             ->with('roles:id,name')
-            ->when($selectedCollege !== 'all', fn ($query) => $query->where('college', User::COLLEGES[$selectedCollege]))
-            ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            }))
             ->orderBy('name')
-            ->paginate(20)
-            ->withQueryString();
+            ->get();
+
+        $memberFilters = $members->map(fn (User $member): array => [
+            'id' => $member->getKey(),
+            'college' => array_search($member->college, User::COLLEGES, true) ?: '',
+            'search' => Str::lower($member->name.' '.$member->email),
+        ])->values();
+
+        $coordinatorsByCollege = $members
+            ->filter(fn (User $member): bool => filled($member->college) && $member->hasRole('research_coordinator'))
+            ->keyBy('college')
+            ->map(fn (User $member): array => [
+                'id' => $member->getKey(),
+                'name' => $member->name,
+            ]);
 
         return view('research_head.faculty-directory', [
             'colleges' => User::COLLEGES,
+            'coordinatorsByCollege' => $coordinatorsByCollege,
+            'memberFilters' => $memberFilters,
             'members' => $members,
             'search' => $search,
             'selectedCollege' => $selectedCollege,

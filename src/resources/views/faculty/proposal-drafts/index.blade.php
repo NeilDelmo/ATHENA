@@ -5,23 +5,26 @@
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Proposal Package Workspace</h2>
                 <p class="mt-1 text-xs text-gray-500">Create, resume, and manage your research proposal drafts.</p>
             </div>
-            <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                New Proposal
-            </a>
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <x-paper-editor-shortcuts />
+                <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    New Proposal
+                </a>
+            </div>
         </div>
     </x-slot>
 
     <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @if (session('success'))
-            <div role="status" class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">{{ session('success') }}</div>
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-bold">The requested draft action could not be completed.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            </div>
+            </x-proposal-alert>
         @endif
 
         <section aria-labelledby="saved-drafts-heading">
@@ -64,7 +67,14 @@
                         <div class="mt-auto grid gap-2 pt-6 {{ $proposalDraft->user_id === auth()->id() ? 'sm:grid-cols-[1fr_auto]' : '' }}">
                             <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Resume</a>
                             @can('delete', $proposalDraft)
-                            <form action="{{ route('faculty.proposal-drafts.destroy', $proposalDraft) }}" method="POST" onsubmit="return confirm('Delete this proposal draft and all staged papers?')">
+                            <form
+                                action="{{ route('faculty.proposal-drafts.destroy', $proposalDraft) }}"
+                                method="POST"
+                                data-proposal-confirm
+                                data-confirm-title="Delete proposal draft?"
+                                data-confirm-text="This permanently deletes the draft and all staged papers. This action cannot be undone."
+                                data-confirm-button="Delete draft"
+                            >
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Delete</button>

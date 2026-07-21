@@ -212,6 +212,14 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->and(substr_count($response->getContent(), 'data-work-plan-title-value'))->toBe(1)
         ->and(substr_count($response->getContent(), 'data-work-plan-project-title'))->toBe(1)
         ->and($response->getContent())->not->toContain('>X<');
+
+    $printStyles = file_get_contents(resource_path('css/work-plan-print.css'));
+
+    expect($printStyles)
+        ->toContain('-webkit-print-color-adjust: exact;')
+        ->toContain('print-color-adjust: exact;')
+        ->toContain('background-color: #e7e6e6 !important;')
+        ->toContain('box-shadow: inset 0 0 0 1.25pt #737373;');
 });
 
 test('the preview reuses Attachment A for every 12-month project year', function () {

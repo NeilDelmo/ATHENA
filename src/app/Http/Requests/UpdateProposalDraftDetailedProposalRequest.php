@@ -38,6 +38,12 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
             $merged['leader_email'] = $this->matchingLeaderEmail($draft);
         }
 
+        $merged['proponent_department'] ??= '';
+
+        if (blank($merged['proponent_college'] ?? null)) {
+            $merged['proponent_college'] = (string) ($this->user()?->college ?? '');
+        }
+
         $this->replace([
             ...$merged,
             'project_title' => $draft->project_title,

@@ -130,6 +130,8 @@ class ProposalDraftReadiness
                     && $document->source_data['responsibilities'] !== [],
                 'work-plan' => is_array($document->source_data['entries'] ?? null)
                     && $document->source_data['entries'] !== [],
+                'expense-breakdown' => is_array($document->source_data['items'] ?? null)
+                    && $document->source_data['items'] !== [],
                 'curriculum-vitae' => is_array($document->source_data['people'] ?? null)
                     && $document->source_data['people'] !== [],
                 default => true,

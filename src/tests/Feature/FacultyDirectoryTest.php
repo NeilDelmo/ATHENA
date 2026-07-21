@@ -31,17 +31,24 @@ test('research heads can view every user in the faculty directory', function () 
         ->assertOk()
         ->assertSee('Faculty Directory')
         ->assertSee('placeholder="Search faculty"', false)
-        ->assertSee('x-on:input.debounce.500ms', false)
-        ->assertSee('Set as Research Coordinator?')
+        ->assertSee('x-model.debounce.250ms="search"', false)
+        ->assertSee('window.history.replaceState', false)
+        ->assertSee('data-faculty-directory', false)
+        ->assertSee('data-college-tab="CICS"', false)
+        ->assertSee('x-on:click="setCollege', false)
+        ->assertSee('Assign Research Coordinator?')
+        ->assertSee('Coordinator rules:')
         ->assertSeeInOrder(['All', 'CICS', 'CTE', 'CABEIHM', 'CCJE', 'CAS', 'CHS'])
         ->assertSee($cicsMember->name)
         ->assertSee($cicsMember->email)
         ->assertSee(User::COLLEGES['CICS'])
         ->assertSee('Member Without College')
-        ->assertSee('Not set');
+        ->assertSee('Not set')
+        ->assertSee('data-coordinator-ineligible', false)
+        ->assertSee('College required');
 });
 
-test('college tabs show only users from the selected college', function () {
+test('college tabs load members once for client-side switching', function () {
     User::factory()->create([
         'name' => 'Visible CICS Member',
         'college' => User::COLLEGES['CICS'],
@@ -55,11 +62,14 @@ test('college tabs show only users from the selected college', function () {
         ->get(route('research_head.faculty-directory.index', ['college' => 'CICS']))
         ->assertOk()
         ->assertSee('Visible CICS Member')
-        ->assertDontSee('Hidden CTE Member')
-        ->assertDontSee('>College</th>', false);
+        ->assertSee('Hidden CTE Member')
+        ->assertSee('data-initial-college="CICS"', false)
+        ->assertSee('data-college="CICS"', false)
+        ->assertSee('data-college="CTE"', false)
+        ->assertSee('x-show="selectedCollege === \'all\'"', false);
 });
 
-test('members can be searched by name or email within a college', function () {
+test('members can be searched by name or email without another request', function () {
     User::factory()->create([
         'name' => 'Searchable Faculty',
         'email' => 'unique.faculty@g.batstate-u.edu.ph',
@@ -75,8 +85,10 @@ test('members can be searched by name or email within a college', function () {
         ->get(route('research_head.faculty-directory.index', ['college' => 'CICS', 'search' => 'unique.faculty']))
         ->assertOk()
         ->assertSee('Searchable Faculty')
-        ->assertDontSee('Other Faculty')
-        ->assertSee('value="unique.faculty"', false);
+        ->assertSee('Other Faculty')
+        ->assertSee('data-initial-search="unique.faculty"', false)
+        ->assertSee('member.search.includes(query)', false)
+        ->assertDontSee('x-ref="searchForm"', false);
 });
 
 test('research heads can assign and remove the research coordinator role', function () {
@@ -131,6 +143,20 @@ test('a member needs a college before becoming a research coordinator', function
         ->assertSessionHasErrors('action');
 
     expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse();
+});
+
+test('members without a college have a disabled coordinator control', function () {
+    User::factory()->create([
+        'name' => 'Unassigned Faculty',
+        'college' => null,
+    ]);
+
+    $this->actingAs($this->researchHead)
+        ->get(route('research_head.faculty-directory.index'))
+        ->assertOk()
+        ->assertSee('Unassigned Faculty')
+        ->assertSee('data-coordinator-ineligible', false)
+        ->assertSee('Set this member\'s college before assigning the Research Coordinator role.', false);
 });
 
 test('faculty cannot change research coordinator assignments', function () {

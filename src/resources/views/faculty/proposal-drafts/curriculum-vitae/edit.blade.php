@@ -35,20 +35,19 @@
         })"
     >
         @if (session('success'))
-            <div role="status" class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">{{ session('success') }}</div>
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-bold">The Curriculum Vitae package could not be saved.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            </div>
+            </x-proposal-alert>
         @endif
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
         <x-paper-editor-submit-status />
-        <x-paper-editor-shortcuts />
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

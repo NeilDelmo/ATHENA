@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Services\DetailedProposalDocumentService;
+use App\Services\ExpenseBreakdownDocumentService;
 use App\Services\GADChecklistDocumentService;
 use App\Services\InitialScreeningFormDocumentService;
 use App\Services\LineItemBudgetDocumentService;
@@ -18,6 +19,8 @@ use App\Support\CurriculumVitaeData;
 use App\Support\CurriculumVitaeRules;
 use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
+use App\Support\ExpenseBreakdownData;
+use App\Support\ExpenseBreakdownRules;
 use App\Support\GADChecklistData;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
@@ -42,6 +45,7 @@ class SubmitProposalDraft
         private readonly DetailedProposalDocumentService $detailedProposalDocumentService,
         private readonly WorkPlanDocumentService $workPlanDocumentService,
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
+        private readonly ExpenseBreakdownDocumentService $expenseBreakdownDocumentService,
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
@@ -116,6 +120,7 @@ class SubmitProposalDraft
                             'detailed-proposal' => $this->generateDetailedProposal($lockedDraft, $document, $permanentDirectory),
                             'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
                             'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
+                            'expense-breakdown' => $this->generateExpenseBreakdown($lockedDraft, $document, $permanentDirectory),
                             'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
                             'gad-checklist' => $this->generateGADChecklist($lockedDraft, $document, $permanentDirectory),
                             default => throw ValidationException::withMessages([
@@ -336,6 +341,32 @@ class SubmitProposalDraft
 
         return $this->packageService->storeGeneratedLineItemBudget(
             $this->lineItemBudgetDocumentService->generate($lineItemBudget),
+            $permanentDirectory,
+            $draft->project_title,
+            $validated,
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function generateExpenseBreakdown(
+        ProposalDraft $draft,
+        ProposalDraftDocument $document,
+        string $permanentDirectory,
+    ): array {
+        $sourceData = [
+            ...($document->source_data ?? []),
+            'project_title' => $draft->project_title,
+        ];
+        $validated = Validator::make(
+            $sourceData,
+            ExpenseBreakdownRules::rules(),
+            [],
+            ExpenseBreakdownRules::attributes(),
+        )->validate();
+        $expenseBreakdown = ExpenseBreakdownData::fromValidated($validated);
+
+        return $this->packageService->storeGeneratedExpenseBreakdown(
+            $this->expenseBreakdownDocumentService->generate($expenseBreakdown),
             $permanentDirectory,
             $draft->project_title,
             $validated,

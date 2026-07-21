@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
+    config()->set('proposal_papers.expense-breakdown.mode', 'upload');
+    config()->set('proposal_papers.expense-breakdown.accepted_extensions', ['pdf']);
+    config()->set('proposal_papers.expense-breakdown.accepted_mime_types', ['application/pdf']);
+    config()->set('proposal_papers.expense-breakdown.max_kilobytes', 25600);
+
     foreach (['faculty', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }

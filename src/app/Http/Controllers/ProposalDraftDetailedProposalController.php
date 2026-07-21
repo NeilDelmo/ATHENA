@@ -12,6 +12,7 @@ use App\Support\LineItemBudgetData;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -42,6 +43,7 @@ class ProposalDraftDetailedProposalController extends Controller
     ];
 
     public function edit(
+        Request $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         ProposalWorkspacePeople $proposalWorkspacePeople,
@@ -54,6 +56,7 @@ class ProposalDraftDetailedProposalController extends Controller
         $sourceData = $detailedProposalDocument?->source_data ?? $this->defaults(
             $proposalDraft,
             $workspacePeople,
+            (string) ($request->user()?->college ?? ''),
         );
         $budgetTotals = $this->budgetTotals($proposalDraft);
 
@@ -139,7 +142,7 @@ class ProposalDraftDetailedProposalController extends Controller
     }
 
     /** @param list<array{key: string, name: string, email: string, college: string, linked: bool, owner: bool}> $people */
-    private function defaults(ProposalDraft $draft, array $people): array
+    private function defaults(ProposalDraft $draft, array $people, string $currentUserCollege): array
     {
         $leaderName = Str::of((string) $draft->project_leader)->squish()->lower()->toString();
         $leader = collect($people)->first(
@@ -149,7 +152,8 @@ class ProposalDraftDetailedProposalController extends Controller
         return [
             'leader_email' => $leader['email'] ?? $draft->owner->email,
             'staff' => [],
-            'proponent_college' => $leader['college'] ?? $draft->owner->college ?? '',
+            'proponent_department' => '',
+            'proponent_college' => $currentUserCollege,
             'proponent_campus' => config('detailed_proposal.default_campus'),
             'sdgs' => [],
             'expected_outputs' => [],

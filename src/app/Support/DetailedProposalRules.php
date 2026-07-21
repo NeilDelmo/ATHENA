@@ -25,7 +25,7 @@ class DetailedProposalRules
             'staff.*.name' => ['nullable', 'string', 'max:255'],
             'staff.*.email' => ['nullable', 'email:rfc', 'max:255'],
             'staff.*.contact' => ['nullable', 'string', 'max:80'],
-            'proponent_department' => ['required', 'string', 'max:255'],
+            'proponent_department' => ['nullable', 'string', 'max:255'],
             'proponent_college' => ['required', 'string', 'max:255'],
             'proponent_campus' => ['required', 'string', 'max:255'],
             'cooperating_agency' => ['nullable', 'string', 'max:500'],

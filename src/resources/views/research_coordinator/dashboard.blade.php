@@ -24,6 +24,7 @@
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-100 dark:divide-slate-800">
                 <thead class="bg-gray-50 dark:bg-slate-950/50">
+                    
                     <tr>
                         <th scope="col" class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Member</th>
                         <th scope="col" class="px-5 py-3 text-left text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-400">Email</th>

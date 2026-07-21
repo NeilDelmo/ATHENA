@@ -16,6 +16,7 @@
             'faculty' => 'Submit proposals, review feedback, and browse research calls.',
             'faculty_researcher' => 'Access the research catalog and Research Support workspace.',
             'research_head' => 'Manage research calls, evaluate proposals, and issue final decisions.',
+            'research_coordinator' => 'Coordinate faculty research activity for the assigned college.',
             'expert' => 'Review assigned proposals and submit subject-matter recommendations.',
         ];
 
@@ -57,28 +58,46 @@
                         @endforelse
                     </div>
 
-                    <form method="POST" action="{{ route('profile.college.update') }}" class="mt-4">
-                        @csrf
-                        @method('PATCH')
-                        <label for="college" class="sr-only">College</label>
-                        <div class="flex items-center gap-2">
-                            <select id="college" name="college" required class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500">
-                                <option value="" disabled @selected(! old('college', $user->college))>Set your college</option>
-                                @foreach (\App\Models\User::COLLEGES as $college)
-                                    <option value="{{ $college }}" @selected(old('college', $user->college) === $college)>{{ $college }}</option>
-                                @endforeach
-                            </select>
-                            <button type="submit" aria-label="Save college" title="Save college" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.75 10 17.75 19 6.75"/></svg>
-                            </button>
+                    @if ($user->hasRole('research_coordinator'))
+                        <div class="mt-4" data-college-locked>
+                            <label for="college-locked" class="sr-only">College</label>
+                            <div class="flex items-center gap-2">
+                                <select id="college-locked" disabled class="min-w-0 flex-1 cursor-not-allowed rounded-xl border-amber-200 bg-amber-50 py-2 pl-3 pr-8 text-xs font-semibold text-amber-900 shadow-sm disabled:opacity-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                                    <option selected>{{ $user->college ?: 'No college set' }}</option>
+                                </select>
+                                <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="College locked" aria-label="College locked">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 0h10.5A2.25 2.25 0 0 1 19.5 12.75v6A2.25 2.25 0 0 1 17.25 21H6.75a2.25 2.25 0 0 1-2.25-2.25v-6a2.25 2.25 0 0 1 2.25-2.25Z" /></svg>
+                                </span>
+                            </div>
+                            <p class="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">College is locked while you are a Research Coordinator. Ask the Research Head to remove the coordinator assignment before changing it.</p>
+                            @error('college')
+                                <p class="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">{{ $message }}</p>
+                            @enderror
                         </div>
-                        @error('college')
-                            <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
-                        @enderror
-                        @if (session('status') === 'college-updated')
-                            <p class="mt-2 text-xs font-semibold text-green-700">College saved.</p>
-                        @endif
-                    </form>
+                    @else
+                        <form method="POST" action="{{ route('profile.college.update') }}" class="mt-4">
+                            @csrf
+                            @method('PATCH')
+                            <label for="college" class="sr-only">College</label>
+                            <div class="flex items-center gap-2">
+                                <select id="college" name="college" required class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500">
+                                    <option value="" disabled @selected(! old('college', $user->college))>Set your college</option>
+                                    @foreach (\App\Models\User::COLLEGES as $college)
+                                        <option value="{{ $college }}" @selected(old('college', $user->college) === $college)>{{ $college }}</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" aria-label="Save college" title="Save college" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.75 10 17.75 19 6.75"/></svg>
+                                </button>
+                            </div>
+                            @error('college')
+                                <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
+                            @enderror
+                            @if (session('status') === 'college-updated')
+                                <p class="mt-2 text-xs font-semibold text-green-700">College saved.</p>
+                            @endif
+                        </form>
+                    @endif
 
                     <dl class="mt-6 space-y-4 border-t border-gray-100 pt-5">
                         <div>

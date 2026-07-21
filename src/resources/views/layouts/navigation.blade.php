@@ -114,13 +114,74 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Workspace</span>
             </a>
 
-            <a href="{{ route('research-support.index') }}" aria-label="Research Help Facility" title="Research Help Facility"
-               class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research-support.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
-                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Research Help Facility</span>
-            </a>
+            <div
+                x-data="{
+                    researchHelpOpen: @js(request()->routeIs('research-support.*')),
+                    activeResearchHelpSection: window.location.hash || '#ai-research-assistant',
+                }"
+                @hashchange.window="activeResearchHelpSection = window.location.hash || '#ai-research-assistant'"
+                data-research-help-menu
+            >
+                <button
+                    type="button"
+                    @click="if (!sidebarOpen) { sidebarOpen = true; researchHelpOpen = true } else { researchHelpOpen = !researchHelpOpen }"
+                    :aria-expanded="researchHelpOpen"
+                    aria-controls="research-help-feature-links"
+                    aria-label="Research Help Facility"
+                    title="Research Help Facility"
+                    :class="sidebarOpen ? 'px-4' : 'justify-center px-0'"
+                    class="flex w-full items-center gap-3 rounded-xl py-3 text-sm font-bold transition duration-150 ease-in-out {{ request()->routeIs('research-support.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
+                    </svg>
+                    <span x-show="sidebarOpen" class="min-w-0 flex-1 whitespace-nowrap text-left">Research Help Facility</span>
+                    <svg x-show="sidebarOpen" :class="researchHelpOpen ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                    </svg>
+                </button>
+
+                <div
+                    id="research-help-feature-links"
+                    x-cloak
+                    x-show="sidebarOpen && researchHelpOpen"
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="-translate-y-1 opacity-0"
+                    x-transition:enter-end="translate-y-0 opacity-100"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="translate-y-0 opacity-100"
+                    x-transition:leave-end="-translate-y-1 opacity-0"
+                    class="mt-1 space-y-1 pl-8"
+                >
+                    <a
+                        href="{{ route('research-support.index') }}#ai-research-assistant"
+                        @click="activeResearchHelpSection = '#ai-research-assistant'; if (window.innerWidth < 640) sidebarOpen = false"
+                        :class="activeResearchHelpSection === '#ai-research-assistant' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
+                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition"
+                    >
+                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
+                        <span>AI Research Assistant</span>
+                    </a>
+                    <a
+                        href="{{ route('research-support.index') }}#rrl-finder"
+                        @click="activeResearchHelpSection = '#rrl-finder'; if (window.innerWidth < 640) sidebarOpen = false"
+                        :class="activeResearchHelpSection === '#rrl-finder' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
+                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition"
+                    >
+                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
+                        <span>RRL Finder</span>
+                    </a>
+                    <a
+                        href="{{ route('research-support.index') }}#conference-finder"
+                        @click="activeResearchHelpSection = '#conference-finder'; if (window.innerWidth < 640) sidebarOpen = false"
+                        :class="activeResearchHelpSection === '#conference-finder' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
+                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition"
+                    >
+                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
+                        <span>Conference Finder</span>
+                    </a>
+                </div>
+            </div>
             
         @endif
 

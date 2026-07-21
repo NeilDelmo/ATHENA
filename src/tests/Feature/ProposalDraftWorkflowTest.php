@@ -46,6 +46,11 @@ beforeEach(function () {
         {
             return "%PDF-1.7\n".hash('sha256', $contents);
         }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
     });
 
     $this->createDraft = function (array $overrides = []): ProposalDraft {
@@ -74,6 +79,22 @@ beforeEach(function () {
             'expected_output' => 'Validated baseline habitat profile',
             'activity' => "Conduct field survey\nComplete community mapping",
             'months' => [1, 2, 3],
+        ]],
+        ...$overrides,
+    ];
+
+    $this->expenseBreakdown = fn (array $overrides = []): array => [
+        'document_version' => 0,
+        'items' => [[
+            'category' => 'mooe',
+            'account' => 'Communication Expenses',
+            'sub_account' => 'Telephone Expenses',
+            'particulars' => 'Prepaid Card',
+            'details' => 'Prepaid Call Card',
+            'purpose' => 'For project communication',
+            'unit' => 'pc',
+            'quantity' => 12,
+            'unit_cost' => 300,
         ]],
         ...$overrides,
     ];
@@ -126,6 +147,7 @@ beforeEach(function () {
                 $sourceData = match ($paper['slug']) {
                     'detailed-proposal' => ($this->detailedProposal)(),
                     'work-plan' => ($this->workPlan)(),
+                    'expense-breakdown' => ($this->expenseBreakdown)(),
                     'curriculum-vitae' => [
                         'people' => [[
                             'last_name' => 'Owner',
@@ -306,9 +328,19 @@ test('the proposal hub presents project details and the seven code-owned require
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('Project Details')
-        ->assertSee('Upload PDF')
-        ->assertSee('Review automatic paper')
-        ->assertSee('Preview paper')
+        ->assertSee('data-paper-shortcuts-trigger', false)
+        ->assertSee('data-paper-shortcuts-dropdown', false)
+        ->assertDontSee('Upload PDF')
+        ->assertSee('>Open Research Proposal</a>', false)
+        ->assertSee('>Open Work Plan</a>', false)
+        ->assertSee('>Open Line-Item Budget</a>', false)
+        ->assertSee('>Open Expense Breakdown</a>', false)
+        ->assertSee('>Open Curriculum Vitae</a>', false)
+        ->assertSee('>Open GAD Checklist</a>', false)
+        ->assertSee('>Open Initial Screening Form</a>', false)
+        ->assertDontSee('>Open paper</a>', false)
+        ->assertDontSee('>Edit paper</a>', false)
+        ->assertDontSee('>Preview paper</a>', false)
         ->assertSeeInOrder([
             'Detailed Research Proposal',
             'Attachment A: Work Plan',
@@ -320,9 +352,21 @@ test('the proposal hub presents project details and the seven code-owned require
         ]);
 
     expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(6);
+
+    $workspaceView = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
+
+    expect($workspaceView)
+        ->toContain('lg:grid-cols-[1fr_1fr_auto] lg:items-start')
+        ->toContain('uppercase leading-4 tracking-wider')
+        ->toContain('lg:mt-[1.375rem] lg:w-auto')
+        ->not->toContain('lg:grid-cols-[1fr_1fr_auto] lg:items-end');
 });
 
-test('upload-only papers use a dedicated upload layout without editor shortcuts', function () {
+test('upload-only papers keep the workspace header shortcuts without enabling editor actions', function () {
+    config()->set('proposal_papers.expense-breakdown.mode', 'upload');
+    config()->set('proposal_papers.expense-breakdown.accepted_extensions', ['pdf']);
+    config()->set('proposal_papers.expense-breakdown.accepted_mime_types', ['application/pdf']);
+    config()->set('proposal_papers.expense-breakdown.max_kilobytes', 25600);
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
@@ -333,11 +377,12 @@ test('upload-only papers use a dedicated upload layout without editor shortcuts'
         ->assertSee('export or save it as a PDF')
         ->assertSee('Choose completed PDF')
         ->assertSee('How this paper works')
-        ->assertDontSee('Editor shortcuts')
-        ->assertDontSee('Ctrl + S')
+        ->assertSee('Editor shortcuts')
+        ->assertSee('Ctrl + S')
+        ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
-        ->assertDontSee('Discard changes')
-        ->assertDontSee('Save changes');
+        ->assertDontSee('data-paper-discard', false)
+        ->assertDontSee('data-paper-save', false);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
@@ -382,6 +427,19 @@ test('paper and review pages render saved files and final readiness actions', fu
 
 test('project details are validated once and reused by the Work Plan workflow', function () {
     $draft = ($this->createDraft)();
+
+    $projectDetailsResponse = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.details.edit', $draft))
+        ->assertOk()
+        ->assertSee('proposalDraftProjectDetails({', false)
+        ->assertSee('x-model.number="durationMonths"', false)
+        ->assertSee('x-model="plannedStart"', false)
+        ->assertSee('x-model="plannedEnd"', false)
+        ->assertSee('Only today and future dates can be selected.')
+        ->assertSee('Automatically calculated from the total duration and planned start.');
+
+    expect(substr_count($projectDetailsResponse->getContent(), now()->toDateString()))
+        ->toBeGreaterThanOrEqual(2);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
@@ -435,9 +493,9 @@ test('the GAD checklist preserves the supplied seven-page document and fills sha
         ->assertSee('Faculty Owner')
         ->assertSee('There are no answers to enter')
         ->assertSee('Mark paper ready')
-        ->assertDontSee('Editor shortcuts')
+        ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
-        ->assertDontSee('Save and exit')
+        ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('name="project_title"', false)
         ->assertDontSee('name="project_leader"', false);
 
@@ -547,9 +605,9 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('The Research/RDES Head and assigned central co-evaluator complete')
-        ->assertDontSee('Editor shortcuts')
+        ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
-        ->assertDontSee('Save changes')
+        ->assertDontSee('data-paper-save', false)
         ->assertDontSee('name="project_title"', false)
         ->assertDontSee('name="project_leader"', false);
 
@@ -559,6 +617,12 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('BatStateU Initial Screening Form')
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner');
+
+    $previewCss = file_get_contents(resource_path('css/initial-screening-form-print.css'));
+
+    expect($previewCss)
+        ->toMatch('/\.initial-screening-project-title\s*\{[^}]*left:\s*2\.35in;/s')
+        ->toMatch('/\.initial-screening-project-leader\s*\{[^}]*left:\s*1\.8in;/s');
 
     $download = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.initial-screening-form.download', $draft))
@@ -609,6 +673,10 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
 });
 
 test('single-file papers can be uploaded downloaded replaced and removed privately', function () {
+    config()->set('proposal_papers.expense-breakdown.mode', 'upload');
+    config()->set('proposal_papers.expense-breakdown.accepted_extensions', ['pdf']);
+    config()->set('proposal_papers.expense-breakdown.accepted_mime_types', ['application/pdf']);
+    config()->set('proposal_papers.expense-breakdown.max_kilobytes', 25600);
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
@@ -651,6 +719,10 @@ test('single-file papers can be uploaded downloaded replaced and removed private
 });
 
 test('paper uploads enforce file types and the 25 MB limit', function () {
+    config()->set('proposal_papers.expense-breakdown.mode', 'upload');
+    config()->set('proposal_papers.expense-breakdown.accepted_extensions', ['pdf']);
+    config()->set('proposal_papers.expense-breakdown.accepted_mime_types', ['application/pdf']);
+    config()->set('proposal_papers.expense-breakdown.max_kilobytes', 25600);
     $draft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
@@ -761,7 +833,7 @@ test('incomplete and closed-call drafts remain available and cannot be submitted
 
     expect(ProposalDraft::find($completeDraft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
-    expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->not->toBeEmpty();
+    expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->toBeEmpty();
 });
 
 test('a PDF conversion failure keeps the complete draft available for another Turn in attempt', function () {
@@ -769,6 +841,11 @@ test('a PDF conversion failure keeps the complete draft available for another Tu
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
     {
         public function convertDocx(string $contents): string
+        {
+            throw new RuntimeException('LibreOffice is unavailable.');
+        }
+
+        public function convertXlsx(string $contents): string
         {
             throw new RuntimeException('LibreOffice is unavailable.');
         }
@@ -781,7 +858,7 @@ test('a PDF conversion failure keeps the complete draft available for another Tu
 
     expect(ProposalDraft::find($draft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
-    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
+    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->toBeEmpty();
 });
 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
@@ -802,6 +879,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $topic = TopicProposal::query()->sole();
     $version = $topic->versions()->with('files')->sole();
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
+    $expenseBreakdown = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
     $gadChecklist = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
     $initialScreeningForm = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
 
@@ -828,6 +906,8 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
         ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner')
+        ->and($expenseBreakdown->source_data['project_title'])->toBe('Coastal Habitat Restoration')
+        ->and($expenseBreakdown->source_data['items'][0]['account'])->toBe('Communication Expenses')
         ->and($gadChecklist->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner')
         ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
@@ -836,9 +916,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $version->files->each(function (ProposalVersionFile $file): void {
         Storage::disk('local')->assertExists($file->file_path);
 
-        if ($file->document_type !== ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN) {
-            expect(Storage::disk('local')->get($file->file_path))->toStartWith('%PDF-');
-        }
+        expect(Storage::disk('local')->get($file->file_path))->toStartWith('%PDF-');
     });
     $stagedPaths->each(
         fn (string $path) => Storage::disk('local')->assertMissing($path),
@@ -859,8 +937,7 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_document_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->is_current === false))->toBeTrue()
-        ->and($archivedFileVersion)->not->toBeNull();
-    Storage::disk('local')->assertExists($archivedFileVersion->file_path);
+        ->and($archivedFileVersion)->toBeNull();
 
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $topic))
@@ -871,9 +948,6 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->assertOk()
         ->assertSee('Archived draft history')
         ->assertSee('Ready for Turn in.');
-    $this->actingAs($this->faculty)
-        ->get(route('topics.draft-history.download', [$topic, $archivedFileVersion]))
-        ->assertDownload($archivedFileVersion->original_filename);
     $this->actingAs($this->head)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk();

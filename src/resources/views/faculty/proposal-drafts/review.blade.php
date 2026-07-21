@@ -21,10 +21,10 @@
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-black">This proposal package cannot be turned in yet.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            </div>
+            </x-proposal-alert>
         @elseif (! $readyToSubmit)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-black">Complete the items below before submitting.</p>
@@ -129,7 +129,16 @@
                     <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Turn in creates seven immutable PDF attachments and sends version 1 to the Research Head.' : 'Complete Project Details and every required paper to enable Turn in.' }}</p>
                 </div>
                 @can('submit', $proposalDraft)
-                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" onsubmit="return confirm('Turn in these seven PDF attachments to the Research Head?')" class="w-full shrink-0 sm:w-auto">
+                <form
+                    action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}"
+                    method="POST"
+                    class="w-full shrink-0 sm:w-auto"
+                    data-proposal-confirm
+                    data-confirm-title="Turn in proposal package?"
+                    data-confirm-text="This creates seven immutable PDF attachments and sends version 1 to the Research Head."
+                    data-confirm-button="Turn in proposal"
+                    data-confirm-icon="question"
+                >
                     @csrf
                     <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
                 </form>

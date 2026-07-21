@@ -1,5 +1,6 @@
 <section
-    class="athena-readable mb-8 flex min-h-[640px] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl shadow-gray-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 lg:h-[min(780px,calc(100dvh-10rem))]"
+    id="ai-research-assistant"
+    class="athena-readable mb-8 flex min-h-[640px] scroll-mt-36 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl shadow-gray-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 lg:h-[min(780px,calc(100dvh-10rem))]"
     aria-labelledby="assistant-heading"
 >
     <aside class="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/80 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">

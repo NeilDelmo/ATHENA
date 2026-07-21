@@ -34,14 +34,14 @@
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @if (session('success'))
-            <div role="status" class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">{{ session('success') }}</div>
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-bold">The {{ $fileLabel }} could not be uploaded.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            </div>
+            </x-proposal-alert>
         @endif
 
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
@@ -65,7 +65,14 @@
                                     </div>
                                     <div class="grid shrink-0 grid-cols-2 gap-2">
                                         <a href="{{ route('faculty.proposal-drafts.papers.download', [$proposalDraft, $paper['slug'], $document]) }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Download</a>
-                                        <form action="{{ route('faculty.proposal-drafts.papers.remove', [$proposalDraft, $paper['slug'], $document]) }}" method="POST" onsubmit="return confirm('Remove this uploaded file?')">
+                                        <form
+                                            action="{{ route('faculty.proposal-drafts.papers.remove', [$proposalDraft, $paper['slug'], $document]) }}"
+                                            method="POST"
+                                            data-proposal-confirm
+                                            data-confirm-title="Remove uploaded file?"
+                                            data-confirm-text="This file will be removed from the staged proposal paper."
+                                            data-confirm-button="Remove file"
+                                        >
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Remove</button>

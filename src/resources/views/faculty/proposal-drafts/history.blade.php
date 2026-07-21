@@ -19,18 +19,18 @@
 
     <div class="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @if (session('success'))
-            <div role="status" class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">{{ session('success') }}</div>
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
         @if (session('warning'))
-            <div role="status" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{{ session('warning') }}</div>
+            <x-proposal-alert type="warning">{{ session('warning') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-black">The version could not be restored.</p>
                 <p class="mt-1">{{ $errors->first() }}</p>
-            </div>
+            </x-proposal-alert>
         @endif
 
         <section aria-labelledby="history-explanation-heading" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 sm:p-6">
@@ -130,7 +130,16 @@
                                 @can('update', $proposalDraft)
                                     <details class="mt-4 rounded-xl border border-blue-200 bg-blue-50">
                                         <summary class="cursor-pointer px-4 py-3 text-xs font-black text-blue-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-700">Restore this version</summary>
-                                        <form method="POST" action="{{ route('faculty.proposal-drafts.history.restore', [$proposalDraft, $version]) }}" class="space-y-3 border-t border-blue-200 p-4" onsubmit="return confirm('Restore version {{ $version->version_number }} as a new current version?')">
+                                        <form
+                                            method="POST"
+                                            action="{{ route('faculty.proposal-drafts.history.restore', [$proposalDraft, $version]) }}"
+                                            class="space-y-3 border-t border-blue-200 p-4"
+                                            data-proposal-confirm
+                                            data-confirm-title="Restore version {{ $version->version_number }}?"
+                                            data-confirm-text="A new current version will be created from this snapshot. Existing history will stay unchanged."
+                                            data-confirm-button="Restore version"
+                                            data-confirm-icon="question"
+                                        >
                                             @csrf
                                             <input type="hidden" name="document_version" value="{{ $currentDocument?->lock_version ?? 0 }}">
                                             <div>

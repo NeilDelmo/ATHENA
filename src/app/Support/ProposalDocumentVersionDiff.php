@@ -203,6 +203,7 @@ class ProposalDocumentVersionDiff
             'custom_co_items' => 'Custom capital-outlay items',
             'people' => 'Curriculum vitae entries',
             'entries' => 'Work-plan entries',
+            'items' => 'Estimated expense items',
             default => Str::headline($field),
         };
     }

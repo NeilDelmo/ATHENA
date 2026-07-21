@@ -13,6 +13,7 @@ use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftDocumentVersionController;
+use App\Http\Controllers\ProposalDraftExpenseBreakdownController;
 use App\Http\Controllers\ProposalDraftGADChecklistController;
 use App\Http\Controllers\ProposalDraftInitialScreeningFormController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
@@ -97,6 +98,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/line-item-budget', [ProposalDraftLineItemBudgetController::class, 'update'])->name('line-item-budget.update');
         Route::post('/{proposalDraft}/line-item-budget/preview', [ProposalDraftLineItemBudgetController::class, 'preview'])->name('line-item-budget.preview');
         Route::post('/{proposalDraft}/line-item-budget/download', [ProposalDraftLineItemBudgetController::class, 'download'])->name('line-item-budget.download');
+        Route::get('/{proposalDraft}/expense-breakdown', [ProposalDraftExpenseBreakdownController::class, 'edit'])->name('expense-breakdown.edit');
+        Route::put('/{proposalDraft}/expense-breakdown', [ProposalDraftExpenseBreakdownController::class, 'update'])->name('expense-breakdown.update');
+        Route::post('/{proposalDraft}/expense-breakdown/preview', [ProposalDraftExpenseBreakdownController::class, 'preview'])->name('expense-breakdown.preview');
+        Route::post('/{proposalDraft}/expense-breakdown/download', [ProposalDraftExpenseBreakdownController::class, 'download'])->name('expense-breakdown.download');
         Route::get('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'edit'])->name('curriculum-vitae.edit');
         Route::put('/{proposalDraft}/curriculum-vitae', [ProposalDraftCurriculumVitaeController::class, 'update'])->name('curriculum-vitae.update');
         Route::post('/{proposalDraft}/curriculum-vitae/preview', [ProposalDraftCurriculumVitaeController::class, 'preview'])->name('curriculum-vitae.preview');

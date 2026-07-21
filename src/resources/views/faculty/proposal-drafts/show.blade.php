@@ -21,18 +21,18 @@
 
     <div class="mx-auto max-w-7xl space-y-7 px-4 py-8 sm:px-6 lg:px-8">
         @if (session('success'))
-            <div role="status" class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-800">{{ session('success') }}</div>
+            <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
         @if (session('warning'))
-            <div role="status" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">{{ session('warning') }}</div>
+            <x-proposal-alert type="warning">{{ session('warning') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
-            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <x-proposal-alert type="error">
                 <p class="font-bold">Some information still needs attention.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-            </div>
+            </x-proposal-alert>
         @endif
 
         @if (isset($readinessErrors['research_call']))
@@ -112,7 +112,14 @@
                                     @csrf
                                     <button type="submit" class="text-xs font-bold text-blue-700 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600">Resend invitation</button>
                                 </form>
-                                <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" onsubmit="return confirm('Remove this collaborator from the proposal workspace?')">
+                                <form
+                                    action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}"
+                                    method="POST"
+                                    data-proposal-confirm
+                                    data-confirm-title="Remove collaborator?"
+                                    data-confirm-text="This collaborator will immediately lose access to the proposal workspace."
+                                    data-confirm-button="Remove collaborator"
+                                >
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
@@ -130,22 +137,22 @@
                     <form
                         action="{{ route('faculty.proposal-drafts.members.store', $proposalDraft) }}"
                         method="POST"
-                        class="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end"
+                        class="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-start"
                         x-data="proposalDraftMembers({ candidates: @js($memberCandidates) })"
                     >
                         @csrf
                         <div>
-                            <label for="workspace-member-email" class="block text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">BatStateU Google email</label>
+                            <label for="workspace-member-email" class="block text-[10px] font-black uppercase leading-4 tracking-wider text-gray-700 dark:text-gray-300">BatStateU Google email</label>
                             <input id="workspace-member-email" name="email" type="email" list="workspace-member-accounts" x-model="email" x-on:input="syncAccount" value="{{ old('email') }}" maxlength="255" required placeholder="name@g.batstate-u.edu.ph" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                             <datalist id="workspace-member-accounts">@foreach ($memberCandidates as $candidate)<option value="{{ $candidate['email'] }}">{{ $candidate['name'] }}</option>@endforeach</datalist>
                             <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Choose an ATHENA account or enter the exact institutional email they will use to sign in.</p>
                         </div>
                         <div>
-                            <label for="workspace-member-name" class="block text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">Teammate name</label>
+                            <label for="workspace-member-name" class="block text-[10px] font-black uppercase leading-4 tracking-wider text-gray-700 dark:text-gray-300">Teammate name</label>
                             <input id="workspace-member-name" name="name" type="text" x-model="name" value="{{ old('name') }}" maxlength="255" required placeholder="Full name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
                             <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400" x-text="matchedAccount ? 'Pulled from the linked ATHENA account.' : 'Used until their ATHENA account is linked.'"></p>
                         </div>
-                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 lg:w-auto">Send invitation</button>
+                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 lg:mt-[1.375rem] lg:w-auto">Send invitation</button>
                     </form>
                 </div>
             @endcan
@@ -190,18 +197,13 @@
                             'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft),
                             'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
                             'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
+                            'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft),
                             'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
                             'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.edit', $proposalDraft),
                             'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
-                        $paperAction = match (true) {
-                            $paper['mode'] === 'automatic' => 'Preview paper',
-                            $paper['slug'] === 'gad-checklist' => $item['complete'] ? 'Preview paper' : 'Review automatic paper',
-                            $paper['slug'] === 'expense-breakdown' => $item['complete'] ? 'Replace PDF' : 'Upload PDF',
-                            $item['complete'] => 'Edit paper',
-                            default => 'Open paper',
-                        };
+                        $paperAction = $paper['workspace_button_label'] ?? 'Open '.$paper['label'];
                     @endphp
                     <article class="flex min-h-80 flex-col rounded-2xl border {{ $item['complete'] ? 'border-green-200' : 'border-gray-200' }} bg-white p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
@@ -226,7 +228,7 @@
                                     <p class="break-all font-semibold">{{ $item['documents']->first()->original_filename }}</p>
                                 @endif
                             @else
-                                <p>{{ $paper['slug'] === 'expense-breakdown' ? 'Export the completed official spreadsheet as PDF, then attach it here.' : 'No file or form data saved yet.' }}</p>
+                                <p>No file or form data saved yet.</p>
                             @endif
                         </div>
 
@@ -237,7 +239,7 @@
                             </div>
                         @endif
 
-                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $paperAction }}: {{ $paper['label'] }}">{{ $paperAction }}</a>
+                        <a href="{{ $paperRoute }}" class="mt-auto inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2" aria-label="{{ $paperAction }}">{{ $paperAction }}</a>
                     </article>
                 @endforeach
             </div>

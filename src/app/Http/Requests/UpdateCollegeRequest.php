@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateCollegeRequest extends FormRequest
 {
@@ -26,6 +27,24 @@ class UpdateCollegeRequest extends FormRequest
     {
         return [
             'college' => ['required', 'string', Rule::in(User::COLLEGES)],
+        ];
+    }
+
+    /** @return array<callable(Validator): void> */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $user = $this->user();
+
+                if (! $user?->hasRole('research_coordinator') || $validator->errors()->has('college')) {
+                    return;
+                }
+
+                if ($this->string('college')->toString() !== $user->college) {
+                    $validator->errors()->add('college', 'Remove your Research Coordinator assignment before changing your college.');
+                }
+            },
         ];
     }
 }

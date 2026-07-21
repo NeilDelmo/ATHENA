@@ -108,9 +108,9 @@
                     class="min-w-0 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-sm font-bold text-gray-900 focus:border-red-600 focus:ring-red-600"
                     aria-label="Calendar month"
                 >
-                    <template x-for="(month, monthIndex) in months" x-bind:key="month">
-                        <option x-bind:value="monthIndex" x-text="month"></option>
-                    </template>
+                    @foreach (['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'] as $monthIndex => $month)
+                        <option value="{{ $monthIndex }}">{{ $month }}</option>
+                    @endforeach
                 </select>
 
                 <label class="sr-only" x-bind:for="yearInputId">Calendar year</label>

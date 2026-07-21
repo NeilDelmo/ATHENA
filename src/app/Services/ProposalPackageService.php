@@ -222,6 +222,28 @@ class ProposalPackageService
      * @param  array<string, mixed>|null  $sourceData
      * @return array<string, mixed>
      */
+    public function storeGeneratedExpenseBreakdown(
+        string $contents,
+        string $directory,
+        string $projectTitle,
+        ?array $sourceData = null,
+    ): array {
+        $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+
+        return $this->storeGeneratedPdf(
+            $contents,
+            $directory.'/expense-breakdown',
+            $filenameBase.'-estimated-expense-breakdown.pdf',
+            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            $sourceData,
+            'xlsx',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
     public function storeGeneratedCurriculumVitae(
         string $contents,
         string $directory,
@@ -286,13 +308,18 @@ class ProposalPackageService
      * @return array<string, mixed>
      */
     private function storeGeneratedPdf(
-        string $docxContents,
+        string $sourceContents,
         string $directory,
         string $originalFilename,
         string $documentType,
         ?array $sourceData,
+        string $sourceFormat = 'docx',
     ): array {
-        $pdfContents = $this->pdfConverter->convertDocx($docxContents);
+        $pdfContents = match ($sourceFormat) {
+            'docx' => $this->pdfConverter->convertDocx($sourceContents),
+            'xlsx' => $this->pdfConverter->convertXlsx($sourceContents),
+            default => throw new RuntimeException('The generated paper format cannot be converted to PDF.'),
+        };
         $path = $directory.'/'.Str::uuid().'.pdf';
 
         if (! Storage::disk('local')->put($path, $pdfContents)) {

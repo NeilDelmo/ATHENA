@@ -85,17 +85,44 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
-test('the detailed proposal editor uses the official sections and pulls the leader account email', function () {
-    $this->actingAs($this->faculty)
+test('the detailed proposal editor uses the official sections and account defaults', function () {
+    $response = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertSee('BatStateU-FO-RES-02 Rev. 04')
         ->assertSee('leader@g.batstate-u.edu.ph')
+        ->assertSee('College of Informatics and Computing Sciences')
+        ->assertSee('From your profile')
+        ->assertSee('Leave blank if not applicable')
         ->assertSee('III. Sustainable Development Goal')
         ->assertSee('SDG17:')
         ->assertSee('XIII. Duties and Responsibilities of Each Member')
         ->assertSee('Download exact Word file')
         ->assertSee('Ctrl + S');
+
+    expect($response->getContent())
+        ->toContain('id="proponent-department" name="proponent_department" type="text" maxlength="255"')
+        ->not->toContain('id="proponent-department" name="proponent_department" type="text" required')
+        ->toContain('id="proponent-college" name="proponent_college" type="text" required');
+});
+
+test('the college is restored from the signed in user while department may remain blank', function () {
+    $payload = ($this->payload)([
+        'proponent_department' => '',
+        'proponent_college' => '',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertSessionHasNoErrors();
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+
+    expect($document->source_data['proponent_department'])->toBe('')
+        ->and($document->source_data['proponent_college'])->toBe($this->faculty->college);
 });
 
 test('the preview mirrors the official bordered form layout', function () {
