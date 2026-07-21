@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -89,11 +90,15 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files', 'progressReports.submitter', 'progressReports.reviewer',
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files.uploadedBy', 'progressReports.submitter', 'progressReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
         ]);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+        $headUploadTypes = app(ProposalPaperCatalog::class)
+            ->all()
+            ->mapWithKeys(fn (array $paper): array => [$paper['document_type'] => $paper['label']])
+            ->all();
         $previousVersion = $topic->versions
             ->where('version_number', '<', $latestVersion?->version_number ?? 0)
             ->sortByDesc('version_number')
@@ -186,6 +191,7 @@ class TopicController extends Controller
             'submittedFiles',
             'availableSubmittedFileIds',
             'viewableSubmittedFileIds',
+            'headUploadTypes',
         ));
     }
 
@@ -523,6 +529,70 @@ class TopicController extends Controller
         abort_unless(Storage::disk('local')->exists($topic->signed_approval_path), 404);
 
         return Storage::disk('local')->download($topic->signed_approval_path, 'signed-approval-'.$topic->id.'.pdf');
+    }
+
+    public function storeHeadUpload(Request $request, TopicProposal $topic, ProposalPackageService $packageService)
+    {
+        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+
+        $latestVersion = $topic->latestVersion()->first();
+
+        if (! $latestVersion instanceof ProposalVersion) {
+            return back()
+                ->withInput()
+                ->withErrors(['signed_file' => 'This proposal does not have a submitted version to attach files to.'], 'headUpload');
+        }
+
+        $allowedTargetTypes = app(ProposalPaperCatalog::class)
+            ->all()
+            ->pluck('document_type')
+            ->all();
+
+        $validated = $request->validateWithBag('headUpload', [
+            'signed_file' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
+            'target_document_type' => ['required', 'string', Rule::in($allowedTargetTypes)],
+            'note' => ['nullable', 'string', 'max:2000'],
+        ], [
+            'signed_file.required' => 'Select a signed PDF or Word file to upload.',
+            'signed_file.mimes' => 'The signed copy must be a PDF or Word document.',
+            'signed_file.max' => 'The signed copy may not be larger than 25 MB.',
+            'target_document_type.in' => 'Select one of the seven required papers this signed copy belongs to.',
+        ]);
+
+        $file = $request->file('signed_file');
+        $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
+
+        try {
+            $attributes = $packageService->storeHeadUpload(
+                $file,
+                $directory,
+                [
+                    'target_document_type' => $validated['target_document_type'],
+                    'note' => $validated['note'] ?? null,
+                ],
+            );
+        } catch (Throwable) {
+            return back()
+                ->withInput()
+                ->withErrors(['signed_file' => 'The signed copy could not be stored. Please try again.'], 'headUpload');
+        }
+
+        DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated): void {
+            $latestVersion->files()->create([
+                ...$attributes,
+                'uploaded_by' => $request->user()->id,
+            ]);
+
+            $topic->reviews()->create([
+                'reviewer_id' => $request->user()->id,
+                'decision' => 'head_upload',
+                'comment' => $validated['note'] ?? null,
+            ]);
+        });
+
+        return redirect()
+            ->route('topics.show', $topic)
+            ->with('success', 'Signed copy attached to the proposal package.');
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void

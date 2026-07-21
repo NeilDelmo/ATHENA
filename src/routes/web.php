@@ -169,6 +169,10 @@ Route::get('/topics/{topic}', [TopicController::class, 'show'])
     ->middleware('auth')
     ->name('topics.show');
 
+Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadUpload'])
+    ->middleware('auth')
+    ->name('topics.head-uploads.store');
+
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
     ->middleware('auth')
     ->name('research-calls.index');

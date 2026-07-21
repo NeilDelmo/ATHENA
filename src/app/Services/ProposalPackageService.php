@@ -384,4 +384,40 @@ class ProposalPackageService
             'source_data' => $file->source_data,
         ];
     }
+
+    /**
+     * Store a signed copy of one of the seven required papers uploaded by the Research Head.
+     *
+     * @param  array{target_document_type: string, note?: string|null}  $meta
+     * @return array<string, mixed>
+     */
+    public function storeHeadUpload(
+        UploadedFile $file,
+        string $directory,
+        array $meta,
+    ): array {
+        $path = $file->store($directory.'/head-uploads', 'local');
+
+        if (! $path) {
+            throw new RuntimeException('The Research Head upload could not be stored.');
+        }
+
+        $realPath = $file->getRealPath();
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'file_size' => $file->getSize() ?: null,
+            'checksum' => $realPath ? hash_file('sha256', $realPath) ?: null : null,
+            'is_carried_forward' => false,
+            'source_data' => [
+                'target_document_type' => $meta['target_document_type'],
+                'note' => $meta['note'] ?? null,
+            ],
+        ];
+    }
 }

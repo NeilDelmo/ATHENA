@@ -24,6 +24,8 @@ class ProposalVersionFile extends Model
 
     public const TYPE_COMMENT_RESPONSE = 'comment_response';
 
+    public const TYPE_HEAD_UPLOAD = 'head_upload';
+
     protected $fillable = [
         'source_version_file_id',
         'document_type',
@@ -35,6 +37,7 @@ class ProposalVersionFile extends Model
         'checksum',
         'source_data',
         'is_carried_forward',
+        'uploaded_by',
     ];
 
     protected function casts(): array
@@ -57,6 +60,11 @@ class ProposalVersionFile extends Model
         return $this->belongsTo(self::class, 'source_version_file_id');
     }
 
+    public function uploadedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
     public function label(): string
     {
         $catalogLabel = app(ProposalPaperCatalog::class)->label($this->document_type);
@@ -69,7 +77,21 @@ class ProposalVersionFile extends Model
 
         return match ($this->document_type) {
             self::TYPE_COMMENT_RESPONSE => 'Comment-Response Form',
+            self::TYPE_HEAD_UPLOAD => $this->headUploadLabel(),
             default => str($this->document_type)->replace('_', ' ')->title()->toString(),
         };
+    }
+
+    private function headUploadLabel(): string
+    {
+        if (is_array($this->source_data) && isset($this->source_data['target_document_type'])) {
+            $catalogLabel = app(ProposalPaperCatalog::class)->label($this->source_data['target_document_type']);
+
+            if ($catalogLabel !== null) {
+                return $catalogLabel.' (signed copy)';
+            }
+        }
+
+        return 'Research Head upload';
     }
 }
