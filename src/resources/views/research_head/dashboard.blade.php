@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div>
             <h2 class="text-2xl font-black tracking-tight text-gray-900">Research Head Dashboard</h2>
-            <p class="mt-1 text-xs text-gray-500">Receive submitted proposal packages, inspect their PDFs, and continue screening from the proposal workspace.</p>
+            <p class="mt-1 text-xs text-gray-500">Track in-progress drafts for open calls, receive submitted proposal packages, inspect their PDFs, and continue screening from the proposal workspace.</p>
         </div>
     </x-slot>
 
@@ -18,8 +18,9 @@
             </div>
         @endif
 
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             @foreach ([
+                ['In-progress drafts', $summary['drafts'], 'text-cyan-700 bg-cyan-50', null],
                 ['Awaiting screening', $summary['screening'], 'text-amber-700 bg-amber-50', null],
                 ['With co-evaluators', $summary['expert_review'], 'text-purple-700 bg-purple-50', null],
                 ['Screening complete', $summary['final_decision'], 'text-blue-700 bg-blue-50', null],

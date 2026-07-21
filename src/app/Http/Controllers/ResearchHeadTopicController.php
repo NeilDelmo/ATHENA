@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ProposalDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -25,6 +26,14 @@ class ResearchHeadTopicController extends Controller
             'expert_review' => TopicProposal::where('status', 'expert_review')->count(),
             'final_decision' => TopicProposal::where('status', 'for_final_decision')->count(),
             'approved' => TopicProposal::where('status', 'approved')->count(),
+            'drafts' => ProposalDraft::query()
+                ->where('status', ProposalDraft::STATUS_DRAFT)
+                ->whereHas('researchCall', function ($query): void {
+                    $query->where('status', 'open')
+                        ->where('opens_at', '<=', now())
+                        ->where('closes_at', '>=', now());
+                })
+                ->count(),
         ];
 
         $topics = TopicProposal::with([

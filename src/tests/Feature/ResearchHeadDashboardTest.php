@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -198,4 +199,63 @@ test('monitoring search is paginated and preserves all filters', function () {
 test('both Research Head pages have useful empty states', function () {
     $this->actingAs($this->head)->get(route('research_head.dashboard'))->assertSee('No proposals found');
     $this->actingAs($this->head)->get(route('research_head.projects.index'))->assertSee('No projects found');
+});
+
+test('the proposal dashboard counts only in-progress drafts tied to open research calls', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $closedCall = ResearchCall::create([
+        'title' => 'Closed Research Call',
+        'academic_year' => '2025-2026',
+        'opens_at' => now()->subYear(),
+        'closes_at' => now()->subMonth(),
+        'status' => 'open',
+    ]);
+    $scheduledCall = ResearchCall::create([
+        'title' => 'Scheduled Research Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->addDay(),
+        'closes_at' => now()->addMonth(),
+        'status' => 'open',
+    ]);
+
+    ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $this->call->id,
+        'project_title' => 'Active draft on the open call',
+        'status' => ProposalDraft::STATUS_DRAFT,
+    ]);
+
+    ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $closedCall->id,
+        'project_title' => 'Stale draft on a closed call',
+        'status' => ProposalDraft::STATUS_DRAFT,
+    ]);
+
+    ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $scheduledCall->id,
+        'project_title' => 'Draft on a call that has not opened yet',
+        'status' => ProposalDraft::STATUS_DRAFT,
+    ]);
+
+    ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $this->call->id,
+        'project_title' => 'Already being submitted',
+        'status' => ProposalDraft::STATUS_SUBMITTING,
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->get(route('research_head.dashboard'))
+        ->assertOk()
+        ->assertSee('In-progress drafts');
+
+    $matches = [];
+    preg_match('/In-progress drafts<\/p>\s*<p[^>]*>\s*(\d+)\s*<\/p>/', $response->getContent(), $matches);
+
+    expect($matches)->toHaveCount(2)
+        ->and((int) $matches[1])->toBe(1);
 });
