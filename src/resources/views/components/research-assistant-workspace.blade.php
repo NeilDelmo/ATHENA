@@ -165,7 +165,7 @@
                         data-assistant-composer
                         x-model="$store.researchAssistant.draft"
                         @input="$store.researchAssistant.resizeComposer($event)"
-                        @keydown.enter.exact="if (!$event.isComposing) { $event.preventDefault(); $store.researchAssistant.send(); }"
+                        @keydown="$store.researchAssistant.handleComposerKeydown($event)"
                         rows="1"
                         maxlength="2000"
                         placeholder="Message Athena…"

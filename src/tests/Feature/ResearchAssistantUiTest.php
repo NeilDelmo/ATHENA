@@ -130,15 +130,15 @@ test('proposal owners can launch athena with the current proposal selected', fun
         ->assertSee('Context-aware freshwater research');
 });
 
-test('authenticated users can receive a groq research response', function (string $role) {
+test('authenticated users can receive a gemini research response', function (string $role) {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::response([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => ['content' => 'Start by defining your population and measurable variables.'],
             ]],
@@ -158,9 +158,9 @@ test('authenticated users can receive a groq research response', function (strin
         ])
         ->assertOk()
         ->assertJsonPath('reply', 'Start by defining your population and measurable variables.')
-        ->assertJsonPath('model', 'openai/gpt-oss-120b');
+        ->assertJsonPath('model', 'gemini-3.5-flash');
 
-    Http::assertSent(fn ($request) => $request->url() === 'https://api.groq.com/openai/v1/chat/completions'
+    Http::assertSent(fn ($request) => $request->url() === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
         && $request['max_completion_tokens'] === 700
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
@@ -171,13 +171,13 @@ test('authenticated users can receive a groq research response', function (strin
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::response([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => ['content' => 'Group the studies by theme and method.'],
             ]],
@@ -200,13 +200,13 @@ test('assistant accepts a compacted research-results prompt longer than the manu
 
 test('assistant reports a provider connection failure without crashing', function () {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::failedConnection('Provider unavailable'),
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::failedConnection('Provider unavailable'),
     ]);
 
     $user = User::factory()->create();
@@ -222,13 +222,13 @@ test('assistant reports a provider connection failure without crashing', functio
 
 test('assistant rejects a malformed successful provider response', function () {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::response(['choices' => []]),
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response(['choices' => []]),
     ]);
 
     $user = User::factory()->create();
@@ -244,13 +244,13 @@ test('assistant rejects a malformed successful provider response', function () {
 
 test('users can attach their own proposal context to a chat request', function () {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::response([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => ['content' => 'Use the reviewer comment as the revision plan anchor.'],
             ]],
@@ -286,7 +286,7 @@ test('users can attach their own proposal context to a chat request', function (
 });
 
 test('users cannot attach another faculty member proposal as context', function () {
-    config(['services.groq.key' => 'test-key']);
+    config(['services.gemini.key' => 'test-key']);
     Http::fake();
 
     $faculty = User::factory()->create();
@@ -719,7 +719,7 @@ test('conference scraper reports unavailable when the source fails', function ()
 });
 
 test('chat requests require a final user message', function () {
-    config(['services.groq.key' => 'test-key']);
+    config(['services.gemini.key' => 'test-key']);
 
     $researcher = User::factory()->create();
     $researcher->assignRole('faculty_researcher');

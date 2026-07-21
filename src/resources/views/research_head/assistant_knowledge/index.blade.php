@@ -24,7 +24,7 @@
 
         <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-xs leading-5 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
             <p class="font-black">How grounding works</p>
-            <p class="mt-1">Athena searches active entries for terms related to the faculty question, sends only the best matching excerpts to Groq, and asks the model to cite them as <span class="font-black">[ATHENA 1]</span>, <span class="font-black">[ATHENA 2]</span>, and so on. Do not add confidential participant data, passwords, or unpublished sensitive results.</p>
+            <p class="mt-1">Athena searches active entries for terms related to the faculty question, sends only the best matching excerpts to Gemini, and asks the model to cite them as <span class="font-black">[ATHENA 1]</span>, <span class="font-black">[ATHENA 2]</span>, and so on. Do not add confidential participant data, passwords, or unpublished sensitive results.</p>
         </section>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">

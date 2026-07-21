@@ -46,13 +46,13 @@ class ResearchAssistantController extends Controller
             ], 422);
         }
 
-        $apiKey = trim((string) config('services.groq.key'));
-        $model = trim((string) config('services.groq.model'));
-        $baseUrl = trim((string) config('services.groq.base_url'));
+        $apiKey = trim((string) config('services.gemini.key'));
+        $model = trim((string) config('services.gemini.model'));
+        $baseUrl = trim((string) config('services.gemini.base_url'));
 
         if ($apiKey === '' || $model === '' || $baseUrl === '') {
             return response()->json([
-                'message' => 'Athena AI is not configured yet. Ask the administrator to set the Groq API key before using the assistant.',
+                'message' => 'Athena AI is not configured yet. Ask the administrator to set the Gemini API key before using the assistant.',
             ], 503);
         }
 
@@ -120,7 +120,7 @@ class ResearchAssistantController extends Controller
                     'stream' => false,
                 ]);
         } catch (ConnectionException $exception) {
-            Log::warning('Groq research assistant connection failed.', [
+            Log::warning('Gemini research assistant connection failed.', [
                 'exception' => $exception::class,
             ]);
 
@@ -130,7 +130,7 @@ class ResearchAssistantController extends Controller
         } catch (Throwable $exception) {
             report($exception);
 
-            Log::error('Groq research assistant request encountered an unexpected error.', [
+            Log::error('Gemini research assistant request encountered an unexpected error.', [
                 'exception' => $exception::class,
             ]);
 
@@ -147,7 +147,7 @@ class ResearchAssistantController extends Controller
         }
 
         if ($response->failed()) {
-            Log::warning('Groq research assistant request failed.', [
+            Log::warning('Gemini research assistant request failed.', [
                 'status' => $response->status(),
                 'model' => $model,
                 'request_id' => $response->header('x-request-id'),

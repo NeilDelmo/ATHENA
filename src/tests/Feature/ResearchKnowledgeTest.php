@@ -42,9 +42,9 @@ test('faculty cannot manage the athena knowledge base', function () {
 
 test('athena retrieves matching approved knowledge and discloses its sources', function () {
     config([
-        'services.groq.key' => 'test-key',
-        'services.groq.model' => 'openai/gpt-oss-120b',
-        'services.groq.base_url' => 'https://api.groq.com/openai/v1',
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
     ]);
 
     $researchHead = User::factory()->create();
@@ -65,7 +65,7 @@ test('athena retrieves matching approved knowledge and discloses its sources', f
     ]);
 
     Http::fake([
-        'api.groq.com/openai/v1/chat/completions' => Http::response([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => ['content' => 'Secure clearance before data collection [ATHENA 1].'],
             ]],

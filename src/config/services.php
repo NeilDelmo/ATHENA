@@ -47,13 +47,13 @@ return [
     ],
 
     'ai' => [
-        'provider' => env('AI_PROVIDER', 'groq'),
+        'provider' => env('AI_PROVIDER', 'gemini'),
     ],
 
-    'groq' => [
-        'key' => env('GROQ_API_KEY'),
-        'model' => env('GROQ_MODEL', 'openai/gpt-oss-120b'),
-        'base_url' => rtrim(env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'), '/'),
+    'gemini' => [
+        'key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),
+        'base_url' => rtrim(env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai'), '/'),
     ],
 
     'openalex' => [
