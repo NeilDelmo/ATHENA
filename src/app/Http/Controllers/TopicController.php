@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
@@ -15,6 +16,8 @@ use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
+use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -22,7 +25,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -95,10 +97,6 @@ class TopicController extends Controller
         ]);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
-        $headUploadTypes = app(ProposalPaperCatalog::class)
-            ->all()
-            ->mapWithKeys(fn (array $paper): array => [$paper['document_type'] => $paper['label']])
-            ->all();
         $previousVersion = $topic->versions
             ->where('version_number', '<', $latestVersion?->version_number ?? 0)
             ->sortByDesc('version_number')
@@ -110,12 +108,16 @@ class TopicController extends Controller
         $paperOrder = $paperCatalog->all()
             ->pluck('order', 'document_type');
         $submittedFiles = ($latestVersion?->files ?? collect())
+            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
             ->sortBy(fn (ProposalVersionFile $file): string => sprintf(
                 '%03d-%03d',
                 (int) $paperOrder->get($file->document_type, 999),
                 $file->position,
             ))
             ->values();
+        $headUploadCount = ($latestVersion?->files ?? collect())
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->count();
         $availableSubmittedFileIds = $submittedFiles
             ->filter(fn (ProposalVersionFile $file): bool => Storage::disk('local')->exists($file->file_path))
             ->pluck('id');
@@ -191,7 +193,7 @@ class TopicController extends Controller
             'submittedFiles',
             'availableSubmittedFileIds',
             'viewableSubmittedFileIds',
-            'headUploadTypes',
+            'headUploadCount',
         ));
     }
 
@@ -531,68 +533,132 @@ class TopicController extends Controller
         return Storage::disk('local')->download($topic->signed_approval_path, 'signed-approval-'.$topic->id.'.pdf');
     }
 
-    public function storeHeadUpload(Request $request, TopicProposal $topic, ProposalPackageService $packageService)
+    public function headUploads(Request $request, TopicProposal $topic): View
     {
-        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+        $this->ensureCanViewTopic($request, $topic);
+
+        $topic->load([
+            'user',
+            'researchCall',
+            'versions.submitter',
+            'versions.files.uploadedBy',
+        ]);
+
+        $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+        $paperOrder = app(ProposalPaperCatalog::class)
+            ->all()
+            ->pluck('order', 'document_type');
+        $facultySubmittedFiles = ($latestVersion?->files ?? collect())
+            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->sortBy(fn (ProposalVersionFile $file): string => sprintf(
+                '%03d-%03d',
+                (int) $paperOrder->get($file->document_type, 999),
+                $file->position,
+            ))
+            ->values();
+        $headUploadedFiles = ($latestVersion?->files ?? collect())
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->sortByDesc('created_at')
+            ->values();
+        $headUploadsBySource = $headUploadedFiles->groupBy(
+            fn (ProposalVersionFile $file): int => $file->source_version_file_id
+                ?? $facultySubmittedFiles->firstWhere(
+                    'document_type',
+                    $file->source_data['target_document_type'] ?? null,
+                )?->id
+                ?? 0,
+        );
+        $workspaceFiles = $facultySubmittedFiles->concat($headUploadedFiles);
+        $availableFileIds = $workspaceFiles
+            ->filter(fn (ProposalVersionFile $file): bool => Storage::disk('local')->exists($file->file_path))
+            ->pluck('id');
+        $viewableFileIds = $workspaceFiles
+            ->filter(fn (ProposalVersionFile $file): bool => $availableFileIds->contains($file->id)
+                && ($file->mime_type === 'application/pdf'
+                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+            ->pluck('id');
+
+        return view('research_head.topics.files', compact(
+            'topic',
+            'latestVersion',
+            'facultySubmittedFiles',
+            'headUploadedFiles',
+            'headUploadsBySource',
+            'availableFileIds',
+            'viewableFileIds',
+        ));
+    }
+
+    public function storeHeadUpload(
+        StoreResearchHeadFileRequest $request,
+        TopicProposal $topic,
+        ProposalPackageService $packageService,
+    ): RedirectResponse {
+        $validated = $request->validated();
 
         $latestVersion = $topic->latestVersion()->first();
 
         if (! $latestVersion instanceof ProposalVersion) {
             return back()
                 ->withInput()
-                ->withErrors(['signed_file' => 'This proposal does not have a submitted version to attach files to.'], 'headUpload');
+                ->withErrors(['review_file' => 'This proposal does not have a submitted version to attach files to.'], 'headUpload');
         }
 
-        $allowedTargetTypes = app(ProposalPaperCatalog::class)
-            ->all()
-            ->pluck('document_type')
-            ->all();
-
-        $validated = $request->validateWithBag('headUpload', [
-            'signed_file' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
-            'target_document_type' => ['required', 'string', Rule::in($allowedTargetTypes)],
-            'note' => ['nullable', 'string', 'max:2000'],
-        ], [
-            'signed_file.required' => 'Select a signed PDF or Word file to upload.',
-            'signed_file.mimes' => 'The signed copy must be a PDF or Word document.',
-            'signed_file.max' => 'The signed copy may not be larger than 25 MB.',
-            'target_document_type.in' => 'Select one of the seven required papers this signed copy belongs to.',
-        ]);
-
-        $file = $request->file('signed_file');
+        $sourceFile = $latestVersion->files()
+            ->whereKey($validated['source_file_id'])
+            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->firstOrFail();
+        $file = $request->file('review_file');
         $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
+        $storedPath = null;
 
         try {
             $attributes = $packageService->storeHeadUpload(
                 $file,
                 $directory,
                 [
-                    'target_document_type' => $validated['target_document_type'],
+                    'source_version_file_id' => $sourceFile->id,
+                    'target_document_type' => $sourceFile->document_type,
+                    'purpose' => $validated['purpose'],
                     'note' => $validated['note'] ?? null,
                 ],
             );
+            $storedPath = $attributes['file_path'];
+
+            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated): void {
+                $lockedVersion = ProposalVersion::query()
+                    ->whereKey($latestVersion->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $position = ((int) $lockedVersion->files()
+                    ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                    ->max('position')) + 1;
+
+                $lockedVersion->files()->create([
+                    ...$attributes,
+                    'position' => $position,
+                    'uploaded_by' => $request->user()->id,
+                ]);
+
+                $topic->reviews()->create([
+                    'reviewer_id' => $request->user()->id,
+                    'decision' => 'head_upload',
+                    'comment' => $validated['note'] ?? null,
+                ]);
+            });
         } catch (Throwable) {
+            if ($storedPath !== null) {
+                Storage::disk('local')->delete($storedPath);
+            }
+
             return back()
                 ->withInput()
-                ->withErrors(['signed_file' => 'The signed copy could not be stored. Please try again.'], 'headUpload');
+                ->withErrors(['review_file' => 'The Research Head file could not be stored. Please try again.'], 'headUpload');
         }
 
-        DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated): void {
-            $latestVersion->files()->create([
-                ...$attributes,
-                'uploaded_by' => $request->user()->id,
-            ]);
-
-            $topic->reviews()->create([
-                'reviewer_id' => $request->user()->id,
-                'decision' => 'head_upload',
-                'comment' => $validated['note'] ?? null,
-            ]);
-        });
-
         return redirect()
-            ->route('topics.show', $topic)
-            ->with('success', 'Signed copy attached to the proposal package.');
+            ->route('topics.head-uploads.index', $topic)
+            ->with('success', 'Research Head file attached to the faculty submission.');
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void

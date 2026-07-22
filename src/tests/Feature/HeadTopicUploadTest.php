@@ -81,26 +81,31 @@ beforeEach(function () {
     }
 });
 
-test('research head can attach a signed copy of a required paper to the latest package', function () {
+test('research head can attach reviewed files to exact faculty submissions', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
     $response = $this->actingAs($this->head)
-        ->from(route('topics.show', $this->topic))
+        ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
-            'note' => 'Signed by external co-evaluator on 2026-07-21.',
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('reviewed-work-plan.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+            'note' => 'Annotated for the faculty revision.',
         ]);
 
-    $response->assertRedirect(route('topics.show', $this->topic))
-        ->assertSessionHas('success', 'Signed copy attached to the proposal package.');
+    $response->assertRedirect(route('topics.head-uploads.index', $this->topic))
+        ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     $headUpload = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
         ->sole();
 
     expect($headUpload->uploaded_by)->toBe($this->head->id)
-        ->and($headUpload->original_filename)->toBe('signed-work-plan.pdf')
+        ->and($headUpload->source_version_file_id)->toBe($workPlan->id)
+        ->and($headUpload->original_filename)->toBe('reviewed-work-plan.pdf')
         ->and($headUpload->source_data['target_document_type'])->toBe(ProposalVersionFile::TYPE_WORK_PLAN)
-        ->and($headUpload->source_data['note'])->toBe('Signed by external co-evaluator on 2026-07-21.')
+        ->and($headUpload->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION)
+        ->and($headUpload->source_data['note'])->toBe('Annotated for the faculty revision.')
         ->and(Storage::disk('local')->exists($headUpload->file_path))->toBeTrue();
 
     expect($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
@@ -112,82 +117,102 @@ test('signed copy can be attached even after the proposal is approved', function
         'project_status' => 'ongoing',
     ]);
 
+    $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
-            'signed_file' => UploadedFile::fake()->create('signed-gad-checklist.docx', 200, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'source_file_id' => $gadChecklist->id,
+            'review_file' => UploadedFile::fake()->create('signed-gad-checklist.docx', 200, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.show', $this->topic))
-        ->assertSessionHas('success', 'Signed copy attached to the proposal package.');
+        ->assertRedirect(route('topics.head-uploads.index', $this->topic))
+        ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(1);
 });
 
 test('faculty cannot attach a signed copy through the research head upload endpoint', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
     $this->actingAs($this->faculty)
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('rogue.pdf', 100, 'application/pdf'),
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('rogue.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
         ])
         ->assertForbidden();
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('upload requires a valid target document type among the seven required papers', function () {
+test('upload requires an exact faculty file from the latest version', function () {
     $this->actingAs($this->head)
-        ->from(route('topics.show', $this->topic))
+        ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => 'totally_unknown_type',
-            'signed_file' => UploadedFile::fake()->create('signed.pdf', 100, 'application/pdf'),
+            'source_file_id' => 999999,
+            'review_file' => UploadedFile::fake()->create('reviewed.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
         ])
-        ->assertSessionHasErrors(['target_document_type'], null, 'headUpload');
+        ->assertSessionHasErrors(['source_file_id'], null, 'headUpload');
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
 test('upload rejects unsupported file types and oversize files', function () {
-    $this->actingAs($this->head)
-        ->from(route('topics.show', $this->topic))
-        ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('signed.txt', 100, 'text/plain'),
-        ])
-        ->assertSessionHasErrors(['signed_file'], null, 'headUpload');
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $this->actingAs($this->head)
-        ->from(route('topics.show', $this->topic))
+        ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('huge.pdf', 26000, 'application/pdf'),
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('reviewed.txt', 100, 'text/plain'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
         ])
-        ->assertSessionHasErrors(['signed_file'], null, 'headUpload');
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
+
+    $this->actingAs($this->head)
+        ->from(route('topics.head-uploads.index', $this->topic))
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('huge.pdf', 26000, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+        ])
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('the proposal workspace surfaces signed copies alongside the faculty package', function () {
+test('the upload workspace mirrors the faculty package and surfaces research head copies', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
-            'note' => 'Co-signed by the RDES Head.',
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('reviewed-work-plan.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+            'note' => 'Use these annotations for the next revision.',
         ]);
 
-    $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
+    $response = $this->actingAs($this->head)->get(route('topics.head-uploads.index', $this->topic));
 
     $response->assertOk()
-        ->assertSee('Signed by Research Head')
-        ->assertSee('signed-work-plan.pdf')
-        ->assertSee('Co-signed by the RDES Head.')
-        ->assertSee('Attach signed copy');
+        ->assertSee('Review and Upload Files')
+        ->assertSee('Faculty-submitted files')
+        ->assertSee('Faculty original')
+        ->assertSee('reviewed-work-plan.pdf')
+        ->assertSee('For revision')
+        ->assertSee('Use these annotations for the next revision.')
+        ->assertSee('Upload copy');
 });
 
 test('the head action timeline records head upload events', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-            'signed_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
             'note' => 'Co-signed on 2026-07-21.',
         ]);
 

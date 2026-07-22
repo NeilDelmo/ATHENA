@@ -65,9 +65,14 @@
                                 @endif
                             </p>
                         </div>
-                        <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800' }}">
-                            {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} PDFs available
-                        </span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            @if (Auth::user()->isUsingWorkspace('research_head') && $latestVersion)
+                                <a href="{{ route('topics.head-uploads.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Review &amp; upload files @if ($headUploadCount > 0)<span class="ml-1 opacity-70">({{ $headUploadCount }})</span>@endif</a>
+                            @endif
+                            <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800' }}">
+                                {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} PDFs available
+                            </span>
+                        </div>
                     </div>
 
                     <div class="divide-y divide-gray-100">
@@ -75,22 +80,19 @@
                             @php
                                 $fileAvailable = $availableSubmittedFileIds->contains($file->id);
                                 $fileViewable = $viewableSubmittedFileIds->contains($file->id);
-                                $isHeadUpload = $file->document_type === \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD;
                             @endphp
-                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 {{ $isHeadUpload ? 'bg-cyan-50/40' : '' }}">
+                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                 <div class="flex min-w-0 items-start gap-3">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $isHeadUpload ? 'bg-cyan-100 text-cyan-800' : ($fileAvailable ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400') }} text-[10px] font-black">{{ $isHeadUpload ? 'SIGN' : 'PDF' }}</span>
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $fileAvailable ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400' }} text-[10px] font-black">PDF</span>
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <h4 class="text-sm font-black text-gray-900">{{ $file->label() }}</h4>
-                                            @if ($isHeadUpload)
-                                                <span class="rounded-full bg-cyan-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-cyan-800">Signed by {{ $file->uploadedBy?->name ?? 'Research Head' }}</span>
-                                            @elseif (! $fileAvailable)
+                                            @if (! $fileAvailable)
                                                 <span class="rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-red-700">File unavailable</span>
                                             @endif
                                         </div>
                                         <p class="mt-1 break-all text-xs font-semibold text-gray-600">{{ $file->original_filename }}</p>
-                                        <p class="mt-1 text-[11px] text-gray-400">{{ $file->file_size ? \Illuminate\Support\Number::fileSize($file->file_size) : 'Size unavailable' }}@if ($file->is_carried_forward) &middot; Carried forward from an earlier version @endif @if ($isHeadUpload && ($file->source_data['note'] ?? null)) &middot; {{ $file->source_data['note'] }} @endif</p>
+                                        <p class="mt-1 text-[11px] text-gray-400">{{ $file->file_size ? \Illuminate\Support\Number::fileSize($file->file_size) : 'Size unavailable' }}@if ($file->is_carried_forward) &middot; Carried forward from an earlier version @endif</p>
                                     </div>
                                 </div>
 
@@ -150,7 +152,7 @@
                         <div class="border-t border-gray-100 p-5">
                             <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Files changed in version {{ $latestVersion->version_number }}</p>
                             <div class="mt-2 flex flex-wrap gap-2">
-                                @forelse ($latestVersion->files->where('is_carried_forward', false) as $file)
+                                @forelse ($latestVersion->files->where('is_carried_forward', false)->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD) as $file)
                                     <span class="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">{{ $file->label() }}</span>
                                 @empty
                                     <span class="text-xs text-gray-400">No package files were replaced.</span>
@@ -278,35 +280,6 @@
                     <a href="{{ route('topics.approval', $topic) }}" class="flex justify-center rounded-xl bg-green-700 px-4 py-3 text-xs font-bold text-white">Download signed approval</a>
                 @endif
 
-                @if (Auth::user()->isUsingWorkspace('research_head') && $latestVersion)
-                    <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="space-y-3 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
-                        @csrf
-                        <h3 class="text-sm font-black text-gray-900">Attach signed copy</h3>
-                        <p class="text-xs leading-5 text-gray-500">Upload a signed or countersigned copy of one of the seven required papers. It joins the existing faculty copy so the package keeps a full audit trail. Signed copies can be added at any time, including after approval.</p>
-                        @if (session('headUpload_success'))
-                            <div class="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">{{ session('headUpload_success') }}</div>
-                        @endif
-                        @if ($errors->headUpload->any())
-                            <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                                <p class="font-bold">The signed copy could not be attached.</p>
-                                <ul class="mt-1 list-disc space-y-0.5 pl-4">@foreach ($errors->headUpload->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
-                            </div>
-                        @endif
-                        <label class="block text-[11px] font-bold text-gray-500">Signed copy of <span class="text-red-600">Required</span>
-                            <select name="target_document_type" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs font-semibold">
-                                <option value="">Choose a paper…</option>
-                                @foreach ($headUploadTypes as $type => $label)
-                                    <option value="{{ $type }}" @selected(old('target_document_type') === $type)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="block text-[11px] font-bold text-gray-500">Signed file (PDF or Word) <span class="text-red-600">Required</span>
-                            <input name="signed_file" type="file" accept=".pdf,.doc,.docx" required class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs">
-                        </label>
-                        <label class="block text-[11px] font-bold text-gray-500">Note (optional)<textarea name="note" rows="2" maxlength="2000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="e.g. Signed by external co-evaluator on 2026-07-21">{{ old('note') }}</textarea></label>
-                        <button class="w-full rounded-xl bg-cyan-700 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-700 focus:ring-offset-2">Attach signed copy</button>
-                    </form>
-                @endif
             </aside>
         </div>
     </div>

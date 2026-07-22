@@ -169,8 +169,11 @@ Route::get('/topics/{topic}', [TopicController::class, 'show'])
     ->middleware('auth')
     ->name('topics.show');
 
+Route::get('/topics/{topic}/head-uploads', [TopicController::class, 'headUploads'])
+    ->middleware(['auth', 'workspace:research_head'])
+    ->name('topics.head-uploads.index');
 Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadUpload'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:research_head'])
     ->name('topics.head-uploads.store');
 
 Route::get('/research-calls', [ResearchCallController::class, 'index'])

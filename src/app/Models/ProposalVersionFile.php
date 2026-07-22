@@ -26,6 +26,10 @@ class ProposalVersionFile extends Model
 
     public const TYPE_HEAD_UPLOAD = 'head_upload';
 
+    public const HEAD_UPLOAD_PURPOSE_REVISION = 'revision';
+
+    public const HEAD_UPLOAD_PURPOSE_SIGNED = 'signed';
+
     protected $fillable = [
         'source_version_file_id',
         'document_type',
@@ -88,10 +92,19 @@ class ProposalVersionFile extends Model
             $catalogLabel = app(ProposalPaperCatalog::class)->label($this->source_data['target_document_type']);
 
             if ($catalogLabel !== null) {
-                return $catalogLabel.' (signed copy)';
+                return $catalogLabel.' ('.str($this->headUploadPurposeLabel())->lower().')';
             }
         }
 
         return 'Research Head upload';
+    }
+
+    public function headUploadPurposeLabel(): string
+    {
+        return match ($this->source_data['purpose'] ?? null) {
+            self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
+            self::HEAD_UPLOAD_PURPOSE_SIGNED => 'Signed copy',
+            default => 'Research Head copy',
+        };
     }
 }

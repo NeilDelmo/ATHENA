@@ -386,9 +386,7 @@ class ProposalPackageService
     }
 
     /**
-     * Store a signed copy of one of the seven required papers uploaded by the Research Head.
-     *
-     * @param  array{target_document_type: string, note?: string|null}  $meta
+     * @param  array{source_version_file_id: int, target_document_type: string, purpose: string, note?: string|null}  $meta
      * @return array<string, mixed>
      */
     public function storeHeadUpload(
@@ -396,7 +394,7 @@ class ProposalPackageService
         string $directory,
         array $meta,
     ): array {
-        $path = $file->store($directory.'/head-uploads', 'local');
+        $path = $file->store($directory, 'local');
 
         if (! $path) {
             throw new RuntimeException('The Research Head upload could not be stored.');
@@ -405,7 +403,7 @@ class ProposalPackageService
         $realPath = $file->getRealPath();
 
         return [
-            'source_version_file_id' => null,
+            'source_version_file_id' => $meta['source_version_file_id'],
             'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
             'position' => 0,
             'file_path' => $path,
@@ -416,6 +414,7 @@ class ProposalPackageService
             'is_carried_forward' => false,
             'source_data' => [
                 'target_document_type' => $meta['target_document_type'],
+                'purpose' => $meta['purpose'],
                 'note' => $meta['note'] ?? null,
             ],
         ];
