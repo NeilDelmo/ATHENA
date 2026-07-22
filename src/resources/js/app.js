@@ -3,6 +3,7 @@ import Alpine from 'alpinejs';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
+import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -3305,4 +3306,5 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 }));
 
+registerPdfAnnotationWorkspace(Alpine);
 Alpine.start();

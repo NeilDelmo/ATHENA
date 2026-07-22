@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\ProposalDraft;
+use App\Models\ProposalFileAnnotation;
+use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -87,7 +89,8 @@ class ResearchHeadTopicController extends Controller
 
         if ($validated['status'] === 'revision_requested') {
             $latestVersion = $topic->latestVersion()->with('files')->first();
-            $latestFiles = $latestVersion?->files ?? collect();
+            $latestFiles = ($latestVersion?->files ?? collect())
+                ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD);
             $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
             $selectedRevisionFiles = $latestFiles->whereIn('id', $selectedIds)->values();
 
@@ -189,12 +192,19 @@ class ResearchHeadTopicController extends Controller
                 ]);
 
                 if ($validated['status'] === 'revision_requested') {
-                    $review->fileRevisions()->createMany($selectedRevisionFiles->map(fn ($file) => [
+                    $fileRevisions = $review->fileRevisions()->createMany($selectedRevisionFiles->map(fn ($file) => [
                         'proposal_version_file_id' => $file->id,
                         'document_type' => $file->document_type,
                         'original_filename' => $file->original_filename,
                         'revision_note' => $validated['revision_file_notes'][$file->id] ?? null,
                     ])->all());
+
+                    foreach ($fileRevisions as $fileRevision) {
+                        ProposalFileAnnotation::query()
+                            ->where('proposal_version_file_id', $fileRevision->proposal_version_file_id)
+                            ->whereNull('topic_review_file_revision_id')
+                            ->update(['topic_review_file_revision_id' => $fileRevision->id]);
+                    }
                 }
 
                 if ($validated['status'] === 'approved') {

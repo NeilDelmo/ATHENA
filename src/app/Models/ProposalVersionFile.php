@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProposalVersionFile extends Model
 {
@@ -67,6 +68,11 @@ class ProposalVersionFile extends Model
     public function uploadedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function annotations(): HasMany
+    {
+        return $this->hasMany(ProposalFileAnnotation::class);
     }
 
     public function label(): string

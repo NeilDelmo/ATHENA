@@ -177,10 +177,14 @@
                                 @if ($review->fileRevisions->isNotEmpty())
                                     <div class="mt-2 space-y-2">
                                         @foreach ($review->fileRevisions as $fileRevision)
+                                            @php($annotationVersion = $topic->versions->firstWhere('id', $fileRevision->file?->proposal_version_id))
                                             <div class="rounded-xl border px-3 py-2 text-xs {{ $fileRevision->resolved_at ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900' }}">
                                                 <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-[9px] font-black uppercase">{{ $fileRevision->resolved_at ? 'Resolved' : 'Revision required' }}</span></div>
                                                 <p class="mt-0.5 text-[10px] opacity-75">{{ $fileRevision->original_filename }}</p>
                                                 @if ($fileRevision->revision_note)<p class="mt-1 leading-5">{{ $fileRevision->revision_note }}</p>@endif
+                                                @if ($fileRevision->annotations->isNotEmpty() && $annotationVersion && $fileRevision->file)
+                                                    <a href="{{ route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $fileRevision->file]) }}" class="mt-2 inline-flex rounded-lg bg-amber-600 px-3 py-1.5 text-[10px] font-black text-white hover:bg-amber-700">View {{ $fileRevision->annotations->count() }} highlighted comment(s)</a>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
@@ -257,7 +261,7 @@
                                 <p class="text-[11px] font-black uppercase tracking-wider text-amber-800">Required replacements</p>
                                 <div class="mt-2 space-y-2">
                                     @foreach ($pendingFileRevisions as $fileRevision)
-                                        <div class="text-xs text-amber-900"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="mt-0.5 pl-2 text-[11px] text-amber-700">{{ $fileRevision->revision_note }}</p>@endif</div>
+                                        <div class="text-xs text-amber-900"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="mt-0.5 pl-2 text-[11px] text-amber-700">{{ $fileRevision->revision_note }}</p>@endif @if ($fileRevision->annotations->isNotEmpty() && $latestVersion && $fileRevision->file)<a href="{{ route('topics.versions.files.annotations.index', [$topic, $latestVersion, $fileRevision->file]) }}" class="mt-1 inline-flex rounded-lg bg-amber-600 px-3 py-1.5 text-[10px] font-black text-white hover:bg-amber-700">View highlighted comments ({{ $fileRevision->annotations->count() }})</a>@endif</div>
                                     @endforeach
                                 </div>
                             </div>

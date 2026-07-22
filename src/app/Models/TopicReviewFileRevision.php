@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TopicReviewFileRevision extends Model
 {
@@ -36,5 +37,10 @@ class TopicReviewFileRevision extends Model
     public function resolutionFile(): BelongsTo
     {
         return $this->belongsTo(ProposalVersionFile::class, 'resolved_by_version_file_id');
+    }
+
+    public function annotations(): HasMany
+    {
+        return $this->hasMany(ProposalFileAnnotation::class);
     }
 }

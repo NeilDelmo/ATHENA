@@ -92,8 +92,8 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files.uploadedBy', 'progressReports.submitter', 'progressReports.reviewer',
-            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
+            'user', 'researchCall', 'category', 'expertAssignments.expert', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer',
+            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
         ]);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
@@ -542,6 +542,7 @@ class TopicController extends Controller
             'researchCall',
             'versions.submitter',
             'versions.files.uploadedBy',
+            'versions.files.annotations',
         ]);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();

@@ -51,6 +51,7 @@
                     @php
                         $facultyFileAvailable = $availableFileIds->contains($facultyFile->id);
                         $facultyFileViewable = $viewableFileIds->contains($facultyFile->id);
+                        $facultyFileAnnotationCount = $facultyFile->annotations->count();
                         $researchHeadCopies = $headUploadsBySource->get($facultyFile->id, collect());
                         $isCurrentForm = (int) old('source_file_id') === $facultyFile->id;
                         $selectedPurpose = $isCurrentForm ? old('purpose', \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION) : \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION;
@@ -70,6 +71,9 @@
                                 </div>
                             </div>
                             <div class="flex w-full shrink-0 gap-2 sm:w-auto">
+                                @if ($facultyFileViewable)
+                                    <a href="{{ route('topics.versions.files.annotations.index', [$topic, $latestVersion, $facultyFile]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-black text-amber-950 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 sm:flex-none">{{ $facultyFileAnnotationCount > 0 ? 'Annotations ('.$facultyFileAnnotationCount.')' : 'Annotate PDF' }}</a>
+                                @endif
                                 @if ($facultyFileViewable)
                                     <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $facultyFile]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:flex-none">View PDF</a>
                                 @endif

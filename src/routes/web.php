@@ -21,6 +21,7 @@ use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
+use App\Http\Controllers\ProposalFileAnnotationController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
@@ -156,6 +157,15 @@ Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicCon
 Route::get('/topics/{topic}/versions/{version}/files/{file}/view', [TopicController::class, 'viewVersionFile'])
     ->middleware('auth')
     ->name('topics.versions.files.view');
+Route::get('/topics/{topic}/versions/{version}/files/{file}/annotations', [ProposalFileAnnotationController::class, 'index'])
+    ->middleware('auth')
+    ->name('topics.versions.files.annotations.index');
+Route::post('/topics/{topic}/versions/{version}/files/{file}/annotations', [ProposalFileAnnotationController::class, 'store'])
+    ->middleware(['auth', 'workspace:research_head'])
+    ->name('topics.versions.files.annotations.store');
+Route::delete('/topics/{topic}/versions/{version}/files/{file}/annotations/{annotation}', [ProposalFileAnnotationController::class, 'destroy'])
+    ->middleware(['auth', 'workspace:research_head'])
+    ->name('topics.versions.files.annotations.destroy');
 Route::get('/topics/{topic}/draft-history', [ProposalDraftDocumentVersionController::class, 'archived'])
     ->middleware('auth')
     ->name('topics.draft-history.index');

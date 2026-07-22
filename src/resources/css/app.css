@@ -7,6 +7,132 @@
     to { transform: scaleX(0); }
 }
 
+.pdf-annotation-page {
+    position: relative;
+    flex: none;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 10px 25px rgb(15 23 42 / 0.16);
+}
+
+.pdf-annotation-page > canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+.pdf-annotation-page .textLayer {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    overflow: clip;
+    line-height: 1;
+    text-align: initial;
+    text-size-adjust: none;
+    transform-origin: 0 0;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-annotation-page .textLayer :is(span, br) {
+    position: absolute;
+    color: transparent;
+    cursor: text;
+    white-space: pre;
+    transform-origin: 0 0;
+    user-select: text;
+}
+
+.pdf-annotation-page .textLayer > :not(.markedContent),
+.pdf-annotation-page .textLayer .markedContent span:not(.markedContent) {
+    z-index: 1;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+    --font-height: 0;
+    --scale-x: 1;
+    --rotate: 0deg;
+}
+
+.pdf-annotation-page .textLayer .markedContent {
+    display: contents;
+}
+
+.pdf-annotation-page .textLayer span[role='img'] {
+    cursor: default;
+    user-select: none;
+}
+
+.pdf-annotation-page .textLayer[data-main-rotation='90'] {
+    transform: rotate(90deg) translateY(-100%);
+}
+
+.pdf-annotation-page .textLayer[data-main-rotation='180'] {
+    transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.pdf-annotation-page .textLayer[data-main-rotation='270'] {
+    transform: rotate(270deg) translateX(-100%);
+}
+
+.pdf-annotation-page .textLayer ::selection {
+    background: rgb(251 191 36 / 0.55);
+    color: transparent;
+}
+
+.pdf-annotation-page .textLayer br::selection {
+    background: transparent;
+}
+
+.pdf-annotation-overlay {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    pointer-events: none;
+}
+
+.pdf-annotation-mark {
+    position: absolute;
+    pointer-events: auto;
+    cursor: pointer;
+    border: 1px solid rgb(217 119 6 / 0.55);
+    border-radius: 0.125rem;
+    background: rgb(250 204 21 / 0.32);
+    transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.pdf-annotation-mark:hover,
+.pdf-annotation-mark:focus-visible {
+    background: rgb(250 204 21 / 0.5);
+    box-shadow: 0 0 0 2px rgb(245 158 11 / 0.65);
+    outline: none;
+}
+
+.pdf-annotation-mark-requested {
+    border-color: rgb(37 99 235 / 0.55);
+    background: rgb(96 165 250 / 0.3);
+}
+
+.pdf-annotation-mark-resolved {
+    border-color: rgb(22 163 74 / 0.5);
+    background: rgb(74 222 128 / 0.24);
+}
+
+.pdf-annotation-area-preview {
+    position: absolute;
+    z-index: 4;
+    pointer-events: none;
+    border: 2px solid rgb(217 119 6);
+    border-radius: 0.25rem;
+    background: rgb(250 204 21 / 0.25);
+}
+
+.pdf-annotation-area-mode .pdf-annotation-page,
+.pdf-annotation-area-mode .pdf-annotation-page .textLayer {
+    cursor: crosshair;
+    user-select: none;
+}
+
 @layer base {
     [x-cloak] {
         display: none !important;
