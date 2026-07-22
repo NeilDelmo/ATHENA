@@ -31,6 +31,8 @@ class ProposalVersionFile extends Model
 
     public const HEAD_UPLOAD_PURPOSE_SIGNED = 'signed';
 
+    public const HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL = 'supplemental';
+
     protected $fillable = [
         'source_version_file_id',
         'document_type',
@@ -94,6 +96,10 @@ class ProposalVersionFile extends Model
 
     private function headUploadLabel(): string
     {
+        if (($this->source_data['purpose'] ?? null) === self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL) {
+            return $this->source_data['document_title'] ?? 'Supplemental paper';
+        }
+
         if (is_array($this->source_data) && isset($this->source_data['target_document_type'])) {
             $catalogLabel = app(ProposalPaperCatalog::class)->label($this->source_data['target_document_type']);
 
@@ -110,6 +116,7 @@ class ProposalVersionFile extends Model
         return match ($this->source_data['purpose'] ?? null) {
             self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
             self::HEAD_UPLOAD_PURPOSE_SIGNED => 'Signed copy',
+            self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL => 'Supplemental paper',
             default => 'Research Head copy',
         };
     }

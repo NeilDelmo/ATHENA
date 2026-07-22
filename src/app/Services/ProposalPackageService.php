@@ -386,7 +386,7 @@ class ProposalPackageService
     }
 
     /**
-     * @param  array{source_version_file_id: int, target_document_type: string, purpose: string, note?: string|null}  $meta
+     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null}  $meta
      * @return array<string, mixed>
      */
     public function storeHeadUpload(
@@ -415,6 +415,8 @@ class ProposalPackageService
             'source_data' => [
                 'target_document_type' => $meta['target_document_type'],
                 'purpose' => $meta['purpose'],
+                'document_title' => $meta['document_title'] ?? null,
+                'issuing_office' => $meta['issuing_office'] ?? null,
                 'note' => $meta['note'] ?? null,
             ],
         ];

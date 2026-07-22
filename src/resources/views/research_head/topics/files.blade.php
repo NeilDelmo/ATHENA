@@ -4,7 +4,7 @@
             <div>
                 <a href="{{ route('topics.show', $topic) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Submitted proposal</a>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Review and Upload Files</h2>
-                <p class="mt-1 text-xs text-gray-500">Review the faculty-submitted package and attach files for revision or signed copies.</p>
+                <p class="mt-1 text-xs text-gray-500">Review the faculty package, attach reviewed copies, or upload standalone papers received from another office.</p>
             </div>
             <span class="inline-flex w-fit rounded-full bg-cyan-100 px-3 py-1.5 text-xs font-black text-cyan-800">
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number.' · '.$headUploadedFiles->count().' uploaded' : 'No submitted version' }}
@@ -38,6 +38,69 @@
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $topic->estimated_duration_months }} {{ Str::plural('month', $topic->estimated_duration_months) }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $topic->user->name }}</dd></div>
             </dl>
+        </section>
+
+        <section aria-labelledby="supplemental-papers-heading" class="rounded-2xl border border-violet-200 bg-violet-50/40 p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h3 id="supplemental-papers-heading" class="text-lg font-black text-gray-900">Administrative and supplemental papers</h3>
+                    <p class="mt-1 text-xs leading-5 text-gray-600">The Research Head uploads papers received from a higher office or another source. These are kept with the proposal but are not forms the faculty must complete or replace.</p>
+                </div>
+                <span class="inline-flex w-fit rounded-full bg-violet-100 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-violet-800">{{ $supplementalHeadUploads->count() }} supplemental</span>
+            </div>
+
+            @if ($supplementalHeadUploads->isNotEmpty())
+                <div class="mt-5 space-y-3">
+                    @foreach ($supplementalHeadUploads as $supplementalPaper)
+                        @php
+                            $supplementalAvailable = $availableFileIds->contains($supplementalPaper->id);
+                            $supplementalViewable = $viewableFileIds->contains($supplementalPaper->id);
+                        @endphp
+                        <article class="flex flex-col gap-3 rounded-xl border border-violet-100 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h4 class="text-sm font-black text-gray-900">{{ $supplementalPaper->label() }}</h4>
+                                    <span class="rounded-full bg-violet-100 px-2 py-0.5 text-[9px] font-black uppercase text-violet-800">Supplemental paper</span>
+                                </div>
+                                <p class="mt-1 break-all text-xs font-semibold text-gray-700">{{ $supplementalPaper->original_filename }}</p>
+                                <p class="mt-1 text-[11px] text-gray-500">Uploaded by {{ $supplementalPaper->uploadedBy?->name ?? 'Research Head' }}@if ($supplementalPaper->source_data['issuing_office'] ?? null) · From {{ $supplementalPaper->source_data['issuing_office'] }}@endif · {{ $supplementalPaper->created_at->format('M j, Y g:i A') }}</p>
+                                @if ($supplementalPaper->source_data['note'] ?? null)<p class="mt-1 text-xs leading-5 text-gray-600">{{ $supplementalPaper->source_data['note'] }}</p>@endif
+                            </div>
+                            <div class="flex w-full shrink-0 gap-2 sm:w-auto">
+                                @if ($supplementalViewable)<a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $supplementalPaper]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-bold text-violet-800 hover:bg-violet-50 sm:flex-none">View</a>@endif
+                                @if ($supplementalAvailable)<a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $supplementalPaper]) }}" class="inline-flex flex-1 items-center justify-center rounded-lg bg-violet-700 px-3 py-2 text-[11px] font-bold text-white hover:bg-violet-800 sm:flex-none">Download</a>@endif
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @endif
+
+            @if ($latestVersion)
+                @php
+                    $isSupplementalForm = old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
+                @endphp
+                <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 border-t border-violet-200 pt-5 sm:grid-cols-2">
+                    @csrf
+                    <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL }}">
+                    <label class="block text-[11px] font-bold text-gray-700">Document title <span class="text-red-600">Required</span>
+                        <input name="document_title" type="text" maxlength="255" required value="{{ $isSupplementalForm ? old('document_title') : '' }}" placeholder="e.g. Regional endorsement memorandum" class="mt-1 block w-full rounded-xl border-violet-200 text-xs focus:border-violet-500 focus:ring-violet-500">
+                    </label>
+                    <label class="block text-[11px] font-bold text-gray-700">Issuing office or source (optional)
+                        <input name="issuing_office" type="text" maxlength="255" value="{{ $isSupplementalForm ? old('issuing_office') : '' }}" placeholder="e.g. Office of the Regional Director" class="mt-1 block w-full rounded-xl border-violet-200 text-xs focus:border-violet-500 focus:ring-violet-500">
+                    </label>
+                    <label class="block text-[11px] font-bold text-gray-700">Paper <span class="text-red-600">Required</span>
+                        <input name="review_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" required class="mt-1 block w-full rounded-xl border border-violet-200 bg-white p-2 text-xs file:mr-3 file:rounded-lg file:border-0 file:bg-violet-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-violet-800 hover:file:bg-violet-200">
+                    </label>
+                    <label class="block text-[11px] font-bold text-gray-700">Record note (optional)
+                        <input name="note" type="text" maxlength="2000" value="{{ $isSupplementalForm ? old('note') : '' }}" placeholder="Why this paper belongs with the proposal" class="mt-1 block w-full rounded-xl border-violet-200 text-xs focus:border-violet-500 focus:ring-violet-500">
+                    </label>
+                    <div class="sm:col-span-2 sm:flex sm:justify-end">
+                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-violet-700 px-5 py-2.5 text-xs font-black text-white transition hover:bg-violet-800 focus:outline-none focus:ring-2 focus:ring-violet-700 focus:ring-offset-2 sm:w-auto">Upload supplemental paper</button>
+                    </div>
+                </form>
+            @else
+                <p class="mt-5 rounded-xl border border-violet-200 bg-white p-4 text-xs text-violet-800">The Research Head can upload supplemental papers after the faculty turns in the first proposal draft.</p>
+            @endif
         </section>
 
         <section aria-labelledby="head-upload-files-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -151,7 +214,7 @@
 
         <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 sm:p-6">
             <p class="font-black text-blue-900">The faculty originals are always preserved.</p>
-            <p class="mt-1 text-sm leading-6 text-blue-800">Files marked “For revision” can support the revision request you build next. This screen only records and organizes the Research Head uploads; it does not send a revision request yet.</p>
+            <p class="mt-1 text-sm leading-6 text-blue-800">Files attached to a faculty original can support a revision request. Administrative and supplemental papers remain separate and never require the faculty to replace a file.</p>
         </section>
     </div>
 </x-app-layout>

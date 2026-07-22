@@ -131,6 +131,39 @@ test('signed copy can be attached even after the proposal is approved', function
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(1);
 });
 
+test('research head can upload a standalone supplemental paper after faculty turn in', function () {
+    $response = $this->actingAs($this->head)
+        ->from(route('topics.head-uploads.index', $this->topic))
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'review_file' => UploadedFile::fake()->create('regional-endorsement.pdf', 120, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
+            'document_title' => 'Regional Endorsement Memorandum',
+            'issuing_office' => 'Office of the Regional Director',
+            'note' => 'Received through the Research Head for the proposal record.',
+        ]);
+
+    $response->assertRedirect(route('topics.head-uploads.index', $this->topic))
+        ->assertSessionHas('success', 'Supplemental paper uploaded by the Research Head.');
+
+    $supplementalPaper = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->sole();
+
+    expect($supplementalPaper->uploaded_by)->toBe($this->head->id)
+        ->and($supplementalPaper->source_version_file_id)->toBeNull()
+        ->and($supplementalPaper->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
+        ->and($supplementalPaper->source_data['document_title'])->toBe('Regional Endorsement Memorandum')
+        ->and($supplementalPaper->source_data['issuing_office'])->toBe('Office of the Regional Director')
+        ->and(Storage::disk('local')->exists($supplementalPaper->file_path))->toBeTrue();
+
+    $this->actingAs($this->head)
+        ->get(route('topics.head-uploads.index', $this->topic))
+        ->assertOk()
+        ->assertSee('Administrative and supplemental papers')
+        ->assertSee('Regional Endorsement Memorandum')
+        ->assertSee('Office of the Regional Director');
+});
+
 test('faculty cannot attach a signed copy through the research head upload endpoint', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 

@@ -561,14 +561,19 @@ class TopicController extends Controller
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
             ->sortByDesc('created_at')
             ->values();
-        $headUploadsBySource = $headUploadedFiles->groupBy(
-            fn (ProposalVersionFile $file): int => $file->source_version_file_id
-                ?? $facultySubmittedFiles->firstWhere(
-                    'document_type',
-                    $file->source_data['target_document_type'] ?? null,
-                )?->id
-                ?? 0,
-        );
+        $supplementalHeadUploads = $headUploadedFiles
+            ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
+            ->values();
+        $headUploadsBySource = $headUploadedFiles
+            ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
+            ->groupBy(
+                fn (ProposalVersionFile $file): int => $file->source_version_file_id
+                    ?? $facultySubmittedFiles->firstWhere(
+                        'document_type',
+                        $file->source_data['target_document_type'] ?? null,
+                    )?->id
+                    ?? 0,
+            );
         $workspaceFiles = $facultySubmittedFiles->concat($headUploadedFiles);
         $availableFileIds = $workspaceFiles
             ->filter(fn (ProposalVersionFile $file): bool => Storage::disk('local')->exists($file->file_path))
@@ -584,6 +589,7 @@ class TopicController extends Controller
             'latestVersion',
             'facultySubmittedFiles',
             'headUploadedFiles',
+            'supplementalHeadUploads',
             'headUploadsBySource',
             'availableFileIds',
             'viewableFileIds',
@@ -605,10 +611,13 @@ class TopicController extends Controller
                 ->withErrors(['review_file' => 'This proposal does not have a submitted version to attach files to.'], 'headUpload');
         }
 
-        $sourceFile = $latestVersion->files()
-            ->whereKey($validated['source_file_id'])
-            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->firstOrFail();
+        $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
+        $sourceFile = $isSupplemental
+            ? null
+            : $latestVersion->files()
+                ->whereKey($validated['source_file_id'])
+                ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                ->firstOrFail();
         $file = $request->file('review_file');
         $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
         $storedPath = null;
@@ -618,15 +627,17 @@ class TopicController extends Controller
                 $file,
                 $directory,
                 [
-                    'source_version_file_id' => $sourceFile->id,
-                    'target_document_type' => $sourceFile->document_type,
+                    'source_version_file_id' => $sourceFile?->id,
+                    'target_document_type' => $sourceFile?->document_type,
                     'purpose' => $validated['purpose'],
+                    'document_title' => $validated['document_title'] ?? null,
+                    'issuing_office' => $validated['issuing_office'] ?? null,
                     'note' => $validated['note'] ?? null,
                 ],
             );
             $storedPath = $attributes['file_path'];
 
-            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated): void {
+            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental): void {
                 $lockedVersion = ProposalVersion::query()
                     ->whereKey($latestVersion->id)
                     ->lockForUpdate()
@@ -644,7 +655,8 @@ class TopicController extends Controller
                 $topic->reviews()->create([
                     'reviewer_id' => $request->user()->id,
                     'decision' => 'head_upload',
-                    'comment' => $validated['note'] ?? null,
+                    'comment' => $validated['note']
+                        ?? ($isSupplemental ? 'Uploaded supplemental paper: '.$validated['document_title'] : null),
                 ]);
             });
         } catch (Throwable) {
@@ -659,7 +671,9 @@ class TopicController extends Controller
 
         return redirect()
             ->route('topics.head-uploads.index', $topic)
-            ->with('success', 'Research Head file attached to the faculty submission.');
+            ->with('success', $isSupplemental
+                ? 'Supplemental paper uploaded by the Research Head.'
+                : 'Research Head file attached to the faculty submission.');
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
