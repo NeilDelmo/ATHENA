@@ -28,7 +28,10 @@ class RecordProposalDraftDocumentVersion
             ->where('is_current', true)
             ->latest('version_number')
             ->first();
-        $nextVersionNumber = ((int) $versions->max('version_number')) + 1;
+        $nextVersionNumber = max(
+            ((int) $versions->max('version_number')) + 1,
+            $document->lock_version,
+        );
         $changes = $this->diff->changes($previous, $document);
 
         (clone $versions)->where('is_current', true)->update(['is_current' => false]);

@@ -22,7 +22,7 @@ class RemoveProposalDraftDocument
         int $expectedVersion,
     ): void {
         DB::transaction(function () use ($draft, $document, $actor, $expectedVersion): void {
-            ProposalDraft::query()
+            $lockedDraft = ProposalDraft::query()
                 ->whereKey($draft->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
@@ -31,8 +31,13 @@ class RemoveProposalDraftDocument
                 ->whereBelongsTo($draft, 'draft')
                 ->lockForUpdate()
                 ->firstOrFail();
+            $currentVersion = $lockedDraft->currentDocumentVersion(
+                $lockedDocument->document_type,
+                $lockedDocument->position,
+                $lockedDocument,
+            );
 
-            if ($lockedDocument->lock_version !== $expectedVersion) {
+            if ($currentVersion !== $expectedVersion) {
                 throw ValidationException::withMessages([
                     'document_version' => 'A teammate saved a newer version of this paper. Your removal was stopped; reload the latest version before removing it.',
                 ]);

@@ -62,6 +62,7 @@
                     @foreach ($versions as $version)
                         @php
                             $currentDocument = $currentDocuments->get($version->document_type.':'.$version->position);
+                            $currentVersion = $currentVersions->get($version->document_type.':'.$version->position, 0);
                             $isCurrent = ! $archived && $version->isCurrent();
                             $changes = collect($version->changes ?? []);
                         @endphp
@@ -143,7 +144,7 @@
                                             data-confirm-icon="question"
                                         >
                                             @csrf
-                                            <input type="hidden" name="document_version" value="{{ old('document_version', $currentDocument?->lock_version ?? 0) }}">
+                                            <input type="hidden" name="document_version" value="{{ old('document_version', $currentVersion) }}">
                                             <div>
                                                 <label for="restore-note-{{ $version->id }}" class="block text-xs font-black text-blue-950">Restore note <span class="font-semibold text-blue-700">(optional)</span></label>
                                                 <textarea id="restore-note-{{ $version->id }}" name="change_note" rows="2" maxlength="500" placeholder="Why is this version being restored?" class="mt-2 block w-full rounded-xl border-blue-200 bg-white text-sm shadow-sm focus:border-blue-700 focus:ring-blue-700"></textarea>

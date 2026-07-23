@@ -41,7 +41,11 @@ class SaveProposalDraftDocument
                 ->where('position', $position)
                 ->lockForUpdate()
                 ->first();
-            $currentVersion = $document?->lock_version ?? 0;
+            $currentVersion = $lockedDraft->currentDocumentVersion(
+                $documentType,
+                $position,
+                $document,
+            );
 
             if ($currentVersion !== $expectedVersion) {
                 throw ValidationException::withMessages([
@@ -61,7 +65,11 @@ class SaveProposalDraftDocument
             ]);
 
             if ($document && $this->diff->isEquivalent($document, $safeAttributes)) {
-                return $document;
+                if ($document->lock_version !== $currentVersion) {
+                    $document->update(['lock_version' => $currentVersion]);
+                }
+
+                return $document->refresh();
             }
 
             if ($document) {
@@ -86,7 +94,7 @@ class SaveProposalDraftDocument
                 ...$safeAttributes,
                 'document_type' => $documentType,
                 'position' => $position,
-                'lock_version' => 1,
+                'lock_version' => $currentVersion + 1,
             ]);
 
             $this->recordDocumentVersion->handle(

@@ -136,17 +136,47 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
         ->assertSee('Removed Estimated Expense Breakdown from the proposal draft.');
 
     $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.papers.edit', [$this->draft, 'expense-breakdown']))
+        ->assertOk()
+        ->assertSee('name="document_version" value="3"', false);
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.edit-state', [
+            $this->draft,
+            config('proposal_papers.expense-breakdown.document_type'),
+            0,
+        ]))
+        ->assertOk()
+        ->assertJson([
+            'version' => 3,
+            'is_removed' => true,
+        ]);
+
+    $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
-            'document_version' => 0,
+            'document_version' => 3,
             'documents' => [UploadedFile::fake()->create('expenses-v3.pdf', 130, 'application/pdf')],
         ])
         ->assertRedirect();
 
     $thirdVersion = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
+    $reuploadedDocument = $this->draft->documents()->sole();
 
     expect($thirdVersion->version_number)->toBe(4)
         ->and($thirdVersion->original_filename)->toBe('expenses-v3.pdf')
-        ->and($thirdVersion->isCurrent())->toBeTrue();
+        ->and($thirdVersion->isCurrent())->toBeTrue()
+        ->and($reuploadedDocument->lock_version)->toBe(4);
+
+    $this->actingAs($this->collaborator)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 1,
+            'documents' => [UploadedFile::fake()->create('stale-expenses.pdf', 90, 'application/pdf')],
+        ])
+        ->assertSessionHasErrors('document_version');
+
+    expect($reuploadedDocument->fresh()->lock_version)->toBe(4)
+        ->and($reuploadedDocument->fresh()->original_filename)->toBe('expenses-v3.pdf')
+        ->and(ProposalDraftDocumentVersion::query()->count())->toBe(4);
 });
 
 test('a stale removal cannot delete a newer teammate replacement', function () {

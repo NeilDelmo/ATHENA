@@ -226,7 +226,7 @@ function initializeProposalVersionMonitors() {
                 const documentLabel = monitor.dataset.documentLabel || 'paper';
 
                 if (message instanceof HTMLElement) {
-                    message.textContent = currentVersion === 0
+                    message.textContent = state.is_removed
                         ? `${actor} removed this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`
                         : `${actor} saved version ${currentVersion} of this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`;
                 }

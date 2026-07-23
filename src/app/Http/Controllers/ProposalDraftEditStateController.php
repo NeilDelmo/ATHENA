@@ -36,6 +36,7 @@ class ProposalDraftEditStateController extends Controller
             ->select(['id', 'proposal_draft_id', 'lock_version', 'updated_at'])
             ->first();
         $latestVersion = $proposalDraft->documentVersions()
+            ->reorder()
             ->where('document_type', $scope)
             ->where('position', $position)
             ->with('creator:id,name')
@@ -43,7 +44,11 @@ class ProposalDraftEditStateController extends Controller
             ->first();
 
         return response()->json([
-            'version' => $document?->lock_version ?? 0,
+            'version' => max(
+                $document?->lock_version ?? 0,
+                $latestVersion?->version_number ?? 0,
+            ),
+            'is_removed' => $document === null && $latestVersion?->action === 'removed',
             'updated_at' => $latestVersion?->created_at?->toIso8601String()
                 ?? $document?->updated_at?->toIso8601String(),
             'updated_by' => $latestVersion?->creator?->name,

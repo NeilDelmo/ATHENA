@@ -33,7 +33,11 @@ class RestoreProposalDraftDocumentVersion
             ->where('document_type', $version->document_type)
             ->where('position', $version->position)
             ->first();
-        $currentLockVersion = $currentDocument?->lock_version ?? 0;
+        $currentDocumentVersion = $draft->currentDocumentVersion(
+            $version->document_type,
+            $version->position,
+            $currentDocument,
+        );
         $restoredPath = null;
 
         if ($version->hasStoredFile()) {
@@ -82,8 +86,7 @@ class RestoreProposalDraftDocumentVersion
             throw $exception;
         }
 
-        $versionCreated = $currentDocument === null
-            || $document->lock_version !== $currentLockVersion;
+        $versionCreated = $document->lock_version !== $currentDocumentVersion;
 
         if (! $versionCreated && $restoredPath !== null) {
             Storage::disk('local')->delete($restoredPath);

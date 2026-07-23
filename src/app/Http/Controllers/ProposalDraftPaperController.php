@@ -15,6 +15,7 @@ use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -36,12 +37,14 @@ class ProposalDraftPaperController extends Controller
 
         $paper = $this->uploadPaper($catalog, $paper);
         $documents = $this->documentsFor($proposalDraft, $paper)->get();
+        $currentVersions = $this->currentVersionsFor($proposalDraft, $paper, $documents);
         $template = $this->activeTemplate($paper);
 
         return view('faculty.proposal-drafts.papers.edit', compact(
             'proposalDraft',
             'paper',
             'documents',
+            'currentVersions',
             'template',
         ));
     }
@@ -163,6 +166,34 @@ class ProposalDraftPaperController extends Controller
             ->where('proposal_draft_id', $proposalDraft->getKey())
             ->where('document_type', $paper['document_type'])
             ->orderBy('position');
+    }
+
+    /**
+     * @param  array<string, mixed>  $paper
+     * @param  Collection<int, ProposalDraftDocument>  $documents
+     * @return Collection<int, int>
+     */
+    private function currentVersionsFor(
+        ProposalDraft $proposalDraft,
+        array $paper,
+        Collection $documents,
+    ): Collection {
+        $currentVersions = $proposalDraft->documentVersions()
+            ->reorder()
+            ->where('document_type', $paper['document_type'])
+            ->selectRaw('position, MAX(version_number) as current_version')
+            ->groupBy('position')
+            ->pluck('current_version', 'position')
+            ->map(fn (mixed $version): int => (int) $version);
+
+        foreach ($documents as $document) {
+            $currentVersions->put(
+                $document->position,
+                max($document->lock_version, $currentVersions->get($document->position, 0)),
+            );
+        }
+
+        return $currentVersions;
     }
 
     /**

@@ -62,6 +62,20 @@ class ProposalDraft extends Model
             ->latest();
     }
 
+    public function currentDocumentVersion(
+        string $documentType,
+        int $position,
+        ?ProposalDraftDocument $document = null,
+    ): int {
+        $latestRecordedVersion = (int) $this->documentVersions()
+            ->reorder()
+            ->where('document_type', $documentType)
+            ->where('position', $position)
+            ->max('version_number');
+
+        return max($document?->lock_version ?? 0, $latestRecordedVersion);
+    }
+
     public function members(): HasMany
     {
         return $this->hasMany(ProposalDraftMember::class)
