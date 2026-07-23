@@ -102,7 +102,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertDontSee('Project leader campus <span', false)
         ->assertDontSee('Project leader college <span', false)
         ->assertSee('Ctrl + S')
-        ->assertSee('Save and exit');
+        ->assertSee('Save and return to proposal');
 
     $saveAndExitPayload = $payload;
     $saveAndExitPayload['document_version'] = 1;

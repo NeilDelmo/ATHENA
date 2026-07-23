@@ -73,3 +73,52 @@ test('the proposal alert component keeps accessible fallback markup', function (
     'warning' => ['warning', 'warning', 'status'],
     'error' => ['error', 'error', 'alert'],
 ]);
+
+test('proposal editors place the save and return action last and make it primary', function () {
+    $editorViews = [
+        'resources/views/faculty/proposal-drafts/details/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
+    ];
+
+    foreach ($editorViews as $editorView) {
+        $view = file_get_contents(base_path($editorView));
+        $saveAndStayPosition = strpos($view, '<button data-paper-save type="submit"');
+        $saveAndReturnPosition = strpos($view, '<button data-paper-save-exit type="submit"');
+
+        expect($saveAndStayPosition)->toBeInt()
+            ->and($saveAndReturnPosition)->toBeInt()
+            ->and($saveAndReturnPosition)->toBeGreaterThan($saveAndStayPosition)
+            ->and($view)
+            ->toContain('Save and stay')
+            ->toContain('Save and return to proposal')
+            ->toContain('data-paper-save-exit type="submit"')
+            ->not->toContain('flex-col-reverse');
+    }
+});
+
+test('the collaboration monitor keeps a persistent save confirmation', function () {
+    session()->flash('success', 'Attachment A: Work Plan saved.');
+
+    $html = Blade::render(
+        '<x-proposal-collaboration-monitor :loaded-version="3" state-url="/state" reload-url="/edit" label="Work Plan" />',
+    );
+
+    expect($html)
+        ->toContain('data-proposal-save-confirmation')
+        ->toContain('Attachment A: Work Plan saved.')
+        ->toContain('Saved as version 3.')
+        ->toContain('You stayed on this page and can continue editing.')
+        ->toContain('data-proposal-monitor-status');
+
+    session()->flash('success', 'Attachment A: Work Plan file removed. Previous versions remain available in history.');
+
+    $removedHtml = Blade::render(
+        '<x-proposal-collaboration-monitor :loaded-version="0" state-url="/state" reload-url="/edit" label="Work Plan" />',
+    );
+
+    expect($removedHtml)->not->toContain('data-proposal-save-confirmation');
+});

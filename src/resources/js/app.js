@@ -193,12 +193,31 @@ function initializeProposalVersionMonitors() {
                     credentials: 'same-origin',
                 });
 
-                if (!response.ok) return;
+                if (!response.ok) {
+                    const monitorStatus = monitor.querySelector('[data-proposal-monitor-status]');
+
+                    if (monitorStatus instanceof HTMLElement) {
+                        monitorStatus.textContent = 'Check unavailable · save protection remains on';
+                    }
+
+                    return;
+                }
 
                 const state = await response.json();
                 const currentVersion = Number(state.version || 0);
+                const monitorStatus = monitor.querySelector('[data-proposal-monitor-status]');
+                const checkedAt = new Intl.DateTimeFormat(undefined, {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                }).format(new Date());
 
-                if (currentVersion === loadedVersion) return;
+                if (currentVersion === loadedVersion) {
+                    if (monitorStatus instanceof HTMLElement) {
+                        monitorStatus.textContent = `Up to date · checked ${checkedAt}`;
+                    }
+
+                    return;
+                }
 
                 const warning = monitor.querySelector('[data-proposal-stale-warning]');
                 const message = monitor.querySelector('[data-proposal-stale-message]');
@@ -212,9 +231,14 @@ function initializeProposalVersionMonitors() {
                         : `${actor} saved version ${currentVersion} of this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`;
                 }
 
+                if (monitorStatus instanceof HTMLElement) monitorStatus.textContent = 'Newer version available';
                 if (warning instanceof HTMLElement) warning.hidden = false;
             } catch {
-                // Collaboration checks are advisory; save-time version checks remain authoritative.
+                const monitorStatus = monitor.querySelector('[data-proposal-monitor-status]');
+
+                if (monitorStatus instanceof HTMLElement) {
+                    monitorStatus.textContent = 'Check unavailable · save protection remains on';
+                }
             }
         };
 
@@ -295,7 +319,9 @@ function submitPaperEditor(editor, submitterSelector) {
 
 function showPaperEditorSubmitStatus(editor, submitter) {
     const isSaveAndExit = submitter instanceof Element && submitter.matches('[data-paper-save-exit]');
-    const message = isSaveAndExit ? 'Saving and returning to the proposal package…' : 'Saving changes…';
+    const message = isSaveAndExit
+        ? 'Saving and returning to the proposal package…'
+        : 'Saving and keeping this editor open…';
     const submitStatus = editor.querySelector('[data-paper-submit-status]');
     const submitMessage = submitStatus?.querySelector('[data-paper-submit-message]');
 
@@ -317,7 +343,7 @@ function showPaperEditorSubmitStatus(editor, submitter) {
     });
 
     if (submitter instanceof HTMLButtonElement) {
-        submitter.textContent = isSaveAndExit ? 'Saving and exiting…' : 'Saving…';
+        submitter.textContent = isSaveAndExit ? 'Saving and returning…' : 'Saving and staying…';
     }
 }
 

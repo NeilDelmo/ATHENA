@@ -403,7 +403,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertOk()
         ->assertSee('Detailed Research Proposal')
         ->assertSee('Environment and Climate Change')
-        ->assertSee('Save changes')
+        ->assertSeeInOrder(['Save and stay', 'Save and return to proposal'])
         ->assertSee('Ctrl + S')
         ->assertSee('Ctrl + Enter')
         ->assertSee('data-paper-submit-status', false)

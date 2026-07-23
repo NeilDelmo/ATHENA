@@ -4,12 +4,12 @@ return [
     'shortcuts' => [
         [
             'keys' => 'Ctrl + S',
-            'action' => 'Save changes',
+            'action' => 'Save and stay',
             'description' => 'Save the current paper and stay in its editor.',
         ],
         [
             'keys' => 'Ctrl + Enter',
-            'action' => 'Save and exit',
+            'action' => 'Save and return to proposal',
             'description' => 'Save the current paper, then return to the proposal package.',
         ],
         [
