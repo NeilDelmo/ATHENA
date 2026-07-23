@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\LinkProposalDraftMemberships;
+use App\Actions\SaveProposalDraftDocument;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -287,9 +288,16 @@ test('a stale collaborator save cannot overwrite a newer teammate paper or proje
     $staleWorkPlan = $ownerWorkPlan;
     $staleWorkPlan['entries'][0]['objective'] = 'Stale overwrite attempt';
 
-    $this->actingAs($this->collaborator)
+    $stalePaperResponse = $this->actingAs($this->collaborator)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $staleWorkPlan)
         ->assertSessionHasErrors('document_version');
+    $stalePaperResponse->assertSessionHasInput('document_version', 0);
+
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('name="document_version" value="0"', false)
+        ->assertSee('Collaboration protection is on.');
 
     $document = $this->draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
@@ -309,13 +317,86 @@ test('a stale collaborator save cannot overwrite a newer teammate paper or proje
         ->put(route('faculty.proposal-drafts.details.update', $this->draft), $ownerDetails)
         ->assertRedirect();
 
-    $this->actingAs($this->collaborator)
+    $staleDetailsResponse = $this->actingAs($this->collaborator)
         ->put(route('faculty.proposal-drafts.details.update', $this->draft), [
             ...$ownerDetails,
             'project_title' => 'Stale Project Title',
         ])
         ->assertSessionHasErrors('draft_version');
+    $staleDetailsResponse->assertSessionHasInput('draft_version', 0);
+
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.details.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('name="draft_version" value="0"', false);
 
     expect($this->draft->fresh()->project_title)->toBe('Owner Newer Project Title')
         ->and($this->draft->fresh()->lock_version)->toBe(1);
+});
+
+test('teammates can save different papers from independent starting versions', function () {
+    $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+    ]);
+
+    $saveDocument = app(SaveProposalDraftDocument::class);
+
+    $workPlan = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+        0,
+        0,
+        ['source_data' => $this->workPlan],
+    );
+    $detailedProposal = $saveDocument->handle(
+        $this->draft,
+        $this->collaborator,
+        ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        0,
+        0,
+        ['source_data' => ['executive_brief' => 'Independent teammate paper']],
+    );
+
+    expect($workPlan->lock_version)->toBe(1)
+        ->and($detailedProposal->lock_version)->toBe(1)
+        ->and($this->draft->documents()->count())->toBe(2)
+        ->and($this->draft->documentVersions()->count())->toBe(2);
+});
+
+test('workspace members can monitor a paper version while outsiders cannot', function () {
+    $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+    ]);
+
+    app(SaveProposalDraftDocument::class)->handle(
+        $this->draft,
+        $this->owner,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+        0,
+        0,
+        ['source_data' => $this->workPlan],
+    );
+
+    $stateUrl = route('faculty.proposal-drafts.edit-state', [
+        $this->draft,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+        0,
+    ]);
+
+    $this->actingAs($this->collaborator)
+        ->getJson($stateUrl)
+        ->assertOk()
+        ->assertJson([
+            'version' => 1,
+            'updated_by' => $this->owner->name,
+        ]);
+
+    $this->actingAs($this->outsider)
+        ->getJson($stateUrl)
+        ->assertForbidden();
 });

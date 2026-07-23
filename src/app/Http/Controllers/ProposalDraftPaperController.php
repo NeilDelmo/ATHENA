@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Actions\RecordProposalDraftDocumentVersion;
+use App\Actions\RemoveProposalDraftDocument;
 use App\Actions\SaveProposalDraftDocument;
+use App\Http\Requests\RemoveProposalDraftPaperRequest;
 use App\Http\Requests\UpdateProposalDraftPaperRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
-use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalTemplate;
 use App\Models\User;
 use App\Support\ProposalPaperCatalog;
@@ -92,11 +93,12 @@ class ProposalDraftPaperController extends Controller
     }
 
     public function remove(
+        RemoveProposalDraftPaperRequest $request,
         ProposalDraft $proposalDraft,
         string $paper,
         int $document,
         ProposalPaperCatalog $catalog,
-        RecordProposalDraftDocumentVersion $recordDocumentVersion,
+        RemoveProposalDraftDocument $removeProposalDraftDocument,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
@@ -104,25 +106,12 @@ class ProposalDraftPaperController extends Controller
         $proposalDraftDocument = $this->documentsFor($proposalDraft, $paper)
             ->findOrFail($document);
 
-        DB::transaction(function () use ($proposalDraft, $proposalDraftDocument, $recordDocumentVersion): void {
-            ProposalDraft::query()
-                ->whereKey($proposalDraft->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
-            $lockedDocument = ProposalDraftDocument::query()
-                ->whereKey($proposalDraftDocument->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            if (! $lockedDocument->versions()->exists()) {
-                $recordDocumentVersion->handle($lockedDocument, null);
-            }
-
-            ProposalDraftDocumentVersion::query()
-                ->where('proposal_draft_document_id', $lockedDocument->getKey())
-                ->update(['is_current' => false]);
-            $lockedDocument->delete();
-        });
+        $removeProposalDraftDocument->handle(
+            $proposalDraft,
+            $proposalDraftDocument,
+            $request->user(),
+            $request->integer('document_version'),
+        );
 
         return redirect()
             ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])

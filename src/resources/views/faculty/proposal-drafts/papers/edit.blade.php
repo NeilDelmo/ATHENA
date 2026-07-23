@@ -39,10 +39,20 @@
 
         @if ($errors->any())
             <x-proposal-alert type="error">
-                <p class="font-bold">The {{ $fileLabel }} could not be uploaded.</p>
+                <p class="font-bold">The {{ $fileLabel }} could not be changed.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </x-proposal-alert>
         @endif
+
+        @unless ($paper['multiple'])
+            <x-proposal-collaboration-monitor
+                :loaded-version="(int) old('document_version', $documents->first()?->lock_version ?? 0)"
+                :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
+                :reload-url="route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])"
+                :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
+                :label="$paper['label']"
+            />
+        @endunless
 
         <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem] lg:items-start">
             <div class="space-y-6">
@@ -75,6 +85,7 @@
                                         >
                                             @csrf
                                             @method('DELETE')
+                                            <input type="hidden" name="document_version" value="{{ old('document_version', $document->lock_version) }}">
                                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Remove</button>
                                         </form>
                                     </div>
@@ -101,7 +112,7 @@
                         <form action="{{ route('faculty.proposal-drafts.papers.update', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="mt-6 space-y-5">
                             @csrf
                             @method('PUT')
-                            <input type="hidden" name="document_version" value="{{ $documents->first()?->lock_version ?? 0 }}">
+                            <input type="hidden" name="document_version" value="{{ old('document_version', $documents->first()?->lock_version ?? 0) }}">
 
                             <div>
                                 <label for="documents" class="block text-xs font-black uppercase tracking-wider text-gray-700">Choose completed PDF <span class="text-red-600">Required</span></label>

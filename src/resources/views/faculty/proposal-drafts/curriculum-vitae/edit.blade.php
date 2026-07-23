@@ -48,6 +48,13 @@
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
         <x-paper-editor-submit-status />
+        <x-proposal-collaboration-monitor
+            :loaded-version="(int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)"
+            :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
+            :reload-url="route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft)"
+            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
+            :label="$paper['label']"
+        />
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -80,7 +87,7 @@
         <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
-            <input type="hidden" name="document_version" value="{{ $curriculumVitaeDocument?->lock_version ?? 0 }}">
+            <input type="hidden" name="document_version" value="{{ old('document_version', $curriculumVitaeDocument?->lock_version ?? 0) }}">
 
             <template x-for="(person, personIndex) in people" :key="person.id">
                 <article class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex">

@@ -110,14 +110,30 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
             $this->draft,
             'expense-breakdown',
             $currentDocument,
-        ]))
+        ]), [
+            'document_version' => 2,
+        ])
         ->assertRedirect()
         ->assertSessionHas('success', 'Estimated Expense Breakdown file removed. Previous versions remain available in history.');
 
+    $removedVersion = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
+
     expect($this->draft->documents()->count())->toBe(0)
-        ->and(ProposalDraftDocumentVersion::query()->count())->toBe(2);
+        ->and(ProposalDraftDocumentVersion::query()->count())->toBe(3)
+        ->and($removedVersion->version_number)->toBe(3)
+        ->and($removedVersion->action)->toBe('removed')
+        ->and($removedVersion->change_summary)->toBe('Removed Estimated Expense Breakdown from the proposal draft.')
+        ->and($removedVersion->creator->is($this->collaborator))->toBeTrue()
+        ->and($removedVersion->is_current)->toBeFalse()
+        ->and($removedVersion->proposal_draft_document_id)->toBeNull();
     Storage::disk('local')->assertExists($versions[0]->file_path);
     Storage::disk('local')->assertExists($versions[1]->file_path);
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.history.index', $this->draft))
+        ->assertOk()
+        ->assertSee('Removed')
+        ->assertSee('Removed Estimated Expense Breakdown from the proposal draft.');
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
@@ -128,9 +144,83 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
 
     $thirdVersion = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
-    expect($thirdVersion->version_number)->toBe(3)
+    expect($thirdVersion->version_number)->toBe(4)
         ->and($thirdVersion->original_filename)->toBe('expenses-v3.pdf')
         ->and($thirdVersion->isCurrent())->toBeTrue();
+});
+
+test('a stale removal cannot delete a newer teammate replacement', function () {
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 0,
+            'documents' => [UploadedFile::fake()->create('expenses-v1.pdf', 100, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    $document = $this->draft->documents()->sole();
+
+    $this->actingAs($this->collaborator)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
+            'document_version' => 1,
+            'documents' => [UploadedFile::fake()->create('expenses-v2.pdf', 120, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->owner)
+        ->delete(route('faculty.proposal-drafts.papers.remove', [
+            $this->draft,
+            'expense-breakdown',
+            $document,
+        ]), [
+            'document_version' => 1,
+        ])
+        ->assertSessionHasErrors('document_version');
+
+    expect($document->fresh()->lock_version)->toBe(2)
+        ->and($document->fresh()->original_filename)->toBe('expenses-v2.pdf')
+        ->and(ProposalDraftDocumentVersion::query()->count())->toBe(2);
+});
+
+test('teammate multi-file uploads append to unique positions and enforce the shared limit', function () {
+    config()->set('proposal_papers.curriculum-vitae.mode', 'upload');
+    config()->set('proposal_papers.curriculum-vitae.accepted_extensions', ['pdf']);
+    config()->set('proposal_papers.curriculum-vitae.accepted_mime_types', ['application/pdf']);
+    config()->set('proposal_papers.curriculum-vitae.max_kilobytes', 25600);
+    config()->set('proposal_papers.curriculum-vitae.multiple', true);
+    config()->set('proposal_papers.curriculum-vitae.max_files', 2);
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'curriculum-vitae']), [
+            'documents' => [UploadedFile::fake()->create('owner-cv.pdf', 100, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    $this->actingAs($this->collaborator)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'curriculum-vitae']), [
+            'documents' => [UploadedFile::fake()->create('collaborator-cv.pdf', 100, 'application/pdf')],
+        ])
+        ->assertRedirect();
+
+    $documents = $this->draft->documents()->orderBy('position')->get();
+    $versions = ProposalDraftDocumentVersion::query()->orderBy('position')->get();
+
+    expect($documents)->toHaveCount(2)
+        ->and($documents->pluck('position')->all())->toBe([0, 1])
+        ->and($documents->pluck('original_filename')->all())->toBe([
+            'owner-cv.pdf',
+            'collaborator-cv.pdf',
+        ])
+        ->and($versions)->toHaveCount(2)
+        ->and($versions[0]->creator->is($this->owner))->toBeTrue()
+        ->and($versions[1]->creator->is($this->collaborator))->toBeTrue();
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'curriculum-vitae']), [
+            'documents' => [UploadedFile::fake()->create('over-limit-cv.pdf', 100, 'application/pdf')],
+        ])
+        ->assertSessionHasErrors('documents');
+
+    expect($this->draft->documents()->count())->toBe(2);
 });
 
 test('history and retained files are available only to authorized workspace members', function () {
@@ -380,6 +470,15 @@ test('an earlier PDF can be restored as a new version without overwriting histor
     Storage::disk('local')->assertExists($firstVersion->file_path);
     Storage::disk('local')->assertExists($secondVersion->file_path);
     Storage::disk('local')->assertExists($restored->file_path);
+
+    $this->actingAs($this->owner)
+        ->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $secondVersion]), [
+            'document_version' => 2,
+        ])
+        ->assertSessionHasErrors('document_version');
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(3)
+        ->and($document->fresh()->original_filename)->toBe('expenses-v1.pdf');
 
     $this->actingAs($this->owner)
         ->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $firstVersion]), [

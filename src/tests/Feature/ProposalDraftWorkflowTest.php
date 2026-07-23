@@ -696,7 +696,9 @@ test('single-file papers can be uploaded downloaded replaced and removed private
     Storage::disk('local')->assertExists($replacement->file_path);
 
     $this->actingAs($this->faculty)
-        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'expense-breakdown', $replacement]))
+        ->delete(route('faculty.proposal-drafts.papers.remove', [$draft, 'expense-breakdown', $replacement]), [
+            'document_version' => 2,
+        ])
         ->assertRedirect();
 
     $this->assertDatabaseMissing('proposal_draft_documents', ['id' => $replacement->id]);

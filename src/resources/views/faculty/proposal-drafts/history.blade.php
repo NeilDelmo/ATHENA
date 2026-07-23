@@ -68,13 +68,15 @@
                         <article class="p-5 sm:p-6">
                             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="flex min-w-0 gap-4">
-                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl {{ $version->action === 'restored' ? 'bg-blue-700' : 'bg-gray-900' }} text-xs font-black text-white">v{{ $version->version_number }}</span>
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl {{ $version->action === 'restored' ? 'bg-blue-700' : ($version->action === 'removed' ? 'bg-red-700' : 'bg-gray-900') }} text-xs font-black text-white">v{{ $version->version_number }}</span>
                                     <div class="min-w-0">
                                         <div class="flex flex-wrap items-center gap-2">
                                             <h3 class="text-sm font-black text-gray-900">{{ $version->label() }}</h3>
                                             <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $isCurrent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $isCurrent ? 'Current' : ($archived ? 'Archived' : 'Previous') }}</span>
                                             @if ($version->action === 'restored')
                                                 <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">Restored</span>
+                                            @elseif ($version->action === 'removed')
+                                                <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-800">Removed</span>
                                             @endif
                                         </div>
 
@@ -141,7 +143,7 @@
                                             data-confirm-icon="question"
                                         >
                                             @csrf
-                                            <input type="hidden" name="document_version" value="{{ $currentDocument?->lock_version ?? 0 }}">
+                                            <input type="hidden" name="document_version" value="{{ old('document_version', $currentDocument?->lock_version ?? 0) }}">
                                             <div>
                                                 <label for="restore-note-{{ $version->id }}" class="block text-xs font-black text-blue-950">Restore note <span class="font-semibold text-blue-700">(optional)</span></label>
                                                 <textarea id="restore-note-{{ $version->id }}" name="change_note" rows="2" maxlength="500" placeholder="Why is this version being restored?" class="mt-2 block w-full rounded-xl border-blue-200 bg-white text-sm shadow-sm focus:border-blue-700 focus:ring-blue-700"></textarea>

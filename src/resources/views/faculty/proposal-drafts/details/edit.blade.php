@@ -31,6 +31,12 @@
         @endif
 
         <x-paper-editor-submit-status />
+        <x-proposal-collaboration-monitor
+            :loaded-version="(int) old('draft_version', $proposalDraft->lock_version)"
+            :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, 'details', 0])"
+            :reload-url="route('faculty.proposal-drafts.details.edit', $proposalDraft)"
+            label="project details"
+        />
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
             <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
@@ -48,7 +54,7 @@
             <form data-paper-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6">
                 @csrf
                 @method('PUT')
-                <input type="hidden" name="draft_version" value="{{ $proposalDraft->lock_version }}">
+                <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
 
                 <div>
                     <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <span class="text-red-600">Required</span></label>

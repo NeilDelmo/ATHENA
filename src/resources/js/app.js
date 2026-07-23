@@ -161,6 +161,79 @@ async function initializeProposalAlerts() {
 void initializeProposalAlerts();
 document.addEventListener('livewire:navigated', () => void initializeProposalAlerts());
 
+function formatProposalVersionTimestamp(value) {
+    if (!value) return '';
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return '';
+
+    return new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    }).format(date);
+}
+
+function initializeProposalVersionMonitors() {
+    document.querySelectorAll('[data-proposal-version-monitor]').forEach((monitor) => {
+        if (monitor.dataset.proposalVersionMonitorReady === 'true') return;
+
+        monitor.dataset.proposalVersionMonitorReady = 'true';
+        const loadedVersion = Number(monitor.dataset.loadedVersion || 0);
+        const stateUrl = monitor.dataset.stateUrl;
+
+        if (!stateUrl) return;
+
+        const refresh = async () => {
+            if (document.hidden || !document.body.contains(monitor)) return;
+
+            try {
+                const response = await fetch(stateUrl, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) return;
+
+                const state = await response.json();
+                const currentVersion = Number(state.version || 0);
+
+                if (currentVersion === loadedVersion) return;
+
+                const warning = monitor.querySelector('[data-proposal-stale-warning]');
+                const message = monitor.querySelector('[data-proposal-stale-message]');
+                const actor = state.updated_by || 'A teammate';
+                const timestamp = formatProposalVersionTimestamp(state.updated_at);
+                const documentLabel = monitor.dataset.documentLabel || 'paper';
+
+                if (message instanceof HTMLElement) {
+                    message.textContent = currentVersion === 0
+                        ? `${actor} removed this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`
+                        : `${actor} saved version ${currentVersion} of this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`;
+                }
+
+                if (warning instanceof HTMLElement) warning.hidden = false;
+            } catch {
+                // Collaboration checks are advisory; save-time version checks remain authoritative.
+            }
+        };
+
+        void refresh();
+        const timer = window.setInterval(() => {
+            if (!document.body.contains(monitor)) {
+                window.clearInterval(timer);
+
+                return;
+            }
+
+            void refresh();
+        }, 15000);
+    });
+}
+
+initializeProposalVersionMonitors();
+document.addEventListener('livewire:navigated', initializeProposalVersionMonitors);
+
 async function confirmPaperEditorNavigation(editor, message) {
     if (!paperEditorHasUnsavedChanges(editor)) return true;
 
@@ -279,7 +352,7 @@ document.addEventListener('submit', (event) => {
 
 document.addEventListener('click', async (event) => {
     const action = event.target instanceof Element
-        ? event.target.closest('[data-paper-discard], [data-paper-cancel-exit]')
+        ? event.target.closest('[data-paper-discard], [data-paper-cancel-exit], [data-proposal-load-latest]')
         : null;
 
     if (!action) return;
@@ -288,7 +361,7 @@ document.addEventListener('click', async (event) => {
 
     if (!paperEditorHasUnsavedChanges(editor)) return;
 
-    const message = action.matches('[data-paper-discard]')
+    const message = action.matches('[data-paper-discard], [data-proposal-load-latest]')
         ? 'Your changes to this paper will be lost when the saved version is reloaded.'
         : 'Your changes to this paper will be lost when you return to the proposal package.';
 

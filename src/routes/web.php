@@ -13,6 +13,7 @@ use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
 use App\Http\Controllers\ProposalDraftDetailsController;
 use App\Http\Controllers\ProposalDraftDocumentVersionController;
+use App\Http\Controllers\ProposalDraftEditStateController;
 use App\Http\Controllers\ProposalDraftExpenseBreakdownController;
 use App\Http\Controllers\ProposalDraftGADChecklistController;
 use App\Http\Controllers\ProposalDraftInitialScreeningFormController;
@@ -119,6 +120,9 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::get('/{proposalDraft}/history', [ProposalDraftDocumentVersionController::class, 'index'])->name('history.index');
         Route::get('/{proposalDraft}/history/{documentVersion}/download', [ProposalDraftDocumentVersionController::class, 'download'])->name('history.download');
         Route::post('/{proposalDraft}/history/{documentVersion}/restore', [ProposalDraftDocumentVersionController::class, 'restore'])->name('history.restore');
+        Route::get('/{proposalDraft}/edit-state/{scope}/{position}', ProposalDraftEditStateController::class)
+            ->whereNumber('position')
+            ->name('edit-state');
         Route::get('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'edit'])->name('papers.edit');
         Route::put('/{proposalDraft}/papers/{paper}', [ProposalDraftPaperController::class, 'update'])->name('papers.update');
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');

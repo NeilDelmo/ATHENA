@@ -48,6 +48,13 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
         <x-paper-editor-submit-status />
+        <x-proposal-collaboration-monitor
+            :loaded-version="(int) old('document_version', $detailedProposalDocument?->lock_version ?? 0)"
+            :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
+            :reload-url="route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft)"
+            :history-url="route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']])"
+            :label="$paper['label']"
+        />
 
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -77,7 +84,7 @@
         <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" class="space-y-6">
             @csrf
             @method('PUT')
-            <input type="hidden" name="document_version" value="{{ $detailedProposalDocument?->lock_version ?? 0 }}">
+            <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="staff" value="">
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">

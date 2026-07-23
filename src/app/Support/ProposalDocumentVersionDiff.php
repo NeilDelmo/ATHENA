@@ -130,6 +130,10 @@ class ProposalDocumentVersionDiff
             return 'Captured the existing '.$label.' as version history.';
         }
 
+        if ($action === 'removed') {
+            return 'Removed '.$label.' from the proposal draft.';
+        }
+
         if (filled($document->file_path)) {
             return $previous === null
                 ? 'Uploaded '.$document->original_filename.'.'
