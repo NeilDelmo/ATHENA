@@ -4,13 +4,13 @@ return [
     'shortcuts' => [
         [
             'keys' => 'Ctrl + S',
-            'action' => 'Save and stay',
-            'description' => 'Save the current paper and stay in its editor.',
+            'action' => 'Save without exiting',
+            'description' => 'Save the current paper and keep the editor open.',
         ],
         [
             'keys' => 'Ctrl + Enter',
-            'action' => 'Save and return to proposal',
-            'description' => 'Save the current paper, then return to the proposal package.',
+            'action' => 'Save and exit',
+            'description' => 'Save the current paper, then exit the editor.',
         ],
         [
             'keys' => 'Ctrl + Alt + R',
@@ -19,7 +19,7 @@ return [
         ],
         [
             'keys' => 'Ctrl + Alt + X',
-            'action' => 'Cancel and exit',
+            'action' => 'Exit editor',
             'description' => 'Discard unsaved changes and return to the proposal package.',
         ],
     ],

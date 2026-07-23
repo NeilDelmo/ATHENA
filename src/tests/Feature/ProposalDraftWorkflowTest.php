@@ -357,7 +357,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->not->toContain('lg:grid-cols-[1fr_1fr_auto] lg:items-end');
 });
 
-test('upload-only papers keep the workspace header shortcuts without enabling editor actions', function () {
+test('upload-only papers use the protected editor exit and one upload and exit action', function () {
     config()->set('proposal_papers.expense-breakdown.mode', 'upload');
     config()->set('proposal_papers.expense-breakdown.accepted_extensions', ['pdf']);
     config()->set('proposal_papers.expense-breakdown.accepted_mime_types', ['application/pdf']);
@@ -374,10 +374,15 @@ test('upload-only papers keep the workspace header shortcuts without enabling ed
         ->assertSee('How this paper works')
         ->assertSee('Editor shortcuts')
         ->assertSee('Ctrl + S')
+        ->assertSee('Exit editor')
+        ->assertSee('Upload PDF and exit')
         ->assertSee('data-paper-shortcuts-trigger', false)
-        ->assertDontSee('data-paper-editor', false)
+        ->assertSee('data-paper-editor', false)
+        ->assertSee('data-paper-form', false)
+        ->assertSee('data-paper-cancel-exit', false)
+        ->assertSee('data-paper-save-exit', false)
         ->assertDontSee('data-paper-discard', false)
-        ->assertDontSee('data-paper-save', false);
+        ->assertDontSee('<button data-paper-save type="submit"', false);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.papers.update', [$draft, 'expense-breakdown']), [
@@ -392,7 +397,7 @@ test('upload-only papers keep the workspace header shortcuts without enabling ed
         ->assertSee('Attached')
         ->assertSee('completed-expenses.pdf')
         ->assertSee('Replace the uploaded PDF')
-        ->assertSee('Replace PDF');
+        ->assertSee('Replace PDF and exit');
 });
 
 test('paper and review pages render saved files and final readiness actions', function () {
@@ -403,7 +408,9 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertOk()
         ->assertSee('Detailed Research Proposal')
         ->assertSee('Environment and Climate Change')
-        ->assertSeeInOrder(['Save and stay', 'Save and return to proposal'])
+        ->assertSee('Exit editor')
+        ->assertSee('Save and exit')
+        ->assertDontSee('Save and stay')
         ->assertSee('Ctrl + S')
         ->assertSee('Ctrl + Enter')
         ->assertSee('data-paper-submit-status', false)

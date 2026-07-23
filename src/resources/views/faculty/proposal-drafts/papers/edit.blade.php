@@ -2,14 +2,16 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
-                <div class="mt-2 flex flex-wrap items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
                     <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $documents->count() >= $paper['min_files'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $documents->count() >= $paper['min_files'] ? 'Uploaded' : 'Upload required' }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->project_title }}</p>
             </div>
-            <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">View version history</a>
+            <div class="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+                <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">View version history</a>
+                <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
+            </div>
         </div>
     </x-slot>
 
@@ -32,7 +34,13 @@
             : 'Upload '.($paper['multiple'] ? 'files' : $fileLabel);
     @endphp
 
-    <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div
+        class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        data-paper-editor
+        data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
+        data-paper-edit-url="{{ route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) }}"
+        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
+    >
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
@@ -43,6 +51,8 @@
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </x-proposal-alert>
         @endif
+
+        <x-paper-editor-submit-status />
 
         @unless ($paper['multiple'])
             <x-proposal-collaboration-monitor
@@ -109,7 +119,7 @@
                     @if ($remainingSlots === 0)
                         <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">The {{ $paper['max_files'] }}-file limit has been reached. Remove a file before adding another.</div>
                     @else
-                        <form action="{{ route('faculty.proposal-drafts.papers.update', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="mt-6 space-y-5">
+                        <form data-paper-form action="{{ route('faculty.proposal-drafts.papers.update', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="mt-6 space-y-5">
                             @csrf
                             @method('PUT')
                             <input type="hidden" name="document_version" value="{{ old('document_version', $currentVersions->get(0, 0)) }}">
@@ -130,14 +140,9 @@
                             @include('faculty.proposal-drafts.partials.change-note')
 
                             <div class="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-                                <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Return to proposal package</a>
-                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $submitLabel }}</button>
+                                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $submitLabel }} and exit</button>
                             </div>
                         </form>
-                    @endif
-
-                    @if ($remainingSlots === 0)
-                        <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Return to proposal package</a>
                     @endif
                 </section>
             </div>

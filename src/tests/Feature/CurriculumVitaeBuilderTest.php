@@ -130,7 +130,9 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Please keep this page open while ATHENA updates the paper.')
         ->assertSee('aria-live="assertive"', false)
         ->assertSee('Ctrl + S')
-        ->assertSee('Save and return to proposal')
+        ->assertSee('Exit editor')
+        ->assertSee('Save and exit')
+        ->assertDontSee('Save and stay')
         ->assertSee('data-paper-form', false);
 });
 

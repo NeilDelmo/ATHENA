@@ -36,6 +36,8 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->toContain("document.querySelectorAll('[data-proposal-alert]')")
         ->toContain('html: alert.innerHTML.trim()')
         ->toContain("title: 'Discard unsaved changes?'")
+        ->toContain("action.closest('[data-paper-editor]') ?? currentPaperEditor()")
+        ->toContain("if (submitterSelector === '[data-paper-save]')")
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
 
@@ -74,7 +76,7 @@ test('the proposal alert component keeps accessible fallback markup', function (
     'error' => ['error', 'error', 'alert'],
 ]);
 
-test('proposal editors place the save and return action last and make it primary', function () {
+test('proposal editors use a protected header exit and one visible save and exit action', function () {
     $editorViews = [
         'resources/views/faculty/proposal-drafts/details/edit.blade.php',
         'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
@@ -86,17 +88,20 @@ test('proposal editors place the save and return action last and make it primary
 
     foreach ($editorViews as $editorView) {
         $view = file_get_contents(base_path($editorView));
-        $saveAndStayPosition = strpos($view, '<button data-paper-save type="submit"');
-        $saveAndReturnPosition = strpos($view, '<button data-paper-save-exit type="submit"');
+        $headerEndPosition = strpos($view, '</x-slot>');
+        $exitPosition = strpos($view, 'data-paper-cancel-exit');
 
-        expect($saveAndStayPosition)->toBeInt()
-            ->and($saveAndReturnPosition)->toBeInt()
-            ->and($saveAndReturnPosition)->toBeGreaterThan($saveAndStayPosition)
+        expect($headerEndPosition)->toBeInt()
+            ->and($exitPosition)->toBeInt()
+            ->and($exitPosition)->toBeLessThan($headerEndPosition)
+            ->and(substr_count($view, 'data-paper-save-exit'))->toBe(1)
             ->and($view)
-            ->toContain('Save and stay')
-            ->toContain('Save and return to proposal')
+            ->toContain('Exit editor')
+            ->toContain('Save and exit')
             ->toContain('data-paper-save-exit type="submit"')
-            ->not->toContain('flex-col-reverse');
+            ->not->toContain('<button data-paper-save type="submit"')
+            ->not->toContain('data-paper-discard')
+            ->not->toContain('Cancel and exit');
     }
 });
 

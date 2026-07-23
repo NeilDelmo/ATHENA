@@ -1,9 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">← Proposal package</a>
-            <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Project Details</h2>
-            <p class="mt-1 text-xs text-gray-500">Enter shared information once; Attachment A will use it automatically.</p>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <h2 class="text-2xl font-black tracking-tight text-gray-900">Project Details</h2>
+                <p class="mt-1 text-xs text-gray-500">Enter shared information once; Attachment A will use it automatically.</p>
+            </div>
+            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
         </div>
     </x-slot>
 
@@ -17,7 +19,7 @@
     <div
         class="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
-        data-paper-dirty="false"
+        data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
         x-data="proposalDraftProjectDetails({
@@ -92,10 +94,7 @@
                 </div>
 
                 <div class="flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
-                    <a data-paper-discard href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Discard changes</a>
-                    <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Cancel and exit</a>
-                    <button data-paper-save type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and stay</button>
-                    <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and return to proposal</button>
+                    <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and exit</button>
                 </div>
             </form>
         </section>

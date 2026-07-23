@@ -312,8 +312,18 @@ function submitPaperEditor(editor, submitterSelector) {
     const form = editor.querySelector('[data-paper-form]');
     const submitter = editor.querySelector(submitterSelector);
 
-    if (form instanceof HTMLFormElement && submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
+    if (! (form instanceof HTMLFormElement)) return;
+
+    if (submitter instanceof HTMLElement && !submitter.hasAttribute('disabled')) {
         form.requestSubmit(submitter);
+
+        return;
+    }
+
+    if (submitterSelector === '[data-paper-save]') {
+        const saveAndExit = editor.querySelector('[data-paper-save-exit]');
+
+        if (!saveAndExit?.hasAttribute('disabled')) form.requestSubmit();
     }
 }
 
@@ -383,7 +393,7 @@ document.addEventListener('click', async (event) => {
 
     if (!action) return;
 
-    const editor = action.closest('[data-paper-editor]');
+    const editor = action.closest('[data-paper-editor]') ?? currentPaperEditor();
 
     if (!paperEditorHasUnsavedChanges(editor)) return;
 

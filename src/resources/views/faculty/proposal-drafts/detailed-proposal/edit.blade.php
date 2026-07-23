@@ -1,12 +1,14 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
-            <div class="mt-2 flex flex-wrap items-center gap-3">
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $detailedProposalDocument?->completed_at ? 'Complete' : 'Not started' }}</span>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $detailedProposalDocument?->completed_at ? 'Complete' : 'Not started' }}</span>
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
             </div>
-            <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
+            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
         </div>
     </x-slot>
 
@@ -21,7 +23,7 @@
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
-        data-paper-dirty="false"
+        data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
         x-data="proposalDraftDetailedProposal({
@@ -205,12 +207,9 @@
             @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
-                <a data-paper-discard href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 sm:w-auto">Discard changes</a>
-                <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 sm:w-auto">Cancel and exit</a>
                 <button type="button" x-on:click="generatePreview" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 disabled:opacity-50 sm:w-auto"><span x-show="previewLoading" x-cloak class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900"></span><span x-text="previewLoading ? 'Generating…' : 'Preview content'"></span></button>
                 <button type="button" x-on:click="downloadDocument" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 sm:w-auto"><span x-show="downloadLoading" x-cloak class="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-700"></span><span x-text="downloadLoading ? 'Preparing…' : 'Download exact Word file'"></span></button>
-                <button data-paper-save type="submit" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 sm:w-auto">Save and stay</button>
-                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50 sm:w-auto">Save and return to proposal</button>
+                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50 sm:w-auto">Save and exit</button>
             </div>
         </form>
 
