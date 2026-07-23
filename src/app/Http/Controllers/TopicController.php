@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
+use App\Models\ProposalDraft;
 use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalPackageService;
 use App\Services\WorkPlanDocumentService;
+use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
 use Illuminate\Contracts\View\View;
@@ -31,9 +33,11 @@ use Throwable;
 
 class TopicController extends Controller
 {
-    public function index()
+    public function index(ProposalDraftReadiness $readiness): View
     {
-        $topics = Auth::user()->proposals()
+        $user = Auth::user();
+
+        $topics = $user->proposals()
             ->with([
                 'researchCall', 'category',
                 'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
@@ -51,7 +55,33 @@ class TopicController extends Controller
             ->orderBy('closes_at')
             ->get();
 
-        return view('faculty.dashboard', compact('topics', 'activeCalls'));
+        $proposalDraftQuery = ProposalDraft::query()->accessibleTo($user);
+        $proposalDraftCount = (clone $proposalDraftQuery)->count();
+        $recentProposalDrafts = $proposalDraftQuery
+            ->with(['researchCall', 'documents', 'owner:id,name'])
+            ->latest('updated_at')
+            ->limit(4)
+            ->get();
+
+        $proposalDraftProgress = $recentProposalDrafts->mapWithKeys(function (ProposalDraft $draft) use ($readiness): array {
+            $checklist = $readiness->checklist($draft);
+            $completed = $checklist->where('complete', true)->count();
+            $total = $checklist->count();
+
+            return [$draft->getKey() => [
+                'completed' => $completed,
+                'total' => $total,
+                'percentage' => $total === 0 ? 0 : (int) round(($completed / $total) * 100),
+            ]];
+        });
+
+        return view('faculty.dashboard', compact(
+            'topics',
+            'activeCalls',
+            'proposalDraftCount',
+            'recentProposalDrafts',
+            'proposalDraftProgress',
+        ));
     }
 
     public function create(Request $request)

@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\ProposalDraft;
+use App\Models\ResearchCall;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 
@@ -47,6 +49,59 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
         ->assertSee('Faculty Researcher Workspace')
         ->assertSee('Manage and track your institutional research submissions.')
         ->assertDontSee('Research Proposal Workspace');
+});
+
+test('the faculty dashboard shows recent accessible proposal drafts', function () {
+    $this->withoutVite();
+
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create(['name' => 'Dashboard Faculty']);
+    $faculty->assignRole('faculty');
+    $owner = User::factory()->create(['name' => 'Sharing Faculty']);
+    $owner->assignRole('faculty');
+
+    $researchCall = ResearchCall::create([
+        'title' => 'Dashboard Research Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 100000,
+        'status' => 'open',
+        'created_by' => $head->id,
+    ]);
+
+    $ownedDraft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $researchCall->id,
+        'project_title' => 'My Visible Dashboard Draft',
+    ]);
+    $sharedDraft = ProposalDraft::create([
+        'user_id' => $owner->id,
+        'research_call_id' => $researchCall->id,
+        'project_title' => 'Our Shared Dashboard Draft',
+    ]);
+    $sharedDraft->members()->create([
+        'user_id' => $faculty->id,
+        'name' => $faculty->name,
+        'email' => $faculty->email,
+    ]);
+    ProposalDraft::create([
+        'user_id' => $owner->id,
+        'research_call_id' => $researchCall->id,
+        'project_title' => 'Private Draft That Must Stay Hidden',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Recent proposal drafts')
+        ->assertSee($ownedDraft->project_title)
+        ->assertSee($sharedDraft->project_title)
+        ->assertSee('Shared by Sharing Faculty')
+        ->assertSee(route('faculty.proposal-drafts.show', $ownedDraft))
+        ->assertDontSee('Private Draft That Must Stay Hidden');
 });
 
 test('the forbidden response uses the friendly error page', function () {
