@@ -59,7 +59,8 @@ class ProposalPaperCatalog
     public function submissionFilename(array $paper, string $projectTitle): string
     {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
+        $extension = $paper['submission_extension'] ?? 'pdf';
 
-        return $filenameBase.'-'.$paper['filename_suffix'].'.pdf';
+        return $filenameBase.'-'.$paper['filename_suffix'].'.'.$extension;
     }
 }

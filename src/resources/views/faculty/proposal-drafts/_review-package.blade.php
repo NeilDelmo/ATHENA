@@ -1,4 +1,6 @@
 @php
+    $detailedProposalDocument = $checklist->get('detailed-proposal')['documents']->first();
+    $detailedProposalSource = $detailedProposalDocument?->source_data;
     $workPlanDocument = $checklist->get('work-plan')['documents']->first();
     $workPlanSource = $workPlanDocument?->source_data;
     $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();
@@ -27,15 +29,19 @@
 </section>
 
 <section aria-labelledby="review-papers-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required PDF attachments</h3><p class="mt-1 text-xs text-gray-500">Generated papers become fixed PDFs during Turn in. Uploaded papers are preserved exactly as attached.</p></div>
+    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required package attachments</h3><p class="mt-1 text-xs text-gray-500">Turn in creates six fixed PDFs and preserves the generated Expense Breakdown as an Excel workbook.</p></div>
 
     <div class="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200">
         @foreach ($checklist as $item)
-            @php($paper = $item['paper'])
+            @php
+                $paper = $item['paper'];
+                $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
+                $submissionFormat = $submissionExtension === 'XLSX' ? 'Excel workbook' : 'PDF';
+            @endphp
             <article class="p-4 sm:p-5">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div class="flex min-w-0 gap-3">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100 text-[10px] font-black text-red-700">PDF</span>
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-100 text-[10px] font-black text-red-700">{{ $submissionExtension }}</span>
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h4 class="text-sm font-black text-gray-900">{{ $paper['label'] }}</h4>
@@ -46,19 +52,26 @@
                                 @if ($paper['mode'] === 'automatic')
                                     <p>ATHENA will generate this PDF from the shared Project Title and Project Leader. Evaluator fields remain blank.</p>
                                 @elseif ($item['documents']->isEmpty())
-                                    <p>No PDF attachment is ready.</p>
+                                    <p>No {{ $submissionFormat }} attachment is ready.</p>
                                 @elseif ($paper['mode'] === 'generated')
-                                    <p>Saved form data will be rendered into the official template and attached as a PDF.</p>
+                                    <p>Saved form data will be rendered into the official template and attached as {{ $submissionExtension === 'XLSX' ? 'an Excel workbook' : 'a PDF' }}.</p>
                                 @else
                                     <p>Faculty-uploaded PDF attached {{ $item['documents']->first()->updated_at->diffForHumans() }}.</p>
                                 @endif
                             </div>
                         </div>
                     </div>
-                    <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), 'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft), 'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Complete paper') }}</a>
+                    <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), 'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft), 'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Complete paper') }}</a>
                 </div>
 
-                @if ($paper['slug'] === 'work-plan' && is_array($workPlanSource))
+                @if ($paper['slug'] === 'detailed-proposal' && is_array($detailedProposalSource))
+                    <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                        <form action="{{ route('faculty.proposal-drafts.detailed-proposal.preview', $proposalDraft) }}" method="POST" target="_blank" class="w-full sm:w-auto">
+                            @csrf
+                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Detailed Proposal</button>
+                        </form>
+                    </div>
+                @elseif ($paper['slug'] === 'work-plan' && is_array($workPlanSource))
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
                         <form action="{{ route('faculty.proposal-drafts.work-plan.preview', $proposalDraft) }}" method="POST" target="_blank" class="w-full sm:w-auto">
                             @csrf
@@ -128,12 +141,13 @@
     <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">Turn in proposal</h3>
-            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Turn in creates seven immutable PDF attachments and sends version 1 to the Research Head.' : 'Complete Project Details and every required paper to enable Turn in.' }}</p>
+            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Turn in creates six immutable PDF attachments and one Excel workbook, then sends version 1 to the Research Head.' : 'Complete Project Details and every required paper to enable Turn in.' }}</p>
         </div>
         @can('submit', $proposalDraft)
-            <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-confirm-title="Turn in proposal package?" data-confirm-text="This creates seven immutable PDF attachments and sends version 1 to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+            <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-confirm-title="Turn in proposal package?" data-confirm-text="This creates six immutable PDF attachments and one Excel workbook, then sends version 1 to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
                 @csrf
                 <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
+                <x-proposal-submission-loading-screen />
             </form>
         @else
             <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only {{ $proposalDraft->owner->name }} can submit this shared workspace.</p>
