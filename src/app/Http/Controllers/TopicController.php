@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
+use App\Models\AnnouncementImage;
 use App\Models\ProposalDraft;
 use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
@@ -48,12 +49,42 @@ class TopicController extends Controller
             ->latest()
             ->get();
 
-        $activeCalls = ResearchCall::query()
-            ->where('status', 'open')
-            ->where('opens_at', '<=', now())
-            ->where('closes_at', '>=', now())
-            ->orderBy('closes_at')
-            ->get();
+        $researchCallPosters = ResearchCall::query()
+            ->whereNotNull('reference_image_path')
+            ->where('reference_image_path', '!=', '')
+            ->latest()
+            ->get([
+                'id',
+                'title',
+                'academic_year',
+                'term',
+                'description',
+                'reference_image_path',
+                'opens_at',
+                'closes_at',
+                'status',
+            ]);
+
+        $announcementImages = AnnouncementImage::query()
+            ->latest()
+            ->get(['id', 'image_path']);
+
+        $researchCallCarouselItems = $researchCallPosters
+            ->map(fn (ResearchCall $researchCall): array => [
+                'url' => route('research-calls.reference-image', $researchCall),
+                'alt' => $researchCall->title,
+                'isResearchCall' => true,
+                'researchCallId' => $researchCall->id,
+                'canSubmitProposal' => $researchCall->isAcceptingSubmissions(),
+            ])
+            ->concat($announcementImages->map(fn (AnnouncementImage $announcementImage): array => [
+                'url' => route('announcement-images.show', $announcementImage),
+                'alt' => 'Research Office announcement',
+                'isResearchCall' => false,
+                'researchCallId' => null,
+                'canSubmitProposal' => false,
+            ]))
+            ->values();
 
         $proposalDraftQuery = ProposalDraft::query()->accessibleTo($user);
         $proposalDraftCount = (clone $proposalDraftQuery)->count();
@@ -77,7 +108,7 @@ class TopicController extends Controller
 
         return view('faculty.dashboard', compact(
             'topics',
-            'activeCalls',
+            'researchCallCarouselItems',
             'proposalDraftCount',
             'recentProposalDrafts',
             'proposalDraftProgress',

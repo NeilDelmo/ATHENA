@@ -43,9 +43,10 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...LineItemBudgetRules::rules(),
+            ...LineItemBudgetRules::rules($this->boolean('save_as_draft')),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
+            'save_as_draft' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -57,7 +58,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             ? (float) ($draft->researchCall()->value('maximum_budget') ?? 0)
             : 0;
 
-        return LineItemBudgetRules::afterCallbacks($maximumBudget);
+        return LineItemBudgetRules::afterCallbacks($maximumBudget, $this->boolean('save_as_draft'));
     }
 
     /** @return array<string, string> */

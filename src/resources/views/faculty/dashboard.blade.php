@@ -45,39 +45,107 @@
             </div>
         @endif
         
-        <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-red-950 px-6 py-8 text-white shadow-xl shadow-gray-950/10 sm:px-8 sm:py-10" aria-labelledby="workspace-overview-heading">
-            <div class="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full border-[36px] border-white/[0.04]" aria-hidden="true"></div>
-            <div class="pointer-events-none absolute -bottom-16 right-36 h-40 w-40 rounded-full bg-red-500/10 blur-2xl" aria-hidden="true"></div>
+        @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
 
-            <div class="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-end">
-                <div class="max-w-2xl">
+        @if (false)
+            <section aria-labelledby="research-call-posters-heading">
+                <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-600 dark:text-red-400">Stay informed</p>
+                        <h3 id="research-call-posters-heading" class="mt-1 text-lg font-black text-gray-900 dark:text-white">Research calls</h3>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Browse the latest calls for proposals from the Research Office.</p>
+                    </div>
+                    <span class="self-start rounded-full bg-gray-100 px-3 py-1 text-[11px] font-black text-gray-600 dark:bg-slate-800 dark:text-slate-300 sm:self-auto">
+                        {{ $researchCallPosters->count() }} {{ Str::plural('poster', $researchCallPosters->count()) }}
+                    </span>
+                </div>
+
+                <div data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl border border-gray-200/70 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-roledescription="carousel" aria-label="Research call posters">
+                    <img src="{{ asset('images/maingate.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.13] grayscale dark:opacity-[0.08]" aria-hidden="true">
+                    <div class="pointer-events-none absolute inset-0 bg-white/90 dark:bg-slate-950/90" aria-hidden="true"></div>
+
+                    <div class="relative p-4 sm:p-6">
+                        <div class="relative min-h-[17rem] sm:min-h-[20rem]">
+                            @foreach ($researchCallPosters as $researchCallPoster)
+                                @php
+                                    $posterImageUrl = route('research-calls.reference-image', $researchCallPoster);
+                                    $submissionWindow = collect([
+                                        $researchCallPoster->opens_at?->format('M d, Y'),
+                                        $researchCallPoster->closes_at?->format('M d, Y'),
+                                    ])->filter()->implode(' – ');
+                                @endphp
+                                <article
+                                    data-research-call-slide
+                                    class="{{ $loop->first ? '' : 'hidden' }} h-full"
+                                    aria-hidden="{{ $loop->first ? 'false' : 'true' }}"
+                                    aria-roledescription="slide"
+                                    aria-label="{{ $loop->iteration }} of {{ $researchCallPosters->count() }}"
+                                >
+                                    <div class="grid h-full items-center gap-6 md:grid-cols-[minmax(12rem,19rem)_minmax(0,1fr)] lg:grid-cols-[minmax(15rem,23rem)_minmax(0,1fr)]">
+                                        <div class="relative mx-auto block w-full max-w-sm overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 p-1.5 shadow-lg shadow-gray-900/10 dark:border-slate-700 dark:bg-slate-800">
+                                            <span class="relative block aspect-[4/3] overflow-hidden rounded-xl bg-white dark:bg-slate-950">
+                                                <img src="{{ $posterImageUrl }}" alt="{{ $researchCallPoster->title }}" class="h-full w-full object-contain" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
+                                            </span>
+                                        </div>
+
+                                        <div class="max-w-2xl px-2 md:px-0">
+                                            <span class="inline-flex rounded-full bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-700 dark:bg-red-950/50 dark:text-red-200">Research call</span>
+                                            <h4 class="mt-4 text-xl font-black leading-tight text-gray-900 dark:text-white sm:text-2xl">{{ $researchCallPoster->title }}</h4>
+                                            @if ($researchCallPoster->term || $researchCallPoster->academic_year)
+                                                <p class="mt-2 text-xs font-bold text-gray-500 dark:text-slate-400">
+                                                    {{ collect([$researchCallPoster->term, $researchCallPoster->academic_year])->filter()->implode(' · ') }}
+                                                </p>
+                                            @endif
+                                            <p class="mt-4 line-clamp-4 whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300">{{ $researchCallPoster->description ?: 'Review the poster for the eligibility requirements, submission details, and important dates.' }}</p>
+                                            @if ($submissionWindow !== '')
+                                                <p class="mt-5 text-xs font-black text-gray-700 dark:text-slate-200">Submission window: <span class="font-semibold text-gray-500 dark:text-slate-400">{{ $submissionWindow }}</span></p>
+                                            @endif
+                                            <div class="mt-6 flex flex-wrap gap-3">
+                                                <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Start a proposal</a>
+                                                <a href="#recent-drafts" class="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-900">Continue a draft</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </article>
+                            @endforeach
+
+                            @if ($researchCallPosters->count() > 1)
+                                <button type="button" data-research-call-previous class="group absolute left-0 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-125 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900" aria-label="Show previous research call">
+                                    <svg class="h-5 w-5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
+                                </button>
+                                <button type="button" data-research-call-next class="group absolute right-0 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-125 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900" aria-label="Show next research call">
+                                    <svg class="h-5 w-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                                </button>
+                            @endif
+                        </div>
+
+                        @if ($researchCallPosters->count() > 1)
+                            <div class="mt-5 flex items-center justify-center gap-1.5" aria-label="Choose a research call poster">
+                                @foreach ($researchCallPosters as $researchCallPoster)
+                                    <button type="button" data-research-call-indicator class="h-1.5 w-7 rounded-full transition-colors {{ $loop->first ? 'bg-red-600 dark:bg-red-500' : 'bg-gray-300 dark:bg-slate-700' }}" aria-label="Show {{ $researchCallPoster->title }}" aria-current="{{ $loop->first ? 'true' : 'false' }}"></button>
+                                @endforeach
+                            </div>
+                            <p class="mt-3 text-center text-[10px] font-semibold text-gray-400 dark:text-slate-500">Posters rotate automatically. Use the arrows to browse.</p>
+                        @endif
+                    </div>
+
+                </div>
+            </section>
+        @elseif (false)
+            <section class="relative overflow-hidden rounded-3xl bg-gradient-to-br from-gray-950 via-gray-900 to-red-950 px-6 py-8 text-white shadow-xl shadow-gray-950/10 sm:px-8 sm:py-10" aria-labelledby="research-call-posters-heading">
+                <div class="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full border-[36px] border-white/[0.04]" aria-hidden="true"></div>
+                <div class="pointer-events-none absolute -bottom-16 right-36 h-40 w-40 rounded-full bg-red-500/10 blur-2xl" aria-hidden="true"></div>
+                <div class="relative max-w-2xl">
                     <span class="inline-flex rounded-full border border-red-400/25 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Research workspace</span>
-                    <h3 id="workspace-overview-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Turn your research idea into a complete proposal package.</h3>
-                    <p class="mt-3 max-w-xl text-sm leading-6 text-gray-300">Resume incomplete papers, collaborate with your team, and track submitted studies from one clear workspace.</p>
+                    <h3 id="research-call-posters-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">No research call poster has been uploaded yet.</h3>
+                    <p class="mt-3 max-w-xl text-sm leading-6 text-gray-300">You can still start a proposal or continue one of your saved drafts while the next call is being prepared.</p>
                     <div class="mt-6 flex flex-wrap gap-3">
                         <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-gray-950 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">Start a proposal</a>
                         <a href="#recent-drafts" class="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">Continue a draft</a>
                     </div>
                 </div>
-
-                <div class="rounded-2xl border border-white/10 bg-white/[0.07] p-5 backdrop-blur-sm">
-                    <div class="flex items-center justify-between gap-3">
-                        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-red-200">Open research calls</p>
-                        <span class="rounded-full bg-white/10 px-2.5 py-1 text-xs font-black">{{ $activeCalls->count() }}</span>
-                    </div>
-                    @if ($activeCalls->isNotEmpty())
-                        @php
-                            $nextCall = $activeCalls->first();
-                        @endphp
-                        <p class="mt-4 line-clamp-2 text-sm font-black leading-5">{{ $nextCall->title }}</p>
-                        <p class="mt-2 text-xs text-gray-300">Closes {{ $nextCall->closes_at->format('M d, Y') }}</p>
-                    @else
-                        <p class="mt-4 text-sm font-bold">No call is accepting proposals right now.</p>
-                        <p class="mt-2 text-xs leading-5 text-gray-300">Your saved drafts remain available while you wait for the next call.</p>
-                    @endif
-                </div>
-            </div>
-        </section>
+            </section>
+        @endif
 
         <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Proposal summary">
             <div class="flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">

@@ -11,19 +11,22 @@ class WorkPlanRules
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-    public static function rules(string $presenceRule = 'required'): array
+    public static function rules(string $presenceRule = 'required', bool $allowDraft = false): array
     {
+        $minimumEntries = $allowDraft ? [] : ['min:1'];
+        $minimumMonths = $allowDraft ? [] : ['min:1'];
+
         return [
             'project_title' => [$presenceRule, 'string', 'max:255'],
             'total_duration_months' => [$presenceRule, 'integer', 'min:1', 'max:'.config('work_plan.max_duration_months')],
             'planned_start' => [$presenceRule, 'date'],
             'planned_end' => [$presenceRule, 'date', 'after_or_equal:planned_start'],
-            'entries' => [$presenceRule, 'array', 'min:1', 'max:'.config('work_plan.max_objectives')],
-            'entries.*' => ['array:objective,expected_output,activity,months'],
+            'entries' => [$presenceRule, 'array', ...$minimumEntries, 'max:'.config('work_plan.max_objectives')],
+            'entries.*' => [$allowDraft ? 'array' : 'array:objective,expected_output,activity,months'],
             'entries.*.objective' => [$presenceRule, 'string', 'max:500'],
             'entries.*.expected_output' => [$presenceRule, 'string', 'max:500'],
             'entries.*.activity' => [$presenceRule, 'string', 'max:1500'],
-            'entries.*.months' => [$presenceRule, 'array', 'min:1', 'max:'.config('work_plan.max_duration_months')],
+            'entries.*.months' => [$presenceRule, 'array', ...$minimumMonths, 'max:'.config('work_plan.max_duration_months')],
             'entries.*.months.*' => ['integer', Rule::in(range(1, (int) config('work_plan.max_duration_months'))), 'lte:total_duration_months'],
             'prepared_by' => [$presenceRule, 'string', 'max:120'],
         ];
@@ -32,8 +35,12 @@ class WorkPlanRules
     /**
      * @return list<callable(Validator): void>
      */
-    public static function afterCallbacks(mixed $entries, mixed $durationMonths): array
+    public static function afterCallbacks(mixed $entries, mixed $durationMonths, bool $allowDraft = false): array
     {
+        if ($allowDraft) {
+            return [];
+        }
+
         return [function (Validator $validator) use ($durationMonths, $entries): void {
             if (! is_array($entries)) {
                 return;

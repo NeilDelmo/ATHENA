@@ -63,7 +63,7 @@ class ProposalDraftWorkPlanController extends Controller
                 'mime_type' => null,
                 'file_size' => null,
                 'checksum' => null,
-                'completed_at' => now(),
+                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
@@ -75,7 +75,9 @@ class ProposalDraftWorkPlanController extends Controller
                     : 'faculty.proposal-drafts.work-plan.edit',
                 $proposalDraft,
             )
-            ->with('success', 'Attachment A: Work Plan saved.');
+            ->with('success', $request->boolean('save_as_draft')
+                ? 'Attachment A: Work Plan saved as a draft.'
+                : 'Attachment A: Work Plan saved.');
     }
 
     public function preview(

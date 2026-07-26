@@ -19,7 +19,7 @@ class ProposalDraftSubmissionController extends Controller
     ) {
         Gate::authorize('view', $proposalDraft);
 
-        $proposalDraft->load(['researchCall', 'documents', 'owner']);
+        $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user']);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);

@@ -4,7 +4,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $curriculumVitaeDocument?->completed_at ? 'Complete' : 'Not started' }}</span>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $curriculumVitaeDocument?->completed_at ? 'bg-green-100 text-green-800' : ($curriculumVitaeDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $curriculumVitaeDocument?->completed_at ? 'Complete' : ($curriculumVitaeDocument ? 'In progress' : 'Not started') }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Create one official CV form for every member of the research team.</p>
             </div>
@@ -24,6 +24,7 @@
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
+        data-paper-draft-save="true"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
@@ -86,10 +87,11 @@
             </div>
         </section>
 
-        <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6">
+        <form data-paper-form x-ref="form" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $curriculumVitaeDocument?->lock_version ?? 0) }}">
+            <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
             <template x-for="(person, personIndex) in people" :key="person.id">
                 <article class="space-y-5 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6" :data-person-index="personIndex">
@@ -171,8 +173,8 @@
             @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
-                <button type="button" x-on:click="generatePreview" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:w-auto"><span x-show="!previewLoading">Preview package</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
-                <button type="button" x-on:click="downloadDocument" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
+                <button type="button" x-on:click="generatePreview" x-bind:disabled="!isComplete()" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview package</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
+                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
                 <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and exit</button>
             </div>
         </form>

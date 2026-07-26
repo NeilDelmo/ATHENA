@@ -6,6 +6,7 @@ use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -105,7 +106,11 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertOk()
         ->assertSee('Close early')
         ->assertSee('Submission starts')
-        ->assertSee('Submission ends');
+        ->assertSee('Submission ends')
+        ->assertSee('data-research-call-image-dropzone', false)
+        ->assertSee('data-research-call-image-preview', false)
+        ->assertSee('Drag and drop poster')
+        ->assertSee('Ctrl+V also works');
 
     $this->actingAs($this->head)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'closed'])
@@ -175,6 +180,153 @@ test('research call budgets cannot exceed the PHP 150000 institutional ceiling',
         ->assertRedirect(route('research-calls.index'));
 
     expect(ResearchCall::where('title', 'Budget-controlled call')->value('maximum_budget'))->toBe('150000.00');
+});
+
+test('research heads can read a research-call poster into blank form fields', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'title' => 'Call for Proposals for August 2026 Implementation',
+                        'academic_year' => null,
+                        'term' => 'August 2026 Implementation',
+                        'description' => "The research proposals must be:\n- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary",
+                        'opens_at' => '2026-02-05T00:00',
+                        'closes_at' => '2026-03-02T23:59',
+                        'maximum_budget' => 150000,
+                        'categories' => ['Cross-disciplinary', 'Product Development'],
+                        'initial_evaluation_start_date' => '2026-03-03',
+                        'initial_evaluation_end_date' => '2026-03-10',
+                        'paper_revisions_start_date' => '2026-03-11',
+                        'paper_revisions_end_date' => '2026-03-20',
+                        'lrec_start_date' => '2026-04-10',
+                        'lrec_end_date' => null,
+                        'implementation_start_date' => '2026-08-01',
+                        'implementation_end_date' => null,
+                    ]),
+                ],
+            ]],
+        ]),
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->post(route('research-calls.extract-image'), [
+            'reference_image' => UploadedFile::fake()->image('research-call.jpg'),
+        ])
+        ->assertOk();
+
+    $response->assertJsonPath('fields.title', 'Call for Proposals for August 2026 Implementation')
+        ->assertJsonPath('fields.description', "The research proposals must be:\n- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary")
+        ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
+        ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
+        ->assertJsonPath('fields.paper_revisions_end_date', '2026-03-20')
+        ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
+        ->assertJsonPath('fields.implementation_start_date', '2026-08-01');
+
+    Http::assertSent(fn ($request): bool => $request['messages'][1]['content'][1]['type'] === 'image_url'
+        && str_starts_with($request['messages'][1]['content'][1]['image_url']['url'], 'data:image/jpeg;base64,'));
+});
+
+test('research-call extraction recovers fields when the vision model returns poster text', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => <<<'POSTER'
+CALL FOR PROPOSALS
+FOR AUGUST 2026 IMPLEMENTATION
+
+THE RESEARCH PROPOSALS MUST BE:
+Aligned with the BatStateU The NEU research agenda
+With Budget Requirement of lower that Php 150,000.00
+Cross disciplinary or interdisciplinary research projects
+
+IMPORTANT DATES
+FEBRUARY 5, 2026 - MARCH 2, 2026 Deadline of Submission
+MARCH 3-10, 2026 Initial Evaluation
+MARCH 11-20, 2026 Paper Revisions based on the Initial Screening
+APRIL 10, 2026 Tentative Local Research Evaluation (LREC)
+AUGUST 2026 Implementation
+POSTER,
+                ],
+            ]],
+        ]),
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->post(route('research-calls.extract-image'), [
+            'reference_image' => UploadedFile::fake()->image('research-call.jpg'),
+        ])
+        ->assertOk();
+
+    $response->assertJsonPath('fields.title', 'CALL FOR PROPOSALS FOR AUGUST 2026 IMPLEMENTATION')
+        ->assertJsonPath('fields.maximum_budget', 150000)
+        ->assertJsonPath('fields.opens_at', '2026-02-05T00:00')
+        ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
+        ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
+        ->assertJsonPath('fields.initial_evaluation_end_date', '2026-03-10')
+        ->assertJsonPath('fields.paper_revisions_start_date', '2026-03-11')
+        ->assertJsonPath('fields.paper_revisions_end_date', '2026-03-20')
+        ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
+        ->assertJsonPath('fields.implementation_start_date', '2026-08-01')
+        ->assertJsonPath('fields.description', 'THE RESEARCH PROPOSALS MUST BE: Aligned with the BatStateU The NEU research agenda With Budget Requirement of lower that Php 150,000.00 Cross disciplinary or interdisciplinary research projects');
+});
+
+test('research heads can save workflow dates and a reference poster with a research call', function () {
+    $poster = UploadedFile::fake()->image('call-poster.jpg');
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [
+            'title' => 'August 2026 Implementation Call',
+            'academic_year' => '2026-2027',
+            'term' => 'August 2026 Implementation',
+            'description' => 'The research proposals must be aligned with the research agenda.',
+            'reference_image' => $poster,
+            'opens_at' => '2026-02-05 00:00:00',
+            'closes_at' => '2026-03-02 23:59:00',
+            'initial_evaluation_start_date' => '2026-03-03',
+            'initial_evaluation_end_date' => '2026-03-10',
+            'paper_revisions_start_date' => '2026-03-11',
+            'paper_revisions_end_date' => '2026-03-20',
+            'lrec_start_date' => '2026-04-10',
+            'implementation_start_date' => '2026-08-01',
+            'max_active_research_per_faculty' => 2,
+            'maximum_budget' => 150000,
+            'categories' => 'Cross-disciplinary, Product Development',
+            'status' => 'draft',
+        ])
+        ->assertRedirect(route('research-calls.index'));
+
+    $call = ResearchCall::query()->where('title', 'August 2026 Implementation Call')->firstOrFail();
+
+    expect($call->description)->toContain('research proposals must be')
+        ->and($call->initial_evaluation_start_date->format('Y-m-d'))->toBe('2026-03-03')
+        ->and($call->initial_evaluation_end_date->format('Y-m-d'))->toBe('2026-03-10')
+        ->and($call->paper_revisions_end_date->format('Y-m-d'))->toBe('2026-03-20')
+        ->and($call->lrec_start_date->format('Y-m-d'))->toBe('2026-04-10')
+        ->and($call->lrec_end_date)->toBeNull()
+        ->and($call->implementation_start_date->format('Y-m-d'))->toBe('2026-08-01')
+        ->and($call->reference_image_path)->not->toBeNull();
+
+    Storage::disk('local')->assertExists($call->reference_image_path);
+
+    $this->actingAs($this->faculty)
+        ->get(route('research-calls.reference-image', $call))
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/jpeg');
 });
 
 test('faculty research workload is limited to two approved projects per academic year', function () {

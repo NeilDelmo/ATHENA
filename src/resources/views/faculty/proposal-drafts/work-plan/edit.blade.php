@@ -4,7 +4,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $workPlanDocument?->completed_at ? 'Complete' : 'Not started' }}</span>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $workPlanDocument?->completed_at ? 'bg-green-100 text-green-800' : ($workPlanDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $workPlanDocument?->completed_at ? 'Complete' : ($workPlanDocument ? 'In progress' : 'Not started') }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Build the official BatStateU-FO-RES-02 Work Plan from structured inputs.</p>
             </div>
@@ -24,6 +24,8 @@
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
+        data-paper-draft-save="true"
+        data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.work-plan.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
@@ -61,7 +63,7 @@
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-black">Complete Project Details first</p>
-                <p class="mt-1 leading-6">Project title, duration, planned dates, and project leader are required before Attachment A can be saved or generated.</p>
+                <p class="mt-1 leading-6">Project title, duration, planned dates, and project leader are required before Attachment A can be previewed or generated. You can still save your progress as a draft.</p>
                 <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="mt-3 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-900 focus:ring-offset-2">Complete Project Details</a>
             </div>
         @endunless
@@ -83,10 +85,11 @@
             </dl>
         </section>
 
-        <form data-paper-form x-ref="form" x-on:submit="if (!validateForm()) $event.preventDefault()" action="{{ route('faculty.proposal-drafts.work-plan.update', $proposalDraft) }}" method="POST" class="space-y-6">
+        <form data-paper-form x-ref="form" action="{{ route('faculty.proposal-drafts.work-plan.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $workPlanDocument?->lock_version ?? 0) }}">
+            <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
             <section aria-labelledby="work-plan-objectives-heading" class="space-y-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -166,9 +169,9 @@
             @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
-                <button type="button" x-on:click="generatePreview" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating…</span></button>
-                <button type="button" x-on:click="downloadDocument" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing…</span></button>
-                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Save and exit</button>
+                <button type="button" x-on:click="generatePreview" x-bind:disabled="!isComplete()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating…</span></button>
+                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing…</span></button>
+                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Save and exit</button>
             </div>
         </form>
 

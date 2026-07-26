@@ -2,13 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ResearchCallImageExtractionException;
+use App\Http\Requests\ExtractResearchCallImageRequest;
+use App\Http\Requests\StoreResearchCallRequest;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
+use App\Services\ResearchCallImageParser;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ResearchCallController extends Controller
 {
+    public function __construct(private ResearchCallImageParser $imageParser) {}
+
     public function index(Request $request)
     {
         $calls = ResearchCall::with(['categories', 'creator'])
@@ -24,23 +35,14 @@ class ResearchCallController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreResearchCallRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'academic_year' => ['required', 'string', 'max:30'],
-            'term' => ['nullable', 'string', 'max:100'],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'opens_at' => ['required', 'date'],
-            'closes_at' => ['required', 'date', 'after:opens_at'],
-            'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
-            'maximum_budget' => ['required', 'numeric', 'min:0', 'max:'.ResearchCall::MAXIMUM_BUDGET],
-            'categories' => ['required', 'string', 'max:1000'],
-            'status' => ['required', Rule::in(['draft', 'open'])],
-        ]);
+        $validated = $request->validated();
+        $imagePath = $request->file('reference_image')?->store('research-calls', 'local');
 
         $call = ResearchCall::create([
-            ...collect($validated)->except('categories')->all(),
+            ...collect($validated)->except(['categories', 'reference_image'])->all(),
+            'reference_image_path' => $imagePath,
             'created_by' => $request->user()->id,
         ]);
 
@@ -55,7 +57,39 @@ class ResearchCallController extends Controller
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
     }
 
-    public function updateStatus(Request $request, ResearchCall $researchCall)
+    public function extractImage(ExtractResearchCallImageRequest $request): JsonResponse
+    {
+        try {
+            return response()->json([
+                'fields' => $this->imageParser->extract($request->file('reference_image')),
+            ]);
+        } catch (ResearchCallImageExtractionException $exception) {
+            Log::warning('Research call image extraction failed.', [
+                'exception' => $exception::class,
+                'message' => $exception->getPrevious()?->getMessage() ?? $exception->getMessage(),
+            ]);
+
+            return response()->json(['message' => $exception->getMessage()], 503);
+        }
+    }
+
+    public function sourceImage(ResearchCall $researchCall): StreamedResponse
+    {
+        abort_unless($researchCall->reference_image_path, 404);
+        abort_unless(Storage::disk('local')->exists($researchCall->reference_image_path), 404);
+
+        return Storage::disk('local')->response(
+            $researchCall->reference_image_path,
+            basename($researchCall->reference_image_path),
+            [
+                'Content-Type' => Storage::disk('local')->mimeType($researchCall->reference_image_path),
+                'Content-Disposition' => 'inline',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
+        );
+    }
+
+    public function updateStatus(Request $request, ResearchCall $researchCall): RedirectResponse
     {
         $validated = $request->validate([
             'status' => ['required', Rule::in(['draft', 'open', 'closed'])],

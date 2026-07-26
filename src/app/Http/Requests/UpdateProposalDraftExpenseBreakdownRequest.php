@@ -40,9 +40,10 @@ class UpdateProposalDraftExpenseBreakdownRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...ExpenseBreakdownRules::rules(),
+            ...ExpenseBreakdownRules::rules($this->boolean('save_as_draft')),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
+            'save_as_draft' => ['sometimes', 'boolean'],
         ];
     }
 

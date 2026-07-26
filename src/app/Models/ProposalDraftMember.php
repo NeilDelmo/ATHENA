@@ -18,7 +18,15 @@ class ProposalDraftMember extends Model
         'user_id',
         'name',
         'email',
+        'accepted_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'accepted_at' => 'datetime',
+        ];
+    }
 
     public function draft(): BelongsTo
     {
@@ -34,11 +42,14 @@ class ProposalDraftMember extends Model
     public function scopeForUser(Builder $query, User $user): Builder
     {
         return $query->where(function (Builder $membership) use ($user): void {
-            $membership->where('user_id', $user->getKey());
+            $membership
+                ->whereNotNull('accepted_at')
+                ->where('user_id', $user->getKey());
 
             if ($user->email_verified_at !== null) {
                 $membership->orWhere(function (Builder $externalMembership) use ($user): void {
                     $externalMembership
+                        ->whereNotNull('accepted_at')
                         ->whereNull('user_id')
                         ->where('email', mb_strtolower(trim($user->email)));
                 });
@@ -49,5 +60,10 @@ class ProposalDraftMember extends Model
     public function isLinked(): bool
     {
         return $this->user_id !== null;
+    }
+
+    public function isAccepted(): bool
+    {
+        return $this->accepted_at !== null;
     }
 }

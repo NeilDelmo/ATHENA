@@ -215,12 +215,15 @@ test('faculty can create and resume multiple proposal drafts through the compati
         ->assertSee($this->call->title);
 
     foreach (['First Coastal Study', 'Second Coastal Study'] as $projectTitle) {
-        $this->actingAs($this->faculty)
+        $response = $this->actingAs($this->faculty)
             ->post(route('faculty.proposal-drafts.store'), [
                 'research_call_id' => $this->call->id,
                 'project_title' => $projectTitle,
-            ])
-            ->assertRedirect();
+            ]);
+
+        $draft = $this->faculty->proposalDrafts()->where('project_title', $projectTitle)->firstOrFail();
+
+        $response->assertRedirect(route('faculty.proposal-drafts.show', $draft));
     }
 
     expect($this->faculty->proposalDrafts()->count())->toBe(2);
@@ -323,6 +326,20 @@ test('the proposal hub presents project details and the seven code-owned require
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('Project Details')
+        ->assertSee('Required PDF attachments')
+        ->assertSee('Proposal collaborators')
+        ->assertSee('Update Project Details')
+        ->assertSee('proposal-review', false)
+        ->assertSee('open-modal', false)
+        ->assertSee('close-modal', false)
+        ->assertSee('max-h-[calc(100vh-3rem)]', false)
+        ->assertSee('Proposal collaborators')
+        ->assertDontSee('<a href="'.route('faculty.proposal-drafts.details.edit', $draft), false)
+        ->assertSee('name="project_title"', false)
+        ->assertSee('name="project_leader"', false)
+        ->assertSee('role="tab"', false)
+        ->assertSee('activeProposalTab', false)
+        ->assertSee('lg:grid-cols-[minmax(0,1fr)_18rem]', false)
         ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertSee('data-paper-shortcuts-dropdown', false)
         ->assertDontSee('Upload PDF')
@@ -423,6 +440,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Ready to turn in')
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
+        ->assertSee('Proposal collaborators')
         ->assertSee('seven immutable PDF attachments')
         ->assertSee('Turn in proposal');
 });
@@ -804,6 +822,130 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         ->assertOk()
         ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
         ->assertDownload('coastal-habitat-restoration-work-plan.docx');
+});
+
+test('generated papers can save partial source data as in-progress drafts', function () {
+    $draft = ($this->createDraft)();
+    $draft->update(($this->projectDetails)());
+
+    $draftSaves = [
+        [
+            'route' => 'faculty.proposal-drafts.detailed-proposal.update',
+            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            'message' => 'Detailed Research Proposal saved as a draft.',
+            'payload' => [
+                'document_version' => 0,
+                'save_as_draft' => '1',
+                'research_agenda' => 'Environment and Climate Change',
+            ],
+        ],
+        [
+            'route' => 'faculty.proposal-drafts.work-plan.update',
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+            'message' => 'Attachment A: Work Plan saved as a draft.',
+            'payload' => [
+                'document_version' => 0,
+                'save_as_draft' => '1',
+                'entries' => [[
+                    'objective' => 'Start the first objective',
+                    'expected_output' => '',
+                    'activity' => '',
+                    'months' => [],
+                ]],
+            ],
+        ],
+        [
+            'route' => 'faculty.proposal-drafts.line-item-budget.update',
+            'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+            'message' => 'Attachment B: Line-Item Budget saved as a draft.',
+            'payload' => [
+                'document_version' => 0,
+                'save_as_draft' => '1',
+                'leader_college' => 'College of Arts and Sciences',
+            ],
+        ],
+        [
+            'route' => 'faculty.proposal-drafts.expense-breakdown.update',
+            'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            'message' => 'Estimated Expense Breakdown saved as a draft.',
+            'payload' => [
+                'document_version' => 0,
+                'save_as_draft' => '1',
+                'items' => [[
+                    'category' => 'mooe',
+                    'account' => '',
+                    'sub_account' => '',
+                    'particulars' => '',
+                    'details' => '',
+                    'purpose' => '',
+                    'unit' => '',
+                    'quantity' => '',
+                    'unit_cost' => '',
+                ]],
+            ],
+        ],
+        [
+            'route' => 'faculty.proposal-drafts.curriculum-vitae.update',
+            'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            'message' => 'Attachment C: Curriculum Vitae saved as a draft.',
+            'payload' => [
+                'document_version' => 0,
+                'save_as_draft' => '1',
+                'people' => [[
+                    'last_name' => 'Owner',
+                ]],
+            ],
+        ],
+    ];
+
+    foreach ($draftSaves as $draftSave) {
+        $this->actingAs($this->faculty)
+            ->put(route($draftSave['route'], $draft), [
+                ...$draftSave['payload'],
+                'exit_after_save' => '1',
+            ])
+            ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+            ->assertSessionHas('success', $draftSave['message']);
+
+        $document = $draft->documents()
+            ->where('document_type', $draftSave['document_type'])
+            ->sole();
+
+        expect($document->completed_at)->toBeNull()
+            ->and($document->source_data)->not->toBeEmpty();
+    }
+
+    $draft->refresh();
+
+    foreach ($draftSaves as $draftSave) {
+        expect(app(ProposalDraftReadiness::class)
+            ->checklist($draft)
+            ->get(collect(app(ProposalPaperCatalog::class)->all())
+                ->firstWhere('document_type', $draftSave['document_type'])['slug'])['status'])
+            ->toBe('In progress');
+    }
+
+    expect(ProposalDraftDocumentVersion::query()
+        ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
+        ->latest('version_number')
+        ->value('change_summary'))
+        ->toBe('Saved Attachment A: Work Plan as a draft.');
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.work-plan.preview', $draft), [
+            'entries' => [[
+                'objective' => 'Partial objective',
+                'expected_output' => '',
+                'activity' => '',
+                'months' => [],
+            ]],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'entries.0.expected_output',
+            'entries.0.activity',
+            'entries.0.months',
+        ]);
 });
 
 test('incomplete and closed-call drafts remain available and cannot be submitted', function () {

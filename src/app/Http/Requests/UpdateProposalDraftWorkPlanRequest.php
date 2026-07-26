@@ -40,9 +40,13 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...WorkPlanRules::rules(),
+            ...WorkPlanRules::rules(
+                $this->boolean('save_as_draft') ? 'nullable' : 'required',
+                $this->boolean('save_as_draft'),
+            ),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
+            'save_as_draft' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -54,6 +58,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         return WorkPlanRules::afterCallbacks(
             $this->input('entries'),
             $this->input('total_duration_months'),
+            $this->boolean('save_as_draft'),
         );
     }
 

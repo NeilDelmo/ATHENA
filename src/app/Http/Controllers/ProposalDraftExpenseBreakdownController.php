@@ -54,7 +54,7 @@ class ProposalDraftExpenseBreakdownController extends Controller
                 'mime_type' => null,
                 'file_size' => null,
                 'checksum' => null,
-                'completed_at' => now(),
+                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
@@ -66,7 +66,9 @@ class ProposalDraftExpenseBreakdownController extends Controller
                     : 'faculty.proposal-drafts.expense-breakdown.edit',
                 $proposalDraft,
             )
-            ->with('success', 'Estimated Expense Breakdown saved.');
+            ->with('success', $request->boolean('save_as_draft')
+                ? 'Estimated Expense Breakdown saved as a draft.'
+                : 'Estimated Expense Breakdown saved.');
     }
 
     public function preview(

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\ExpertReviewController;
@@ -193,10 +194,23 @@ Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadU
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
     ->middleware('auth')
     ->name('research-calls.index');
+Route::get('/research-calls/{researchCall}/reference-image', [ResearchCallController::class, 'sourceImage'])
+    ->middleware('auth')
+    ->name('research-calls.reference-image');
+
+Route::middleware(['auth', 'workspace:research_head'])->prefix('announcement-images')->name('announcement-images.')->group(function () {
+    Route::get('/', [AnnouncementImageController::class, 'index'])->name('index');
+    Route::post('/', [AnnouncementImageController::class, 'store'])->name('store');
+    Route::delete('/{announcementImage}', [AnnouncementImageController::class, 'destroy'])->name('destroy');
+});
+Route::get('/announcement-images/{announcementImage}/source', [AnnouncementImageController::class, 'show'])
+    ->middleware('auth')
+    ->name('announcement-images.show');
 
 Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
     Route::get('/', [NotificationController::class, 'index'])->name('index');
     Route::patch('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+    Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])->name('proposal-invitations.accept');
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
 
@@ -235,6 +249,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
+    Route::post('/research-calls/extract-image', [ResearchCallController::class, 'extractImage'])->name('research-calls.extract-image');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::patch('/research-calls/{researchCall}/status', [ResearchCallController::class, 'updateStatus'])->name('research-calls.update-status');
     Route::get('/research-head/proposal-templates', [ProposalTemplateController::class, 'index'])->name('research_head.proposal-templates.index');

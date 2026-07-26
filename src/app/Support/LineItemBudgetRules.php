@@ -9,8 +9,9 @@ use Illuminate\Validation\Validator;
 class LineItemBudgetRules
 {
     /** @return array<string, ValidationRule|array<mixed>|string> */
-    public static function rules(): array
+    public static function rules(bool $allowDraft = false): array
     {
+        $presenceRule = $allowDraft ? 'nullable' : 'required';
         $amount = ['nullable', 'numeric', 'min:0', 'max:'.config('line_item_budget.maximum_amount')];
         $amountKeys = collect(config('line_item_budget.sections'))
             ->flatMap(fn (array $section): array => $section['items'])
@@ -18,14 +19,14 @@ class LineItemBudgetRules
             ->implode(',');
 
         return [
-            'project_title' => ['required', 'string', 'max:255'],
-            'planned_start' => ['required', 'date'],
-            'planned_end' => ['required', 'date', 'after_or_equal:planned_start'],
-            'project_leader' => ['required', 'string', 'max:120'],
+            'project_title' => [$presenceRule, 'string', 'max:255'],
+            'planned_start' => [$presenceRule, 'date'],
+            'planned_end' => [$presenceRule, 'date', 'after_or_equal:planned_start'],
+            'project_leader' => [$presenceRule, 'string', 'max:120'],
             'leader_campus' => ['nullable', 'string', 'max:120'],
             'leader_college' => ['nullable', 'string', 'max:120'],
             'staff' => ['nullable', 'array'],
-            'staff.*' => ['array:name,campus,college'],
+            'staff.*' => [$allowDraft ? 'array' : 'array:name,campus,college'],
             'staff.*.name' => ['nullable', 'string', 'max:120'],
             'staff.*.campus' => ['nullable', 'string', 'max:120'],
             'staff.*.college' => ['nullable', 'string', 'max:120'],
@@ -50,8 +51,12 @@ class LineItemBudgetRules
     }
 
     /** @return list<callable(Validator): void> */
-    public static function afterCallbacks(float $maximumBudget = 0): array
+    public static function afterCallbacks(float $maximumBudget = 0, bool $allowDraft = false): array
     {
+        if ($allowDraft) {
+            return [];
+        }
+
         return [function (Validator $validator) use ($maximumBudget): void {
             if ($validator->errors()->isNotEmpty()) {
                 return;

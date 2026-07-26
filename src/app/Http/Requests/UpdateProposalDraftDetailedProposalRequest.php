@@ -55,16 +55,17 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...DetailedProposalRules::rules(),
+            ...DetailedProposalRules::rules($this->boolean('save_as_draft')),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
+            'save_as_draft' => ['sometimes', 'boolean'],
         ];
     }
 
     /** @return list<callable> */
     public function after(): array
     {
-        return DetailedProposalRules::afterCallbacks();
+        return DetailedProposalRules::afterCallbacks($this->boolean('save_as_draft'));
     }
 
     /** @return array<string, string> */

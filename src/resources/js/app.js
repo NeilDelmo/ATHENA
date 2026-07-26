@@ -3,7 +3,10 @@ import Alpine from 'alpinejs';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
+import initializeAnnouncementImageUploads from './announcement-image-upload';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
+import initializeResearchCallCarousels from './research-call-carousel';
+import initializeResearchCallImageExtractors from './research-call-image-extractor';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -357,6 +360,33 @@ function showPaperEditorSubmitStatus(editor, submitter) {
     }
 }
 
+function paperEditorIsComplete(editor) {
+    if (editor?.dataset.paperProjectDetailsComplete === 'false') return false;
+
+    const form = editor?.querySelector('[data-paper-form]');
+
+    if (! (form instanceof HTMLFormElement)) return false;
+
+    const state = window.Alpine?.$data?.(editor);
+
+    if (typeof state?.isComplete === 'function') return state.isComplete();
+
+    return form.checkValidity();
+}
+
+async function confirmPaperEditorSave(editor) {
+    const complete = paperEditorIsComplete(editor);
+
+    return showProposalConfirmation({
+        title: complete ? 'Save completed attachment?' : 'Save attachment as draft?',
+        text: complete
+            ? 'All required fields are complete. Save this attachment and return to the proposal workspace?'
+            : 'Some required fields are still blank. Save the information entered so far as a draft and continue later?',
+        confirmButtonText: complete ? 'Save and exit' : 'Save draft',
+        icon: complete ? 'success' : 'info',
+    });
+}
+
 document.addEventListener('input', (event) => {
     const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
 
@@ -369,7 +399,7 @@ document.addEventListener('change', (event) => {
     if (editor) editor.dataset.paperDirty = 'true';
 });
 
-document.addEventListener('submit', (event) => {
+document.addEventListener('submit', async (event) => {
     const editor = event.target instanceof Element ? event.target.closest('[data-paper-editor]') : null;
 
     if (!editor) return;
@@ -381,6 +411,37 @@ document.addEventListener('submit', (event) => {
     }
 
     if (event.defaultPrevented) return;
+
+    const draftSaveEnabled = editor.dataset.paperDraftSave === 'true';
+    const saveAndExitButton = editor.querySelector('[data-paper-save-exit]');
+    const isSaveAndExit = (event.submitter instanceof Element
+        && event.submitter.matches('[data-paper-save-exit]'))
+        || (draftSaveEnabled && !event.submitter && saveAndExitButton instanceof HTMLButtonElement);
+
+    if (isSaveAndExit && draftSaveEnabled && editor.dataset.paperSaveConfirmed !== 'true') {
+        event.preventDefault();
+
+        if (!await confirmPaperEditorSave(editor)) return;
+
+        const saveMode = editor.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = paperEditorIsComplete(editor) ? '0' : '1';
+        }
+
+        editor.dataset.paperSaveConfirmed = 'true';
+        const submitter = event.submitter instanceof HTMLButtonElement || event.submitter instanceof HTMLInputElement
+            ? event.submitter
+            : saveAndExitButton;
+
+        editor.querySelector('[data-paper-form]')?.requestSubmit(submitter);
+
+        return;
+    }
+
+    if (editor.dataset.paperSaveConfirmed === 'true') {
+        delete editor.dataset.paperSaveConfirmed;
+    }
 
     editor.dataset.paperDirty = 'false';
     showPaperEditorSubmitStatus(editor, event.submitter);
@@ -541,6 +602,7 @@ const researchAssistantPromptGroups = [
 
 Alpine.store('researchAssistant', {
     drawerOpen: false,
+    workspaceOpen: false,
     draft: '',
     isLoading: false,
     error: '',
@@ -567,7 +629,7 @@ Alpine.store('researchAssistant', {
     syncPageScroll() {
         document.documentElement.classList.toggle(
             'overflow-hidden',
-            this.drawerOpen && this.isOverlayViewport(),
+            this.workspaceOpen || (this.drawerOpen && this.isOverlayViewport()),
         );
     },
 
@@ -582,15 +644,35 @@ Alpine.store('researchAssistant', {
 
     openDrawer(trigger = null) {
         this.returnFocusElement = trigger instanceof HTMLElement ? trigger : document.activeElement;
+        this.workspaceOpen = false;
         this.drawerOpen = true;
         this.syncPageScroll();
         window.setTimeout(() => document.getElementById('research-assistant-drawer-message')?.focus(), 220);
     },
 
+    openWorkspace() {
+        this.workspaceOpen = true;
+        this.drawerOpen = false;
+        this.syncPageScroll();
+        window.setTimeout(() => document.getElementById('research-assistant-message')?.focus(), 220);
+    },
+
     closeDrawer() {
+        this.workspaceOpen = false;
         this.drawerOpen = false;
         this.syncPageScroll();
         window.setTimeout(() => this.returnFocusElement?.focus?.());
+    },
+
+    closeWorkspace() {
+        this.closeDrawer();
+    },
+
+    collapseWorkspace() {
+        this.workspaceOpen = false;
+        this.drawerOpen = true;
+        this.syncPageScroll();
+        window.setTimeout(() => document.getElementById('research-assistant-drawer-message')?.focus(), 220);
     },
 
     openWithContext(contextId) {
@@ -1613,15 +1695,27 @@ Alpine.data('notificationMenu', (config) => ({
         this.toasts = this.toasts.filter((toast) => toast.id !== id);
     },
 
-    async request(url) {
+    async request(url, method = 'PATCH') {
         return fetch(url, {
-            method: 'PATCH',
+            method,
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             },
         });
+    },
+
+    async markNotificationRead(item) {
+        if (item.read_at) return true;
+
+        const response = await this.request(config.readUrl.replace('__ID__', item.id));
+        if (!response.ok) return false;
+
+        item.read_at = new Date().toISOString();
+        this.unreadCount = Math.max(0, this.unreadCount - 1);
+
+        return true;
     },
 
     async markAllRead() {
@@ -1632,14 +1726,58 @@ Alpine.data('notificationMenu', (config) => ({
         this.unreadCount = 0;
     },
 
-    async openNotification(item) {
-        if (!item.read_at) {
-            const response = await this.request(config.readUrl.replace('__ID__', item.id));
-            if (response.ok) {
-                item.read_at = new Date().toISOString();
-                this.unreadCount = Math.max(0, this.unreadCount - 1);
-            }
+    async acceptProposalInvitation(item) {
+        const actionData = item.data.action_data || {};
+        const proposalTitle = actionData.proposal_title || 'this research proposal';
+        const inviterName = actionData.inviter_name || 'The proposal owner';
+        const confirmed = await showProposalConfirmation({
+            title: 'Join proposal workspace?',
+            text: `${inviterName} invited you to join “${proposalTitle}” as a collaborator. Do you want to accept?`,
+            confirmButtonText: 'Accept invitation',
+            cancelButtonText: 'Not now',
+            icon: 'question',
+        });
+
+        if (!confirmed) return;
+
+        const response = await this.request(item.data.action_url, 'POST');
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            await Swal.fire({
+                title: 'Invitation unavailable',
+                text: payload.message || 'This proposal invitation could not be accepted. It may have already been handled or removed.',
+                icon: 'error',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc2626',
+                ...proposalDialogTheme(),
+            });
+
+            return;
         }
+
+        await this.markNotificationRead(item);
+
+        await Swal.fire({
+            title: 'You are now a collaborator',
+            text: `You can now access the current draft “${proposalTitle}”.`,
+            icon: 'success',
+            confirmButtonText: 'Open draft',
+            confirmButtonColor: '#dc2626',
+            ...proposalDialogTheme(),
+        });
+
+        window.location.assign(payload.url || item.data.url);
+    },
+
+    async openNotification(item) {
+        if (item.data.action_url) {
+            await this.acceptProposalInvitation(item);
+
+            return;
+        }
+
+        await this.markNotificationRead(item);
 
         if (item.data.url) window.location.assign(item.data.url);
     },
@@ -2243,6 +2381,14 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.monthConflictIndexes = [];
     },
 
+    isComplete() {
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+
+        return fields.every((field) => field.checkValidity())
+            && this.entries.every((entry) => entry.months.length > 0)
+            && this.monthConflicts().length === 0;
+    },
+
     validateForm() {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
@@ -2568,6 +2714,12 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         }).format(this.numeric(value));
     },
 
+    isComplete() {
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+
+        return fields.every((field) => field.disabled || field.checkValidity());
+    },
+
     validateForm() {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
@@ -2804,6 +2956,12 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         }).format(this.numeric(value));
     },
 
+    isComplete() {
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+
+        return fields.every((field) => field.disabled || field.checkValidity());
+    },
+
     validateForm() {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
@@ -3037,6 +3195,12 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             .join(' ');
 
         return name || 'New team member';
+    },
+
+    isComplete() {
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+
+        return fields.every((field) => field.disabled || field.checkValidity());
     },
 
     focusPerson(index) {
@@ -3302,6 +3466,13 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.responsibilities.splice(index, 1);
     },
 
+    isComplete() {
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+
+        return this.sdgs.length > 0
+            && fields.every((field) => field.disabled || field.checkValidity());
+    },
+
     validateForm() {
         this.validationMessage = '';
 
@@ -3416,4 +3587,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 }));
 
 registerPdfAnnotationWorkspace(Alpine);
+initializeAnnouncementImageUploads();
+initializeResearchCallCarousels();
+initializeResearchCallImageExtractors();
+document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
+document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
+document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
 Alpine.start();

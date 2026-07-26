@@ -18,6 +18,7 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
         public string $invitedEmail,
         public string $workspaceUrl,
         public bool $accountLinked,
+        public bool $requiresAcceptance = false,
     ) {
         $this->afterCommit();
     }
@@ -42,7 +43,9 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
             ->greeting('Hello '.$this->recipientName.',')
             ->line($this->inviterName.' invited you to collaborate on “'.$this->projectTitle.'” in ATHENA.')
             ->line($this->accountLinked
-                ? 'Your verified ATHENA account is already linked to this proposal workspace.'
+                ? ($this->requiresAcceptance
+                    ? 'Your verified ATHENA account is ready. Review and accept the invitation in ATHENA to join this proposal workspace.'
+                    : 'Your verified ATHENA account is already linked to this proposal workspace.')
                 : 'Your workspace access will activate automatically after you sign in with the invited BatStateU Google account.')
             ->action('Open ATHENA', $this->workspaceUrl)
             ->line('Sign in using '.$this->invitedEmail.'. The shared proposal will appear in your Proposal Workspace.')
@@ -61,6 +64,7 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
             'inviter_name' => $this->inviterName,
             'invited_email' => $this->invitedEmail,
             'account_linked' => $this->accountLinked,
+            'requires_acceptance' => $this->requiresAcceptance,
         ];
     }
 }

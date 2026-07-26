@@ -88,7 +88,8 @@ test('an owner can tag an existing account and the collaborator can edit but not
 
     expect($membership->user_id)->toBe($this->collaborator->id)
         ->and($membership->name)->toBe($this->collaborator->name)
-        ->and($membership->email)->toBe($this->collaborator->email);
+        ->and($membership->email)->toBe($this->collaborator->email)
+        ->and($membership->accepted_at)->toBeNull();
     Notification::assertSentTo($this->collaborator, ProposalActivityNotification::class);
     Notification::assertSentOnDemand(
         ProposalWorkspaceInvitation::class,
@@ -102,9 +103,41 @@ test('an owner can tag an existing account and the collaborator can edit but not
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Joined')
-        ->assertSee('Can open and edit every draft paper.')
+        ->assertSee('Invitation pending')
+        ->assertSee('Waiting for the collaborator to accept the invitation.')
         ->assertSee('Resend invitation');
+
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.index'))
+        ->assertOk()
+        ->assertDontSee('Shared Coastal Research');
+    $this->actingAs($this->outsider)
+        ->postJson(route('notifications.proposal-invitations.accept', $membership))
+        ->assertForbidden();
+    $this->actingAs($this->collaborator)
+        ->postJson(route('notifications.proposal-invitations.accept', $membership))
+        ->assertOk()
+        ->assertJson([
+            'accepted' => true,
+            'url' => route('faculty.proposal-drafts.show', $this->draft),
+        ]);
+
+    expect($membership->fresh()->accepted_at)->not->toBeNull();
+    Notification::assertSentTo(
+        $this->owner,
+        ProposalActivityNotification::class,
+        function (ProposalActivityNotification $notification): bool {
+            return $notification->title === 'Collaborator accepted invitation'
+                && str_contains($notification->message, 'Linked Collaborator accepted your invitation')
+                && $notification->url === route('faculty.proposal-drafts.show', $this->draft);
+        },
+    );
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Joined')
+        ->assertSee('Can open and edit every draft paper.');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.index'))

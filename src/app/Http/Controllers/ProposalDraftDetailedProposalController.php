@@ -91,7 +91,7 @@ class ProposalDraftDetailedProposalController extends Controller
                 'mime_type' => null,
                 'file_size' => null,
                 'checksum' => null,
-                'completed_at' => now(),
+                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
@@ -103,7 +103,9 @@ class ProposalDraftDetailedProposalController extends Controller
                     : 'faculty.proposal-drafts.detailed-proposal.edit',
                 $proposalDraft,
             )
-            ->with('success', 'Detailed Research Proposal saved.');
+            ->with('success', $request->boolean('save_as_draft')
+                ? 'Detailed Research Proposal saved as a draft.'
+                : 'Detailed Research Proposal saved.');
     }
 
     public function preview(

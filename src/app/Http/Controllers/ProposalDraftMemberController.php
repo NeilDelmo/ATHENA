@@ -6,7 +6,6 @@ use App\Actions\SendProposalWorkspaceInvitation;
 use App\Http\Requests\StoreProposalDraftMemberRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
-use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -39,20 +38,9 @@ class ProposalDraftMemberController extends Controller
                 'user_id' => $linkedUser?->getKey(),
                 'name' => $linkedUser?->name ?? $validated['name'],
                 'email' => $linkedUser?->email ?? $validated['email'],
+                'accepted_at' => null,
             ]);
         }, 3);
-
-        if ($linkedUser) {
-            try {
-                $linkedUser->notify(new ProposalActivityNotification(
-                    'Added to a proposal workspace',
-                    $proposalDraft->owner()->value('name').' added you to “'.$proposalDraft->project_title.'”.',
-                    route('faculty.proposal-drafts.show', $proposalDraft),
-                ));
-            } catch (Throwable $exception) {
-                report($exception);
-            }
-        }
 
         try {
             $sendInvitation->handle($proposalDraft, $membership);
@@ -71,7 +59,7 @@ class ProposalDraftMemberController extends Controller
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
-                ? 'Invitation sent to '.$linkedUser->name.'. They can now contribute to this proposal workspace.'
+                ? 'Invitation sent to '.$linkedUser->name.'. They can contribute after accepting it in ATHENA.'
                 : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.');
     }
 

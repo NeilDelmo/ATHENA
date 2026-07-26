@@ -9,6 +9,7 @@ use App\Models\ResearchCall;
 use App\Models\User;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ProposalWorkspacePeople;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class ProposalDraftController extends Controller
         return view('faculty.proposal-drafts.index', compact('proposalDrafts'));
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         Gate::authorize('create', ProposalDraft::class);
 
@@ -42,8 +43,11 @@ class ProposalDraftController extends Controller
             ->where('closes_at', '>=', now())
             ->orderBy('closes_at')
             ->get();
+        $selectedResearchCallId = $researchCalls
+            ->firstWhere('id', $request->integer('research_call_id'))
+            ?->id;
 
-        return view('faculty.proposal-drafts.create', compact('researchCalls'));
+        return view('faculty.proposal-drafts.create', compact('researchCalls', 'selectedResearchCallId'));
     }
 
     public function store(StoreProposalDraftRequest $request): RedirectResponse
@@ -53,14 +57,15 @@ class ProposalDraftController extends Controller
         $proposalDraft = $request->user()->proposalDrafts()->create($request->validated());
 
         return redirect()
-            ->route('faculty.proposal-drafts.details.edit', $proposalDraft)
-            ->with('success', 'Proposal draft created. Complete the shared project details next.');
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', 'Proposal draft created. Complete the project details in the workspace.');
     }
 
     public function show(
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         ProposalDraftReadiness $readiness,
+        ProposalWorkspacePeople $proposalWorkspacePeople,
     ): View {
         Gate::authorize('view', $proposalDraft);
 
@@ -73,6 +78,12 @@ class ProposalDraftController extends Controller
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);
+        $readyToSubmit = $readinessErrors === [];
+        $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
+        $minimumProjectDate = now()->toDateString();
+        $initialDuration = old('duration_months', $proposalDraft->duration_months);
+        $initialPlannedStart = old('planned_start', $proposalDraft->planned_start?->toDateString());
+        $initialPlannedEnd = old('planned_end', $proposalDraft->planned_end?->toDateString());
         $templates = $this->activeTemplates($catalog);
         $memberCandidates = Gate::allows('manageMembers', $proposalDraft)
             ? $this->memberCandidates($proposalDraft)
@@ -88,6 +99,12 @@ class ProposalDraftController extends Controller
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
+            'readyToSubmit',
+            'workspacePeople',
+            'minimumProjectDate',
+            'initialDuration',
+            'initialPlannedStart',
+            'initialPlannedEnd',
             'templates',
             'memberCandidates',
             'historyCount',

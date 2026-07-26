@@ -140,6 +140,10 @@ class ProposalDocumentVersionDiff
                 : 'Replaced '.$label.' with '.$document->original_filename.'.';
         }
 
+        if ($document->completed_at === null) {
+            return 'Saved '.$label.' as a draft.';
+        }
+
         if ($previous === null) {
             return 'Completed '.$label.'.';
         }

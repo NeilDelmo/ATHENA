@@ -19,6 +19,11 @@ test('the notification menu lists and marks proposal notifications as read', fun
         route('faculty.dashboard'),
         'warning',
         42,
+        route('notifications.proposal-invitations.accept', 1),
+        [
+            'proposal_title' => 'Shared Coastal Research',
+            'inviter_name' => 'Workspace Owner',
+        ],
     ));
 
     $notification = $faculty->notifications()->firstOrFail();
@@ -27,7 +32,8 @@ test('the notification menu lists and marks proposal notifications as read', fun
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertSee('Revision requested')
-        ->assertSee('Please update the proposal work plan.');
+        ->assertSee('Please update the proposal work plan.')
+        ->assertSee('Review invitation');
 
     $this->actingAs($faculty)
         ->getJson(route('notifications.index'))

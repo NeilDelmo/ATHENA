@@ -75,6 +75,17 @@ class ProposalDraftDocumentVersion extends Model
             ?? str($this->document_type)->replace('_', ' ')->title()->toString();
     }
 
+    public function displaySummary(): string
+    {
+        $summary = $this->change_summary ?: 'Saved '.$this->label();
+
+        if ($this->completed_at === null && blank($this->file_path) && str_starts_with($summary, 'Completed ')) {
+            return 'Saved '.$this->label().' as a draft.';
+        }
+
+        return $summary;
+    }
+
     public function hasStoredFile(): bool
     {
         return filled($this->file_path);

@@ -65,6 +65,7 @@
                     <span class="min-w-0 flex-1">
                         <span class="block text-xs font-black text-gray-800 dark:text-slate-100" x-text="item.data.title"></span>
                         <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="item.data.message"></span>
+                        <span x-show="item.data.action_url" class="mt-1 block text-[10px] font-bold uppercase tracking-wider text-blue-600">Review invitation</span>
                         <span class="mt-1 block text-[10px] font-semibold text-gray-400" x-text="item.created_at"></span>
                     </span>
                     <span x-show="!item.read_at" class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"></span>
@@ -90,7 +91,8 @@
                     <button type="button" @click="openNotification(toast.item); dismissToast(toast.id)" class="min-w-0 flex-1 text-left">
                         <span class="block text-xs font-black text-gray-900 dark:text-white" x-text="toast.item.data.title"></span>
                         <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="toast.item.data.message"></span>
-                        <span class="mt-2 block text-[10px] font-bold uppercase tracking-wider text-red-600">Open notification</span>
+                        <span x-show="toast.item.data.action_url" class="mt-2 block text-[10px] font-bold uppercase tracking-wider text-blue-600">Review invitation</span>
+                        <span x-show="!toast.item.data.action_url" class="mt-2 block text-[10px] font-bold uppercase tracking-wider text-red-600">Open notification</span>
                     </button>
                     <button type="button" @click="dismissToast(toast.id)" class="-mr-1 -mt-1 h-7 w-7 shrink-0 rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800" aria-label="Dismiss notification">
                         <svg class="mx-auto h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>

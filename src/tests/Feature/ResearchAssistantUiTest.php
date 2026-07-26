@@ -62,10 +62,14 @@ test('faculty and faculty researchers can open the research help facility', func
     $this->actingAs($researcher)
         ->get(route('research-support.index'))
         ->assertOk()
-        ->assertSee('Athena AI Workspace')
-        ->assertSee('AI Research Assistant')
-        ->assertSee('How can Athena help?')
+        ->assertSee('Research Support')
+        ->assertDontSee('AI Research Assistant')
         ->assertSee('RRL Finder')
+        ->assertSee('role="tablist"', false)
+        ->assertSee('role="tab"', false)
+        ->assertSee('activeResearchTool', false)
+        ->assertSee("x-show=\"activeResearchTool === 'rrl'\"", false)
+        ->assertSee("x-show=\"activeResearchTool === 'conference'\"", false)
         ->assertSee('Search related literature')
         ->assertSee('Semantic Scholar + Crossref + OpenAlex')
         ->assertSee('From year')
@@ -92,10 +96,16 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Reading public listings')
         ->assertSee('This can take a few seconds')
         ->assertSee('Ask Athena')
+        ->assertSee('Ask ATHENA')
+        ->assertSee('Expand to full workspace')
+        ->assertSee('Back to Research Support')
+        ->assertSee('Collapse to side panel')
         ->assertSee('Research prompt groups')
-        ->assertSee('x-html="$store.researchAssistant.renderMessage(message.content)"', false)
-        ->assertSee('Copy chat')
-        ->assertSee('Export .txt');
+        ->assertSee('data-assistant-full-workspace', false)
+        ->assertSee('data-assistant-workspace', false)
+        ->assertSee('openWorkspace()', false)
+        ->assertSee('collapseWorkspace()', false)
+        ->assertSee('workspaceOpen', false);
 })->with(['faculty', 'faculty_researcher']);
 
 test('all authenticated roles can open the assistant workspace', function (string $role) {
@@ -107,8 +117,8 @@ test('all authenticated roles can open the assistant workspace', function (strin
     $this->actingAs($user)
         ->get(route('research-support.index'))
         ->assertOk()
-        ->assertSee('Athena AI Workspace')
-        ->assertSee('How can Athena help?')
+        ->assertSee('Research Support')
+        ->assertSee('Ask ATHENA')
         ->assertDontSee('RRL Finder');
 })->with(['research_head', 'expert']);
 

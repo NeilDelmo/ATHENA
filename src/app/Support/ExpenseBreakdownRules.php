@@ -9,28 +9,33 @@ use Illuminate\Validation\Rule;
 class ExpenseBreakdownRules
 {
     /** @return array<string, ValidationRule|Closure|array<mixed>|string> */
-    public static function rules(): array
+    public static function rules(bool $allowDraft = false): array
     {
+        $presenceRule = $allowDraft ? 'nullable' : 'required';
+        $minimumItems = $allowDraft ? [] : ['min:1'];
+
         return [
-            'project_title' => ['required', 'string', 'max:255'],
-            'items' => ['required', 'array', 'min:1', 'max:'.config('expense_breakdown.max_items')],
-            'items.*' => [
-                'array:category,account,sub_account,particulars,details,purpose,unit,quantity,unit_cost',
-                function (string $attribute, mixed $value, Closure $fail): void {
-                    if (is_array($value) && ! self::groupingExists($value)) {
-                        $fail('The selected expense type, account, and sub-account do not match the official workbook.');
-                    }
-                },
-            ],
-            'items.*.category' => ['required', Rule::in(array_keys(config('expense_breakdown.categories')))],
-            'items.*.account' => ['required', 'string', Rule::in(self::accountLabels())],
-            'items.*.sub_account' => ['required', 'string', Rule::in(self::subAccountLabels())],
-            'items.*.particulars' => ['required', 'string', 'max:255'],
-            'items.*.details' => ['required', 'string', 'max:500'],
-            'items.*.purpose' => ['required', 'string', 'max:500'],
-            'items.*.unit' => ['required', 'string', 'max:50'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_quantity')],
-            'items.*.unit_cost' => ['required', 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_unit_cost')],
+            'project_title' => [$presenceRule, 'string', 'max:255'],
+            'items' => [$presenceRule, 'array', ...$minimumItems, 'max:'.config('expense_breakdown.max_items')],
+            'items.*' => $allowDraft
+                ? ['array']
+                : [
+                    'array:category,account,sub_account,particulars,details,purpose,unit,quantity,unit_cost',
+                    function (string $attribute, mixed $value, Closure $fail): void {
+                        if (is_array($value) && ! self::groupingExists($value)) {
+                            $fail('The selected expense type, account, and sub-account do not match the official workbook.');
+                        }
+                    },
+                ],
+            'items.*.category' => [$presenceRule, Rule::in(array_keys(config('expense_breakdown.categories')))],
+            'items.*.account' => [$presenceRule, 'string', Rule::in(self::accountLabels())],
+            'items.*.sub_account' => [$presenceRule, 'string', Rule::in(self::subAccountLabels())],
+            'items.*.particulars' => [$presenceRule, 'string', 'max:255'],
+            'items.*.details' => [$presenceRule, 'string', 'max:500'],
+            'items.*.purpose' => [$presenceRule, 'string', 'max:500'],
+            'items.*.unit' => [$presenceRule, 'string', 'max:50'],
+            'items.*.quantity' => [$presenceRule, 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_quantity')],
+            'items.*.unit_cost' => [$presenceRule, 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_unit_cost')],
         ];
     }
 

@@ -81,7 +81,7 @@
                                             @endif
                                         </div>
 
-                                        <p class="mt-2 text-sm font-bold text-gray-800">{{ $version->change_summary ?: 'Saved paper version' }}</p>
+                                        <p class="mt-2 text-sm font-bold text-gray-800">{{ $version->displaySummary() }}</p>
 
                                         @if ($version->hasStoredFile())
                                             <p class="mt-1 break-all text-xs font-semibold text-gray-700">{{ $version->original_filename }}</p>

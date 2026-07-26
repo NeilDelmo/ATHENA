@@ -1,7 +1,8 @@
 <section
-    id="ai-research-assistant"
-    class="athena-readable mb-8 flex min-h-[640px] scroll-mt-36 overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl shadow-gray-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 lg:h-[min(780px,calc(100dvh-10rem))]"
+    id="athena-assistant-workspace"
+    class="athena-readable flex h-full min-h-0 w-full overflow-hidden border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
     aria-labelledby="assistant-heading"
+    data-assistant-workspace
 >
     <aside class="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/80 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">
         <div class="border-b border-gray-200 p-4 dark:border-slate-800">
@@ -84,8 +85,11 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
                     <span class="hidden sm:inline">New chat</span>
                 </button>
-                <button type="button" @click="$store.researchAssistant.openDrawer($event.currentTarget)" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 dark:text-slate-400 dark:hover:bg-slate-800" aria-label="Open compact assistant" title="Open compact assistant">
+                <button type="button" @click="$store.researchAssistant.collapseWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Collapse to side panel" title="Collapse to side panel">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Back to Research Support" title="Back to Research Support">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
                 </button>
             </div>
         </header>

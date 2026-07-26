@@ -117,9 +117,9 @@
             <div
                 x-data="{
                     researchHelpOpen: @js(request()->routeIs('research-support.*')),
-                    activeResearchHelpSection: window.location.hash || '#ai-research-assistant',
+                    activeResearchHelpSection: window.location.hash || '#rrl-finder',
                 }"
-                @hashchange.window="activeResearchHelpSection = window.location.hash || '#ai-research-assistant'"
+                @hashchange.window="activeResearchHelpSection = window.location.hash || '#rrl-finder'"
                 data-research-help-menu
             >
                 <button
@@ -153,15 +153,6 @@
                     x-transition:leave-end="-translate-y-1 opacity-0"
                     class="mt-1 space-y-1 pl-8"
                 >
-                    <a
-                        href="{{ route('research-support.index') }}#ai-research-assistant"
-                        @click="activeResearchHelpSection = '#ai-research-assistant'; if (window.innerWidth < 640) sidebarOpen = false"
-                        :class="activeResearchHelpSection === '#ai-research-assistant' ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition"
-                    >
-                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>AI Research Assistant</span>
-                    </a>
                     <a
                         href="{{ route('research-support.index') }}#rrl-finder"
                         @click="activeResearchHelpSection = '#rrl-finder'; if (window.innerWidth < 640) sidebarOpen = false"

@@ -14,6 +14,11 @@ class ResearchCall extends Model
 
     protected $fillable = [
         'title', 'academic_year', 'term', 'description', 'opens_at', 'closes_at',
+        'reference_image_path',
+        'initial_evaluation_start_date', 'initial_evaluation_end_date',
+        'paper_revisions_start_date', 'paper_revisions_end_date',
+        'lrec_start_date', 'lrec_end_date',
+        'implementation_start_date', 'implementation_end_date',
         'max_active_research_per_faculty', 'maximum_budget', 'status', 'created_by',
     ];
 
@@ -22,6 +27,14 @@ class ResearchCall extends Model
         return [
             'opens_at' => 'datetime',
             'closes_at' => 'datetime',
+            'initial_evaluation_start_date' => 'date',
+            'initial_evaluation_end_date' => 'date',
+            'paper_revisions_start_date' => 'date',
+            'paper_revisions_end_date' => 'date',
+            'lrec_start_date' => 'date',
+            'lrec_end_date' => 'date',
+            'implementation_start_date' => 'date',
+            'implementation_end_date' => 'date',
             'maximum_budget' => 'decimal:2',
         ];
     }

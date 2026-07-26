@@ -72,7 +72,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
                 'mime_type' => null,
                 'file_size' => null,
                 'checksum' => null,
-                'completed_at' => now(),
+                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
@@ -90,7 +90,9 @@ class ProposalDraftCurriculumVitaeController extends Controller
                     : 'faculty.proposal-drafts.curriculum-vitae.edit',
                 $proposalDraft,
             )
-            ->with('success', 'Attachment C: Curriculum Vitae saved.');
+            ->with('success', $request->boolean('save_as_draft')
+                ? 'Attachment C: Curriculum Vitae saved as a draft.'
+                : 'Attachment C: Curriculum Vitae saved.');
     }
 
     public function preview(UpdateProposalDraftCurriculumVitaeRequest $request, ProposalDraft $proposalDraft): View

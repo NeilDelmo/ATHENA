@@ -7,7 +7,7 @@ test('proposal draft action forms use SweetAlert2 confirmations', function () {
     $viewPaths = [
         'resources/views/faculty/proposal-drafts/index.blade.php' => 'Delete draft',
         'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove collaborator',
-        'resources/views/faculty/proposal-drafts/review.blade.php' => 'Turn in proposal',
+        'resources/views/faculty/proposal-drafts/_review-package.blade.php' => 'Turn in proposal',
         'resources/views/faculty/proposal-drafts/history.blade.php' => 'Restore version',
         'resources/views/faculty/proposal-drafts/papers/edit.blade.php' => 'Remove file',
     ];
@@ -32,13 +32,41 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->and($appJavaScript)
         ->toContain("import Swal from 'sweetalert2';")
         ->toContain('Swal.fire({')
+        ->toContain('acceptProposalInvitation')
+        ->toContain("title: 'Join proposal workspace?'")
+        ->toContain("confirmButtonText: 'Accept invitation'")
+        ->toContain("title: 'You are now a collaborator'")
+        ->toContain('text: `You can now access the current draft')
+        ->toContain("confirmButtonText: 'Open draft'")
         ->toContain("form?.matches('[data-proposal-confirm]')")
         ->toContain("document.querySelectorAll('[data-proposal-alert]')")
         ->toContain('html: alert.innerHTML.trim()')
         ->toContain("title: 'Discard unsaved changes?'")
+        ->toContain("title: complete ? 'Save completed attachment?' : 'Save attachment as draft?'")
+        ->toContain("confirmButtonText: complete ? 'Save and exit' : 'Save draft'")
+        ->toContain('data-paper-save-mode')
         ->toContain("action.closest('[data-paper-editor]') ?? currentPaperEditor()")
         ->toContain("if (submitterSelector === '[data-paper-save]')")
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
+});
+
+test('generated paper editors support partial drafts and gate preview controls', function () {
+    foreach ([
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
+    ] as $editorView) {
+        $view = file_get_contents(base_path($editorView));
+
+        expect($view)
+            ->toContain('data-paper-draft-save="true"')
+            ->toContain('data-paper-save-mode')
+            ->toContain('novalidate')
+            ->toContain('x-bind:disabled="!isComplete()"')
+            ->toContain('Save and exit');
+    }
 });
 
 test('proposal flash feedback is marked for SweetAlert2 across the workspace', function () {

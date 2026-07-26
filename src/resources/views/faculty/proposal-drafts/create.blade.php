@@ -30,7 +30,7 @@
                         <select id="research_call_id" name="research_call_id" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600">
                             <option value="">Select an open research call</option>
                             @foreach ($researchCalls as $researchCall)
-                                <option value="{{ $researchCall->id }}" @selected((string) old('research_call_id') === (string) $researchCall->id)>{{ $researchCall->title }} — closes {{ $researchCall->closes_at->format('M j, Y') }}</option>
+                                <option value="{{ $researchCall->id }}" @selected((string) old('research_call_id', $selectedResearchCallId) === (string) $researchCall->id)>{{ $researchCall->title }} — closes {{ $researchCall->closes_at->format('M j, Y') }}</option>
                             @endforeach
                         </select>
                         @error('research_call_id')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror

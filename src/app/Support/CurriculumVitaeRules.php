@@ -8,8 +8,10 @@ use Illuminate\Validation\Rule;
 class CurriculumVitaeRules
 {
     /** @return array<string, ValidationRule|array<mixed>|string> */
-    public static function rules(): array
+    public static function rules(bool $allowDraft = false): array
     {
+        $presenceRule = $allowDraft ? 'nullable' : 'required';
+        $minimumPeople = $allowDraft ? [] : ['min:1'];
         $sectionKeys = array_keys(config('curriculum_vitae.sections'));
         $personKeys = [
             'last_name', 'first_name', 'middle_name', 'agency', 'gender', 'birthday',
@@ -17,10 +19,10 @@ class CurriculumVitaeRules
             ...$sectionKeys,
         ];
         $rules = [
-            'people' => ['required', 'array', 'min:1', 'max:'.config('curriculum_vitae.max_people')],
-            'people.*' => ['array:'.implode(',', $personKeys)],
-            'people.*.last_name' => ['required', 'string', 'max:120'],
-            'people.*.first_name' => ['required', 'string', 'max:120'],
+            'people' => [$presenceRule, 'array', ...$minimumPeople, 'max:'.config('curriculum_vitae.max_people')],
+            'people.*' => [$allowDraft ? 'array' : 'array:'.implode(',', $personKeys)],
+            'people.*.last_name' => [$presenceRule, 'string', 'max:120'],
+            'people.*.first_name' => [$presenceRule, 'string', 'max:120'],
             'people.*.middle_name' => ['nullable', 'string', 'max:120'],
             'people.*.agency' => ['nullable', 'string', 'max:255'],
             'people.*.gender' => ['nullable', Rule::in(['male', 'female'])],

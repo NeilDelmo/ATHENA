@@ -78,7 +78,7 @@ class ProposalDraftLineItemBudgetController extends Controller
                 'mime_type' => null,
                 'file_size' => null,
                 'checksum' => null,
-                'completed_at' => now(),
+                'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
         );
@@ -90,7 +90,9 @@ class ProposalDraftLineItemBudgetController extends Controller
                     : 'faculty.proposal-drafts.line-item-budget.edit',
                 $proposalDraft,
             )
-            ->with('success', 'Attachment B: Line-Item Budget saved.');
+            ->with('success', $request->boolean('save_as_draft')
+                ? 'Attachment B: Line-Item Budget saved as a draft.'
+                : 'Attachment B: Line-Item Budget saved.');
     }
 
     public function preview(UpdateProposalDraftLineItemBudgetRequest $request, ProposalDraft $proposalDraft): View

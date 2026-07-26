@@ -4,7 +4,7 @@
     @keydown.escape.window="$store.researchAssistant.closeDrawer()"
     class="athena-readable pointer-events-none fixed inset-0 z-[70]"
 >
-    <div x-show="$store.researchAssistant.drawerOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="pointer-events-auto absolute inset-0 bg-gray-950/45 backdrop-blur-sm xl:hidden" aria-hidden="true"></div>
+    <div x-show="$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="pointer-events-auto absolute inset-0 bg-gray-950/45 backdrop-blur-sm xl:hidden" aria-hidden="true"></div>
 
     <aside
         id="research-assistant-panel"
@@ -16,9 +16,10 @@
         x-transition:leave-start="translate-x-0"
         x-transition:leave-end="translate-x-full"
         role="dialog"
-        :aria-modal="$store.researchAssistant.isOverlayViewport() ? 'true' : null"
+        :aria-modal="$store.researchAssistant.workspaceOpen || $store.researchAssistant.isOverlayViewport() ? 'true' : null"
         aria-labelledby="research-assistant-drawer-title"
-        class="pointer-events-auto absolute inset-y-0 right-0 flex max-h-[100dvh] w-full flex-col border-l border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:w-[26rem] xl:w-[28rem]"
+        :class="$store.researchAssistant.workspaceOpen ? 'fixed inset-0 z-10 w-full border-0' : 'absolute inset-y-0 right-0 w-full border-l sm:w-[26rem] xl:w-[28rem]'"
+        class="pointer-events-auto flex max-h-[100dvh] flex-col border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
     >
         <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
             <div class="flex min-w-0 items-center gap-3">
@@ -31,7 +32,9 @@
                 </div>
             </div>
             <div class="flex items-center gap-1">
-                <a href="{{ route('research-support.index') }}" class="hidden rounded-xl px-3 py-2 text-[11px] font-bold text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white sm:inline-flex">Full workspace</a>
+                <button x-show="!$store.researchAssistant.workspaceOpen" type="button" @click="$store.researchAssistant.openWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Expand to full workspace" title="Expand to full workspace">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
                 <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Start a new chat" title="New chat">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
                 </button>

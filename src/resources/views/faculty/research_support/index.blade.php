@@ -3,39 +3,59 @@
         <div class="athena-readable">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">ATHENA assistant</span>
+                    <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">Research support</span>
                 </div>
-                <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Athena AI Workspace</h2>
-                <p class="mt-1 text-xs text-gray-500">Plan, refine, and strengthen your research with Athena and integrated discovery tools.</p>
+                <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Research Support</h2>
+                <p class="mt-1 text-xs text-gray-500">Find literature and publication venues for your research.</p>
             </div>
         </div>
     </x-slot>
 
-    <div class="athena-readable mb-5 overflow-x-auto border-b border-gray-200">
-        <nav class="flex min-w-max gap-6" aria-label="Research help tools">
-            <a href="{{ route('research-support.index') }}" aria-current="page" class="flex items-center gap-2 border-b-2 border-red-600 px-1 pb-3 text-xs font-black text-red-600">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
-                AI Research Assistant
-            </a>
-            <span class="flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-xs font-bold text-gray-400" aria-disabled="true">
-                Research Guides
-                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[8px] font-black uppercase">Soon</span>
-            </span>
-            <span class="flex items-center gap-2 border-b-2 border-transparent px-1 pb-3 text-xs font-bold text-gray-400" aria-disabled="true">
-                Document Insights
-                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[8px] font-black uppercase">Planned</span>
-            </span>
-        </nav>
-    </div>
-
-    <x-research-assistant-workspace />
-
     @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
-    <div class="athena-readable mb-3 mt-8">
+    <div
+        x-data="{
+            activeResearchTool: window.location.hash === '#conference-finder' ? 'conference' : 'rrl',
+        }"
+        @hashchange.window="activeResearchTool = window.location.hash === '#conference-finder' ? 'conference' : 'rrl'"
+    >
+        <div class="athena-readable mb-3 mt-8">
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Research discovery tools</p>
-    </div>
+        </div>
 
-    <x-rrl-finder />
+        <div class="athena-readable mb-5 overflow-x-auto border-b border-gray-200">
+            <nav class="flex min-w-max gap-6" aria-label="Research help tools" role="tablist">
+                <button
+                    type="button"
+                    role="tab"
+                    aria-controls="rrl-finder"
+                    :aria-selected="activeResearchTool === 'rrl'"
+                    @click="window.location.hash = 'rrl-finder'"
+                    :class="activeResearchTool === 'rrl' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'"
+                    class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition"
+                >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                    RRL Finder
+                </button>
+                <button
+                    type="button"
+                    role="tab"
+                    aria-controls="conference-finder"
+                    :aria-selected="activeResearchTool === 'conference'"
+                    @click="window.location.hash = 'conference-finder'"
+                    :class="activeResearchTool === 'conference' ? 'border-amber-600 text-amber-700' : 'border-transparent text-gray-500 hover:border-amber-300 hover:text-amber-700'"
+                    class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition"
+                >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 0 1 6 5.25h12a2.25 2.25 0 0 1 2.25 2.25v11.25M3.75 18.75A2.25 2.25 0 0 0 6 21h12a2.25 2.25 0 0 0 2.25-2.25M3.75 18.75v-7.5h16.5v7.5" /></svg>
+                    Conference Finder
+                </button>
+            </nav>
+        </div>
+
+        <div x-show="activeResearchTool === 'rrl'" x-cloak>
+            <x-rrl-finder />
+        </div>
+
+        <div x-show="activeResearchTool === 'conference'" x-cloak>
 
     <section id="conference-finder" class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">
         <div class="border-b border-gray-100 px-5 py-4">
@@ -150,6 +170,8 @@
         </div>
     </section>
 
+        </div>
+    </div>
     @endif
 
 </x-app-layout>

@@ -49,7 +49,7 @@
             class="flex min-h-screen flex-col bg-white pl-16 transition-[padding,background-color] duration-200 ease-out dark:bg-slate-950"
         >
             
-            <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8">
+            <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
                 <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-red-700 via-red-700 to-red-950 md:from-transparent md:via-red-700/70 md:to-red-950" aria-hidden="true"></div>
 
                 <div
@@ -79,6 +79,8 @@
                     </defs>
                     <rect width="100%" height="100%" fill="url(#athena-header-hexagons)" mask="url(#athena-header-pattern-mask)" />
                 </svg>
+
+                <div class="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[5px] bg-gradient-to-r from-red-700 via-red-400 to-yellow-400" aria-hidden="true"></div>
 
                 <div class="absolute right-8 top-3 z-10 hidden min-w-0 items-center gap-3 md:flex">
                     <div class="rounded-xl border border-white/15 bg-red-950/25 px-4 py-2 text-xs font-medium text-red-100 shadow-sm backdrop-blur-sm">
@@ -173,7 +175,10 @@
                 <header class="border-b border-gray-100 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         @if (request()->routeIs('faculty.proposal-drafts.*') && ! request()->routeIs('faculty.proposal-drafts.index'))
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                            <div
+                                :class="$store.researchAssistant.drawerOpen ? 'flex-col' : 'sm:flex-row sm:items-start'"
+                                class="flex gap-3"
+                            >
                                 <div class="min-w-0 flex-1">{{ $header }}</div>
                                 <x-paper-editor-shortcuts />
                             </div>
@@ -194,6 +199,15 @@
 
         @auth
             <x-research-assistant-drawer />
+            <div
+                x-cloak
+                x-show="$store.researchAssistant.workspaceOpen"
+                x-transition.opacity
+                class="fixed inset-0 z-[80] bg-white dark:bg-slate-900"
+                data-assistant-full-workspace
+            >
+                <x-research-assistant-workspace />
+            </div>
         @endauth
 
         <script>
