@@ -349,6 +349,7 @@ class TopicController extends Controller
                 route('topics.show', $topic),
                 'info',
                 $topic->id,
+                workspace: User::WORKSPACE_RESEARCH_HEAD,
             ),
         );
 
@@ -516,6 +517,7 @@ class TopicController extends Controller
                 route('topics.show', $topic),
                 'info',
                 $topic->id,
+                workspace: User::WORKSPACE_RESEARCH_HEAD,
             ),
         );
 

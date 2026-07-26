@@ -13,24 +13,25 @@ class NotificationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $notifications = $request->user()->visibleNotifications();
+
         return response()->json([
-            'notifications' => $request->user()->notifications()
-                ->latest()
-                ->limit(15)
-                ->get()
+            'notifications' => $notifications
+                ->take(15)
                 ->map(fn ($notification) => [
                     'id' => $notification->id,
                     'data' => $notification->data,
                     'read_at' => $notification->read_at?->toIso8601String(),
                     'created_at' => $notification->created_at->diffForHumans(),
                 ]),
-            'unread_count' => $request->user()->unreadNotifications()->count(),
+            'unread_count' => $notifications->whereNull('read_at')->count(),
         ]);
     }
 
     public function markRead(Request $request, string $notification): JsonResponse
     {
-        $storedNotification = $request->user()->notifications()->findOrFail($notification);
+        $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
+        abort_unless($storedNotification, 404);
         $storedNotification->markAsRead();
 
         return response()->json(['read' => true]);
@@ -38,7 +39,10 @@ class NotificationController extends Controller
 
     public function markAllRead(Request $request): JsonResponse
     {
-        $request->user()->unreadNotifications->markAsRead();
+        $request->user()
+            ->visibleNotifications()
+            ->whereNull('read_at')
+            ->each(fn ($notification) => $notification->markAsRead());
 
         return response()->json(['read' => true]);
     }

@@ -1,16 +1,19 @@
 @php
-    $notificationItems = Auth::user()->notifications()->latest()->limit(15)->get()->map(fn ($notification) => [
+    $visibleNotifications = Auth::user()->visibleNotifications();
+    $notificationItems = $visibleNotifications->take(15)->map(fn ($notification) => [
         'id' => $notification->id,
         'data' => $notification->data,
         'read_at' => $notification->read_at?->toIso8601String(),
         'created_at' => $notification->created_at->diffForHumans(),
     ])->values();
+    $unreadNotificationCount = $visibleNotifications->whereNull('read_at')->count();
 @endphp
 
 <div
     x-data="notificationMenu({
         notifications: {{ Js::from($notificationItems) }},
-        unreadCount: {{ Auth::user()->unreadNotifications()->count() }},
+        unreadCount: {{ $unreadNotificationCount }},
+        workspace: {{ Js::from(Auth::user()->activeWorkspace()) }},
         indexUrl: {{ Js::from(route('notifications.index')) }},
         readUrl: {{ Js::from(route('notifications.read', '__ID__')) }},
         readAllUrl: {{ Js::from(route('notifications.read-all')) }},

@@ -1011,6 +1011,12 @@ test('a PDF conversion failure keeps the complete draft available for another Tu
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->members()->create([
+        'user_id' => $this->otherFaculty->id,
+        'name' => $this->otherFaculty->name,
+        'email' => $this->otherFaculty->email,
+        'accepted_at' => now(),
+    ]);
     $draft->documents->each(
         fn ($document) => app(RecordProposalDraftDocumentVersion::class)
             ->handle($document, $this->faculty, 'Ready for Turn in.'),
@@ -1107,6 +1113,12 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->assertForbidden();
 
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
+    Notification::assertSentTo(
+        $this->otherFaculty,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal submitted for review'
+            && $notification->workspace === null,
+    );
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submit', $draftId))

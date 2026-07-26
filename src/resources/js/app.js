@@ -1876,6 +1876,7 @@ Alpine.data('notificationMenu', (config) => ({
     open: false,
     notifications: config.notifications,
     unreadCount: config.unreadCount,
+    workspace: config.workspace,
     toasts: [],
     knownNotificationIds: config.notifications.map((item) => item.id),
     poller: null,
@@ -1925,6 +1926,8 @@ Alpine.data('notificationMenu', (config) => ({
             created_at: 'Just now',
         };
 
+        if (!this.isVisible(item)) return;
+
         if (!this.notifications.some((existing) => existing.id === item.id)) {
             this.notifications.unshift(item);
             this.notifications = this.notifications.slice(0, 15);
@@ -1932,6 +1935,14 @@ Alpine.data('notificationMenu', (config) => ({
             this.knownNotificationIds.push(item.id);
             this.showToast(item);
         }
+    },
+
+    isVisible(item) {
+        const targetWorkspace = item.data?.workspace;
+
+        return !targetWorkspace
+            || targetWorkspace === this.workspace
+            || (Array.isArray(targetWorkspace) && targetWorkspace.includes(this.workspace));
     },
 
     showToast(item) {

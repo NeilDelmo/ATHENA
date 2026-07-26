@@ -6,9 +6,11 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -171,6 +173,40 @@ class User extends Authenticatable
         $workspace ??= $this->activeWorkspace();
 
         return self::workspaceDefinitions()[$workspace]['route'] ?? null;
+    }
+
+    /**
+     * @return Collection<int, DatabaseNotification>
+     */
+    public function visibleNotifications(?string $workspace = null): Collection
+    {
+        $workspace ??= $this->activeWorkspace();
+
+        return $this->notifications()
+            ->latest()
+            ->get()
+            ->filter(function (DatabaseNotification $notification) use ($workspace): bool {
+                $targetWorkspace = $this->notificationWorkspace($notification->data);
+
+                return $targetWorkspace === null
+                    || $targetWorkspace === $workspace
+                    || (is_array($targetWorkspace) && in_array($workspace, $targetWorkspace, true));
+            })
+            ->values();
+    }
+
+    private function notificationWorkspace(array $data): string|array|null
+    {
+        $targetWorkspace = $data['workspace'] ?? null;
+
+        if ($targetWorkspace !== null) {
+            return $targetWorkspace;
+        }
+
+        return in_array($data['title'] ?? null, [
+            'New proposal submitted',
+            'Proposal revision submitted',
+        ], true) ? self::WORKSPACE_RESEARCH_HEAD : null;
     }
 
     // for the proposal

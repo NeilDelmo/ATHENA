@@ -83,6 +83,39 @@ test('a user cannot mark another users notification as read', function () {
     expect($notification->fresh()->read_at)->toBeNull();
 });
 
+test('workspace-targeted notifications only appear in the matching workspace', function () {
+    Role::firstOrCreate(['name' => 'research_head']);
+
+    $head = User::factory()->create();
+    $head->assignRole(['faculty', 'research_head']);
+    $head->notify(new ProposalActivityNotification(
+        title: 'New proposal submitted',
+        message: 'A proposal is ready for review.',
+        url: route('research_head.dashboard'),
+        workspace: User::WORKSPACE_RESEARCH_HEAD,
+    ));
+    $head->notify(new ProposalActivityNotification(
+        title: 'Proposal revision submitted',
+        message: 'A revised proposal is ready for review.',
+        url: route('research_head.dashboard'),
+    ));
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($head)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(0, 'notifications')
+        ->assertJsonPath('unread_count', 0);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($head)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(2, 'notifications')
+        ->assertJsonPath('unread_count', 2)
+        ->assertJsonFragment(['workspace' => User::WORKSPACE_RESEARCH_HEAD]);
+});
+
 test('accepting an invitation keeps the notification but removes its review action', function () {
     $owner = User::factory()->create();
     $owner->assignRole('faculty');

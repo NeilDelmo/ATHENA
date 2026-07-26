@@ -18,6 +18,7 @@ class ProposalActivityNotification extends Notification
         public ?int $topicId = null,
         public ?string $actionUrl = null,
         public array $actionData = [],
+        public ?string $workspace = null,
     ) {}
 
     /**
@@ -41,6 +42,7 @@ class ProposalActivityNotification extends Notification
             'topic_id' => $this->topicId,
             'action_url' => $this->actionUrl,
             'action_data' => $this->actionData,
+            'workspace' => $this->workspace,
         ];
     }
 

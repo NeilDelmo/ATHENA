@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftMember;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -57,12 +58,14 @@ class SubmitProposalDraft
         $permanentDirectory = 'proposal-packages/'.$user->id.'/'.Str::uuid();
         $stagingDirectory = $draft->storageDirectory();
         $permanentFiles = [];
+        $collaboratorIds = [];
 
         try {
             $topic = DB::transaction(function () use (
                 $draft,
                 $user,
                 $permanentDirectory,
+                &$collaboratorIds,
                 &$permanentFiles,
             ): TopicProposal {
                 $lockedDraft = ProposalDraft::query()
@@ -80,7 +83,14 @@ class SubmitProposalDraft
                     ]);
                 }
 
-                $lockedDraft->load('researchCall');
+                $lockedDraft->load(['researchCall', 'members']);
+                $collaboratorIds = $lockedDraft->members
+                    ->filter(fn (ProposalDraftMember $member): bool => $member->isAccepted() && $member->user_id !== $user->id)
+                    ->pluck('user_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
                 $documents = ProposalDraftDocument::query()
                     ->where('proposal_draft_id', $lockedDraft->id)
                     ->orderBy('document_type')
@@ -177,13 +187,27 @@ class SubmitProposalDraft
             Notification::send(
                 User::role('research_head')->get(),
                 new ProposalActivityNotification(
-                    'New proposal submitted',
-                    $user->name.' submitted “'.$topic->title.'” for review.',
-                    route('topics.show', $topic),
-                    'info',
-                    $topic->id,
+                    title: 'New proposal submitted',
+                    message: $user->name.' submitted “'.$topic->title.'” for review.',
+                    url: route('topics.show', $topic),
+                    topicId: $topic->id,
+                    workspace: User::WORKSPACE_RESEARCH_HEAD,
                 ),
             );
+
+            $collaborators = User::query()->whereKey($collaboratorIds)->get();
+
+            if ($collaborators->isNotEmpty()) {
+                Notification::send(
+                    $collaborators,
+                    new ProposalActivityNotification(
+                        title: 'Proposal submitted for review',
+                        message: 'The collaborative proposal “'.$topic->title.'” was submitted for Research Head review.',
+                        url: route('faculty.dashboard'),
+                        topicId: $topic->id,
+                    ),
+                );
+            }
         } catch (Throwable $exception) {
             report($exception);
         }
