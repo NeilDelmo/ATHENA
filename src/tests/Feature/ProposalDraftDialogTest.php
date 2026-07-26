@@ -50,6 +50,33 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
 
+test('turning in a proposal shows a blocking progress screen after confirmation', function () {
+    $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $loadingScreen = Blade::render('<x-proposal-submission-loading-screen />');
+
+    expect($reviewPackage)
+        ->toContain('data-proposal-package-submit')
+        ->toContain('<x-proposal-submission-loading-screen />')
+        ->and($loadingScreen)
+        ->toContain('data-proposal-submission-loading')
+        ->toContain('hidden')
+        ->toContain('role="status"')
+        ->toContain('Finalizing proposal package')
+        ->toContain('generating six PDFs')
+        ->toContain('Excel Expense Breakdown')
+        ->toContain('Please keep this page open.')
+        ->and($appJavaScript)
+        ->toContain('showProposalSubmissionLoadingScreen(form)')
+        ->toContain("form.dataset.proposalSubmitting = 'true'")
+        ->toContain("form.setAttribute('aria-busy', 'true')")
+        ->toContain('loadingScreen.hidden = false')
+        ->toContain("if (form.dataset.proposalSubmitting === 'true')")
+        ->toContain("form.matches('[data-proposal-package-submit]')")
+        ->toContain('window.requestAnimationFrame(() =>')
+        ->toContain('HTMLFormElement.prototype.submit.call(form)');
+});
+
 test('generated paper editors support partial drafts and gate download controls', function () {
     foreach ([
         'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',

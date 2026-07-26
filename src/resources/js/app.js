@@ -277,13 +277,49 @@ async function navigateFromPaperEditor(editor, destination, message) {
     window.location.assign(destination);
 }
 
+function showProposalSubmissionLoadingScreen(form) {
+    const loadingScreen = form.querySelector('[data-proposal-submission-loading]');
+    const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+
+    form.dataset.proposalSubmitting = 'true';
+    form.setAttribute('aria-busy', 'true');
+
+    if (loadingScreen instanceof HTMLElement) {
+        loadingScreen.hidden = false;
+        loadingScreen.setAttribute('aria-hidden', 'false');
+    }
+
+    if (submitButton instanceof HTMLElement) {
+        submitButton.setAttribute('aria-disabled', 'true');
+        submitButton.classList.add('cursor-wait', 'opacity-70');
+
+        if (submitButton instanceof HTMLButtonElement) {
+            submitButton.textContent = 'Turning in\u2026';
+        }
+    }
+}
+
 document.addEventListener('submit', async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
 
     if (!form?.matches('[data-proposal-confirm]')) return;
 
+    if (form.dataset.proposalSubmitting === 'true') {
+        event.preventDefault();
+
+        return;
+    }
+
     if (form.dataset.proposalConfirmAccepted === 'true') {
         delete form.dataset.proposalConfirmAccepted;
+
+        if (form.matches('[data-proposal-package-submit]')) {
+            event.preventDefault();
+            showProposalSubmissionLoadingScreen(form);
+            window.requestAnimationFrame(() => {
+                window.requestAnimationFrame(() => HTMLFormElement.prototype.submit.call(form));
+            });
+        }
 
         return;
     }

@@ -230,11 +230,12 @@ class ProposalPackageService
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
 
-        return $this->storeGeneratedPdf(
+        return $this->storeGeneratedFile(
             $contents,
             $directory.'/expense-breakdown',
-            $filenameBase.'-estimated-expense-breakdown.pdf',
+            $filenameBase.'-estimated-expense-breakdown.xlsx',
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             $sourceData,
             'xlsx',
         );
@@ -320,10 +321,35 @@ class ProposalPackageService
             'xlsx' => $this->pdfConverter->convertXlsx($sourceContents),
             default => throw new RuntimeException('The generated paper format cannot be converted to PDF.'),
         };
-        $path = $directory.'/'.Str::uuid().'.pdf';
 
-        if (! Storage::disk('local')->put($path, $pdfContents)) {
-            throw new RuntimeException('The generated PDF could not be stored.');
+        return $this->storeGeneratedFile(
+            $pdfContents,
+            $directory,
+            $originalFilename,
+            $documentType,
+            'application/pdf',
+            $sourceData,
+            'pdf',
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $sourceData
+     * @return array<string, mixed>
+     */
+    private function storeGeneratedFile(
+        string $contents,
+        string $directory,
+        string $originalFilename,
+        string $documentType,
+        string $mimeType,
+        ?array $sourceData,
+        string $extension,
+    ): array {
+        $path = $directory.'/'.Str::uuid().'.'.$extension;
+
+        if (! Storage::disk('local')->put($path, $contents)) {
+            throw new RuntimeException('The generated proposal attachment could not be stored.');
         }
 
         return [
@@ -332,9 +358,9 @@ class ProposalPackageService
             'position' => 0,
             'file_path' => $path,
             'original_filename' => $originalFilename,
-            'mime_type' => 'application/pdf',
-            'file_size' => strlen($pdfContents),
-            'checksum' => hash('sha256', $pdfContents),
+            'mime_type' => $mimeType,
+            'file_size' => strlen($contents),
+            'checksum' => hash('sha256', $contents),
             'is_carried_forward' => false,
             'source_data' => $sourceData,
         ];

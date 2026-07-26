@@ -433,16 +433,27 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('data-paper-submit-status', false)
         ->assertSee('data-paper-save-exit', false);
 
-    $this->actingAs($this->faculty)
+    $reviewResponse = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.review', $draft))
         ->assertOk()
         ->assertSee('Review and Turn In')
         ->assertSee('Ready to turn in')
+        ->assertSee('Preview Detailed Proposal')
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
         ->assertSee('Proposal collaborators')
-        ->assertSee('seven immutable PDF attachments')
+        ->assertSee('six immutable PDF attachments and one Excel workbook')
         ->assertSee('Turn in proposal');
+
+    expect($reviewResponse->getContent())
+        ->toContain('href="'.route('faculty.proposal-drafts.expense-breakdown.edit', $draft).'"')
+        ->not->toContain('href="'.route('faculty.proposal-drafts.papers.edit', [$draft, 'expense-breakdown']).'"');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $draft))
+        ->assertOk()
+        ->assertSee('DETAILED RESEARCH PROPOSAL')
+        ->assertSee($draft->project_title);
 });
 
 test('project details are validated once and reused by the Work Plan workflow', function () {
@@ -1036,14 +1047,16 @@ test('final submission creates one immutable package then rejects a duplicate re
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
             ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
         ])->sort()->values()->all())
-        ->and($version->files->every(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'))->toBeTrue()
-        ->and($version->files->every(fn (ProposalVersionFile $file): bool => str_ends_with($file->original_filename, '.pdf')))->toBeTrue()
+        ->and($version->files->where('document_type', '!=', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->every(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'))->toBeTrue()
+        ->and($version->files->where('document_type', '!=', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->every(fn (ProposalVersionFile $file): bool => str_ends_with($file->original_filename, '.pdf')))->toBeTrue()
         ->and($version->files->every(fn (ProposalVersionFile $file): bool => strlen((string) $file->checksum) === 64))->toBeTrue()
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
         ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner')
         ->and($expenseBreakdown->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($expenseBreakdown->source_data['items'][0]['account'])->toBe('Communication Expenses')
+        ->and($expenseBreakdown->mime_type)->toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ->and($expenseBreakdown->original_filename)->toBe('coastal-habitat-restoration-estimated-expense-breakdown.xlsx')
         ->and($gadChecklist->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner')
         ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
@@ -1052,7 +1065,9 @@ test('final submission creates one immutable package then rejects a duplicate re
     $version->files->each(function (ProposalVersionFile $file): void {
         Storage::disk('local')->assertExists($file->file_path);
 
-        expect(Storage::disk('local')->get($file->file_path))->toStartWith('%PDF-');
+        expect(Storage::disk('local')->get($file->file_path))->toStartWith(
+            $file->document_type === ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN ? 'PK' : '%PDF-',
+        );
     });
     $stagedPaths->each(
         fn (string $path) => Storage::disk('local')->assertMissing($path),

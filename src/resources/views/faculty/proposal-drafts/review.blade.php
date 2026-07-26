@@ -4,7 +4,7 @@
             <div>
                 <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Review and Turn In</h2>
-                <p class="mt-1 text-xs text-gray-500">Confirm the shared details, seven PDF attachments, and proposal collaborators before turning in.</p>
+                <p class="mt-1 text-xs text-gray-500">Confirm the shared details, six PDF attachments, the Excel Expense Breakdown, and proposal collaborators before turning in.</p>
             </div>
             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $readyToSubmit ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $readyToSubmit ? 'Ready to turn in' : 'Incomplete package' }}</span>
         </div>

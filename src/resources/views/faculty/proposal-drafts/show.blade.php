@@ -201,6 +201,8 @@
                             default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]),
                         };
                         $paperAction = $paper['workspace_button_label'] ?? 'Open '.$paper['label'];
+                        $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
+                        $submissionFormat = $submissionExtension === 'XLSX' ? 'Excel workbook' : 'PDF';
                     @endphp
                     <article class="flex min-h-80 flex-col rounded-2xl border {{ $item['complete'] ? 'border-green-200' : 'border-gray-200' }} bg-white p-5 shadow-sm">
                         <div class="flex items-start justify-between gap-3">
@@ -216,7 +218,7 @@
                             @elseif ($item['documents']->isNotEmpty())
                                 @if ($paper['mode'] === 'generated')
                                     <p class="font-semibold">{{ $item['submission_filename'] }}</p>
-                                    <p class="mt-1 text-[11px] text-gray-500">PDF ready to generate &middot; Saved {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
+                                    <p class="mt-1 text-[11px] text-gray-500">{{ $submissionFormat }} ready to generate &middot; Saved {{ $item['documents']->first()->updated_at->diffForHumans() }}</p>
                                 @elseif ($paper['multiple'])
                                     <p class="font-semibold">{{ $item['count'] }} {{ Str::plural('file', $item['count']) }} staged</p>
                                 @else
@@ -240,7 +242,7 @@
             </div>
 
             <div class="mt-6 flex flex-col gap-3 rounded-2xl bg-gray-900 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div><p class="font-black text-white">Ready to turn in the proposal?</p><p class="mt-1 text-xs text-gray-300">Review the seven PDF attachments before sending the immutable package.</p></div>
+                <div><p class="font-black text-white">Ready to turn in the proposal?</p><p class="mt-1 text-xs text-gray-300">Review the six PDFs and Excel Expense Breakdown before sending the immutable package.</p></div>
                 <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
             </div>
         </section>
