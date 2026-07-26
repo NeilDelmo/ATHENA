@@ -265,6 +265,9 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
 Route::get('/research-coordinator/dashboard', [ResearchCoordinatorController::class, 'index'])
     ->middleware(['auth', 'role:research_coordinator'])
     ->name('research_coordinator.dashboard');
+Route::get('/research-coordinator/faculty-members', [ResearchCoordinatorController::class, 'members'])
+    ->middleware(['auth', 'role:research_coordinator'])
+    ->name('research_coordinator.members.index');
 
 Route::middleware(['auth', 'workspace:expert'])->group(function () {
     Route::get('/expert/dashboard', [ExpertReviewController::class, 'index'])->name('expert.dashboard');

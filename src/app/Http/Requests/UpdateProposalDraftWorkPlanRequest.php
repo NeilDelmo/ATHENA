@@ -39,10 +39,12 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
      */
     public function rules(): array
     {
+        $allowDraft = $this->allowsDraftValidation();
+
         return [
             ...WorkPlanRules::rules(
-                $this->boolean('save_as_draft') ? 'nullable' : 'required',
-                $this->boolean('save_as_draft'),
+                $allowDraft ? 'nullable' : 'required',
+                $allowDraft,
             ),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
@@ -58,7 +60,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         return WorkPlanRules::afterCallbacks(
             $this->input('entries'),
             $this->input('total_duration_months'),
-            $this->boolean('save_as_draft'),
+            $this->routeIs('faculty.proposal-drafts.work-plan.update') && $this->boolean('save_as_draft'),
         );
     }
 
@@ -66,5 +68,11 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
     public function attributes(): array
     {
         return WorkPlanRules::attributes();
+    }
+
+    private function allowsDraftValidation(): bool
+    {
+        return $this->routeIs('faculty.proposal-drafts.work-plan.preview')
+            || ($this->routeIs('faculty.proposal-drafts.work-plan.update') && $this->boolean('save_as_draft'));
     }
 }

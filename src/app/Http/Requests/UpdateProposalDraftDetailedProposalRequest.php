@@ -55,7 +55,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...DetailedProposalRules::rules($this->boolean('save_as_draft')),
+            ...DetailedProposalRules::rules($this->allowsDraftValidation()),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
@@ -65,7 +65,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     /** @return list<callable> */
     public function after(): array
     {
-        return DetailedProposalRules::afterCallbacks($this->boolean('save_as_draft'));
+        return DetailedProposalRules::afterCallbacks($this->allowsDraftValidation());
     }
 
     /** @return array<string, string> */
@@ -90,5 +90,11 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         );
 
         return (string) ($match['email'] ?? $draft->owner->email);
+    }
+
+    private function allowsDraftValidation(): bool
+    {
+        return $this->routeIs('faculty.proposal-drafts.detailed-proposal.preview')
+            || ($this->routeIs('faculty.proposal-drafts.detailed-proposal.update') && $this->boolean('save_as_draft'));
     }
 }

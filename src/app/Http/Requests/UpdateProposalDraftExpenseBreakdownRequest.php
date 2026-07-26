@@ -40,7 +40,7 @@ class UpdateProposalDraftExpenseBreakdownRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...ExpenseBreakdownRules::rules($this->boolean('save_as_draft')),
+            ...ExpenseBreakdownRules::rules($this->allowsDraftValidation()),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
@@ -51,5 +51,11 @@ class UpdateProposalDraftExpenseBreakdownRequest extends FormRequest
     public function attributes(): array
     {
         return ExpenseBreakdownRules::attributes();
+    }
+
+    private function allowsDraftValidation(): bool
+    {
+        return $this->routeIs('faculty.proposal-drafts.expense-breakdown.preview')
+            || ($this->routeIs('faculty.proposal-drafts.expense-breakdown.update') && $this->boolean('save_as_draft'));
     }
 }

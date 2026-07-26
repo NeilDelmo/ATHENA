@@ -92,6 +92,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('BatStateU-FO-RES-02 Rev. 04')
         ->assertSee('leader@g.batstate-u.edu.ph')
         ->assertSee('College of Informatics and Computing Sciences')
+        ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
         ->assertSee('From your profile')
         ->assertSee('Leave blank if not applicable')
         ->assertSee('III. Sustainable Development Goal')
@@ -173,6 +174,17 @@ test('the preview mirrors the official bordered form layout', function () {
     expect(substr_count($content, '☒'))->toBe(3)
         ->and(substr_count($content, '☐'))->toBe(18)
         ->and(substr_count($content, 'Php 0.00'))->toBe(2);
+});
+
+test('an incomplete detailed proposal can be previewed but not downloaded', function () {
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), [])
+        ->assertOk()
+        ->assertSee('DETAILED RESEARCH PROPOSAL');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), [])
+        ->assertSessionHasErrors();
 });
 
 test('structured detailed proposal data saves, resumes, and observes optimistic locking', function () {

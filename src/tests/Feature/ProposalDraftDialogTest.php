@@ -50,7 +50,7 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
 
-test('generated paper editors support partial drafts and gate preview controls', function () {
+test('generated paper editors support partial drafts and gate download controls', function () {
     foreach ([
         'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
         'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
@@ -64,7 +64,9 @@ test('generated paper editors support partial drafts and gate preview controls',
             ->toContain('data-paper-draft-save="true"')
             ->toContain('data-paper-save-mode')
             ->toContain('novalidate')
+            ->toContain('x-bind:disabled="previewLoading"')
             ->toContain('x-bind:disabled="!isComplete()"')
+            ->not->toContain('x-on:click="generatePreview" x-bind:disabled="!isComplete()"')
             ->toContain('Save and exit');
     }
 });

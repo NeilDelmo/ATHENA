@@ -12,20 +12,22 @@ class ExpenseBreakdownData
      */
     public static function fromValidated(array $validated): array
     {
-        $items = collect($validated['items'])
+        $items = collect($validated['items'] ?? [])
             ->map(function (array $item): array {
-                $isContingency = $item['category'] === 'mooe' && $item['account'] === 'Contingency';
-                $quantity = $isContingency ? 1.0 : round((float) $item['quantity'], 2);
-                $unitCost = round((float) $item['unit_cost'], 2);
+                $category = (string) ($item['category'] ?? '');
+                $account = (string) ($item['account'] ?? '');
+                $isContingency = $category === 'mooe' && $account === 'Contingency';
+                $quantity = $isContingency ? 1.0 : round((float) ($item['quantity'] ?? 0), 2);
+                $unitCost = round((float) ($item['unit_cost'] ?? 0), 2);
 
                 return [
-                    'category' => $item['category'],
-                    'account' => Str::squish($item['account']),
-                    'sub_account' => Str::squish($item['sub_account']),
-                    'particulars' => $isContingency ? 'N/A' : Str::squish($item['particulars']),
-                    'details' => $isContingency ? 'N/A' : Str::squish($item['details']),
-                    'purpose' => Str::squish($item['purpose']),
-                    'unit' => $isContingency ? '' : Str::squish($item['unit']),
+                    'category' => $category,
+                    'account' => Str::squish($account),
+                    'sub_account' => Str::squish((string) ($item['sub_account'] ?? '')),
+                    'particulars' => $isContingency ? 'N/A' : Str::squish((string) ($item['particulars'] ?? '')),
+                    'details' => $isContingency ? 'N/A' : Str::squish((string) ($item['details'] ?? '')),
+                    'purpose' => Str::squish((string) ($item['purpose'] ?? '')),
+                    'unit' => $isContingency ? '' : Str::squish((string) ($item['unit'] ?? '')),
                     'quantity' => $quantity,
                     'unit_cost' => $unitCost,
                     'total_cost' => round($quantity * $unitCost, 2),

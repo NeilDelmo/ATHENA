@@ -16,6 +16,9 @@
         readAllUrl: {{ Js::from(route('notifications.read-all')) }},
     })"
     class="relative"
+    data-notification-menu
+    @click.outside="open = false"
+    @keydown.escape.window="open = false"
 >
     <button
         type="button"
@@ -39,19 +42,25 @@
     <div
         x-cloak
         x-show="open"
-        @click.outside="open = false"
         x-transition
-        class="absolute right-0 z-50 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        class="fixed left-4 right-4 top-[7.5rem] z-[60] w-auto overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[22rem] sm:max-w-[calc(100vw-2rem)]"
+        role="dialog"
+        aria-label="Notifications"
     >
-        <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
             <div>
                 <p class="text-sm font-black text-gray-900 dark:text-white">Notifications</p>
                 <p class="text-[11px] font-semibold text-gray-400" x-text="unreadCount ? `${unreadCount} unread` : 'You are all caught up'"></p>
             </div>
-            <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="text-[11px] font-bold text-red-600 hover:text-red-700">Mark all read</button>
+            <div class="flex shrink-0 items-center gap-2">
+                <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="text-[11px] font-bold text-red-600 hover:text-red-700">Mark all read</button>
+                <button @click="open = false" type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
         </div>
 
-        <div class="max-h-96 overflow-y-auto">
+        <div class="max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto">
             <template x-if="notifications.length === 0">
                 <div class="px-6 py-10 text-center">
                     <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No notifications yet</p>

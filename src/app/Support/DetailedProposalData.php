@@ -11,42 +11,49 @@ class DetailedProposalData
      */
     public static function fromValidated(array $validated, array $budgetTotals = []): array
     {
+        $expectedOutputs = is_array($validated['expected_outputs'] ?? null)
+            ? $validated['expected_outputs']
+            : [];
+        $methodology = is_array($validated['methodology'] ?? null)
+            ? $validated['methodology']
+            : [];
+
         return [
-            'project_title' => self::text($validated['project_title']),
-            'research_agenda' => self::text($validated['research_agenda']),
-            'sdgs' => collect($validated['sdgs'])
+            'project_title' => self::text($validated['project_title'] ?? ''),
+            'research_agenda' => self::text($validated['research_agenda'] ?? ''),
+            'sdgs' => collect($validated['sdgs'] ?? [])
                 ->map(fn (mixed $sdg): int => (int) $sdg)
                 ->unique()
                 ->sort()
                 ->values()
                 ->all(),
-            'project_leader' => self::text($validated['project_leader']),
-            'leader_email' => self::text($validated['leader_email']),
-            'leader_contact' => self::text($validated['leader_contact']),
+            'project_leader' => self::text($validated['project_leader'] ?? ''),
+            'leader_email' => self::text($validated['leader_email'] ?? ''),
+            'leader_contact' => self::text($validated['leader_contact'] ?? ''),
             'staff' => self::rows($validated['staff'] ?? [], ['name', 'email', 'contact']),
             'proponent_agency' => (string) config('detailed_proposal.proponent_agency'),
             'proponent_department' => self::text($validated['proponent_department'] ?? ''),
-            'proponent_college' => self::text($validated['proponent_college']),
-            'proponent_campus' => self::text($validated['proponent_campus']),
+            'proponent_college' => self::text($validated['proponent_college'] ?? ''),
+            'proponent_campus' => self::text($validated['proponent_campus'] ?? ''),
             'cooperating_agency' => self::text($validated['cooperating_agency'] ?? ''),
-            'executive_brief' => self::narrative($validated['executive_brief']),
-            'rationale' => self::narrative($validated['rationale']),
-            'objectives' => self::narrative($validated['objectives']),
+            'executive_brief' => self::narrative($validated['executive_brief'] ?? ''),
+            'rationale' => self::narrative($validated['rationale'] ?? ''),
+            'objectives' => self::narrative($validated['objectives'] ?? ''),
             'expected_outputs' => collect(config('detailed_proposal.expected_outputs'))
                 ->mapWithKeys(fn (string $label, string $key): array => [
-                    $key => self::narrative($validated['expected_outputs'][$key] ?? ''),
+                    $key => self::narrative($expectedOutputs[$key] ?? ''),
                 ])
                 ->all(),
-            'related_literature' => self::narrative($validated['related_literature']),
+            'related_literature' => self::narrative($validated['related_literature'] ?? ''),
             'methodology' => [
-                'research_design' => self::narrative($validated['methodology']['research_design']),
-                'specific_methods' => self::narrative($validated['methodology']['specific_methods']),
-                'data_analysis' => self::narrative($validated['methodology']['data_analysis']),
+                'research_design' => self::narrative($methodology['research_design'] ?? ''),
+                'specific_methods' => self::narrative($methodology['specific_methods'] ?? ''),
+                'data_analysis' => self::narrative($methodology['data_analysis'] ?? ''),
             ],
-            'responsibilities' => self::rows($validated['responsibilities'], ['name', 'duties'], true),
+            'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'duties'], true),
             'mooe_total' => round((float) ($budgetTotals['mooe_total'] ?? 0), 2),
             'co_total' => round((float) ($budgetTotals['co_total'] ?? 0), 2),
-            'references' => self::narrative($validated['references']),
+            'references' => self::narrative($validated['references'] ?? ''),
         ];
     }
 

@@ -31,6 +31,8 @@ test('the notification menu lists and marks proposal notifications as read', fun
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
+        ->assertSee('data-notification-menu', false)
+        ->assertSee('aria-label="Close notifications"', false)
         ->assertSee('Revision requested')
         ->assertSee('Please update the proposal work plan.')
         ->assertSee('Review invitation');

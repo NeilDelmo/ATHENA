@@ -42,10 +42,13 @@ class ProposalDraftLineItemBudgetController extends Controller
         ProposalWorkspacePeople $proposalWorkspacePeople,
     ): View {
         Gate::authorize('update', $proposalDraft);
-        $proposalDraft->load('researchCall');
+        $proposalDraft->load(['researchCall', 'owner:id,college']);
         $paper = $catalog->get('line-item-budget');
         $lineItemBudgetDocument = $this->document($proposalDraft);
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
+        if (blank($sourceData['leader_college'] ?? null)) {
+            $sourceData['leader_college'] = (string) ($proposalDraft->owner?->college ?? '');
+        }
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
 
         return view('faculty.proposal-drafts.line-item-budget.edit', compact(

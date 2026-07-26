@@ -11,7 +11,7 @@ class CurriculumVitaeData
     public static function fromValidated(array $validated): array
     {
         return [
-            'people' => collect($validated['people'])
+            'people' => collect($validated['people'] ?? [])
                 ->map(fn (array $person): array => self::normalizePerson($person))
                 ->values()
                 ->all(),

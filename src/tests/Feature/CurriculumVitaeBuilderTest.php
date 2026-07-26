@@ -306,6 +306,16 @@ test('the preview repeats the complete official CV for every team member', funct
         ->assertSeeInOrder(['Faculty', 'Researcher', 'Researcher']);
 });
 
+test('an incomplete CV package can be previewed but not downloaded', function () {
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.curriculum-vitae.preview', $this->draft), [])
+        ->assertOk();
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), [])
+        ->assertSessionHasErrors();
+});
+
 test('the generated Word file preserves the official form and adds one complete block per team member', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), ($this->payload)())

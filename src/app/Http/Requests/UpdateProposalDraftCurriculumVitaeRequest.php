@@ -42,7 +42,7 @@ class UpdateProposalDraftCurriculumVitaeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            ...CurriculumVitaeRules::rules($this->boolean('save_as_draft')),
+            ...CurriculumVitaeRules::rules($this->allowsDraftValidation()),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
@@ -95,5 +95,11 @@ class UpdateProposalDraftCurriculumVitaeRequest extends FormRequest
         unset($person);
 
         $this->merge(['people' => $people]);
+    }
+
+    private function allowsDraftValidation(): bool
+    {
+        return $this->routeIs('faculty.proposal-drafts.curriculum-vitae.preview')
+            || ($this->routeIs('faculty.proposal-drafts.curriculum-vitae.update') && $this->boolean('save_as_draft'));
     }
 }

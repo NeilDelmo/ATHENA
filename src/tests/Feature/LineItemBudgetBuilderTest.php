@@ -89,7 +89,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('Researcher One')
         ->assertSee('Community consultation supplies')
         ->assertSee('Program Title stays empty')
-        ->assertSee('ARASOF-Nasugbu')
+        ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
         ->assertSee('value="CICS"', false)
         ->assertSee('value="CTE"', false)
         ->assertSee('value="CABEIHM"', false)
@@ -119,15 +119,31 @@ test('empty optional fields are accepted while totals remain automatic', functio
     $this->draft->update(['project_leader' => 'SHEENA LEI DELMO']);
 
     $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
+        ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
         ->assertOk()
         ->assertSee('Community Coastal Research')
-        ->assertSee('ARASOF-Nasugbu')
+        ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
         ->assertSee('Sheena Lei Delmo')
         ->assertDontSee('SHEENA LEI DELMO')
         ->assertSee('0.00')
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research');
+});
+
+test('the line-item preview remains available when shared project details are incomplete', function () {
+    $this->draft->update([
+        'duration_months' => null,
+        'planned_start' => null,
+        'planned_end' => null,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
+        ->assertOk();
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.line-item-budget.download', $this->draft), [])
+        ->assertSessionHasErrors();
 });
 
 test('the generated Word file preserves the official structure and fills dynamic rows', function () {

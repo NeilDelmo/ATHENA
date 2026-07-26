@@ -151,6 +151,17 @@ test('the preview follows the supplied official table and calculates grouped tot
         ->assertSee('106,364.00');
 });
 
+test('an incomplete expense breakdown can be previewed but not downloaded', function () {
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.expense-breakdown.preview', $this->draft), [])
+        ->assertOk()
+        ->assertSee('Estimated Breakdown and Details of Expenses');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.expense-breakdown.download', $this->draft), [])
+        ->assertSessionHasErrors();
+});
+
 test('the generated Excel file preserves the supplied workbook layout styles and formulas', function () {
     $validated = [
         'project_title' => $this->draft->project_title,

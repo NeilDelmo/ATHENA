@@ -2,7 +2,7 @@
 
 return [
     'template_path' => resource_path('documents/BatStateU-FO-RES-02-Line-Item-Budget.docx'),
-    'default_campus' => 'ARASOF-Nasugbu',
+    'default_campus' => 'BatStateU The NEU ARASOF-Nasugbu Campus',
     'college_options' => ['CICS', 'CTE', 'CABEIHM', 'CCJE', 'CAS', 'CHS'],
     'max_custom_items' => 50,
     'maximum_amount' => 999999999.99,

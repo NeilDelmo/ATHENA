@@ -58,6 +58,9 @@ class ProposalDraftDetailedProposalController extends Controller
             $workspacePeople,
             (string) ($request->user()?->college ?? ''),
         );
+        if (blank($sourceData['proponent_college'] ?? null)) {
+            $sourceData['proponent_college'] = (string) ($proposalDraft->owner?->college ?? $request->user()?->college ?? '');
+        }
         $budgetTotals = $this->budgetTotals($proposalDraft);
 
         return view('faculty.proposal-drafts.detailed-proposal.edit', compact(

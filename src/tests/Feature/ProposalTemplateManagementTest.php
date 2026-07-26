@@ -23,7 +23,19 @@ test('only a research head can manage proposal templates', function () {
     $this->actingAs($this->head)
         ->get(route('research_head.proposal-templates.index'))
         ->assertOk()
-        ->assertSee('Proposal Template Administration');
+        ->assertSee('Proposal Template Administration')
+        ->assertSee('templates-tab-upload', false)
+        ->assertSee('templates-tab-managed', false)
+        ->assertSee('templates-panel-upload', false)
+        ->assertSee('templates-panel-managed', false)
+        ->assertSee("activeTab === 'upload'", false)
+        ->assertSee("activeTab === 'managed'", false)
+        ->assertSee('border-b-2 px-1 pb-3 text-xs font-bold transition', false)
+        ->assertDontSee('flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-sm', false)
+        ->assertSee('data-proposal-template-dropzone', false)
+        ->assertSee('Drop or paste a template file')
+        ->assertSee('fileDropzone', false)
+        ->assertSee('maxBytes: 25600 * 1024', false);
 
     $this->actingAs($this->faculty)
         ->get(route('research_head.proposal-templates.index'))
@@ -46,6 +58,13 @@ test('a research head can upload replace and archive a proposal template', funct
 
     $template = ProposalTemplate::where('slug', 'ethics-clearance-guide')->firstOrFail();
     $originalPath = $template->file_path;
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.proposal-templates.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-template-replacement-dropzone', false)
+        ->assertSee('replacement_document_ethics-clearance-guide', false)
+        ->assertSee('Drop or paste a replacement file');
 
     Storage::disk('local')->assertExists($originalPath);
     expect($template->is_active)->toBeTrue()

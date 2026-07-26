@@ -1,6 +1,7 @@
 <x-guest-layout>
-    <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4 py-10 dark:bg-slate-950 sm:px-6">
-        <div class="absolute inset-0 opacity-70 [background-image:linear-gradient(to_right,#dc2626_1px,transparent_1px),linear-gradient(to_bottom,#dc2626_1px,transparent_1px)] [background-size:24px_24px] [mask-image:linear-gradient(to_bottom,black,transparent)] dark:opacity-[0.06] dark:[background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]" aria-hidden="true"></div>
+    <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-10 text-slate-900 transition-colors dark:bg-slate-950 dark:text-white sm:px-6">
+        <div class="absolute inset-0 bg-gradient-to-br from-red-100/90 via-white/75 to-slate-200/80 dark:from-red-950/35 dark:via-slate-950/65 dark:to-red-950/20" aria-hidden="true"></div>
+        <div class="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(to_right,#7f1d1d_1px,transparent_1px),linear-gradient(to_bottom,#7f1d1d_1px,transparent_1px)] [background-size:24px_24px] dark:opacity-[0.06] dark:[background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]" aria-hidden="true"></div>
 
         <section class="relative z-10 w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-white/60 bg-white shadow-2xl shadow-red-950/20 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30" aria-labelledby="role-selection-title">
             <header class="border-b border-slate-200 bg-gradient-to-r from-red-700 to-red-950 px-6 py-7 text-white sm:px-9">

@@ -24,21 +24,23 @@ class WorkPlanData
      */
     public static function fromValidated(array $validated): array
     {
-        $duration = (int) $validated['total_duration_months'];
+        $duration = (int) ($validated['total_duration_months'] ?? 0);
+        $plannedStart = self::date($validated['planned_start'] ?? null);
+        $plannedEnd = self::date($validated['planned_end'] ?? null);
 
         return [
-            'project_title' => $validated['project_title'],
+            'project_title' => (string) ($validated['project_title'] ?? ''),
             'total_duration_months' => $duration,
-            'total_duration_label' => $duration.' '.Str::plural('month', $duration),
-            'year_count' => (int) ceil($duration / 12),
-            'planned_start' => Carbon::parse($validated['planned_start'])->format('F j, Y'),
-            'planned_end' => Carbon::parse($validated['planned_end'])->format('F j, Y'),
-            'entries' => collect($validated['entries'])
+            'total_duration_label' => $duration > 0 ? $duration.' '.Str::plural('month', $duration) : '',
+            'year_count' => $duration > 0 ? (int) ceil($duration / 12) : 0,
+            'planned_start' => $plannedStart,
+            'planned_end' => $plannedEnd,
+            'entries' => collect($validated['entries'] ?? [])
                 ->map(fn (array $entry): array => [
-                    'objective' => $entry['objective'],
-                    'expected_output' => $entry['expected_output'],
-                    'activity' => $entry['activity'],
-                    'months' => collect($entry['months'])
+                    'objective' => (string) ($entry['objective'] ?? ''),
+                    'expected_output' => (string) ($entry['expected_output'] ?? ''),
+                    'activity' => (string) ($entry['activity'] ?? ''),
+                    'months' => collect($entry['months'] ?? [])
                         ->map(fn (string|int $month): int => (int) $month)
                         ->sort()
                         ->values()
@@ -46,9 +48,14 @@ class WorkPlanData
                 ])
                 ->values()
                 ->all(),
-            'prepared_by' => $validated['prepared_by'],
+            'prepared_by' => (string) ($validated['prepared_by'] ?? ''),
             'verified_by' => config('work_plan.verifier.name'),
             'verified_role' => config('work_plan.verifier.role'),
         ];
+    }
+
+    private static function date(mixed $value): string
+    {
+        return blank($value) ? '' : Carbon::parse($value)->format('F j, Y');
     }
 }

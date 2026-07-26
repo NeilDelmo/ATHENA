@@ -139,11 +139,6 @@
                 </div>
             </div>
 
-            <div class="flex gap-3 border-b border-red-100 bg-red-50/70 px-5 py-3 text-xs leading-5 text-red-800 dark:border-red-950 dark:bg-red-950/30 dark:text-red-200">
-                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-1.5a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12V16.5Z" /></svg>
-                <p><span class="font-black">Coordinator rules:</span> a member must have a college, and each college can have only one Research Coordinator. Assigning another member replaces the current coordinator for that college.</p>
-            </div>
-
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-100 dark:divide-slate-800">
                     <thead class="bg-gray-50 dark:bg-slate-950/50">

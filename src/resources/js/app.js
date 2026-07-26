@@ -1841,11 +1841,7 @@ Alpine.data('fileDropzone', (config = {}) => ({
         if (this.dragDepth === 0) this.dragging = false;
     },
 
-    drop(event) {
-        this.dragDepth = 0;
-        this.dragging = false;
-
-        const incoming = Array.from(event.dataTransfer?.files || []);
+    addFiles(incoming) {
         const accepted = incoming.filter((file) => this.accepts(file) && file.size <= config.maxBytes);
         const rejectedCount = incoming.length - accepted.length;
         const rejectionMessage = rejectedCount > 0
@@ -1863,6 +1859,27 @@ Alpine.data('fileDropzone', (config = {}) => ({
 
         this.setFiles(nextFiles);
         this.message = rejectionMessage;
+    },
+
+    drop(event) {
+        this.dragDepth = 0;
+        this.dragging = false;
+        this.addFiles(Array.from(event.dataTransfer?.files || []));
+    },
+
+    paste(event) {
+        const clipboardFiles = [
+            ...Array.from(event.clipboardData?.files || []),
+            ...Array.from(event.clipboardData?.items || [])
+                .filter((item) => item.kind === 'file')
+                .map((item) => item.getAsFile())
+                .filter(Boolean),
+        ];
+
+        if (clipboardFiles.length === 0) return;
+
+        event.preventDefault();
+        this.addFiles(this.uniqueFiles(clipboardFiles));
     },
 
     remove(index) {
@@ -2445,8 +2462,6 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     async generatePreview() {
-        if (!this.validateForm()) return;
-
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -2594,7 +2609,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
-        this.leaderCampus = String(data.leader_campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu');
+        this.leaderCampus = String(data.leader_campus ?? config.defaultCampus ?? 'BatStateU The NEU ARASOF-Nasugbu Campus');
         this.leaderCollege = String(data.leader_college ?? '');
         this.amounts = data.amounts && typeof data.amounts === 'object' ? { ...data.amounts } : {};
         this.staff = Array.isArray(data.staff) && data.staff.length
@@ -2624,7 +2639,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         return {
             id: this.nextId,
             name: String(values.name ?? ''),
-            campus: String(values.campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu'),
+            campus: String(values.campus ?? config.defaultCampus ?? 'BatStateU The NEU ARASOF-Nasugbu Campus'),
             college: String(values.college ?? ''),
         };
     },
@@ -2741,8 +2756,6 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     },
 
     async generatePreview() {
-        if (!this.validateForm()) return;
-
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -2983,8 +2996,6 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     },
 
     async generatePreview() {
-        if (!this.validateForm()) return;
-
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -3242,8 +3253,6 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     },
 
     async generatePreview() {
-        if (!this.validateForm()) return;
-
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -3502,8 +3511,6 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async generatePreview() {
-        if (!this.validateForm()) return;
-
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;

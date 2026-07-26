@@ -72,6 +72,37 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertDontSee('type="file"', false);
 });
 
+test('an incomplete Work Plan can be previewed but not downloaded', function () {
+    $call = ResearchCall::create([
+        'title' => 'Preview Work Plan Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 100000,
+        'status' => 'open',
+        'created_by' => $this->head->id,
+    ]);
+    $draft = ProposalDraft::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $call->id,
+        'project_title' => 'Community-led Coastal Habitat Restoration',
+        'duration_months' => 12,
+        'planned_start' => '2026-08-01',
+        'planned_end' => '2027-07-31',
+        'project_leader' => 'Faculty Project Leader',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.work-plan.preview', $draft), [])
+        ->assertOk()
+        ->assertSee('MAJOR ACTIVITIES/WORK PLAN');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.work-plan.download', $draft), [])
+        ->assertStatus(422);
+});
+
 test('the Work Plan preview and download are limited to faculty roles', function () {
     $this->post(route('faculty.work-plans.preview'), ($this->validWorkPlan)())
         ->assertUnauthorized();

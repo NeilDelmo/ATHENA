@@ -31,11 +31,11 @@ class LineItemBudgetData
 
         return [
             'program_title' => '',
-            'project_title' => $validated['project_title'],
-            'planned_start' => Carbon::parse($validated['planned_start'])->format('F j, Y'),
-            'planned_end' => Carbon::parse($validated['planned_end'])->format('F j, Y'),
-            'duration' => Carbon::parse($validated['planned_start'])->format('F j, Y').' - '.Carbon::parse($validated['planned_end'])->format('F j, Y'),
-            'project_leader' => self::personName((string) $validated['project_leader']),
+            'project_title' => (string) ($validated['project_title'] ?? ''),
+            'planned_start' => self::date($validated['planned_start'] ?? null),
+            'planned_end' => self::date($validated['planned_end'] ?? null),
+            'duration' => self::date($validated['planned_start'] ?? null).' - '.self::date($validated['planned_end'] ?? null),
+            'project_leader' => self::personName((string) ($validated['project_leader'] ?? '')),
             'leader_campus' => trim((string) ($validated['leader_campus'] ?? config('line_item_budget.default_campus'))),
             'leader_college' => trim((string) ($validated['leader_college'] ?? '')),
             'staff' => $staff,
@@ -63,6 +63,11 @@ class LineItemBudgetData
     public static function amount(mixed $value): ?float
     {
         return $value === null || $value === '' ? null : round((float) $value, 2);
+    }
+
+    private static function date(mixed $value): string
+    {
+        return blank($value) ? '' : Carbon::parse($value)->format('F j, Y');
     }
 
     private static function personName(string $name): string
