@@ -75,6 +75,7 @@ class ProposalDraftWorkPlanController extends Controller
                     : 'faculty.proposal-drafts.work-plan.edit',
                 $proposalDraft,
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Attachment A: Work Plan saved as a draft.'
                 : 'Attachment A: Work Plan saved.');

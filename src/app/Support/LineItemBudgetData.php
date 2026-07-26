@@ -7,6 +7,56 @@ use Illuminate\Support\Str;
 
 class LineItemBudgetData
 {
+    /**
+     * Convert saved Estimated Expense Breakdown rows into the matching
+     * standard Line-Item Budget amounts.
+     *
+     * @param  array<int, mixed>  $items
+     * @return array<string, float>
+     */
+    public static function amountsFromExpenseBreakdown(array $items): array
+    {
+        $amounts = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $category = (string) ($item['category'] ?? '');
+            $section = $category === 'capital_outlay' ? 'co' : 'mooe';
+            $subAccount = trim((string) ($item['sub_account'] ?? ''));
+            $account = trim((string) ($item['account'] ?? ''));
+            $targetLabel = $subAccount !== '' && $subAccount !== 'none'
+                ? $subAccount
+                : $account;
+
+            $lineItem = collect(config("line_item_budget.sections.{$section}.items", []))
+                ->filter(fn (array $lineItem): bool => $lineItem['label'] === $targetLabel)
+                ->sortByDesc('level')
+                ->first();
+
+            if (! is_array($lineItem)) {
+                continue;
+            }
+
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $unitCost = (float) ($item['unit_cost'] ?? 0);
+
+            if ($quantity <= 0 || $unitCost <= 0) {
+                continue;
+            }
+
+            $key = (string) $lineItem['key'];
+            $amounts[$key] = round(
+                ($amounts[$key] ?? 0) + round($quantity * $unitCost, 2),
+                2,
+            );
+        }
+
+        return $amounts;
+    }
+
     /** @param array<string, mixed> $validated @return array<string, mixed> */
     public static function fromValidated(array $validated): array
     {

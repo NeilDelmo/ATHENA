@@ -92,6 +92,7 @@ class ProposalDraftPaperController extends Controller
                     : 'faculty.proposal-drafts.papers.edit',
                 $request->boolean('exit_after_save') ? $proposalDraft : [$proposalDraft, $paper['slug']],
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $paper['label'].' saved.');
     }
 

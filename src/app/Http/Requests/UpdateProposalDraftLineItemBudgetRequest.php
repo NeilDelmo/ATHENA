@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
+use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,6 +32,19 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
             ->where('position', 0)
             ->value('source_data');
+        $expenseBreakdownSource = $draft->documents()
+            ->where('document_type', config('proposal_papers.expense-breakdown.document_type'))
+            ->where('position', 0)
+            ->value('source_data');
+        $savedAmounts = collect(is_array($savedSource) ? ($savedSource['amounts'] ?? []) : [])
+            ->filter(fn (mixed $amount): bool => $amount !== null && $amount !== '')
+            ->all();
+        $requestAmounts = $this->input('amounts', []);
+        $syncedAmounts = LineItemBudgetData::amountsFromExpenseBreakdown(
+            is_array($expenseBreakdownSource) && is_array($expenseBreakdownSource['items'] ?? null)
+                ? $expenseBreakdownSource['items']
+                : [],
+        );
 
         $merged = [
             ...(is_array($savedSource) ? array_replace($savedSource, $this->all()) : []),
@@ -38,6 +52,11 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
             'project_leader' => $draft->project_leader,
+            'amounts' => array_replace(
+                $syncedAmounts,
+                $savedAmounts,
+                is_array($requestAmounts) ? $requestAmounts : [],
+            ),
         ];
 
         if (blank($merged['leader_college'] ?? null)) {

@@ -103,6 +103,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertDontSee('Project leader college <span', false)
         ->assertSee('Ctrl + S')
         ->assertSee('Exit editor')
+        ->assertSee('#required-pdf-attachments', false)
         ->assertSee('Save and exit')
         ->assertDontSee('Save and stay');
 
@@ -112,7 +113,71 @@ test('the line item budget saves optional structured inputs and resumes them', f
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $saveAndExitPayload)
-        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertSessionHas('proposal_tab', 'attachments');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('activeProposalTab:', false)
+        ->assertSee('attachments', false);
+});
+
+test('the line item budget pre-fills matching amounts from an expense breakdown draft', function () {
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'source_data' => [
+            'items' => [
+                [
+                    'category' => 'mooe',
+                    'account' => 'Communication Expenses',
+                    'sub_account' => 'Telephone Expenses',
+                    'quantity' => 12,
+                    'unit_cost' => 300,
+                ],
+                [
+                    'category' => 'mooe',
+                    'account' => 'Professional Services',
+                    'sub_account' => 'Other Professional Services',
+                    'quantity' => 240,
+                    'unit_cost' => 219.85,
+                ],
+                [
+                    'category' => 'capital_outlay',
+                    'account' => 'Machinery and Equipment Outlay',
+                    'sub_account' => 'ICT Equipment',
+                    'quantity' => 1,
+                    'unit_cost' => 50000,
+                ],
+            ],
+        ],
+        'completed_at' => null,
+        'lock_version' => 1,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), [
+            'document_version' => 0,
+            'save_as_draft' => '1',
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft));
+
+    $lineItemBudget = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole();
+
+    expect($lineItemBudget->source_data['amounts'])
+        ->toMatchArray([
+            'telephone_expenses' => 3600.0,
+            'other_professional_services' => 52764.0,
+            'ict_equipment' => 50000.0,
+        ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Budget amounts prefilled');
 });
 
 test('empty optional fields are accepted while totals remain automatic', function () {

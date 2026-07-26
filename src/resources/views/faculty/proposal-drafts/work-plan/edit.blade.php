@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Build the official BatStateU-FO-RES-02 Work Plan from structured inputs.</p>
             </div>
-            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
+            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
         </div>
     </x-slot>
 
@@ -28,7 +28,7 @@
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.work-plan.edit', $proposalDraft) }}"
-        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
+        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
         x-data="proposalDraftWorkPlan({
             initialEntries: @js($initialEntries),
             maxEntries: @js(config('work_plan.max_objectives')),

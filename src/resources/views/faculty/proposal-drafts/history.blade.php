@@ -2,7 +2,9 @@
     @php
         $historySubject = $archived ? $topic : $proposalDraft;
         $indexRoute = $archived ? 'topics.draft-history.index' : 'faculty.proposal-drafts.history.index';
-        $backRoute = $archived ? route('topics.show', $topic) : route('faculty.proposal-drafts.show', $proposalDraft);
+        $backRoute = $archived
+            ? route('topics.show', $topic)
+            : route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments';
         $subjectTitle = $archived ? $topic->title : $proposalDraft->project_title;
     @endphp
 

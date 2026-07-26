@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official line-item budget through structured inputs.</p>
             </div>
-            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
+            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
         </div>
     </x-slot>
 
@@ -20,6 +20,9 @@
             && isset($sampleDefinition['path'])
             && \Illuminate\Support\Facades\Storage::disk('local')->exists($sampleDefinition['path']);
         $sections = config('line_item_budget.sections');
+        $expenseBreakdownHasDraft = is_array($expenseBreakdownDocument?->source_data)
+            && is_array($expenseBreakdownDocument->source_data['items'] ?? null)
+            && $expenseBreakdownDocument->source_data['items'] !== [];
     @endphp
 
     <div
@@ -29,7 +32,7 @@
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft) }}"
-        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
+        data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
         x-data="proposalDraftLineItemBudget({
             initialData: @js($initialData),
             sections: @js($sections),
@@ -70,11 +73,19 @@
             </div>
         @endunless
 
+        @if ($expenseBreakdownHasDraft)
+            <div role="status" class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                <p class="font-black">Budget amounts prefilled</p>
+                <p class="mt-1 leading-6">Matching amounts from the saved Estimated Expense Breakdown are filled into the Line-Item Budget. You can review or adjust them before saving.</p>
+            </div>
+        @endif
+
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
                     <p class="mt-1 text-xs text-gray-500">Program Title stays empty. Project title, duration, dates, and project leader come from Project Details.</p>
+                    <p class="mt-2 text-[11px] text-gray-500"><span class="text-red-600" aria-hidden="true">*</span> Required shared project detail.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
                     @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View sample</a>@endif
@@ -82,9 +93,9 @@
                 </div>
             </div>
             <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
-                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
-                <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper</dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
+                <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
+                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
+                <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Call budget ceiling</dt><dd class="mt-1 text-sm font-semibold text-gray-900">Php {{ number_format((float) $proposalDraft->researchCall->maximum_budget, 2) }}</dd></div>
             </dl>
         </section>

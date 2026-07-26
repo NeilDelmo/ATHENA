@@ -17,16 +17,21 @@
     @php
         $completedPaperCount = $checklist->where('complete', true)->count();
         $paperCount = $checklist->count();
+        $initialProposalTab = in_array(session('proposal_tab'), ['details', 'attachments', 'collaborators'], true)
+            ? session('proposal_tab')
+            : null;
     @endphp
 
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         x-data="{
-            activeProposalTab: window.location.hash === '#required-pdf-attachments'
-                ? 'attachments'
-                : window.location.hash === '#proposal-collaborators'
-                    ? 'collaborators'
-                    : 'details',
+            activeProposalTab: @js($initialProposalTab) || (
+                window.location.hash === '#required-pdf-attachments'
+                    ? 'attachments'
+                    : window.location.hash === '#proposal-collaborators'
+                        ? 'collaborators'
+                        : 'details'
+            ),
         }"
         @hashchange.window="activeProposalTab = window.location.hash === '#required-pdf-attachments' ? 'attachments' : window.location.hash === '#proposal-collaborators' ? 'collaborators' : 'details'"
     >

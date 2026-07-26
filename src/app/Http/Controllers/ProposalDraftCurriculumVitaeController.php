@@ -90,6 +90,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
                     : 'faculty.proposal-drafts.curriculum-vitae.edit',
                 $proposalDraft,
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Attachment C: Curriculum Vitae saved as a draft.'
                 : 'Attachment C: Curriculum Vitae saved.');

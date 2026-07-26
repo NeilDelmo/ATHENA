@@ -106,6 +106,7 @@ class ProposalDraftDetailedProposalController extends Controller
                     : 'faculty.proposal-drafts.detailed-proposal.edit',
                 $proposalDraft,
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Detailed Research Proposal saved as a draft.'
                 : 'Detailed Research Proposal saved.');

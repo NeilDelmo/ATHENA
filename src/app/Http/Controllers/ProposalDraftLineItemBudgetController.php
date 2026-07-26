@@ -45,7 +45,21 @@ class ProposalDraftLineItemBudgetController extends Controller
         $proposalDraft->load(['researchCall', 'owner:id,college']);
         $paper = $catalog->get('line-item-budget');
         $lineItemBudgetDocument = $this->document($proposalDraft);
+        $expenseBreakdownDocument = $proposalDraft->documents()
+            ->where('document_type', config('proposal_papers.expense-breakdown.document_type'))
+            ->where('position', 0)
+            ->first();
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
+        $expenseBreakdownItems = is_array($expenseBreakdownDocument?->source_data)
+            ? ($expenseBreakdownDocument->source_data['items'] ?? [])
+            : [];
+        $savedAmounts = collect($sourceData['amounts'] ?? [])
+            ->filter(fn (mixed $amount): bool => $amount !== null && $amount !== '')
+            ->all();
+        $sourceData['amounts'] = array_replace(
+            LineItemBudgetData::amountsFromExpenseBreakdown(is_array($expenseBreakdownItems) ? $expenseBreakdownItems : []),
+            $savedAmounts,
+        );
         if (blank($sourceData['leader_college'] ?? null)) {
             $sourceData['leader_college'] = (string) ($proposalDraft->owner?->college ?? '');
         }
@@ -55,6 +69,7 @@ class ProposalDraftLineItemBudgetController extends Controller
             'proposalDraft',
             'paper',
             'lineItemBudgetDocument',
+            'expenseBreakdownDocument',
             'sourceData',
             'workspacePeople',
         ));
@@ -93,6 +108,7 @@ class ProposalDraftLineItemBudgetController extends Controller
                     : 'faculty.proposal-drafts.line-item-budget.edit',
                 $proposalDraft,
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Attachment B: Line-Item Budget saved as a draft.'
                 : 'Attachment B: Line-Item Budget saved.');

@@ -66,6 +66,7 @@ class ProposalDraftExpenseBreakdownController extends Controller
                     : 'faculty.proposal-drafts.expense-breakdown.edit',
                 $proposalDraft,
             )
+            ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Estimated Expense Breakdown saved as a draft.'
                 : 'Estimated Expense Breakdown saved.');

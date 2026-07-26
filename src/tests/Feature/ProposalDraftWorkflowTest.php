@@ -356,8 +356,8 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSeeInOrder([
             'Detailed Research Proposal',
             'Attachment A: Work Plan',
-            'Attachment B: Line-Item Budget',
             'Estimated Expense Breakdown',
+            'Attachment B: Line-Item Budget',
             'Attachment C: Curriculum Vitae',
             'GAD Generic Checklist',
             'Initial Screening Form',
