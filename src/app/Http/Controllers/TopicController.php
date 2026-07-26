@@ -164,8 +164,6 @@ class TopicController extends Controller
             ->first();
 
         $paperCatalog = app(ProposalPaperCatalog::class);
-        $requiredDocuments = $paperCatalog->all()
-            ->mapWithKeys(fn (array $paper): array => [$paper['document_type'] => $paper['label']]);
         $paperOrder = $paperCatalog->all()
             ->pluck('order', 'document_type');
         $submittedFiles = ($latestVersion?->files ?? collect())
@@ -187,41 +185,13 @@ class TopicController extends Controller
                 && ($file->mime_type === 'application/pdf'
                     || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
             ->pluck('id');
-
-        $packageChecklist = collect($requiredDocuments)->map(function (string $label, string $type) use ($latestVersion, $topic) {
-            $files = $latestVersion?->files->where('document_type', $type) ?? collect();
-
-            if ($type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL && $files->isEmpty()) {
-                $legacyPath = $latestVersion?->file_path ?: ($topic->final_file_path ?: $topic->initial_file_path);
-                $available = $legacyPath && Storage::disk('local')->exists($legacyPath);
-
-                return [
-                    'type' => $type,
-                    'label' => $label,
-                    'count' => $available ? 1 : 0,
-                    'status' => $available ? 'complete' : 'missing',
-                ];
-            }
-
-            $availableCount = $files->filter(
-                fn (ProposalVersionFile $file) => Storage::disk('local')->exists($file->file_path),
-            )->count();
-
-            return [
-                'type' => $type,
-                'label' => $label,
-                'count' => $files->count(),
-                'status' => match (true) {
-                    $files->isEmpty() => 'missing',
-                    $availableCount !== $files->count() => 'file_missing',
-                    default => 'complete',
-                },
-            ];
-        })->values();
+        $previousProjectCost = $this->projectCostForVersion($previousVersion);
+        $latestProjectCost = $this->projectCostForVersion($latestVersion);
+        $displayProjectCost = $latestProjectCost ?? (float) $topic->estimated_budget;
 
         $comparisonRows = collect([
             ['label' => 'Project title', 'previous' => $previousVersion?->title, 'latest' => $latestVersion?->title],
-            ['label' => 'Total project cost', 'previous' => $previousVersion ? 'PHP '.number_format((float) $previousVersion->estimated_budget, 2) : null, 'latest' => $latestVersion ? 'PHP '.number_format((float) $latestVersion->estimated_budget, 2) : null],
+            ['label' => 'Total project cost', 'previous' => $previousProjectCost !== null ? 'PHP '.number_format($previousProjectCost, 2) : null, 'latest' => $latestProjectCost !== null ? 'PHP '.number_format($latestProjectCost, 2) : null],
             ['label' => 'Project duration', 'previous' => $previousVersion ? $previousVersion->estimated_duration_months.' months' : null, 'latest' => $latestVersion ? $latestVersion->estimated_duration_months.' months' : null],
             ['label' => 'Description', 'previous' => $previousVersion?->description ?: 'Not provided', 'latest' => $latestVersion?->description ?: 'Not provided'],
         ])->map(fn (array $row) => [
@@ -244,7 +214,7 @@ class TopicController extends Controller
             'topic',
             'latestVersion',
             'previousVersion',
-            'packageChecklist',
+            'displayProjectCost',
             'comparisonRows',
             'experts',
             'expertAssignment',
@@ -747,6 +717,18 @@ class TopicController extends Controller
             && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
 
         abort_unless($user->isUsingWorkspace('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
+    }
+
+    private function projectCostForVersion(?ProposalVersion $version): ?float
+    {
+        $lineItemBudget = $version?->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
+        $sourceData = $lineItemBudget?->source_data;
+
+        if (is_array($sourceData) && array_key_exists('project_total', $sourceData) && is_numeric($sourceData['project_total'])) {
+            return (float) $sourceData['project_total'];
+        }
+
+        return $version?->estimated_budget !== null ? (float) $version->estimated_budget : null;
     }
 
     /**

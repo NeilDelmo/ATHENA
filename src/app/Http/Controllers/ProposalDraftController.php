@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\CreateProposalRevisionDraft;
 use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalTemplate;
 use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
@@ -110,6 +112,25 @@ class ProposalDraftController extends Controller
             'historyCount',
             'recentActivity',
         ));
+    }
+
+    public function revision(
+        Request $request,
+        TopicProposal $topic,
+        CreateProposalRevisionDraft $createProposalRevisionDraft,
+    ): RedirectResponse {
+        abort_unless(
+            $topic->user_id === $request->user()->id
+                && $topic->status === 'revision_requested'
+                && $topic->research_call_id !== null,
+            403,
+        );
+
+        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+
+        return redirect()->to(
+            route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments',
+        );
     }
 
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse

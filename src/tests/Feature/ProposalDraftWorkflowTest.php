@@ -103,7 +103,7 @@ beforeEach(function () {
         'research_agenda' => 'Environment and Climate Change',
         'sdgs' => [13, 14, 17],
         'leader_email' => $this->faculty->email,
-        'leader_contact' => '+63 917 123 4567',
+        'leader_contact' => '09171234567',
         'staff' => [],
         'proponent_department' => 'Research Department',
         'proponent_college' => 'College of Arts and Sciences',
@@ -509,6 +509,31 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('Each 12-month block becomes a matching Attachment A year sheet.');
+});
+
+test('saving a revision workspace paper and exiting prompts the faculty member to open proposal review', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Coastal Habitat Restoration',
+        'estimated_budget' => 25000,
+        'estimated_duration_months' => 12,
+        'status' => 'revision_requested',
+    ]);
+    $draft = ($this->createDraft)(['topic_id' => $topic->id]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+            'exit_after_save' => '1',
+        ]))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+        ->assertSessionHas('proposal_revision_prompt', true);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('data-proposal-revision-prompt', false)
+        ->assertSee(route('topics.show', $topic).'#review-and-submit', false);
 });
 
 test('the GAD checklist is automatic and preserves every page of the supplied Box 7a document', function () {

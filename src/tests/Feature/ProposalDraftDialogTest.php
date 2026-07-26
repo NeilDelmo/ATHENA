@@ -50,6 +50,22 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
 
+test('revision save and exit prompts the faculty member to open proposal review', function () {
+    $workspaceView = file_get_contents(base_path('resources/views/faculty/proposal-drafts/show.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+
+    expect($workspaceView)
+        ->toContain("session('proposal_revision_prompt')")
+        ->toContain('data-proposal-revision-prompt')
+        ->toContain('#review-and-submit');
+
+    expect($appJavaScript)
+        ->toContain('initializeRevisionUploadPrompt')
+        ->toContain('Upload revised files to Proposal review?')
+        ->toContain('Open Proposal review')
+        ->toContain('Stay in workspace');
+});
+
 test('turning in a proposal shows a blocking progress screen after confirmation', function () {
     $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
     $appJavaScript = file_get_contents(resource_path('js/app.js'));

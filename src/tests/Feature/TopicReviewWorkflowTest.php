@@ -292,13 +292,58 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Auto-filled Comment-Response Form')
-        ->assertSee('Completed comment-response form');
+        ->assertSee('Completed comment-response form')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Save and submit revision')
+        ->assertSee('data-confirm-title="Upload this revision to the Research Head?"', false);
 
     $this->actingAs($head)
         ->get('/research-head/dashboard')
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
         ->assertSee('Waiting for faculty revision');
+});
+
+test('research details reads total project cost from the line-item budget attachment', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Budgeted coastal habitat restoration',
+        'estimated_budget' => 0,
+        'initial_file_path' => 'proposals/original.pdf',
+        'status' => 'revision_requested',
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/original.pdf',
+        'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'estimated_duration_months' => 12,
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'file_path' => 'proposal-packages/budget.xlsx',
+        'original_filename' => 'budget.xlsx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'source_data' => ['project_total' => 43210.5],
+        'is_carried_forward' => false,
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('PHP 43,210.50')
+        ->assertSee('value="43210.5"', false);
 });
 
 test('faculty can preview and download an auto-filled official Comment-Response Form during revision', function () {
@@ -530,6 +575,9 @@ test('faculty researchers can browse and open only their own research records', 
         ->assertOk()
         ->assertSee('revision requested')
         ->assertSee('PHP 14,500.00')
+        ->assertSee('Submitted proposal files')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Version comparison')
         ->assertSee('Proposal version history')
         ->assertSee('Version 1');
 
@@ -726,8 +774,12 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Proposal package checklist')
-        ->assertSee('7/7 complete');
+        ->assertSee('Submitted proposal files')
+        ->assertSee('Research details')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Version comparison')
+        ->assertSee('Proposal version history')
+        ->assertDontSee('Proposal package checklist');
 
     $this->actingAs($head)
         ->get(route('topics.show', $topic))

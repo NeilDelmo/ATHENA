@@ -107,6 +107,7 @@ class ProposalDraftDetailedProposalController extends Controller
                 $proposalDraft,
             )
             ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
+            ->with('proposal_revision_prompt', $request->boolean('exit_after_save') && $proposalDraft->topic_id !== null)
             ->with('success', $request->boolean('save_as_draft')
                 ? 'Detailed Research Proposal saved as a draft.'
                 : 'Detailed Research Proposal saved.');

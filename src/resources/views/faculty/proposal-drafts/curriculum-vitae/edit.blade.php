@@ -104,12 +104,13 @@
                         <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
                         <div class="grid gap-4 border-t border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
+                                @php($isContactNumber = in_array($key, ['landline', 'cellphone'], true))
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`cv-${person.id}-{{ $key }}`">{{ $label }} @if ($required)<span class="text-red-600">Required</span>@endif</label>
                                     @if ($key === 'birthday')
                                         <x-date-picker id-expression="`cv-${person.id}-{{ $key }}`" name-expression="`people[${personIndex}][{{ $key }}]`" model="person.{{ $key }}" :max="now()->toDateString()" class="mt-1.5" />
                                     @else
-                                        <input :id="`cv-${person.id}-{{ $key }}`" :name="`people[${personIndex}][{{ $key }}]`" type="{{ $key === 'email' ? 'email' : 'text' }}" maxlength="{{ $key === 'agency' || $key === 'email' ? 255 : 120 }}" x-model="person.{{ $key }}" @if ($required) required @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                        <input :id="`cv-${person.id}-{{ $key }}`" :name="`people[${personIndex}][{{ $key }}]`" type="{{ $key === 'email' ? 'email' : ($isContactNumber ? 'tel' : 'text') }}" maxlength="{{ $isContactNumber ? 11 : ($key === 'agency' || $key === 'email' ? 255 : 120) }}" @if ($isContactNumber) inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" @endif x-model="person.{{ $key }}" @if ($isContactNumber) x-on:input="person.{{ $key }} = normalizeContactNumber($event.target.value); $event.target.value = person.{{ $key }}" @endif @if ($required) required @endif class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                     @endif
                                 </div>
                             @endforeach

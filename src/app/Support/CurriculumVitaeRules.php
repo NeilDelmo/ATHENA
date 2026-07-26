@@ -31,8 +31,8 @@ class CurriculumVitaeRules
             'people.*.barangay' => ['nullable', 'string', 'max:120'],
             'people.*.municipality' => ['nullable', 'string', 'max:120'],
             'people.*.province' => ['nullable', 'string', 'max:120'],
-            'people.*.landline' => ['nullable', 'string', 'max:50'],
-            'people.*.cellphone' => ['nullable', 'string', 'max:50'],
+            'people.*.landline' => ['nullable', 'digits:11'],
+            'people.*.cellphone' => ['nullable', 'digits:11'],
             'people.*.email' => ['nullable', 'email', 'max:255'],
         ];
 

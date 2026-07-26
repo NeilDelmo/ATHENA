@@ -87,6 +87,7 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::get('/', [ProposalDraftController::class, 'index'])->name('index');
         Route::get('/create', [ProposalDraftController::class, 'create'])->name('create');
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
+        Route::get('/revision/{topic}', [ProposalDraftController::class, 'revision'])->name('revision');
         Route::get('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'edit'])->name('details.edit');
         Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
         Route::get('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'edit'])->name('detailed-proposal.edit');

@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -127,5 +128,16 @@ test('sending a revision request publishes highlights for the faculty', function
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertOk()
         ->assertSee('Read-only annotations')
-        ->assertSee('Replace this table with the corrected quarterly schedule.');
+        ->assertSee('Replace this table with the corrected quarterly schedule.')
+        ->assertSee('Edit in proposal workspace')
+        ->assertSee(route('faculty.proposal-drafts.revision', $this->topic), false);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.revision', $this->topic))
+        ->assertRedirect(route('faculty.proposal-drafts.show', ProposalDraft::query()->where('topic_id', $this->topic->id)->sole()).'#required-pdf-attachments');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', ProposalDraft::query()->where('topic_id', $this->topic->id)->sole()))
+        ->assertOk()
+        ->assertSee('Required PDF attachments');
 });

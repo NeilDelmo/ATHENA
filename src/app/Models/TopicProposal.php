@@ -74,6 +74,11 @@ class TopicProposal extends Model
         return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');
     }
 
+    public function revisionDraft(): HasOne
+    {
+        return $this->hasOne(ProposalDraft::class, 'topic_id');
+    }
+
     public function progressReports(): HasMany
     {
         return $this->hasMany(ProjectProgressReport::class, 'topic_id')->latest('reporting_date');

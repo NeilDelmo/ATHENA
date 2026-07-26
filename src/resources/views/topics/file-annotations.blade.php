@@ -2,11 +2,16 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <a href="{{ Auth::user()->isUsingWorkspace('research_head') ? route('topics.head-uploads.index', $topic) : route('topics.show', $topic) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; {{ Auth::user()->isUsingWorkspace('research_head') ? 'Review and upload files' : 'Revision details' }}</a>
+                <a href="{{ Auth::user()->isUsingWorkspace('research_head') ? route('topics.head-uploads.index', $topic) : route('faculty.proposal-drafts.revision', $topic) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; {{ Auth::user()->isUsingWorkspace('research_head') ? 'Review and upload files' : 'Proposal workspace' }}</a>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">PDF Revision Annotations</h2>
                 <p class="mt-1 text-xs text-gray-500">{{ $file->label() }} · {{ $file->original_filename }} · Version {{ $version->version_number }}</p>
             </div>
-            <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $canAnnotate ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700' }}">{{ $canAnnotate ? 'Annotation mode' : 'Read-only annotations' }}</span>
+            <div class="flex flex-wrap items-center gap-2">
+                @if (! $canAnnotate && $topic->user_id === Auth::id() && $topic->status === 'revision_requested')
+                    <a href="{{ route('faculty.proposal-drafts.revision', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit in proposal workspace</a>
+                @endif
+                <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $canAnnotate ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700' }}">{{ $canAnnotate ? 'Annotation mode' : 'Read-only annotations' }}</span>
+            </div>
         </div>
     </x-slot>
 
@@ -17,7 +22,7 @@
     >
         @unless ($canAnnotate)
             <div class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-                These comments are read-only. The submitted faculty PDF remains unchanged; the highlights are stored as ATHENA revision records.
+                These comments are read-only. The submitted faculty PDF remains unchanged; the highlights are stored as ATHENA revision records. Use <span class="font-black">Edit in proposal workspace</span> after reviewing the comments to prepare the replacement files.
             </div>
         @endunless
 

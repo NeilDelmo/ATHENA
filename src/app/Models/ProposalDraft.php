@@ -16,6 +16,7 @@ class ProposalDraft extends Model
     protected $fillable = [
         'user_id',
         'research_call_id',
+        'topic_id',
         'project_title',
         'duration_months',
         'planned_start',
@@ -47,6 +48,11 @@ class ProposalDraft extends Model
     public function researchCall(): BelongsTo
     {
         return $this->belongsTo(ResearchCall::class);
+    }
+
+    public function topic(): BelongsTo
+    {
+        return $this->belongsTo(TopicProposal::class, 'topic_id');
     }
 
     public function documents(): HasMany

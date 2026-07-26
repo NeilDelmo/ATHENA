@@ -44,11 +44,11 @@ beforeEach(function () {
         'research_agenda' => 'Environment, Natural Resources, and Climate Change',
         'sdgs' => [1, 10, 17],
         'leader_email' => 'leader@g.batstate-u.edu.ph',
-        'leader_contact' => '+63 917 123 4567',
+        'leader_contact' => '09171234567',
         'staff' => [[
             'name' => 'Research Staff Member',
             'email' => 'staff@g.batstate-u.edu.ph',
-            'contact' => '+63 918 765 4321',
+            'contact' => '09187654321',
         ]],
         'proponent_department' => 'Department of Computing Sciences',
         'proponent_college' => 'College of Informatics and Computing Sciences',
@@ -104,7 +104,29 @@ test('the detailed proposal editor uses the official sections and account defaul
     expect($response->getContent())
         ->toContain('id="proponent-department" name="proponent_department" type="text" maxlength="255"')
         ->not->toContain('id="proponent-department" name="proponent_department" type="text" required')
-        ->toContain('id="proponent-college" name="proponent_college" type="text" required');
+        ->toContain('id="proponent-college" name="proponent_college" type="text" required')
+        ->toContain('id="leader-contact" name="leader_contact" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}"');
+});
+
+test('detailed proposal contact numbers must contain exactly 11 digits', function () {
+    $payload = ($this->payload)([
+        'leader_contact' => '0917123456',
+        'staff' => [[
+            'name' => 'Research Staff Member',
+            'email' => 'staff@g.batstate-u.edu.ph',
+            'contact' => '0918765432A',
+        ]],
+    ]);
+
+    $response = $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect();
+
+    $errors = $response->getSession()->get('errors')['default']['messages'];
+
+    expect(array_keys($errors))
+        ->toContain('leader_contact')
+        ->toContain('staff.0.contact');
 });
 
 test('the college is restored from the signed in user while department may remain blank', function () {

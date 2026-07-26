@@ -161,8 +161,10 @@ async function initializeProposalAlerts() {
     }
 }
 
-void initializeProposalAlerts();
-document.addEventListener('livewire:navigated', () => void initializeProposalAlerts());
+void initializeProposalAlerts().then(() => initializeRevisionUploadPrompt());
+document.addEventListener('livewire:navigated', () => {
+    void initializeProposalAlerts().then(() => initializeRevisionUploadPrompt());
+});
 
 function formatProposalVersionTimestamp(value) {
     if (!value) return '';
@@ -297,6 +299,27 @@ function showProposalSubmissionLoadingScreen(form) {
             submitButton.textContent = 'Turning in\u2026';
         }
     }
+}
+
+async function initializeRevisionUploadPrompt() {
+    const prompt = document.querySelector('[data-proposal-revision-prompt]');
+
+    if (! (prompt instanceof HTMLElement) || prompt.dataset.proposalRevisionPromptReady === 'true') return;
+
+    prompt.dataset.proposalRevisionPromptReady = 'true';
+    const destination = prompt.dataset.destination;
+
+    if (!destination) return;
+
+    const isConfirmed = await showProposalConfirmation({
+        title: 'Upload revised files to Proposal review?',
+        text: 'Your revision changes are saved. Continue to the Proposal review and decision timeline to upload and submit the revised package to the Research Head?',
+        confirmButtonText: 'Open Proposal review',
+        cancelButtonText: 'Stay in workspace',
+        icon: 'question',
+    });
+
+    if (isConfirmed) window.location.assign(destination);
 }
 
 document.addEventListener('submit', async (event) => {
@@ -3385,8 +3408,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             barangay: String(values.barangay ?? ''),
             municipality: String(values.municipality ?? ''),
             province: String(values.province ?? ''),
-            landline: String(values.landline ?? ''),
-            cellphone: String(values.cellphone ?? ''),
+            landline: this.normalizeContactNumber(values.landline),
+            cellphone: this.normalizeContactNumber(values.cellphone),
             email: String(values.email ?? ''),
         };
 
@@ -3426,6 +3449,10 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         }
 
         return row;
+    },
+
+    normalizeContactNumber(value) {
+        return String(value ?? '').replace(/\D/g, '').slice(0, 11);
     },
 
     updateAcademicStatus(row, status) {
@@ -3642,7 +3669,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.researchAgenda = String(data.research_agenda ?? '');
         this.sdgs = Array.isArray(data.sdgs) ? data.sdgs.map((sdg) => Number(sdg)) : [];
         this.leaderEmail = String(data.leader_email ?? '');
-        this.leaderContact = String(data.leader_contact ?? '');
+        this.leaderContact = this.normalizeContactNumber(data.leader_contact);
         this.staff = Array.isArray(data.staff)
             ? data.staff.map((member) => this.newStaff(member))
             : [];
@@ -3674,7 +3701,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             key: String(values.key ?? ''),
             name: String(values.name ?? ''),
             email: String(values.email ?? ''),
-            contact: String(values.contact ?? ''),
+            contact: this.normalizeContactNumber(values.contact),
         };
     },
 
@@ -3686,6 +3713,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             name: String(values.name ?? ''),
             duties: String(values.duties ?? ''),
         };
+    },
+
+    normalizeContactNumber(value) {
+        return String(value ?? '').replace(/\D/g, '').slice(0, 11);
     },
 
     availableWorkspacePeople() {
