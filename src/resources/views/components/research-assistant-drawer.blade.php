@@ -45,7 +45,7 @@
         </header>
 
         <div class="border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
-            <span class="font-black">Grounded assistance:</span> Matching approved ATHENA knowledge is retrieved automatically and disclosed with grounded answers. This conversation is not saved. Avoid sharing confidential participant data.
+            <span class="font-black">Grounded assistance:</span> Matching approved ATHENA knowledge is retrieved automatically and disclosed with grounded answers. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
         </div>
 
         <div data-assistant-messages class="flex-1 overflow-y-auto scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">

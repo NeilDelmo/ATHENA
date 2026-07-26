@@ -226,6 +226,15 @@ Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController
 
 Route::middleware('auth')->group(function () {
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
+    Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])
+        ->middleware('throttle:60,1')
+        ->name('research-support.history');
+    Route::get('/research-support/history/{conversation}', [ResearchAssistantController::class, 'showHistory'])
+        ->middleware('throttle:120,1')
+        ->name('research-support.history.show');
+    Route::post('/research-support/history', [ResearchAssistantController::class, 'saveHistory'])
+        ->middleware('throttle:60,1')
+        ->name('research-support.history.save');
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.chat');
@@ -251,6 +260,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
     Route::post('/research-calls/extract-image', [ResearchCallController::class, 'extractImage'])->name('research-calls.extract-image');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
+    Route::put('/research-calls/{researchCall}', [ResearchCallController::class, 'update'])->name('research-calls.update');
     Route::patch('/research-calls/{researchCall}/status', [ResearchCallController::class, 'updateStatus'])->name('research-calls.update-status');
     Route::get('/research-head/proposal-templates', [ProposalTemplateController::class, 'index'])->name('research_head.proposal-templates.index');
     Route::post('/research-head/proposal-templates', [ProposalTemplateController::class, 'store'])->name('research_head.proposal-templates.store');

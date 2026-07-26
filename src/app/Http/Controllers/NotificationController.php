@@ -48,9 +48,14 @@ class NotificationController extends Controller
         ProposalDraftMember $proposalDraftMember,
         AcceptProposalWorkspaceInvitation $acceptInvitation,
     ): JsonResponse {
+        $request->validate([
+            'notification_id' => ['nullable', 'uuid'],
+        ]);
+
         Gate::authorize('accept', $proposalDraftMember);
 
         $proposalDraft = $acceptInvitation->handle($request->user(), $proposalDraftMember);
+        $this->completeInvitationNotification($request, $proposalDraftMember);
 
         if (! $request->user()->isUsingWorkspace([
             User::WORKSPACE_FACULTY,
@@ -63,5 +68,35 @@ class NotificationController extends Controller
             'accepted' => true,
             'url' => route('faculty.proposal-drafts.show', $proposalDraft),
         ]);
+    }
+
+    private function completeInvitationNotification(Request $request, ProposalDraftMember $proposalDraftMember): void
+    {
+        $notificationId = $request->string('notification_id')->toString();
+
+        if ($notificationId === '') {
+            return;
+        }
+
+        $notification = $request->user()->notifications()->find($notificationId);
+
+        if (! $notification) {
+            return;
+        }
+
+        $expectedActionUrl = route('notifications.proposal-invitations.accept', $proposalDraftMember);
+        $data = $notification->data ?? [];
+
+        if (($data['action_url'] ?? null) !== $expectedActionUrl) {
+            return;
+        }
+
+        unset($data['action_url'], $data['action_data']);
+        $data['action_completed'] = true;
+
+        $notification->forceFill([
+            'data' => $data,
+            'read_at' => now(),
+        ])->save();
     }
 }

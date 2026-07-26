@@ -5,16 +5,22 @@ namespace App\Http\Controllers;
 use App\Exceptions\ResearchCallImageExtractionException;
 use App\Http\Requests\ExtractResearchCallImageRequest;
 use App\Http\Requests\StoreResearchCallRequest;
+use App\Http\Requests\UpdateResearchCallRequest;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
+use App\Models\User;
+use App\Notifications\ResearchCallUpdatedNotification;
 use App\Services\ResearchCallImageParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ResearchCallController extends Controller
 {
@@ -46,15 +52,54 @@ class ResearchCallController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
-        $categoryIds = collect(explode(',', $validated['categories']))
-            ->map(fn (string $name) => trim($name))
-            ->filter()
-            ->unique(fn (string $name) => strtolower($name))
-            ->map(fn (string $name) => ResearchCategory::firstOrCreate(['name' => $name])->id);
-
-        $call->categories()->sync($categoryIds);
+        $call->categories()->sync($this->categoryIds($validated['categories']));
 
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
+    }
+
+    public function update(UpdateResearchCallRequest $request, ResearchCall $researchCall): RedirectResponse
+    {
+        $validated = $request->validated();
+        $oldImagePath = $researchCall->reference_image_path;
+        $newImagePath = $request->file('reference_image')?->store('research-calls', 'local');
+        $attributes = collect($validated)->except(['categories', 'reference_image'])->all();
+        $attributes['reference_image_path'] = $newImagePath ?? $oldImagePath;
+        $categoryChanges = [];
+
+        $researchCall->fill($attributes);
+
+        try {
+            DB::transaction(function () use ($researchCall, $validated, &$categoryChanges): void {
+                $researchCall->save();
+                $categoryChanges = $researchCall->categories()->sync($this->categoryIds($validated['categories']));
+            });
+        } catch (Throwable $exception) {
+            if ($newImagePath) {
+                Storage::disk('local')->delete($newImagePath);
+            }
+
+            throw $exception;
+        }
+
+        if ($newImagePath && $oldImagePath && $oldImagePath !== $newImagePath) {
+            Storage::disk('local')->delete($oldImagePath);
+        }
+
+        $hasChanges = $researchCall->wasChanged()
+            || collect($categoryChanges)->contains(fn (array $changes): bool => $changes !== []);
+
+        if ($hasChanges) {
+            Notification::sendNow(
+                User::query()->get(),
+                new ResearchCallUpdatedNotification(
+                    $researchCall->id,
+                    $researchCall->title,
+                    route('research-calls.index'),
+                ),
+            );
+        }
+
+        return back()->with('success', 'Research call updated successfully.');
     }
 
     public function extractImage(ExtractResearchCallImageRequest $request): JsonResponse
@@ -110,5 +155,17 @@ class ResearchCallController extends Controller
         };
 
         return back()->with('success', $message);
+    }
+
+    /** @return list<int> */
+    private function categoryIds(string $categories): array
+    {
+        return collect(explode(',', $categories))
+            ->map(fn (string $name): string => trim($name))
+            ->filter()
+            ->unique(fn (string $name): string => strtolower($name))
+            ->map(fn (string $name): int => ResearchCategory::firstOrCreate(['name' => $name])->id)
+            ->values()
+            ->all();
     }
 }

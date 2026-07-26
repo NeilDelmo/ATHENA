@@ -519,6 +519,9 @@ const activeAssistantContextId = window.athenaResearchAssistantActiveContextId ?
 const defaultAssistantContextId = assistantContexts.some((context) => Number(context.id) === Number(activeAssistantContextId))
     ? Number(activeAssistantContextId)
     : Number(assistantContexts[0]?.id || 0);
+const assistantHistory = Array.isArray(window.athenaResearchAssistantHistory)
+    ? window.athenaResearchAssistantHistory
+    : [];
 const researchAssistantMessageLimit = 8000;
 
 function compactAssistantText(value, maxLength = 280) {
@@ -557,48 +560,43 @@ function formatAssistantMarkdown(value) {
     return formatted;
 }
 
-const researchAssistantPromptGroups = [
-    {
-        key: 'planning',
-        label: 'Planning',
-        prompts: [
-            'Refine my research question',
-            'Turn my topic into SMART objectives',
-            'Outline my proposal',
-            'Suggest keywords for literature search',
-        ],
-    },
-    {
-        key: 'methods',
-        label: 'Methods',
-        prompts: [
-            'Recommend a methodology',
-            'Identify variables and indicators',
-            'Draft a data collection plan',
-            'Spot ethical considerations',
-        ],
-    },
-    {
-        key: 'revision',
-        label: 'Revision',
-        prompts: [
-            'Summarize reviewer comments into a revision plan',
-            'Draft a response to evaluator comments',
-            'Rewrite this section for clarity',
-            'Check if my objectives match my methods',
-        ],
-    },
-    {
-        key: 'writing',
-        label: 'Writing',
-        prompts: [
-            'Draft significance of the study',
-            'Improve my abstract',
-            'Make my title more specific',
-            'Create a chapter outline',
-        ],
-    },
+const researchAssistantQuickPrompts = [
+    'Refine my research question',
+    'Turn my topic into SMART objectives',
+    'Recommend a methodology',
+    'Improve my abstract',
+    'Outline my proposal',
+    'Summarize reviewer comments into a revision plan',
 ];
+
+function escapeAssistantRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightAssistantText(value, query) {
+    const text = String(value ?? '');
+    const terms = String(query ?? '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(escapeAssistantRegExp);
+
+    if (!terms.length) return escapeAssistantHtml(text);
+
+    const matcher = new RegExp(`(${terms.join('|')})`, 'gi');
+    let highlighted = '';
+    let lastIndex = 0;
+
+    text.replace(matcher, (match, _group, offset) => {
+        highlighted += escapeAssistantHtml(text.slice(lastIndex, offset));
+        highlighted += `<strong class="font-black text-gray-950 dark:text-white">${escapeAssistantHtml(match)}</strong>`;
+        lastIndex = offset + match.length;
+
+        return match;
+    });
+
+    return highlighted + escapeAssistantHtml(text.slice(lastIndex));
+}
 
 Alpine.store('researchAssistant', {
     drawerOpen: false,
@@ -617,10 +615,29 @@ Alpine.store('researchAssistant', {
     contextOptions: assistantContexts,
     contextEnabled: Boolean(activeAssistantContextId),
     selectedContextId: defaultAssistantContextId,
-    activePromptGroup: researchAssistantPromptGroups[0].key,
-    promptGroups: researchAssistantPromptGroups,
-    quickPrompts: researchAssistantPromptGroups.flatMap((group) => group.prompts),
+    quickPrompts: researchAssistantQuickPrompts,
+    history: assistantHistory,
+    currentConversationId: null,
+    historySearchOpen: false,
+    historySearchQuery: '',
+    historySearchResults: assistantHistory,
+    historySearchLoading: false,
+    historySearchTimer: null,
+    historySearchSequence: 0,
+    historySavePromise: null,
     messages: [],
+
+    init() {
+        window.addEventListener('pagehide', () => {
+            void this.saveConversation({ keepalive: true });
+        }, { once: true });
+        window.addEventListener('keydown', (event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && this.workspaceOpen) {
+                event.preventDefault();
+                this.openHistorySearch();
+            }
+        });
+    },
 
     isOverlayViewport() {
         return !window.matchMedia('(min-width: 1280px)').matches;
@@ -658,6 +675,7 @@ Alpine.store('researchAssistant', {
     },
 
     closeDrawer() {
+        void this.saveConversation();
         this.workspaceOpen = false;
         this.drawerOpen = false;
         this.syncPageScroll();
@@ -669,6 +687,7 @@ Alpine.store('researchAssistant', {
     },
 
     collapseWorkspace() {
+        void this.saveConversation();
         this.workspaceOpen = false;
         this.drawerOpen = true;
         this.syncPageScroll();
@@ -686,18 +705,10 @@ Alpine.store('researchAssistant', {
         this.openDrawer();
     },
 
-    activePromptGroupData() {
-        return this.promptGroups.find((group) => group.key === this.activePromptGroup) || this.promptGroups[0];
-    },
-
-    activePrompts() {
-        return this.activePromptGroupData()?.prompts || [];
-    },
-
     starterPrompts() {
-        return this.promptGroups.map((group) => ({
-            label: group.label,
-            prompt: group.prompts[0],
+        return this.quickPrompts.map((prompt) => ({
+            label: 'Suggested prompt',
+            prompt,
         }));
     },
 
@@ -707,12 +718,6 @@ Alpine.store('researchAssistant', {
 
     renderMessage(content) {
         return formatAssistantMarkdown(content);
-    },
-
-    setPromptGroup(groupKey) {
-        if (this.promptGroups.some((group) => group.key === groupKey)) {
-            this.activePromptGroup = groupKey;
-        }
     },
 
     usePrompt(prompt) {
@@ -747,6 +752,211 @@ Alpine.store('researchAssistant', {
         };
     },
 
+    historyUrl() {
+        return document.body.dataset.researchAssistantHistoryUrl || '';
+    },
+
+    historyConversationUrl(conversationId) {
+        const baseUrl = this.historyUrl();
+
+        return baseUrl ? `${baseUrl}/${encodeURIComponent(conversationId)}` : '';
+    },
+
+    formatHistoryDate(value) {
+        if (!value) return '';
+
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '';
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',
+        }).format(date);
+    },
+
+    highlightHistoryText(value) {
+        return highlightAssistantText(value, this.historySearchQuery);
+    },
+
+    upsertHistory(conversation) {
+        if (!conversation?.id) return;
+
+        this.history = [
+            conversation,
+            ...this.history.filter((item) => Number(item.id) !== Number(conversation.id)),
+        ];
+        this.historySearchResults = this.historySearchQuery.trim()
+            ? this.historySearchResults.map((item) => Number(item.id) === Number(conversation.id) ? conversation : item)
+            : this.history;
+    },
+
+    openHistorySearch() {
+        this.historySearchOpen = true;
+        this.historySearchQuery = '';
+        this.historySearchResults = this.history;
+
+        window.setTimeout(() => document.getElementById('assistant-history-search')?.focus(), 50);
+    },
+
+    closeHistorySearch() {
+        this.historySearchOpen = false;
+        this.historySearchQuery = '';
+        this.historySearchResults = this.history;
+        window.clearTimeout(this.historySearchTimer);
+    },
+
+    queueHistorySearch() {
+        window.clearTimeout(this.historySearchTimer);
+        const search = this.historySearchQuery.trim();
+
+        if (!search) {
+            this.historySearchResults = this.history;
+            this.historySearchLoading = false;
+
+            return;
+        }
+
+        this.historySearchLoading = true;
+        const sequence = ++this.historySearchSequence;
+
+        this.historySearchTimer = window.setTimeout(async () => {
+            const baseUrl = this.historyUrl();
+
+            if (!baseUrl) {
+                this.historySearchLoading = false;
+
+                return;
+            }
+
+            try {
+                const url = new URL(baseUrl, window.location.origin);
+                url.searchParams.set('query', search);
+                const response = await fetch(url, {
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                });
+
+                if (!response.ok) throw new Error('History search failed.');
+
+                const payload = await response.json();
+
+                if (sequence === this.historySearchSequence) {
+                    this.historySearchResults = Array.isArray(payload.conversations) ? payload.conversations : [];
+                }
+            } catch {
+                if (sequence === this.historySearchSequence) {
+                    this.historySearchResults = [];
+                }
+            } finally {
+                if (sequence === this.historySearchSequence) {
+                    this.historySearchLoading = false;
+                }
+            }
+        }, 220);
+    },
+
+    async saveConversation(options = {}) {
+        if (!this.hasConversation() || !this.historyUrl()) return null;
+        if (this.historySavePromise) return this.historySavePromise;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        if (!csrfToken) return null;
+
+        const payload = JSON.stringify({
+            id: this.currentConversationId,
+            messages: this.messages,
+            context: this.contextPayload(),
+        });
+
+        const request = fetch(this.historyUrl(), {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: Boolean(options.keepalive),
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+            },
+            body: payload,
+        }).then(async (response) => {
+            const responsePayload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !responsePayload.conversation) {
+                throw new Error(responsePayload.message || 'The chat could not be saved.');
+            }
+
+            this.currentConversationId = responsePayload.conversation.id;
+            this.upsertHistory(responsePayload.conversation);
+
+            return responsePayload.conversation;
+        }).catch((error) => {
+            if (!options.keepalive) {
+                this.setError('History unavailable', error instanceof Error
+                    ? error.message
+                    : 'The chat could not be saved.');
+            }
+
+            return null;
+        });
+
+        this.historySavePromise = request;
+
+        try {
+            return await request;
+        } finally {
+            if (this.historySavePromise === request) this.historySavePromise = null;
+        }
+    },
+
+    async openConversation(conversationId) {
+        this.stop();
+        const hadConversation = this.hasConversation();
+        const savedConversation = await this.saveConversation();
+
+        if (hadConversation && !savedConversation) return;
+
+        const conversationUrl = this.historyConversationUrl(conversationId);
+        if (!conversationUrl) return;
+
+        try {
+            const response = await fetch(conversationUrl, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !payload.conversation) {
+                throw new Error(payload.message || 'The chat could not be loaded.');
+            }
+
+            const conversation = payload.conversation;
+            this.messages = (Array.isArray(conversation.messages) ? conversation.messages : [])
+                .filter((message) => ['user', 'assistant'].includes(message.role) && String(message.content || '').trim())
+                .map((message) => ({
+                    id: this.nextMessageId++,
+                    role: message.role,
+                    content: String(message.content).trim(),
+                    sources: Array.isArray(message.sources) ? message.sources : [],
+                }));
+            this.currentConversationId = conversation.id;
+            const contextId = Number(conversation.context?.topic_id || 0);
+            this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
+            if (this.contextEnabled) this.selectedContextId = contextId;
+            this.error = '';
+            this.errorTitle = '';
+            this.historySearchOpen = false;
+            this.workspaceOpen = true;
+            this.drawerOpen = false;
+            this.syncPageScroll();
+            this.scrollToLatest();
+        } catch (error) {
+            this.setError('History unavailable', error instanceof Error
+                ? error.message
+                : 'The chat could not be loaded.');
+        }
+    },
+
     setError(title, message) {
         this.errorTitle = title;
         this.error = message;
@@ -763,6 +973,7 @@ Alpine.store('researchAssistant', {
         this.errorTitle = '';
         this.scrollToLatest();
 
+        await this.saveConversation();
         await this.requestReply();
     },
 
@@ -862,6 +1073,7 @@ Alpine.store('researchAssistant', {
                 this.isLoading = false;
                 this.abortController = null;
                 this.scrollToLatest();
+                await this.saveConversation();
             }
         }
     },
@@ -963,10 +1175,15 @@ Alpine.store('researchAssistant', {
         }
     },
 
-    newConversation() {
-        if (this.hasConversation() && !window.confirm('Start a new chat? The current conversation is not saved.')) {
+    async newConversation() {
+        if (this.hasConversation() && !window.confirm('Start a new chat? The current conversation will be saved to your history.')) {
             return;
         }
+
+        const hadConversation = this.hasConversation();
+        const savedConversation = await this.saveConversation();
+
+        if (hadConversation && !savedConversation) return;
 
         this.clearConversation();
     },
@@ -974,6 +1191,7 @@ Alpine.store('researchAssistant', {
     clearConversation() {
         this.stop();
         this.messages = [];
+        this.currentConversationId = null;
         this.draft = '';
         this.resetComposers();
         this.error = '';
@@ -1695,14 +1913,19 @@ Alpine.data('notificationMenu', (config) => ({
         this.toasts = this.toasts.filter((toast) => toast.id !== id);
     },
 
-    async request(url, method = 'PATCH') {
+    async request(url, method = 'PATCH', body = null) {
+        const headers = {
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        };
+
+        if (body !== null) headers['Content-Type'] = 'application/json';
+
         return fetch(url, {
             method,
             credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-            },
+            headers,
+            body: body === null ? undefined : JSON.stringify(body),
         });
     },
 
@@ -1740,7 +1963,7 @@ Alpine.data('notificationMenu', (config) => ({
 
         if (!confirmed) return;
 
-        const response = await this.request(item.data.action_url, 'POST');
+        const response = await this.request(item.data.action_url, 'POST', { notification_id: item.id });
         const payload = await response.json().catch(() => ({}));
 
         if (!response.ok) {
@@ -1756,6 +1979,9 @@ Alpine.data('notificationMenu', (config) => ({
             return;
         }
 
+        item.data.action_completed = true;
+        delete item.data.action_url;
+        delete item.data.action_data;
         await this.markNotificationRead(item);
 
         await Swal.fire({
@@ -1771,7 +1997,7 @@ Alpine.data('notificationMenu', (config) => ({
     },
 
     async openNotification(item) {
-        if (item.data.action_url) {
+        if (item.data.action_url && !item.data.action_completed && !item.read_at) {
             await this.acceptProposalInvitation(item);
 
             return;

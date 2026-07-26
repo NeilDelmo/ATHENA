@@ -189,6 +189,11 @@ class User extends Authenticatable
         return $this->hasMany(ProposalDraftMember::class);
     }
 
+    public function researchAssistantConversations(): HasMany
+    {
+        return $this->hasMany(ResearchAssistantConversation::class);
+    }
+
     public function topicReviews(): HasMany
     {
         return $this->hasMany(TopicReview::class, 'reviewer_id');

@@ -21,7 +21,10 @@
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
-        @auth data-research-assistant-url="{{ route('research-support.chat') }}" @endauth
+        @auth
+            data-research-assistant-url="{{ route('research-support.chat') }}"
+            data-research-assistant-history-url="{{ route('research-support.history') }}"
+        @endauth
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-literature-search-url="{{ route('research-support.literature-search') }}" @endif
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
@@ -30,6 +33,7 @@
             <script>
                 window.athenaResearchAssistantContexts = {{ Illuminate\Support\Js::from($researchAssistantContexts ?? collect()) }};
                 window.athenaResearchAssistantActiveContextId = {{ Illuminate\Support\Js::from($activeResearchAssistantContextId ?? null) }};
+                window.athenaResearchAssistantHistory = {{ Illuminate\Support\Js::from($researchAssistantHistory ?? collect()) }};
             </script>
         @endauth
 

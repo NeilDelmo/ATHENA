@@ -147,6 +147,10 @@
                                 @elseif ($lifecycleStatus === 'ended')
                                     <p class="mt-4 text-right text-[11px] font-semibold text-gray-400">The submission period ended automatically.</p>
                                 @endif
+                                <details class="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-4" @if ($errors->any() && old('_method') === 'PUT') open @endif>
+                                    <summary class="cursor-pointer text-xs font-black text-gray-800">Edit research call</summary>
+                                    @include('research_calls.partials.form', ['researchCall' => $call])
+                                </details>
                             @endif
                         </article>
                     @empty

@@ -23,27 +23,26 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-4">
-            <p class="px-2 text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Research prompt groups</p>
-            <div class="mt-3 space-y-1" role="tablist" aria-label="Research prompt groups">
-                <template x-for="group in $store.researchAssistant.promptGroups" :key="group.key">
-                    <button
-                        type="button"
-                        role="tab"
-                        @click="$store.researchAssistant.setPromptGroup(group.key)"
-                        :aria-selected="$store.researchAssistant.activePromptGroup === group.key"
-                        :class="$store.researchAssistant.activePromptGroup === group.key ? 'bg-white text-red-700 shadow-sm ring-1 ring-gray-200 dark:bg-slate-900 dark:text-red-300 dark:ring-slate-700' : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'"
-                        class="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-bold transition"
-                    >
-                        <span x-text="group.label"></span>
-                        <span aria-hidden="true">&rsaquo;</span>
-                    </button>
-                </template>
+            <div class="flex items-center justify-between gap-2 px-2">
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Chat history</p>
+                <span class="text-[10px] font-semibold text-gray-400" x-text="$store.researchAssistant.history.length ? `${$store.researchAssistant.history.length} chats` : ''"></span>
             </div>
 
-            <div class="mt-4 space-y-2">
-                <template x-for="prompt in $store.researchAssistant.activePrompts()" :key="prompt">
-                    <button type="button" @click="$store.researchAssistant.sendPrompt(prompt)" :disabled="$store.researchAssistant.isLoading" class="w-full rounded-xl px-3 py-2 text-left text-[11px] leading-5 text-gray-500 transition hover:bg-white hover:text-red-700 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-red-300" x-text="prompt"></button>
+            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white">
+                <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                Search history
+                <kbd class="ml-auto rounded border border-gray-200 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 dark:border-slate-700">Ctrl K</kbd>
+            </button>
+
+            <div class="mt-3 space-y-1">
+                <template x-for="conversation in $store.researchAssistant.history" :key="conversation.id">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700' : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'" class="w-full rounded-xl px-3 py-2.5 text-left transition">
+                        <span class="block truncate text-xs font-bold" x-text="conversation.title"></span>
+                        <span class="mt-1 block truncate text-[10px] leading-4 text-gray-400 dark:text-slate-500" x-text="conversation.preview"></span>
+                        <span class="mt-1 block text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
                 </template>
+                <p x-show="!$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
             </div>
 
             <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mt-6 border-t border-gray-200 pt-5 dark:border-slate-800">
@@ -62,7 +61,7 @@
         <div class="space-y-1 border-t border-gray-200 p-4 dark:border-slate-800">
             <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
             <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">Export .txt</button>
-            <p class="px-3 pt-3 text-[10px] leading-4 text-gray-400"><span class="font-bold">Privacy:</span> Chats are not saved by ATHENA.</p>
+            <p class="px-3 pt-3 text-[10px] leading-4 text-gray-400"><span class="font-bold">Privacy:</span> Chats are saved to your ATHENA account.</p>
         </div>
     </aside>
 
@@ -183,5 +182,28 @@
                 <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. Verify research guidance with your adviser and official university policies. Press Shift+Enter for a new line.</p>
             </div>
         </footer>
+    </div>
+
+    <div x-cloak x-show="$store.researchAssistant.historySearchOpen" @click.self="$store.researchAssistant.closeHistorySearch()" @keydown.escape.window="$store.researchAssistant.closeHistorySearch()" class="fixed inset-0 z-[100] flex items-start justify-center bg-gray-950/45 px-4 py-[12vh] backdrop-blur-sm" role="presentation">
+        <div x-show="$store.researchAssistant.historySearchOpen" x-transition role="dialog" aria-modal="true" aria-labelledby="assistant-history-search-title" class="flex max-h-[min(70vh,38rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+                <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <label id="assistant-history-search-title" for="assistant-history-search" class="sr-only">Search chat history</label>
+                <input id="assistant-history-search" type="search" x-model="$store.researchAssistant.historySearchQuery" @input="$store.researchAssistant.queueHistorySearch()" placeholder="Search your chats" autocomplete="off" class="min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0 dark:text-white">
+                <span x-show="$store.researchAssistant.historySearchLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Searching"></span>
+                <button type="button" @click="$store.researchAssistant.closeHistorySearch()" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white">Esc</button>
+            </div>
+            <div class="overflow-y-auto p-2">
+                <template x-for="conversation in $store.researchAssistant.historySearchResults" :key="`search-${conversation.id}`">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" class="w-full rounded-xl px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-slate-800">
+                        <span class="block text-sm font-bold text-gray-800 dark:text-slate-100" x-html="$store.researchAssistant.highlightHistoryText(conversation.title)"></span>
+                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-html="$store.researchAssistant.highlightHistoryText(conversation.preview)"></span>
+                        <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
+            </div>
+            <div class="border-t border-gray-100 px-4 py-2.5 text-[10px] text-gray-400 dark:border-slate-800">Search matches words in your chat titles and messages.</div>
+        </div>
     </div>
 </section>

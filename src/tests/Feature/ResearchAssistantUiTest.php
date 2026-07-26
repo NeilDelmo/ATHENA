@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ResearchAssistantConversation;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
@@ -100,7 +101,14 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Expand to full workspace')
         ->assertSee('Back to Research Support')
         ->assertSee('Collapse to side panel')
-        ->assertSee('Research prompt groups')
+        ->assertSee('Chat history')
+        ->assertSee('Search history')
+        ->assertSee('Chats are saved to your ATHENA account.')
+        ->assertDontSee('Research prompt groups')
+        ->assertDontSee('Planning')
+        ->assertDontSee('Methods')
+        ->assertDontSee('Revision')
+        ->assertDontSee('Writing')
         ->assertSee('data-assistant-full-workspace', false)
         ->assertSee('data-assistant-workspace', false)
         ->assertSee('openWorkspace()', false)
@@ -171,12 +179,12 @@ test('authenticated users can receive a gemini research response', function (str
         ->assertJsonPath('model', 'gemini-3.5-flash');
 
     Http::assertSent(fn ($request) => $request->url() === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
-        && $request['max_completion_tokens'] === 700
+        && $request['max_completion_tokens'] === 1400
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
         && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role))
-        && str_contains($request['messages'][0]['content'], 'Ctrl + S: Save the current paper and stay in its editor.')
-        && str_contains($request['messages'][0]['content'], 'Ctrl + Enter: Save the current paper, then return to the proposal package.'));
+        && str_contains($request['messages'][0]['content'], 'Ctrl + S: Save the current paper and keep the editor open.')
+        && str_contains($request['messages'][0]['content'], 'Ctrl + Enter: Save the current paper, then exit the editor.'));
 })->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
@@ -744,6 +752,54 @@ test('chat requests require a final user message', function () {
 
     expect($response->status())->toBe(422)
         ->and($response->json('errors.messages.0'))->toBe('The conversation must end with a user message.');
+});
+
+test('users can save, search, and reopen their assistant chat history', function () {
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty');
+
+    $saveResponse = $this->actingAs($researcher)
+        ->postJson(route('research-support.history.save'), [
+            'messages' => [
+                ['role' => 'user', 'content' => 'How can I improve my mangrove sampling plan?', 'sources' => []],
+                ['role' => 'assistant', 'content' => 'Define the population, sampling frame, and selection procedure.', 'sources' => []],
+            ],
+        ])
+        ->assertOk()
+        ->assertJsonPath('conversation.title', 'How can I improve my mangrove sampling plan?');
+
+    $conversationId = $saveResponse->json('conversation.id');
+
+    $this->actingAs($researcher)
+        ->getJson(route('research-support.history', ['query' => 'mangrove sampling']))
+        ->assertOk()
+        ->assertJsonPath('conversations.0.id', $conversationId)
+        ->assertJsonPath('conversations.0.preview', 'How can I improve my mangrove sampling plan?');
+
+    $this->actingAs($researcher)
+        ->getJson(route('research-support.history.show', $conversationId))
+        ->assertOk()
+        ->assertJsonPath('conversation.messages.1.content', 'Define the population, sampling frame, and selection procedure.');
+});
+
+test('assistant history is private to its owner', function () {
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty');
+    $conversation = ResearchAssistantConversation::factory()->create([
+        'user_id' => $owner->id,
+        'title' => 'Private coastal study',
+    ]);
+    $otherUser = User::factory()->create();
+    $otherUser->assignRole('expert');
+
+    $this->actingAs($otherUser)
+        ->getJson(route('research-support.history'))
+        ->assertOk()
+        ->assertJsonCount(0, 'conversations');
+
+    $this->actingAs($otherUser)
+        ->getJson(route('research-support.history.show', $conversation))
+        ->assertNotFound();
 });
 
 test('assistant launcher is rendered for every authenticated role', function (string $role) {

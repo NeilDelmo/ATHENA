@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ResearchKnowledgeService;
@@ -17,7 +18,97 @@ class ResearchAssistantController extends Controller
 {
     private const MESSAGE_MAX_LENGTH = 8000;
 
+    private const HISTORY_MESSAGE_MAX_COUNT = 100;
+
     public function __construct(private ResearchKnowledgeService $researchKnowledge) {}
+
+    public function history(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'query' => ['nullable', 'string', 'max:100'],
+        ]);
+        $search = trim((string) ($validated['query'] ?? ''));
+        $query = $request->user()->researchAssistantConversations()->latest('updated_at');
+
+        if ($search !== '') {
+            $terms = collect(preg_split('/\s+/', mb_strtolower($search), -1, PREG_SPLIT_NO_EMPTY))
+                ->map(fn (string $term): string => addcslashes($term, '%_\\'))
+                ->filter()
+                ->values();
+
+            $query->where(function ($conversationQuery) use ($terms): void {
+                foreach ($terms as $term) {
+                    $conversationQuery->where(function ($termQuery) use ($term): void {
+                        $termQuery
+                            ->where('title', 'like', '%'.$term.'%')
+                            ->orWhere('messages', 'like', '%'.$term.'%');
+                    });
+                }
+            });
+        }
+
+        $conversations = $query->get(['id', 'title', 'messages', 'updated_at']);
+
+        return response()->json([
+            'conversations' => $conversations
+                ->map(fn (ResearchAssistantConversation $conversation): array => $this->conversationSummary($conversation, $search))
+                ->values(),
+        ]);
+    }
+
+    public function showHistory(Request $request, ResearchAssistantConversation $conversation): JsonResponse
+    {
+        abort_unless($conversation->user_id === $request->user()->id, 404);
+
+        return response()->json([
+            'conversation' => [
+                ...$this->conversationSummary($conversation),
+                'messages' => $conversation->messages ?? [],
+                'context' => $conversation->context,
+            ],
+        ]);
+    }
+
+    public function saveHistory(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'id' => ['nullable', 'integer'],
+            'messages' => ['required', 'array', 'min:1', 'max:'.self::HISTORY_MESSAGE_MAX_COUNT],
+            'messages.*.role' => ['required', 'string', 'in:user,assistant'],
+            'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
+            'messages.*.sources' => ['nullable', 'array', 'max:20'],
+            'context' => ['nullable', 'array'],
+            'context.topic_id' => ['nullable', 'integer'],
+        ]);
+
+        $messages = $this->normalizeHistoryMessages($validated['messages']);
+        $firstUserMessage = collect($messages)->firstWhere('role', 'user');
+
+        if (! $firstUserMessage) {
+            return response()->json([
+                'message' => 'A chat must include a user message before it can be saved.',
+            ], 422);
+        }
+
+        $conversation = isset($validated['id'])
+            ? $request->user()->researchAssistantConversations()->findOrFail($validated['id'])
+            : $request->user()->researchAssistantConversations()->make();
+
+        $conversation->fill([
+            'title' => Str::limit(Str::squish($firstUserMessage['content']), 120, ''),
+            'messages' => $messages,
+            'context' => $validated['context'] ?? null,
+        ]);
+        $conversation->save();
+
+        return response()->json([
+            'conversation' => [
+                ...$this->conversationSummary($conversation),
+                'messages' => $conversation->messages,
+                'context' => $conversation->context,
+            ],
+        ]);
+    }
 
     public function __invoke(Request $request): JsonResponse
     {
@@ -116,7 +207,7 @@ class ResearchAssistantController extends Controller
                     'model' => $model,
                     'messages' => $aiMessages,
                     'temperature' => 0.25,
-                    'max_completion_tokens' => 700,
+                    'max_completion_tokens' => 1400,
                     'stream' => false,
                 ]);
         } catch (ConnectionException $exception) {
@@ -221,6 +312,83 @@ Important boundaries:
 - Protect personal and confidential research information; encourage anonymization when sensitive data appears.
 - Keep ordinary answers under 350 words unless the user explicitly asks for more detail.
 PROMPT;
+    }
+
+    /**
+     * @param  array<int, array{role: string, content: string, sources?: array<int, array<string, mixed>>}>  $messages
+     * @return list<array{role: string, content: string, sources: list<array<string, string>>}>
+     */
+    private function normalizeHistoryMessages(array $messages): array
+    {
+        return collect($messages)
+            ->map(function (array $message): array {
+                $sources = collect($message['sources'] ?? [])
+                    ->filter(fn (mixed $source): bool => is_array($source))
+                    ->map(function (array $source): array {
+                        return collect(['reference', 'title', 'url'])
+                            ->mapWithKeys(fn (string $key): array => isset($source[$key])
+                                ? [$key => Str::limit((string) $source[$key], 2048, '')]
+                                : [])
+                            ->all();
+                    })
+                    ->filter(fn (array $source): bool => $source !== [])
+                    ->values()
+                    ->all();
+
+                return [
+                    'role' => $message['role'],
+                    'content' => trim($message['content']),
+                    'sources' => $sources,
+                ];
+            })
+            ->filter(fn (array $message): bool => $message['content'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{id: int, title: string, preview: string, updated_at: ?string}
+     */
+    private function conversationSummary(ResearchAssistantConversation $conversation, string $search = ''): array
+    {
+        $messages = collect($conversation->messages ?? []);
+        $searchTerms = collect(preg_split('/\s+/', mb_strtolower($search), -1, PREG_SPLIT_NO_EMPTY));
+        $matchedMessage = $search === ''
+            ? $messages->firstWhere('role', 'user')
+            : $messages->first(function (array $message) use ($searchTerms): bool {
+                return $searchTerms->contains(fn (string $term): bool => str_contains(
+                    mb_strtolower((string) ($message['content'] ?? '')),
+                    $term,
+                ));
+            });
+
+        if (! $matchedMessage && $searchTerms->contains(fn (string $term): bool => str_contains(mb_strtolower($conversation->title), $term))) {
+            $matchedMessage = ['role' => 'user', 'content' => $conversation->title];
+        }
+
+        $matchedMessage ??= $messages->firstWhere('role', 'user');
+        $preview = Str::squish((string) ($matchedMessage['content'] ?? $conversation->title));
+
+        if ($search !== '') {
+            $matchedTerm = $searchTerms->first(fn (string $term): bool => mb_stripos($preview, $term) !== false);
+
+            if (is_string($matchedTerm)) {
+                $matchPosition = mb_stripos($preview, $matchedTerm);
+
+                if ($matchPosition !== false && $matchPosition > 60) {
+                    $preview = '…'.Str::substr($preview, max(0, $matchPosition - 60), 140);
+                }
+            }
+        }
+
+        $preview = Str::limit($preview, 160);
+
+        return [
+            'id' => $conversation->id,
+            'title' => $conversation->title,
+            'preview' => $preview,
+            'updated_at' => $conversation->updated_at?->toISOString(),
+        ];
     }
 
     private function proposalContextMessage(TopicProposal $topic): string

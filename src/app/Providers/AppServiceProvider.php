@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\LibreOfficeDocumentPdfConverter;
@@ -27,6 +28,24 @@ class AppServiceProvider extends ServiceProvider
     {
         View::composer('layouts.app', function ($view): void {
             $user = request()->user();
+
+            $history = $user
+                ? $user->researchAssistantConversations()
+                    ->latest('updated_at')
+                    ->get(['id', 'title', 'messages', 'updated_at'])
+                    ->map(function (ResearchAssistantConversation $conversation): array {
+                        $firstUserMessage = collect($conversation->messages ?? [])->firstWhere('role', 'user');
+
+                        return [
+                            'id' => $conversation->id,
+                            'title' => $conversation->title,
+                            'preview' => Str::limit(Str::squish((string) ($firstUserMessage['content'] ?? $conversation->title)), 160),
+                            'updated_at' => $conversation->updated_at?->toISOString(),
+                        ];
+                    })
+                : collect();
+
+            $view->with('researchAssistantHistory', $history);
 
             if (! $user || ! $user->isUsingWorkspace([
                 User::WORKSPACE_FACULTY,
