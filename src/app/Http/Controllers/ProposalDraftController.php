@@ -38,9 +38,7 @@ class ProposalDraftController extends Controller
         Gate::authorize('create', ProposalDraft::class);
 
         $researchCalls = ResearchCall::query()
-            ->where('status', 'open')
-            ->where('opens_at', '<=', now())
-            ->where('closes_at', '>=', now())
+            ->acceptingSubmissions()
             ->orderBy('closes_at')
             ->get();
         $selectedResearchCallId = $researchCalls
