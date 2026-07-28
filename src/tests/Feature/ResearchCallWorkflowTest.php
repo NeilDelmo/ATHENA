@@ -5,8 +5,10 @@ use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ResearchCallPublishedNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -134,6 +136,39 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertRedirect();
 
     expect($this->call->fresh()->status)->toBe('open');
+});
+
+test('faculty and faculty researchers are notified when an open research call is posted', function () {
+    $facultyResearcher = User::factory()->create();
+    $facultyResearcher->assignRole('faculty_researcher');
+    Notification::fake();
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [
+            'title' => 'Newly Posted Institutional Call',
+            'academic_year' => '2026-2027',
+            'opens_at' => now()->subMinute()->format('Y-m-d H:i:s'),
+            'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
+            'max_active_research_per_faculty' => 2,
+            'maximum_budget' => 150000,
+            'categories' => 'Environment',
+            'status' => 'open',
+        ])
+        ->assertRedirect(route('research-calls.index'));
+
+    $call = ResearchCall::query()->where('title', 'Newly Posted Institutional Call')->firstOrFail();
+
+    foreach ([$this->faculty, $facultyResearcher] as $recipient) {
+        Notification::assertSentTo(
+            $recipient,
+            ResearchCallPublishedNotification::class,
+            fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $call->id
+                && $notification->url === route('faculty.dashboard'),
+        );
+    }
+
+    Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
+    Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
 });
 
 test('published research calls follow their configured start and end dates automatically', function () {

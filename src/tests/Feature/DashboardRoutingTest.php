@@ -116,6 +116,8 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
 
     Storage::disk('local')->put('research-calls/first-poster.jpg', 'poster');
     Storage::disk('local')->put('research-calls/second-poster.jpg', 'poster');
+    Storage::disk('local')->put('research-calls/closed-poster.jpg', 'closed poster');
+    Storage::disk('local')->put('research-calls/expired-poster.jpg', 'expired poster');
 
     foreach ([
         ['title' => 'First Uploaded Research Call', 'reference_image_path' => 'research-calls/first-poster.jpg'],
@@ -134,13 +136,26 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
     }
 
     ResearchCall::create([
-        'title' => 'Research Call Without Poster',
+        'title' => 'Closed Research Call With Poster',
         'academic_year' => '2026-2027',
-        'opens_at' => now()->subMonth(),
-        'closes_at' => now()->subDay(),
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'reference_image_path' => 'research-calls/closed-poster.jpg',
         'max_active_research_per_faculty' => 2,
         'maximum_budget' => 100000,
         'status' => 'closed',
+        'created_by' => $head->id,
+    ]);
+
+    ResearchCall::create([
+        'title' => 'Expired Research Call With Poster',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subDay(),
+        'reference_image_path' => 'research-calls/expired-poster.jpg',
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 100000,
+        'status' => 'open',
         'created_by' => $head->id,
     ]);
 
@@ -152,13 +167,20 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ->assertSee('data-research-call-carousel', false)
         ->assertSee('data-research-call-single-slide', false)
         ->assertSee('data-research-call-lightbox', false)
-        ->assertSee('data-research-call-lightbox-close', false)
+        ->assertDontSee('data-research-call-lightbox-close', false)
+        ->assertSee('data-research-call-indicator', false)
+        ->assertSee('data-research-call-submit-overlay', false)
         ->assertSee('max-w-[40rem]', false)
+        ->assertSee('transform-gpu object-contain', false)
         ->assertSee(asset('images/maingate.jpg'), false)
         ->assertSee('bg-transparent p-0 shadow-none', false)
         ->assertSee('bg-cover bg-center bg-no-repeat', false)
         ->assertSee('rgba(255, 255, 255, 0.82)', false)
-        ->assertSee('duration-[350ms]', false)
+        ->assertSee('inline-flex h-full w-auto', false)
+        ->assertSee('h-full w-auto max-w-none', false)
+        ->assertSee('transition-transform duration-500', false)
+        ->assertSee('duration-700', false)
+        ->assertSee('ease-[cubic-bezier(0.22,1,0.36,1)]', false)
         ->assertSee('First Uploaded Research Call')
         ->assertSee('Second Uploaded Research Call')
         ->assertSee('Submit a proposal')
@@ -170,7 +192,16 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ->assertDontSee('Click to view full screen')
         ->assertSee(route('faculty.proposal-drafts.create'), false)
         ->assertSee('id="recent-drafts"', false)
-        ->assertDontSee('Research Call Without Poster');
+        ->assertDontSee('Closed Research Call With Poster')
+        ->assertDontSee(route(
+            'research-calls.reference-image',
+            ResearchCall::query()->where('title', 'Closed Research Call With Poster')->firstOrFail(),
+        ), false)
+        ->assertDontSee('Expired Research Call With Poster')
+        ->assertDontSee(route(
+            'research-calls.reference-image',
+            ResearchCall::query()->where('title', 'Expired Research Call With Poster')->firstOrFail(),
+        ), false);
 
     $this->actingAs($faculty)
         ->get(route('faculty.proposal-drafts.create', ['research_call_id' => $firstCall->id]))

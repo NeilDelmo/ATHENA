@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ResearchCallWindow;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -52,6 +53,16 @@ class ResearchCall extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function scopeAcceptingSubmissions(Builder $query): Builder
+    {
+        $at = now();
+
+        return $query
+            ->where('status', 'open')
+            ->where('opens_at', '<=', $at)
+            ->where('closes_at', '>=', $at);
     }
 
     public function isAcceptingSubmissions(): bool
