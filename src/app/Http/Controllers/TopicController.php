@@ -51,6 +51,7 @@ class TopicController extends Controller
             ->get();
 
         $researchCallPosters = ResearchCall::query()
+            ->acceptingSubmissions()
             ->whereNotNull('reference_image_path')
             ->where('reference_image_path', '!=', '')
             ->latest()

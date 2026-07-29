@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateResearchCallRequest;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\User;
+use App\Notifications\ResearchCallPublishedNotification;
 use App\Notifications\ResearchCallUpdatedNotification;
 use App\Services\ResearchCallImageParser;
 use Illuminate\Http\JsonResponse;
@@ -53,6 +54,17 @@ class ResearchCallController extends Controller
         ]);
 
         $call->categories()->sync($this->categoryIds($validated['categories']));
+
+        if ($call->isAcceptingSubmissions()) {
+            Notification::sendNow(
+                User::role(['faculty', 'faculty_researcher'])->get(),
+                new ResearchCallPublishedNotification(
+                    $call->id,
+                    $call->title,
+                    route('faculty.dashboard'),
+                ),
+            );
+        }
 
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
     }
