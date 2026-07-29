@@ -103,7 +103,7 @@ beforeEach(function () {
         'research_agenda' => 'Environment and Climate Change',
         'sdgs' => [13, 14, 17],
         'leader_email' => $this->faculty->email,
-        'leader_contact' => '+63 917 123 4567',
+        'leader_contact' => '09171234567',
         'staff' => [],
         'proponent_department' => 'Research Department',
         'proponent_college' => 'College of Arts and Sciences',

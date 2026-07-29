@@ -75,7 +75,7 @@
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
                         <form action="{{ route('faculty.proposal-drafts.work-plan.preview', $proposalDraft) }}" method="POST" target="_blank" class="w-full sm:w-auto">
                             @csrf
-                            @foreach ($workPlanSource['entries'] as $entryIndex => $entry)
+                            @foreach ($workPlanSource['entries'] ?? [] as $entryIndex => $entry)
                                 <input type="hidden" name="entries[{{ $entryIndex }}][objective]" value="{{ $entry['objective'] }}">
                                 <input type="hidden" name="entries[{{ $entryIndex }}][expected_output]" value="{{ $entry['expected_output'] }}">
                                 <input type="hidden" name="entries[{{ $entryIndex }}][activity]" value="{{ $entry['activity'] }}">

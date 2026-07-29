@@ -98,6 +98,30 @@ test('generated paper editors support partial drafts and gate download controls'
     }
 });
 
+test('revision-linked generated paper downloads can be staged in the matching revision attachment', function () {
+    $editorViews = [
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
+    ];
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+
+    foreach ($editorViews as $editorView) {
+        expect(file_get_contents(base_path($editorView)))
+            ->toContain('revisionUploadUrl')
+            ->toContain('revisionDocumentType')
+            ->toContain('revisionAttachmentLabel');
+    }
+
+    expect($appJavaScript)
+        ->toContain('offerRevisionUpload')
+        ->toContain('Automatically upload this file to the revision?')
+        ->toContain('Revision workspace')
+        ->toContain('revisionUploadUrl');
+});
+
 test('proposal flash feedback is marked for SweetAlert2 across the workspace', function () {
     foreach (File::allFiles(resource_path('views/faculty/proposal-drafts')) as $viewFile) {
         $view = preg_replace('/\s+/', ' ', $viewFile->getContents());

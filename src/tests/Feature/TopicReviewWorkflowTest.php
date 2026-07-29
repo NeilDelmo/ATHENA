@@ -39,7 +39,7 @@ test('a research head can request a revision with comments', function () {
     $head->assignRole('research_head');
 
     $faculty = User::factory()->create();
-    $faculty->assignRole('faculty');
+    $faculty->assignRole(['faculty', 'research_head']);
 
     $topic = TopicProposal::create([
         'user_id' => $faculty->id,
@@ -56,6 +56,38 @@ test('a research head can request a revision with comments', function () {
 
     $response->assertRedirect(route('research_head.dashboard'));
     expect($topic->fresh()->status)->toBe('revision_requested');
+
+    $notification = $faculty->notifications()->sole();
+    expect($notification->data['workspace'])->toBe([
+        User::WORKSPACE_FACULTY_RESEARCHER,
+        User::WORKSPACE_FACULTY,
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($faculty)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(0, 'notifications')
+        ->assertJsonPath('unread_count', 0);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($faculty)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(1, 'notifications')
+        ->assertJsonPath('notifications.0.data.title', 'Revision requested')
+        ->assertJsonPath('unread_count', 1);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($faculty)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(1, 'notifications')
+        ->assertJsonPath('notifications.0.data.title', 'Revision requested')
+        ->assertJsonPath('unread_count', 1);
 
     $this->assertDatabaseHas('topic_reviews', [
         'topic_id' => $topic->id,
@@ -129,7 +161,6 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'estimated_budget' => 8500,
         'estimated_duration_months' => 10,
         'document' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
-        'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ]);
 
     $response->assertRedirect(route('faculty.dashboard'));
@@ -143,7 +174,8 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         ->and($topic->latestVersion->version_number)->toBe(2)
         ->and($topic->latestVersion->title)->toBe('Revised proposal')
         ->and($topic->latestVersion->estimated_budget)->toBe('8500.00')
-        ->and($topic->latestVersion->checksum)->toHaveLength(64);
+        ->and($topic->latestVersion->checksum)->toHaveLength(64)
+        ->and($topic->latestVersion->files->contains('document_type', ProposalVersionFile::TYPE_COMMENT_RESPONSE))->toBeFalse();
 
     Storage::disk('local')->assertExists('proposals/original.pdf');
     Storage::disk('local')->assertExists($topic->latestVersion->file_path);
@@ -278,27 +310,95 @@ test('review feedback and revision controls are visible on both dashboards', fun
         'decision' => 'revision_requested',
         'comment' => 'Please tighten the literature review.',
     ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/original.pdf',
+        'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'title' => $topic->title,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => 12,
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+        'file_path' => 'proposals/presentation-comment-response.docx',
+        'original_filename' => 'presentation-comment-response.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 50,
+    ]);
 
     $this->actingAs($faculty)
         ->get('/faculty/dashboard')
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
         ->assertSee('Revise and resubmit proposal')
-        ->assertSee('Auto-filled Comment-Response Form')
-        ->assertSee(route('faculty.topics.comment-response-form.preview', $topic), false)
-        ->assertSee(route('faculty.topics.comment-response-form.download', $topic), false);
+        ->assertDontSee('Auto-filled Comment-Response Form')
+        ->assertDontSee('Completed comment-response form');
 
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Auto-filled Comment-Response Form')
-        ->assertSee('Completed comment-response form');
+        ->assertDontSee('Auto-filled Comment-Response Form')
+        ->assertDontSee('Completed comment-response form')
+        ->assertDontSee('presentation-comment-response.docx')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Save and submit revision')
+        ->assertSee('data-topic-file-dropzone="detailed_proposal"', false)
+        ->assertSee('data-topic-file-dropzone="curricula_vitae"', false)
+        ->assertSee('Drop detailed proposal here')
+        ->assertSee('Drop curriculum vitae files here')
+        ->assertSee('data-confirm-title="Upload this revision to the Research Head?"', false);
 
     $this->actingAs($head)
         ->get('/research-head/dashboard')
         ->assertOk()
         ->assertSee('Please tighten the literature review.')
         ->assertSee('Waiting for faculty revision');
+});
+
+test('research details reads total project cost from the line-item budget attachment', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Budgeted coastal habitat restoration',
+        'estimated_budget' => 0,
+        'initial_file_path' => 'proposals/original.pdf',
+        'status' => 'revision_requested',
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/original.pdf',
+        'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'estimated_duration_months' => 12,
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'file_path' => 'proposal-packages/budget.xlsx',
+        'original_filename' => 'budget.xlsx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'source_data' => ['project_total' => 43210.5],
+        'is_carried_forward' => false,
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('PHP 43,210.50')
+        ->assertSee('value="43210.5"', false);
 });
 
 test('faculty can preview and download an auto-filled official Comment-Response Form during revision', function () {
@@ -530,6 +630,9 @@ test('faculty researchers can browse and open only their own research records', 
         ->assertOk()
         ->assertSee('revision requested')
         ->assertSee('PHP 14,500.00')
+        ->assertSee('Submitted proposal files')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Version comparison')
         ->assertSee('Proposal version history')
         ->assertSee('Version 1');
 
@@ -726,8 +829,12 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Proposal package checklist')
-        ->assertSee('7/7 complete');
+        ->assertSee('Submitted proposal files')
+        ->assertSee('Research details')
+        ->assertSee('Review and decision timeline')
+        ->assertSee('Version comparison')
+        ->assertSee('Proposal version history')
+        ->assertDontSee('Proposal package checklist');
 
     $this->actingAs($head)
         ->get(route('topics.show', $topic))
@@ -738,7 +845,9 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertSee('Initial Screening Form')
         ->assertSee('View PDF')
         ->assertSee('Download PDF')
-        ->assertSee('Research Head action');
+        ->assertSee('Research Head action')
+        ->assertSee('data-topic-file-dropzone="signed_approval"', false)
+        ->assertSee('Drop signed approval pdf here');
 
     $this->actingAs($expert)
         ->get(route('topics.show', $topic))
@@ -784,7 +893,6 @@ test('the proposal workspace is complete role-aware and private', function () {
             'estimated_budget' => $topic->estimated_budget,
             'estimated_duration_months' => 18,
             'change_summary' => 'Updated the implementation schedule.',
-            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ])
         ->assertSessionHasErrors('work_plan', null, 'resubmission');
 
@@ -796,7 +904,6 @@ test('the proposal workspace is complete role-aware and private', function () {
             'estimated_duration_months' => 18,
             'change_summary' => 'Updated the implementation schedule.',
             'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-            'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         ])
         ->assertRedirect(route('faculty.dashboard'));
 

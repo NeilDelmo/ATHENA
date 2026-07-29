@@ -486,7 +486,6 @@ test('a revision snapshots the package and carries forward unchanged files', fun
         'title' => 'Versioned package - over budget',
         'estimated_budget' => 100000.01,
         'estimated_duration_months' => 14,
-        'comment_response' => UploadedFile::fake()->create('over-budget-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ])->assertSessionHasErrors('estimated_budget', null, 'resubmission');
 
     expect($topic->fresh()->versions()->count())->toBe(1);
@@ -498,7 +497,6 @@ test('a revision snapshots the package and carries forward unchanged files', fun
         'estimated_duration_months' => 14,
         'change_summary' => 'Extended the schedule and replaced the work plan.',
         'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        'comment_response' => UploadedFile::fake()->create('comment-response.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ])->assertRedirect(route('faculty.dashboard'));
 
     $secondVersion = $topic->fresh()->latestVersion()->with('files')->firstOrFail();
@@ -507,7 +505,7 @@ test('a revision snapshots the package and carries forward unchanged files', fun
 
     expect($secondVersion->version_number)->toBe(2)
         ->and($secondVersion->change_summary)->toBe('Extended the schedule and replaced the work plan.')
-        ->and($secondVersion->files)->toHaveCount(7)
+        ->and($secondVersion->files)->toHaveCount(6)
         ->and($revisedWorkPlan->is_carried_forward)->toBeFalse()
         ->and($revisedWorkPlan->file_path)->not->toBe($originalWorkPlan->file_path)
         ->and($carriedDetailedProposal->is_carried_forward)->toBeTrue()

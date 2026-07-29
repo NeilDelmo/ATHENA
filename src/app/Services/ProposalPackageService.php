@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalDraftDocument;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
@@ -41,7 +42,6 @@ class ProposalPackageService
                 'line_item_budget' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
                 'expense_breakdown' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
                 'gad_checklist' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
-                'comment_response' => ProposalVersionFile::TYPE_COMMENT_RESPONSE,
             ] as $input => $documentType) {
                 $file = $request->file($input);
 
@@ -88,7 +88,6 @@ class ProposalPackageService
             ProposalVersionFile::TYPE_CURRICULUM_VITAE,
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
             ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
-            ProposalVersionFile::TYPE_COMMENT_RESPONSE,
         ] as $documentType) {
             $replacementFiles = collect($replacements)
                 ->where('document_type', $documentType)
@@ -129,6 +128,36 @@ class ProposalPackageService
         }
 
         return $snapshot;
+    }
+
+    /** @return array<string, mixed> */
+    public function copyDraftDocument(ProposalDraftDocument $document, string $permanentDirectory): array
+    {
+        if (! filled($document->file_path) || ! Storage::disk('local')->exists($document->file_path)) {
+            throw new RuntimeException('The staged revision file is no longer available.');
+        }
+
+        $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
+        $path = $permanentDirectory.'/'.$document->document_type.'/'.Str::uuid().'.'.$extension;
+
+        if (! Storage::disk('local')->copy($document->file_path, $path)) {
+            throw new RuntimeException('The staged revision file could not be copied into the proposal package.');
+        }
+
+        $absolutePath = Storage::disk('local')->path($path);
+
+        return [
+            'source_version_file_id' => null,
+            'document_type' => $document->document_type,
+            'position' => $document->position,
+            'file_path' => $path,
+            'original_filename' => $document->original_filename,
+            'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
+            'file_size' => Storage::disk('local')->size($path),
+            'checksum' => hash_file('sha256', $absolutePath) ?: null,
+            'source_data' => $document->source_data,
+            'is_carried_forward' => false,
+        ];
     }
 
     /**

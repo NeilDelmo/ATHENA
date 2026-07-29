@@ -93,7 +93,7 @@ test('research head can attach reviewed files to exact faculty submissions', fun
             'note' => 'Annotated for the faculty revision.',
         ]);
 
-    $response->assertRedirect(route('topics.head-uploads.index', $this->topic))
+    $response->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
         ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     $headUpload = $this->version->files()
@@ -125,7 +125,7 @@ test('signed copy can be attached even after the proposal is approved', function
             'review_file' => UploadedFile::fake()->create('signed-gad-checklist.docx', 200, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.head-uploads.index', $this->topic))
+        ->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
         ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(1);
@@ -142,7 +142,7 @@ test('research head can upload a standalone supplemental paper after faculty tur
             'note' => 'Received through the Research Head for the proposal record.',
         ]);
 
-    $response->assertRedirect(route('topics.head-uploads.index', $this->topic))
+    $response->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
         ->assertSessionHas('success', 'Supplemental paper uploaded by the Research Head.');
 
     $supplementalPaper = $this->version->files()
@@ -226,9 +226,11 @@ test('the upload workspace mirrors the faculty package and surfaces research hea
             'note' => 'Use these annotations for the next revision.',
         ]);
 
-    $response = $this->actingAs($this->head)->get(route('topics.head-uploads.index', $this->topic));
+    $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 
     $response->assertOk()
+        ->assertSee('Review & Upload Files')
+        ->assertSee('data-research-head-file-workspace', false)
         ->assertSee('Review and Upload Files')
         ->assertSee('Faculty-submitted files')
         ->assertSee('Faculty original')
@@ -236,6 +238,52 @@ test('the upload workspace mirrors the faculty package and surfaces research hea
         ->assertSee('For revision')
         ->assertSee('Use these annotations for the next revision.')
         ->assertSee('Upload copy');
+});
+
+test('the second proposal tab matches the active workspace', function () {
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Review & Upload Files')
+        ->assertSee("@click=\"setTopicTab('review', 'review-and-upload-files')\"", false)
+        ->assertSee('data-research-head-file-workspace', false)
+        ->assertDontSee('Review & Submit');
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Review & Submit')
+        ->assertSee("@click=\"setTopicTab('review', 'review-and-submit')\"", false)
+        ->assertDontSee('Review & Upload Files')
+        ->assertDontSee('data-research-head-file-workspace', false);
+});
+
+test('a dual-role proposal owner only sees the faculty revision module in a faculty workspace', function () {
+    $this->head->assignRole('faculty');
+    $this->topic->update([
+        'user_id' => $this->head->id,
+        'status' => 'revision_requested',
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Review & Upload Files')
+        ->assertDontSee('id="submit-revision"', false);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Review & Submit')
+        ->assertSee('id="submit-revision"', false);
 });
 
 test('the head action timeline records head upload events', function () {

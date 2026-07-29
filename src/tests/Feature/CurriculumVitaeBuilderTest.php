@@ -50,8 +50,8 @@ beforeEach(function () {
                 'barangay' => 'Barangay 1',
                 'municipality' => 'Nasugbu',
                 'province' => 'Batangas',
-                'landline' => '043-000-0000',
-                'cellphone' => '9123456789',
+                'landline' => '04300000000',
+                'cellphone' => '09123456789',
                 'email' => 'faculty@example.test',
                 'academic_background' => [
                     ['degree' => 'BS Computer Science', 'major_field' => 'Computer Science', 'sector' => 'Higher Education', 'learning_institution' => 'BatStateU', 'status' => 'Graduated', 'year_start' => '2008', 'year_end' => '2012', 'thesis' => 'Coastal data platform'],
@@ -266,7 +266,7 @@ test('the preview repeats the complete official CV for every team member', funct
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressValueCells)))->toBe(['Rizal Street', 'Barangay 1', 'Nasugbu', 'Batangas'])
         ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($addressLabelCells)))->toBe(['Street', 'Barangay', 'Municipality', 'Province'])
         ->and($contactOutputs)->toHaveCount(3)
-        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['043-000-0000', '(+63) 9123456789', 'faculty@example.test'])
+        ->and(array_map(fn (DOMNode $cell): string => trim($cell->textContent), iterator_to_array($contactOutputs)))->toBe(['04300000000', '(+63) 09123456789', 'faculty@example.test'])
         ->and($ongoingAcademicCells)->toHaveCount(8)
         ->and(trim($ongoingAcademicCells->item(4)->textContent))->toBe('Ongoing')
         ->and(trim($ongoingAcademicCells->item(5)->textContent))->toBe('2019')
@@ -314,6 +314,16 @@ test('an incomplete CV package can be previewed but not downloaded', function ()
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), [])
         ->assertSessionHasErrors();
+});
+
+test('CV contact numbers must contain exactly 11 digits when provided', function () {
+    $payload = ($this->payload)();
+    $payload['people'][0]['landline'] = '0430000000';
+    $payload['people'][0]['cellphone'] = '0912345678A';
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), $payload)
+        ->assertSessionHasErrors(['people.0.landline', 'people.0.cellphone']);
 });
 
 test('the generated Word file preserves the official form and adds one complete block per team member', function () {

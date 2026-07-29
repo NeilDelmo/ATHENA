@@ -127,6 +127,53 @@ async function showProposalConfirmation({
     return result.isConfirmed;
 }
 
+async function offerRevisionUpload(blob, filename, config = {}) {
+    if (!config.revisionUploadUrl || !config.revisionDocumentType) return;
+
+    const isConfirmed = await showProposalConfirmation({
+        title: 'Automatically upload this file to the revision?',
+        text: `Upload "${filename}" to Revision workspace → Submit revision → ${config.revisionAttachmentLabel || 'the matching attachment'}?`,
+        confirmButtonText: 'Automatically upload',
+        cancelButtonText: 'Only download',
+        icon: 'question',
+    });
+
+    if (!isConfirmed) return;
+
+    const formData = new FormData();
+    const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
+
+    formData.append('document_type', config.revisionDocumentType);
+    formData.append('file', file);
+
+    const response = await fetch(config.revisionUploadUrl, {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json',
+            'X-CSRF-TOKEN': config.csrfToken,
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        let message = 'The downloaded file could not be added to the revision workspace.';
+
+        try {
+            const payload = await response.json();
+            message = payload.message || Object.values(payload.errors || {}).flat().join(' ') || message;
+        } catch {
+            // Keep the generic upload error when the response is not JSON.
+        }
+
+        throw new Error(message);
+    }
+
+    const payload = await response.json();
+    const destination = payload.redirect_url || config.revisionReviewUrl;
+
+    if (destination) window.location.assign(destination);
+}
+
 async function initializeProposalAlerts() {
     const alerts = Array.from(document.querySelectorAll('[data-proposal-alert]'))
         .filter((alert) => alert.dataset.proposalAlertReady !== 'true');
@@ -2469,7 +2516,8 @@ Alpine.data('workPlanWizard', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
             link.href = downloadUrl;
@@ -2477,6 +2525,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error
@@ -2803,7 +2852,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
             link.href = downloadUrl;
@@ -2811,6 +2861,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error
@@ -3088,13 +3139,15 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.docx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = filename;
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
@@ -3328,13 +3381,15 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'estimated-expense-breakdown.xlsx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = filename;
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Excel file could not be generated.';
@@ -3385,8 +3440,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             barangay: String(values.barangay ?? ''),
             municipality: String(values.municipality ?? ''),
             province: String(values.province ?? ''),
-            landline: String(values.landline ?? ''),
-            cellphone: String(values.cellphone ?? ''),
+            landline: this.normalizeContactNumber(values.landline),
+            cellphone: this.normalizeContactNumber(values.cellphone),
             email: String(values.email ?? ''),
         };
 
@@ -3426,6 +3481,10 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         }
 
         return row;
+    },
+
+    normalizeContactNumber(value) {
+        return String(value ?? '').replace(/\D/g, '').slice(0, 11);
     },
 
     updateAcademicStatus(row, status) {
@@ -3585,13 +3644,15 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-c-curriculum-vitae.docx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = filename;
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
@@ -3642,7 +3703,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.researchAgenda = String(data.research_agenda ?? '');
         this.sdgs = Array.isArray(data.sdgs) ? data.sdgs.map((sdg) => Number(sdg)) : [];
         this.leaderEmail = String(data.leader_email ?? '');
-        this.leaderContact = String(data.leader_contact ?? '');
+        this.leaderContact = this.normalizeContactNumber(data.leader_contact);
         this.staff = Array.isArray(data.staff)
             ? data.staff.map((member) => this.newStaff(member))
             : [];
@@ -3674,7 +3735,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             key: String(values.key ?? ''),
             name: String(values.name ?? ''),
             email: String(values.email ?? ''),
-            contact: String(values.contact ?? ''),
+            contact: this.normalizeContactNumber(values.contact),
         };
     },
 
@@ -3686,6 +3747,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             name: String(values.name ?? ''),
             duties: String(values.duties ?? ''),
         };
+    },
+
+    normalizeContactNumber(value) {
+        return String(value ?? '').replace(/\D/g, '').slice(0, 11);
     },
 
     availableWorkspacePeople() {
@@ -3843,13 +3908,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'detailed-research-proposal.docx';
-            const downloadUrl = URL.createObjectURL(await response.blob());
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = filename;
             document.body.appendChild(link);
             link.click();
             link.remove();
+            await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
             this.downloadError = error instanceof Error ? error.message : 'The exact Word file could not be generated.';

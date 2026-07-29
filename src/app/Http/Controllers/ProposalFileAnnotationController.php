@@ -16,7 +16,10 @@ use Illuminate\Support\Str;
 class ProposalFileAnnotationController extends Controller
 {
     /** @var list<string> */
-    private const REVIEWABLE_STATUSES = ['pending', 'resubmitted', 'for_final_decision'];
+    private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision'];
+
+    /** @var list<string> */
+    private const REVISION_REQUEST_STATUSES = ['pending', 'resubmitted', 'for_final_decision'];
 
     public function index(
         Request $request,
@@ -28,6 +31,7 @@ class ProposalFileAnnotationController extends Controller
 
         $isResearchHead = $request->user()->isUsingWorkspace('research_head');
         $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
+        $canRequestRevision = $canAnnotate && in_array($topic->status, self::REVISION_REQUEST_STATUSES, true);
         $annotations = $file->annotations()
             ->with(['reviewer', 'fileRevision'])
             ->when(! $isResearchHead, fn ($query) => $query->whereNotNull('topic_review_file_revision_id'))
@@ -77,7 +81,9 @@ class ProposalFileAnnotationController extends Controller
             'topic',
             'version',
             'file',
+            'isResearchHead',
             'canAnnotate',
+            'canRequestRevision',
             'annotationConfiguration',
         ));
     }
@@ -157,7 +163,7 @@ class ProposalFileAnnotationController extends Controller
 
     private function canAnnotate(TopicProposal $topic, ProposalVersion $version): bool
     {
-        return in_array($topic->status, self::REVIEWABLE_STATUSES, true)
+        return in_array($topic->status, self::ANNOTATABLE_STATUSES, true)
             && $topic->latestVersion()->whereKey($version->id)->exists();
     }
 
