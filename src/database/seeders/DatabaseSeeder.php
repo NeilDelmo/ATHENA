@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
         $expertRole = Role::firstOrCreate(['name' => 'expert']);
         Role::firstOrCreate(['name' => 'research_coordinator']);
 
-        $researchHeadEmail = '23-78498@g.batstate-u.edu.ph';
+        $researchHeadEmail = '23-77703@g.batstate-u.edu.ph';
 
         $head = User::firstOrCreate(['email' => $researchHeadEmail], [
             'name' => 'Research Head',
