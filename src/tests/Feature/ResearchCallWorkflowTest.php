@@ -171,6 +171,40 @@ test('faculty and faculty researchers are notified when an open research call is
     Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
 });
 
+test('faculty and faculty researchers are notified when a draft research call is published', function () {
+    $facultyResearcher = User::factory()->create();
+    $facultyResearcher->assignRole('faculty_researcher');
+    $draftCall = ResearchCall::create([
+        'title' => 'Draft Institutional Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'draft',
+        'created_by' => $this->head->id,
+    ]);
+    Notification::fake();
+
+    $this->actingAs($this->head)
+        ->patch(route('research-calls.update-status', $draftCall), [
+            'status' => 'open',
+        ])
+        ->assertRedirect();
+
+    foreach ([$this->faculty, $facultyResearcher] as $recipient) {
+        Notification::assertSentTo(
+            $recipient,
+            ResearchCallPublishedNotification::class,
+            fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $draftCall->id
+                && $notification->url === route('faculty.dashboard'),
+        );
+    }
+
+    Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
+    Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
+});
+
 test('published research calls follow their configured start and end dates automatically', function () {
     $this->call->update([
         'opens_at' => now()->addWeek(),

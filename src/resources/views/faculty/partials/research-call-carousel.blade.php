@@ -1,11 +1,11 @@
 @if ($researchCallCarouselItems->isNotEmpty())
-    <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl bg-slate-950 bg-cover bg-center bg-no-repeat" style="background-image: url('{{ asset('images/maingate.jpg') }}');" aria-label="Research call posters" aria-roledescription="carousel">
+    <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl border border-gray-200/70 bg-slate-950 bg-cover bg-center bg-no-repeat shadow-sm dark:border-slate-800" style="background-image: url('{{ asset('images/maingate.jpg') }}');" aria-label="Research call posters" aria-roledescription="carousel">
         <div class="pointer-events-none absolute inset-0 bg-white/35" aria-hidden="true"></div>
         <div class="pointer-events-none absolute inset-0" style="background: linear-gradient(90deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.62) 23%, rgba(255, 255, 255, 0.34) 50%, rgba(255, 255, 255, 0.62) 77%, rgba(255, 255, 255, 0.82) 100%);" aria-hidden="true"></div>
 
-        <div data-research-call-viewport data-research-call-single-slide class="relative h-[13rem] overflow-hidden sm:h-[18rem]">
+        <div data-research-call-viewport data-research-call-single-slide class="relative h-[14.5rem] overflow-hidden sm:h-[20.5rem]">
             @foreach ($researchCallCarouselItems as $carouselItem)
-                <div data-research-call-slide class="group absolute left-1/2 top-1/2 inline-flex h-full w-auto cursor-zoom-in bg-transparent p-0 shadow-none transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
+                <div data-research-call-slide class="group absolute left-1/2 top-1/2 inline-flex h-[112%] w-auto cursor-zoom-in bg-transparent p-0 shadow-none transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:h-[115%]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
                     <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="h-full w-auto max-w-none cursor-zoom-in object-contain transition-transform duration-500 ease-out" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
                     @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
                         <div data-research-call-submit-overlay class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-950/35 opacity-0 transition-all duration-300 group-hover:pointer-events-auto group-hover:opacity-100">

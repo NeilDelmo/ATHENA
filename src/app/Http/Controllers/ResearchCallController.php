@@ -56,14 +56,7 @@ class ResearchCallController extends Controller
         $call->categories()->sync($this->categoryIds($validated['categories']));
 
         if ($call->isAcceptingSubmissions()) {
-            Notification::sendNow(
-                User::role(['faculty', 'faculty_researcher'])->get(),
-                new ResearchCallPublishedNotification(
-                    $call->id,
-                    $call->title,
-                    route('faculty.dashboard'),
-                ),
-            );
+            $this->notifyFacultyOfPublishedCall($call);
         }
 
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
@@ -151,6 +144,7 @@ class ResearchCallController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(['draft', 'open', 'closed'])],
         ]);
+        $wasAcceptingSubmissions = $researchCall->isAcceptingSubmissions();
 
         if ($validated['status'] === 'open' && $researchCall->closes_at->isPast()) {
             return back()->withErrors([
@@ -160,6 +154,10 @@ class ResearchCallController extends Controller
 
         $researchCall->update(['status' => $validated['status']]);
 
+        if (! $wasAcceptingSubmissions && $researchCall->isAcceptingSubmissions()) {
+            $this->notifyFacultyOfPublishedCall($researchCall);
+        }
+
         $message = match ($validated['status']) {
             'open' => 'Research call published. It will accept submissions only during its configured date range.',
             'closed' => 'Research call closed. New proposal submissions are no longer accepted.',
@@ -167,6 +165,18 @@ class ResearchCallController extends Controller
         };
 
         return back()->with('success', $message);
+    }
+
+    private function notifyFacultyOfPublishedCall(ResearchCall $researchCall): void
+    {
+        Notification::sendNow(
+            User::role(['faculty', 'faculty_researcher'])->get(),
+            new ResearchCallPublishedNotification(
+                $researchCall->id,
+                $researchCall->title,
+                route('faculty.dashboard'),
+            ),
+        );
     }
 
     /** @return list<int> */
