@@ -4,7 +4,7 @@
     class="fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden rounded-r-[28px] border-r border-slate-200/80 bg-white/95 shadow-slate-900/10 backdrop-blur-xl transition-[width,background-color] duration-300 ease-out dark:border-slate-800/80 dark:bg-slate-950/95"
 >
     <svg
-        class="pointer-events-none absolute inset-0 h-full w-full text-[#7A0019]/[0.035] dark:text-white/[0.025]"
+        class="pointer-events-none absolute inset-0 z-0 h-full w-full text-[#7A0019]/[0.035] dark:text-white/[0.025]"
         aria-hidden="true"
     >
         <defs>

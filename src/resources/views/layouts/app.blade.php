@@ -49,8 +49,8 @@
         ></div>
 
         <div
-            :class="{ 'sm:pl-64': sidebarOpen, 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
-            class="flex min-h-screen flex-col bg-white pl-16 transition-[padding,background-color] duration-200 ease-out dark:bg-slate-950"
+            :class="{ 'sm:pl-[280px]': sidebarOpen, 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
+            class="flex min-h-screen flex-col bg-white pl-[76px] transition-[padding,background-color] duration-300 ease-out dark:bg-slate-950"
         >
             
             <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
