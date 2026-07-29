@@ -11,9 +11,13 @@
             ? route('research_head.dashboard')
             : (Auth::user()->isUsingWorkspace('expert') ? route('expert.dashboard') : route('faculty.dashboard'));
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'for_final_decision'], true);
-        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
+        $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
+        $isFacultyWorkspace = Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
+        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && $isFacultyWorkspace;
         $resubmissionErrors = $errors->getBag('resubmission');
-        $initialTopicTab = $resubmissionErrors->any()
+        $headUploadErrors = $errors->getBag('headUpload');
+        $reviewTabHash = $isResearchHead ? 'review-and-upload-files' : 'review-and-submit';
+        $initialTopicTab = $resubmissionErrors->any() || $headUploadErrors->any()
             ? 'review'
             : (in_array(session('topic_tab'), ['details', 'review', 'history'], true) ? session('topic_tab') : null);
     @endphp
@@ -48,7 +52,7 @@
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
-                ['#review-and-submit', '#submit-revision'].includes(window.location.hash)
+                ['#review-and-submit', '#review-and-upload-files', '#submit-revision'].includes(window.location.hash)
                     ? 'review'
                     : window.location.hash === '#version-history'
                         ? 'history'
@@ -59,7 +63,7 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                this.activeTopicTab = ['#review-and-submit', '#submit-revision'].includes(window.location.hash)
+                this.activeTopicTab = ['#review-and-submit', '#review-and-upload-files', '#submit-revision'].includes(window.location.hash)
                     ? 'review'
                     : window.location.hash === '#version-history'
                         ? 'history'
@@ -84,9 +88,9 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v13.5A2.25 2.25 0 0 1 17.75 21H6.25A2.25 2.25 0 0 1 4 18.75V5.25Z" /><path stroke-linecap="round" d="M8 8h8M8 12h8M8 16h5" /></svg>
                     Proposal details
                 </button>
-                <button id="review-and-submit-tab-button" type="button" role="tab" aria-controls="review-and-submit-tab" :aria-selected="activeTopicTab === 'review'" @click="setTopicTab('review', 'review-and-submit')" :class="activeTopicTab === 'review' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition">
+                <button id="proposal-review-tab-button" type="button" role="tab" aria-controls="proposal-review-tab" :aria-selected="activeTopicTab === 'review'" @click="setTopicTab('review', '{{ $reviewTabHash }}')" :class="activeTopicTab === 'review' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5A2.25 2.25 0 0 1 19.5 6v14.25H4.5V6a2.25 2.25 0 0 1 2.25-2.25Z" /><path stroke-linecap="round" d="M8.25 9.5h7.5M8.25 13h5.25" /></svg>
-                    Review &amp; submit
+                    {{ $isResearchHead ? 'Review & Upload Files' : 'Review & Submit' }}
                 </button>
                 <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
@@ -111,9 +115,6 @@
                             </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            @if (Auth::user()->isUsingWorkspace('research_head') && $latestVersion)
-                                <a href="{{ route('topics.head-uploads.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Review &amp; upload files @if ($headUploadCount > 0)<span class="ml-1 opacity-70">({{ $headUploadCount }})</span>@endif</a>
-                            @endif
                             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-800' }}">
                                 {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} PDFs available
                             </span>
@@ -182,7 +183,11 @@
             </div>
         </section>
 
-        <section id="review-and-submit-tab" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="review-and-submit-tab-button" class="space-y-5">
+        <section id="proposal-review-tab" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-5">
+            @if ($isResearchHead && $headUploadWorkspace)
+                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
+            @endif
+
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4">
                     <p class="text-[10px] font-black uppercase tracking-wider text-red-600">Proposal review</p>
@@ -234,7 +239,13 @@
                     <select name="status" required class="block w-full rounded-xl border-gray-200 text-xs font-bold"><option value="">Choose an action</option>@if ($topic->status !== 'for_final_decision')<option value="expert_review">Send to co-evaluator(s)</option>@endif @if ($topic->status === 'for_final_decision')<option value="approved">Approve after Initial Screening</option>@endif<option value="revision_requested">Request revision</option><option value="rejected">Reject proposal</option></select>
                     @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
                     <div><label class="text-[11px] font-bold text-gray-500">Assigned co-evaluator(s)</label><select name="expert_ids[]" multiple size="{{ min(max($experts->count(), 2), 5) }}" class="mt-1 block w-full rounded-xl border-gray-200 text-xs">@foreach ($experts as $expert)<option value="{{ $expert->id }}">{{ $expert->name }} - {{ $expert->email }}</option>@endforeach</select></div>
-                    <div><label class="text-[11px] font-bold text-gray-500">Signed approval PDF</label><input type="file" name="signed_approval" accept=".pdf" class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></div>
+                    <x-file-dropzone
+                        id="signed_approval"
+                        name="signed_approval"
+                        label="Signed approval PDF"
+                        accept=".pdf"
+                        data-topic-file-dropzone="signed_approval"
+                    />
                     <textarea name="comment" rows="4" maxlength="5000" placeholder="Decision rationale (required for revision or rejection)" class="block w-full rounded-xl border-gray-200 text-xs"></textarea>
                     <button class="w-full rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white">Submit action</button>
                 </form>
@@ -254,27 +265,20 @@
                 </section>
             @endif
 
-            @if ($topic->status === 'revision_requested' && $topic->user_id === Auth::id())
+            @if ($isFacultyWorkspace && $topic->status === 'revision_requested' && $topic->user_id === Auth::id())
                 <form id="submit-revision" action="{{ route('faculty.topics.resubmit', $topic) }}" method="POST" enctype="multipart/form-data" data-proposal-confirm data-confirm-title="Upload this revision to the Research Head?" data-confirm-text="Your updated metadata and selected files will be saved as a new version. Unchanged files will carry forward automatically. Continue?" data-confirm-button="Save and submit revision" data-confirm-icon="question" class="space-y-4 rounded-2xl border border-blue-200 bg-white p-5 shadow-sm">
                     @csrf @method('PATCH')
                     <input type="hidden" name="redirect_to" value="topic">
                     <input type="hidden" name="topic_tab" value="review">
+                    @if ($topic->revisionDraft)
+                        <input type="hidden" name="revision_draft_id" value="{{ $topic->revisionDraft->id }}">
+                    @endif
                     <div>
                         <p class="text-[10px] font-black uppercase tracking-wider text-blue-700">Revision workspace</p>
                         <h3 class="mt-1 text-sm font-black text-gray-900">Submit revision</h3>
                         <p class="mt-1 text-xs leading-5 text-gray-500">Update the metadata and upload only changed files. Unchanged files carry forward automatically.</p>
                     </div>
 
-                    <div class="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs leading-5 text-purple-800">
-                        <p class="font-black">Auto-filled Comment-Response Form</p>
-                        <p class="mt-1">ATHENA fills the proposal title, Project Leader, known researcher details, and footer. Complete the evaluation type/date, comments, actions and responses, page-and-paragraph remarks, and signatures in Word.</p>
-                        <div class="mt-2 flex flex-wrap gap-2">
-                            <a href="{{ route('faculty.topics.comment-response-form.preview', $topic) }}" target="_blank" rel="noopener" class="rounded-lg border border-purple-300 bg-white px-3 py-2 text-[11px] font-bold text-purple-800">Preview auto-filled form</a>
-                            <a href="{{ route('faculty.topics.comment-response-form.download', $topic) }}" class="rounded-lg bg-purple-700 px-3 py-2 text-[11px] font-bold text-white">Download auto-filled Word file</a>
-                        </div>
-                    </div>
-
-                    <label class="block text-[11px] font-bold text-gray-500">Completed comment-response form <span class="text-red-600">Required</span><input name="comment_response" type="file" accept=".doc,.docx,.pdf" required class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
                     @if ($pendingFileRevisions->isNotEmpty())
                         <div class="rounded-xl border border-amber-200 bg-amber-50 p-3">
                             <p class="text-[11px] font-black uppercase tracking-wider text-amber-800">Required replacements</p>
@@ -297,9 +301,30 @@
 
                     <div class="grid gap-3 md:grid-cols-2">
                         @foreach ([['detailed_proposal', 'Detailed proposal', '.doc,.docx,.pdf'], ['work_plan', 'Work plan', '.doc,.docx,.pdf'], ['line_item_budget', 'Line-item budget', '.doc,.docx,.pdf'], ['expense_breakdown', 'Expense breakdown', '.xls,.xlsx'], ['gad_checklist', 'GAD checklist', '.doc,.docx,.pdf']] as [$name, $label, $accept])
-                            <label class="block text-[11px] font-bold text-gray-500">{{ $label }} @if ($requiredRevisionTypes->contains($name))<span class="text-red-600">Required</span>@endif<input name="{{ $name }}" type="file" accept="{{ $accept }}" @required($requiredRevisionTypes->contains($name)) class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
+                            @php($stagedFile = $stagedRevisionFiles->get($name))
+                            <x-file-dropzone
+                                id="revision_{{ $name }}"
+                                name="{{ $name }}"
+                                :label="$label"
+                                :accept="$accept"
+                                :required="$requiredRevisionTypes->contains($name) && ! $stagedFile"
+                                data-topic-file-dropzone="{{ $name }}"
+                            >
+                                @if ($stagedFile)<span class="mt-1 block rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-[10px] font-black text-green-800">Automatically uploaded: {{ $stagedFile->original_filename }}</span>@endif
+                            </x-file-dropzone>
                         @endforeach
-                        <label class="block text-[11px] font-bold text-gray-500">Curriculum vitae files @if ($requiredRevisionTypes->contains('curriculum_vitae'))<span class="text-red-600">Required</span>@endif<input name="curricula_vitae[]" type="file" accept=".doc,.docx,.pdf" multiple @required($requiredRevisionTypes->contains('curriculum_vitae')) class="mt-1 block w-full rounded-xl border border-gray-200 p-2 text-xs"></label>
+                        @php($stagedCurriculumVitae = $stagedRevisionFiles->get('curriculum_vitae'))
+                        <x-file-dropzone
+                            id="revision_curricula_vitae"
+                            name="curricula_vitae[]"
+                            label="Curriculum vitae files"
+                            accept=".doc,.docx,.pdf"
+                            :multiple="true"
+                            :required="$requiredRevisionTypes->contains('curriculum_vitae') && ! $stagedCurriculumVitae"
+                            data-topic-file-dropzone="curricula_vitae"
+                        >
+                            @if ($stagedCurriculumVitae)<span class="mt-1 block rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-[10px] font-black text-green-800">Automatically uploaded: {{ $stagedCurriculumVitae->original_filename }}</span>@endif
+                        </x-file-dropzone>
                     </div>
 
                     <div class="flex justify-end border-t border-gray-100 pt-4">
@@ -326,7 +351,7 @@
                     <div class="border-t border-gray-100 p-5">
                         <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Files changed in version {{ $latestVersion->version_number }}</p>
                         <div class="mt-2 flex flex-wrap gap-2">
-                            @forelse ($latestVersion->files->where('is_carried_forward', false)->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD) as $file)
+                            @forelse ($latestVersion->files->where('is_carried_forward', false)->whereNotIn('document_type', [\App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE, \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD]) as $file)
                                 <span class="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">{{ $file->label() }}</span>
                             @empty
                                 <span class="text-xs text-gray-400">No package files were replaced.</span>

@@ -1,13 +1,21 @@
 <x-app-layout>
+    @php
+        $proposalWorkspaceUrl = $isResearchHead
+            ? route('topics.show', $topic).'#review-and-upload-files'
+            : route('faculty.proposal-drafts.revision', $topic);
+    @endphp
+
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <a href="{{ Auth::user()->isUsingWorkspace('research_head') ? route('topics.head-uploads.index', $topic) : route('faculty.proposal-drafts.revision', $topic) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; {{ Auth::user()->isUsingWorkspace('research_head') ? 'Review and upload files' : 'Proposal workspace' }}</a>
+                <a href="{{ $proposalWorkspaceUrl }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Back to proposal workspace</a>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">PDF Revision Annotations</h2>
                 <p class="mt-1 text-xs text-gray-500">{{ $file->label() }} · {{ $file->original_filename }} · Version {{ $version->version_number }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                @if (! $canAnnotate && $topic->user_id === Auth::id() && $topic->status === 'revision_requested')
+                @if ($isResearchHead)
+                    <a href="{{ $proposalWorkspaceUrl }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Return to Review &amp; Upload Files</a>
+                @elseif (! $canAnnotate && $topic->user_id === Auth::id() && $topic->status === 'revision_requested')
                     <a href="{{ route('faculty.proposal-drafts.revision', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit in proposal workspace</a>
                 @endif
                 <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $canAnnotate ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700' }}">{{ $canAnnotate ? 'Annotation mode' : 'Read-only annotations' }}</span>
@@ -20,11 +28,23 @@
         data-pdf-annotation-config='@json($annotationConfiguration)'
         class="mx-auto max-w-[1600px] space-y-5 px-4 py-6 sm:px-6 lg:px-8"
     >
-        @unless ($canAnnotate)
+        @if ($canAnnotate)
+            <div data-annotation-tools-guide class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                <p class="font-black">Highlight the exact part that needs revision.</p>
+                <p class="mt-1">Choose <span class="font-black">Select text</span> and drag across words, or choose <span class="font-black">Draw area</span> for a table, image, or scanned section. Add the revision comment in the right panel, then save the highlight.</p>
+                @unless ($canRequestRevision)
+                    <p class="mt-2 rounded-xl bg-white/70 px-3 py-2 text-xs font-semibold text-amber-900">The proposal is currently with co-evaluators. Your highlights and comments are saved as drafts; the revision request becomes available after Initial Screening is completed.</p>
+                @endunless
+            </div>
+        @elseif ($isResearchHead)
+            <div class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
+                Annotation editing is closed for this proposal status. Existing highlights remain available for review. Return to the proposal workspace to continue the Research Head workflow.
+            </div>
+        @else
             <div class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
                 These comments are read-only. The submitted faculty PDF remains unchanged; the highlights are stored as ATHENA revision records. Use <span class="font-black">Edit in proposal workspace</span> after reviewing the comments to prepare the replacement files.
             </div>
-        @endunless
+        @endif
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
@@ -89,7 +109,7 @@
                             </div>
                         </section>
 
-                        @if ($canAnnotate)
+                        @if ($canRequestRevision)
                             <section x-show="revisionCandidates.length > 0" x-cloak class="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                                 <h3 class="text-sm font-black text-blue-900">Send revision request</h3>
                                 <p class="mt-1 text-xs leading-5 text-blue-800">This will publish every draft annotation on <span x-text="revisionCandidates.length"></span> paper(s) and require the faculty to replace those files.</p>
@@ -114,6 +134,11 @@
                                     </label>
                                     <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-black text-white hover:bg-blue-800">Request revision</button>
                                 </form>
+                            </section>
+                        @elseif ($canAnnotate)
+                            <section x-show="revisionCandidates.length > 0" x-cloak class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                <h3 class="text-sm font-black text-amber-950">Draft revision comments saved</h3>
+                                <p class="mt-1 text-xs leading-5 text-amber-900">You can keep highlighting and commenting while Initial Screening is in progress. The request button will appear when the proposal returns for the Research Head’s decision.</p>
                             </section>
                         @endif
                     </div>

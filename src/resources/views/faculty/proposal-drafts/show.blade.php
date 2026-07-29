@@ -39,14 +39,6 @@
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
 
-        @if (session('proposal_revision_prompt') && $proposalDraft->topic_id)
-            <div
-                data-proposal-revision-prompt
-                data-destination="{{ route('topics.show', $proposalDraft->topic_id) }}#review-and-submit"
-                hidden
-            ></div>
-        @endif
-
         @if (session('warning'))
             <x-proposal-alert type="warning">{{ session('warning') }}</x-proposal-alert>
         @endif

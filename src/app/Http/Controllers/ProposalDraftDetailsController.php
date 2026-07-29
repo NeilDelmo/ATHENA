@@ -44,7 +44,6 @@ class ProposalDraftDetailsController extends Controller
                     : 'faculty.proposal-drafts.details.edit',
                 $proposalDraft,
             )
-            ->with('proposal_revision_prompt', $request->boolean('exit_after_save') && $proposalDraft->topic_id !== null)
             ->with('success', 'Project details saved.');
     }
 }

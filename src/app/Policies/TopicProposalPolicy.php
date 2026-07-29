@@ -7,6 +7,11 @@ use App\Models\User;
 
 class TopicProposalPolicy
 {
+    public function viewAny(User $user): bool
+    {
+        return $user->isUsingWorkspace('research_head');
+    }
+
     public function view(User $user, TopicProposal $topicProposal): bool
     {
         return $user->isUsingWorkspace('research_head')

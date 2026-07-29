@@ -10,6 +10,9 @@ class ProposalActivityNotification extends Notification
 {
     use Queueable;
 
+    /**
+     * @param  list<string>|string|null  $workspace
+     */
     public function __construct(
         public string $title,
         public string $message,
@@ -18,7 +21,7 @@ class ProposalActivityNotification extends Notification
         public ?int $topicId = null,
         public ?string $actionUrl = null,
         public array $actionData = [],
-        public ?string $workspace = null,
+        public string|array|null $workspace = null,
     ) {}
 
     /**

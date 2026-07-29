@@ -28,6 +28,7 @@ use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchCoordinatorController;
+use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\RoleSelectionController;
@@ -88,6 +89,7 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::get('/create', [ProposalDraftController::class, 'create'])->name('create');
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
         Route::get('/revision/{topic}', [ProposalDraftController::class, 'revision'])->name('revision');
+        Route::post('/{proposalDraft}/revision-files', [ProposalDraftController::class, 'storeRevisionFile'])->name('revision-files.store');
         Route::get('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'edit'])->name('details.edit');
         Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
         Route::get('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'edit'])->name('detailed-proposal.edit');
@@ -255,6 +257,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
+    Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');

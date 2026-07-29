@@ -38,9 +38,10 @@
                                 </div>
                             @endif
 
-                            @if ($version->files->isNotEmpty())
+                            @php($proposalFiles = $version->files->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE))
+                            @if ($proposalFiles->isNotEmpty())
                                 <div class="mt-4 overflow-hidden rounded-xl border border-gray-200">
-                                    @foreach ($version->files as $file)
+                                    @foreach ($proposalFiles as $file)
                                         <div class="flex flex-col gap-2 border-b border-gray-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
                                             <div class="min-w-0">
                                                 <div class="flex flex-wrap items-center gap-2">

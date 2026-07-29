@@ -36,6 +36,10 @@
             previewUrl: @js(route('faculty.proposal-drafts.work-plan.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.work-plan.download', $proposalDraft)),
             csrfToken: @js(csrf_token()),
+            revisionUploadUrl: @js($proposalDraft->topic_id ? route('faculty.proposal-drafts.revision-files.store', $proposalDraft) : null),
+            revisionDocumentType: @js($paper['document_type']),
+            revisionAttachmentLabel: @js($paper['label']),
+            revisionReviewUrl: @js($proposalDraft->topic_id ? route('topics.show', $proposalDraft->topic_id).'#review-and-submit' : null),
         })"
     >
         @if (session('success'))

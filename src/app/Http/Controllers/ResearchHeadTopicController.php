@@ -231,6 +231,7 @@ class ResearchHeadTopicController extends Controller
                     route('topics.show', $topic),
                     'info',
                     $topic->id,
+                    workspace: User::WORKSPACE_EXPERT,
                 ),
             );
         } else {
@@ -250,6 +251,10 @@ class ResearchHeadTopicController extends Controller
                 route('topics.show', $topic),
                 $notificationDetails[2],
                 $topic->id,
+                workspace: [
+                    User::WORKSPACE_FACULTY_RESEARCHER,
+                    User::WORKSPACE_FACULTY,
+                ],
             ));
         }
 

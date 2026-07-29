@@ -50,22 +50,6 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
 
-test('revision save and exit prompts the faculty member to open proposal review', function () {
-    $workspaceView = file_get_contents(base_path('resources/views/faculty/proposal-drafts/show.blade.php'));
-    $appJavaScript = file_get_contents(resource_path('js/app.js'));
-
-    expect($workspaceView)
-        ->toContain("session('proposal_revision_prompt')")
-        ->toContain('data-proposal-revision-prompt')
-        ->toContain('#review-and-submit');
-
-    expect($appJavaScript)
-        ->toContain('initializeRevisionUploadPrompt')
-        ->toContain('Upload revised files to Proposal review?')
-        ->toContain('Open Proposal review')
-        ->toContain('Stay in workspace');
-});
-
 test('turning in a proposal shows a blocking progress screen after confirmation', function () {
     $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
     $appJavaScript = file_get_contents(resource_path('js/app.js'));
@@ -112,6 +96,30 @@ test('generated paper editors support partial drafts and gate download controls'
             ->not->toContain('x-on:click="generatePreview" x-bind:disabled="!isComplete()"')
             ->toContain('Save and exit');
     }
+});
+
+test('revision-linked generated paper downloads can be staged in the matching revision attachment', function () {
+    $editorViews = [
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
+    ];
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+
+    foreach ($editorViews as $editorView) {
+        expect(file_get_contents(base_path($editorView)))
+            ->toContain('revisionUploadUrl')
+            ->toContain('revisionDocumentType')
+            ->toContain('revisionAttachmentLabel');
+    }
+
+    expect($appJavaScript)
+        ->toContain('offerRevisionUpload')
+        ->toContain('Automatically upload this file to the revision?')
+        ->toContain('Revision workspace')
+        ->toContain('revisionUploadUrl');
 });
 
 test('proposal flash feedback is marked for SweetAlert2 across the workspace', function () {

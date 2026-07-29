@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\CreateProposalRevisionDraft;
+use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalTemplate;
@@ -13,11 +14,13 @@ use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProposalDraftController extends Controller
@@ -131,6 +134,77 @@ class ProposalDraftController extends Controller
         return redirect()->to(
             route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments',
         );
+    }
+
+    public function storeRevisionFile(
+        Request $request,
+        ProposalDraft $proposalDraft,
+        ProposalPaperCatalog $catalog,
+        SaveProposalDraftDocument $saveProposalDraftDocument,
+    ): JsonResponse {
+        Gate::authorize('update', $proposalDraft);
+        $proposalDraft->loadMissing('topic');
+
+        abort_unless($proposalDraft->topic?->status === 'revision_requested', 403);
+
+        $documentType = $request->string('document_type')->toString();
+        $paper = $catalog->forDocumentType($documentType);
+
+        if (! is_array($paper) || $paper['mode'] !== 'generated') {
+            throw ValidationException::withMessages([
+                'document_type' => 'This file cannot be added to the revision workspace.',
+            ]);
+        }
+
+        $extensions = $paper['slug'] === 'expense-breakdown' ? 'xls,xlsx' : 'doc,docx,pdf';
+        $validated = $request->validate([
+            'file' => ['required', 'file', 'mimes:'.$extensions, 'max:25600'],
+        ]);
+        $file = $validated['file'];
+        $document = $proposalDraft->documents()
+            ->where('document_type', $documentType)
+            ->where('position', 0)
+            ->first();
+        $storedPath = $file->store($proposalDraft->storageDirectory().'/revision/'.$documentType, 'local');
+
+        if (! $storedPath) {
+            throw ValidationException::withMessages([
+                'file' => 'The downloaded file could not be staged for revision upload.',
+            ]);
+        }
+
+        try {
+            $savedDocument = $saveProposalDraftDocument->handle(
+                $proposalDraft,
+                $request->user(),
+                $documentType,
+                0,
+                $document?->lock_version ?? 0,
+                [
+                    'source_data' => $document?->source_data,
+                    'file_path' => $storedPath,
+                    'original_filename' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getMimeType() ?: $file->getClientMimeType(),
+                    'file_size' => $file->getSize() ?: null,
+                    'checksum' => hash_file('sha256', Storage::disk('local')->path($storedPath)) ?: null,
+                    'completed_at' => now(),
+                ],
+                changeNote: 'Exact downloaded file staged for revision submission.',
+            );
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($storedPath);
+
+            throw $exception;
+        }
+
+        if ($document?->file_path && $document->file_path !== $savedDocument->file_path) {
+            Storage::disk('local')->delete($document->file_path);
+        }
+
+        return response()->json([
+            'filename' => $savedDocument->original_filename,
+            'redirect_url' => route('topics.show', $proposalDraft->topic_id).'#review-and-submit',
+        ]);
     }
 
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse

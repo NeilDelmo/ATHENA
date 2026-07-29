@@ -6,6 +6,7 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -67,6 +68,18 @@ beforeEach(function () {
 });
 
 test('research head can annotate an exact turned-in PDF while draft comments stay private', function () {
+    $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()
+        ->assertSee('Annotation mode')
+        ->assertSee('Select text')
+        ->assertSee('Draw area')
+        ->assertSee('Highlight &amp; comment', false)
+        ->assertSee('What should the faculty revise?')
+        ->assertSee('data-annotation-tools-guide', false)
+        ->assertSee(route('topics.show', $this->topic).'#review-and-upload-files', false)
+        ->assertDontSee('Edit in proposal workspace');
+
     $response = $this->actingAs($this->head)->postJson(
         route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]),
         [
@@ -96,6 +109,34 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
     $this->actingAs($this->faculty)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertNotFound();
+});
+
+test('research head can draft highlights while co-evaluator review is in progress', function () {
+    $this->topic->update(['status' => 'expert_review']);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()
+        ->assertSee('Annotation mode')
+        ->assertSee('Your highlights and comments are saved as drafts')
+        ->assertSee('Select text')
+        ->assertSee('Draw area')
+        ->assertDontSee('Send revision request');
+
+    $this->actingAs($this->head)
+        ->postJson(route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]), [
+            'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+            'page_number' => 1,
+            'rectangles' => [[
+                'x' => 0.1,
+                'y' => 0.2,
+                'width' => 0.3,
+                'height' => 0.2,
+            ]],
+            'comment' => 'Revise this table after the co-evaluator feedback is complete.',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('state', 'draft');
 });
 
 test('sending a revision request publishes highlights for the faculty', function () {
@@ -140,4 +181,52 @@ test('sending a revision request publishes highlights for the faculty', function
         ->get(route('faculty.proposal-drafts.show', ProposalDraft::query()->where('topic_id', $this->topic->id)->sole()))
         ->assertOk()
         ->assertSee('Required PDF attachments');
+});
+
+test('a downloaded generated paper is staged in its matching revision attachment', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    Storage::disk('local')->put('proposal-packages/coastal-habitat.pdf', '%PDF-1.4 primary');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.revision', $this->topic))
+        ->assertRedirect();
+
+    $draft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.revision-files.store', $draft), [
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+            'file' => UploadedFile::fake()->create('coastal-work-plan.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+        ])
+        ->assertOk()
+        ->assertJsonPath('filename', 'coastal-work-plan.docx')
+        ->assertJsonPath('redirect_url', route('topics.show', $this->topic).'#review-and-submit');
+
+    $stagedFile = $draft->fresh()->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
+        ->firstOrFail();
+
+    expect($stagedFile->original_filename)->toBe('coastal-work-plan.docx')
+        ->and($stagedFile->file_path)->not->toBeNull();
+    Storage::disk('local')->assertExists($stagedFile->file_path);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Automatically uploaded: coastal-work-plan.docx');
+
+    $this->actingAs($this->faculty)
+        ->patch(route('faculty.topics.resubmit', $this->topic), [
+            'revision_draft_id' => $draft->id,
+            'title' => $this->topic->title,
+            'description' => 'Updated work plan from the proposal workspace.',
+            'estimated_budget' => 50000,
+            'estimated_duration_months' => 12,
+        ])
+        ->assertRedirect(route('faculty.dashboard'));
+
+    expect($this->topic->fresh()->status)->toBe('resubmitted')
+        ->and(ProposalDraft::query()->where('topic_id', $this->topic->id)->exists())->toBeFalse();
+    expect($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->original_filename)
+        ->toBe('coastal-work-plan.docx');
 });
