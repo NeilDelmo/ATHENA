@@ -21,7 +21,6 @@ class ProfileController extends Controller
             'proposals as approved_proposals_count' => fn ($query) => $query->where('status', 'approved'),
             'proposals as active_proposals_count' => fn ($query) => $query->whereNotIn('status', ['approved', 'rejected']),
             'topicReviews',
-            'expertAssignments',
         ]);
 
         $recentProposals = $user->proposals()

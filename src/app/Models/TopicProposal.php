@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TopicProposal extends Model
 {
+    public const STATUS_READY_FOR_SIGNATURE = 'ready_for_signature';
+
     protected $table = 'topics';
 
     protected $fillable = [

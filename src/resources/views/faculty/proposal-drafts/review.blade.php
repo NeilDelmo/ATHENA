@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
+                <x-back-link href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Back to proposal package</x-back-link>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Review and Turn In</h2>
                 <p class="mt-1 text-xs text-gray-500">Confirm the shared details, six PDF attachments, the Excel Expense Breakdown, and proposal collaborators before turning in.</p>
             </div>

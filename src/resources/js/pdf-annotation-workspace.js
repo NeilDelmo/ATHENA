@@ -1,11 +1,27 @@
 let pdfJsPromise;
 
+function resolveApplicationAssetUrl(assetUrl) {
+    if (!assetUrl?.startsWith('/')) return assetUrl;
+
+    const applicationUrl = document.querySelector('meta[name="app-url"]')?.content;
+    if (!applicationUrl) return assetUrl;
+
+    const applicationLocation = new URL(applicationUrl, window.location.origin);
+    const applicationPath = applicationLocation.pathname.replace(/\/$/, '');
+
+    if (!applicationPath || assetUrl.startsWith(`${applicationPath}/`)) {
+        return assetUrl;
+    }
+
+    return `${applicationPath}${assetUrl}`;
+}
+
 function loadPdfJs() {
     pdfJsPromise ??= Promise.all([
         import('pdfjs-dist'),
         import('pdfjs-dist/build/pdf.worker.mjs?url'),
     ]).then(([pdfJs, workerModule]) => {
-        pdfJs.GlobalWorkerOptions.workerSrc = workerModule.default;
+        pdfJs.GlobalWorkerOptions.workerSrc = resolveApplicationAssetUrl(workerModule.default);
 
         return pdfJs;
     });
@@ -49,7 +65,6 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             annotations: [],
             revisionCandidates: [],
             canAnnotate: false,
-            requestRevisionUrl: '',
             mode: 'text',
             scale: 1.15,
             loading: true,
@@ -83,7 +98,6 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.annotations = Array.isArray(this.config.annotations) ? this.config.annotations : [];
                 this.revisionCandidates = Array.isArray(this.config.revisionCandidates) ? this.config.revisionCandidates : [];
                 this.canAnnotate = Boolean(this.config.canAnnotate);
-                this.requestRevisionUrl = this.config.requestRevisionUrl || '';
                 this.loadPdf();
             },
 

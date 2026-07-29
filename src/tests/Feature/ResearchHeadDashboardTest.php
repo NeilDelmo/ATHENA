@@ -104,9 +104,9 @@ test('proposal dashboard shows received files and opens the submitted package', 
         ->get(route('research_head.dashboard'))
         ->assertOk()
         ->assertSee('Received proposal inbox')
-        ->assertSee('7 PDFs received')
-        ->assertSee('Open submitted package')
-        ->assertSee(route('topics.show', $topic).'#submitted-files', false);
+        ->assertSee('7 files received')
+        ->assertSee('Review proposal')
+        ->assertSee(route('topics.show', $topic).'#proposal-review', false);
 });
 
 test('proposal dashboard paginates and preserves filters', function () {

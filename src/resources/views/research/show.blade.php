@@ -2,6 +2,7 @@
     @php
         $statusClass = match ($topic->status) {
             'approved' => 'bg-green-50 text-green-700',
+            'ready_for_signature' => 'bg-red-50 text-red-800',
             'rejected' => 'bg-red-50 text-red-700',
             'revision_requested' => 'bg-blue-50 text-blue-700',
             'resubmitted' => 'bg-purple-50 text-purple-700',
@@ -10,20 +11,18 @@
 
         $statusDescription = match ($topic->status) {
             'approved' => 'This research proposal has been approved.',
+            'ready_for_signature' => 'The review is complete and the Research Head is preparing the required signed final copies.',
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
-            'resubmitted' => 'The revised proposal is waiting for another review.',
-            'expert_review' => 'The assigned co-evaluator is completing Initial Screening.',
-            'for_final_decision' => 'Initial Screening is complete and the Research Head is preparing the decision.',
-            default => 'This proposal is waiting for its initial review.',
+            'resubmitted' => 'The revised proposal is waiting for the Research Head.',
+            'expert_review', 'for_final_decision' => 'This proposal is waiting for the Research Head’s decision.',
+            default => 'This proposal is waiting for the Research Head’s review.',
         };
     @endphp
 
     <x-slot name="header">
         <div class="space-y-3">
-            <a href="{{ route('research.index') }}" class="inline-flex items-center gap-1 text-xs font-bold text-gray-500 transition hover:text-red-600">
-                <span aria-hidden="true">&larr;</span> Back to research list
-            </a>
+            <x-back-link href="{{ route('research.index') }}">Back to research list</x-back-link>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $topic->title }}</h2>

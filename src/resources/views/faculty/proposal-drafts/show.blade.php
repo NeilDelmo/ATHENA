@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
-                <a href="{{ route('faculty.proposal-drafts.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Saved drafts</a>
+                <x-back-link href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
                 <h2 class="mt-2 break-words text-2xl font-black tracking-tight text-gray-900">{{ $proposalDraft->project_title }}</h2>
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->researchCall->title }} &middot; Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</p>
                 <p class="mt-1 text-xs font-bold text-blue-700">{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</p>

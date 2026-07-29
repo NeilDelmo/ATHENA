@@ -15,6 +15,7 @@ use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalPackageService;
+use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
@@ -35,6 +36,8 @@ use Throwable;
 
 class TopicController extends Controller
 {
+    public function __construct(private ProposalSignatureWorkflow $signatureWorkflow) {}
+
     public function index(ProposalDraftReadiness $readiness): View
     {
         $user = Auth::user();
@@ -43,7 +46,6 @@ class TopicController extends Controller
             ->with([
                 'researchCall', 'category',
                 'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
-                'expertAssignments.expert',
                 'versions.submitter',
                 'versions.files',
             ])
@@ -126,7 +128,7 @@ class TopicController extends Controller
     {
         $status = $request->string('status')->toString();
         $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
+        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'];
 
         $topics = TopicProposal::query()
             ->with(['researchCall', 'category', 'latestVersion'])
@@ -155,7 +157,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'researchCall', 'category', 'revisionDraft.documents', 'expertAssignments.expert', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer',
+            'user', 'researchCall', 'category', 'revisionDraft.documents', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
         ]);
 
@@ -187,6 +189,25 @@ class TopicController extends Controller
                 && ($file->mime_type === 'application/pdf'
                     || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
             ->pluck('id');
+        $reviewDocuments = ($latestVersion?->files ?? collect())
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD);
+
+        if (! $request->user()->isUsingWorkspace('research_head') && $topic->status !== 'approved') {
+            $reviewDocuments = $reviewDocuments
+                ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED);
+        }
+
+        $reviewDocuments = $reviewDocuments
+            ->sortByDesc('created_at')
+            ->values();
+        $availableReviewDocumentIds = $reviewDocuments
+            ->filter(fn (ProposalVersionFile $file): bool => Storage::disk('local')->exists($file->file_path))
+            ->pluck('id');
+        $viewableReviewDocumentIds = $reviewDocuments
+            ->filter(fn (ProposalVersionFile $file): bool => $availableReviewDocumentIds->contains($file->id)
+                && ($file->mime_type === 'application/pdf'
+                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+            ->pluck('id');
         $previousProjectCost = $this->projectCostForVersion($previousVersion);
         $latestProjectCost = $this->projectCostForVersion($latestVersion);
         $displayProjectCost = $latestProjectCost ?? (float) $topic->estimated_budget;
@@ -201,10 +222,6 @@ class TopicController extends Controller
             'changed' => $previousVersion && $row['previous'] !== $row['latest'],
         ]);
 
-        $experts = $request->user()->isUsingWorkspace('research_head')
-            ? User::role('expert')->orderBy('name')->get()
-            : collect();
-        $expertAssignment = $topic->expertAssignments->firstWhere('expert_id', $request->user()->id);
         $pendingFileRevisions = $topic->reviews
             ->flatMap->fileRevisions
             ->whereNull('resolved_at')
@@ -224,8 +241,6 @@ class TopicController extends Controller
             'previousVersion',
             'displayProjectCost',
             'comparisonRows',
-            'experts',
-            'expertAssignment',
             'pendingFileRevisions',
             'stagedRevisionFiles',
             'screeningTemplates',
@@ -233,6 +248,9 @@ class TopicController extends Controller
             'submittedFiles',
             'availableSubmittedFileIds',
             'viewableSubmittedFileIds',
+            'reviewDocuments',
+            'availableReviewDocumentIds',
+            'viewableReviewDocumentIds',
             'headUploadWorkspace',
         ));
     }
@@ -560,6 +578,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
         abort_unless($version->topic_id === $topic->id, 404);
         abort_unless($file->proposal_version_id === $version->id, 404);
+        $this->ensureCanAccessVersionFile($request, $topic, $file);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
 
         return Storage::disk('local')->download($file->file_path, $file->original_filename);
@@ -574,6 +593,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
         abort_unless($version->topic_id === $topic->id, 404);
         abort_unless($file->proposal_version_id === $version->id, 404);
+        $this->ensureCanAccessVersionFile($request, $topic, $file);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
         abort_unless(
             $file->mime_type === 'application/pdf'
@@ -612,10 +632,14 @@ class TopicController extends Controller
             'versions.files.annotations',
         ]);
 
-        $headUploadWorkspace = $this->headUploadWorkspaceData($topic);
+        $latestVersion = $topic->latestVersion()
+            ->with(['submitter', 'files.uploadedBy', 'files.annotations'])
+            ->first();
+        $headUploadWorkspace = $this->headUploadWorkspaceData($topic, $latestVersion);
 
         return view('research_head.topics.files', [
             'topic' => $topic,
+            'workspace' => $headUploadWorkspace,
             ...$headUploadWorkspace,
         ]);
     }
@@ -636,15 +660,39 @@ class TopicController extends Controller
         }
 
         $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
+        $isSignedCopy = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
         $sourceFile = $isSupplemental
             ? null
             : $latestVersion->files()
                 ->whereKey($validated['source_file_id'])
                 ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
                 ->firstOrFail();
+
+        if ($isSignedCopy && ! in_array($topic->status, [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'], true)) {
+            return back()
+                ->withInput()
+                ->withErrors(['purpose' => 'Signed final copies can only be uploaded after the proposal is ready for signature.'], 'headUpload');
+        }
+
+        if ($isSignedCopy
+            && $sourceFile
+            && ! $this->signatureWorkflow->requiredFiles($latestVersion)->contains('id', $sourceFile->id)) {
+            return back()
+                ->withInput()
+                ->withErrors(['source_file_id' => $sourceFile->label().' was not selected for final signing.'], 'headUpload');
+        }
+
+        if ($validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION
+            && in_array($topic->status, [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'], true)) {
+            return back()
+                ->withInput()
+                ->withErrors(['purpose' => 'Revision copies cannot be added after the proposal enters final signing.'], 'headUpload');
+        }
+
         $file = $request->file('review_file');
         $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
         $storedPath = null;
+        $replacedPath = null;
 
         try {
             $attributes = $packageService->storeHeadUpload(
@@ -661,20 +709,39 @@ class TopicController extends Controller
             );
             $storedPath = $attributes['file_path'];
 
-            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental): void {
+            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $sourceFile, &$replacedPath): void {
                 $lockedVersion = ProposalVersion::query()
                     ->whereKey($latestVersion->id)
                     ->lockForUpdate()
                     ->firstOrFail();
-                $position = ((int) $lockedVersion->files()
-                    ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-                    ->max('position')) + 1;
+                $existingSignedCopy = $isSignedCopy
+                    ? $lockedVersion->files()
+                        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                        ->where('source_version_file_id', $sourceFile?->id)
+                        ->get()
+                        ->first(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+                    : null;
 
-                $lockedVersion->files()->create([
-                    ...$attributes,
-                    'position' => $position,
-                    'uploaded_by' => $request->user()->id,
-                ]);
+                if ($existingSignedCopy instanceof ProposalVersionFile) {
+                    $replacedPath = $existingSignedCopy->file_path;
+                    $replacementAttributes = $attributes;
+                    unset($replacementAttributes['position']);
+
+                    $existingSignedCopy->update([
+                        ...$replacementAttributes,
+                        'uploaded_by' => $request->user()->id,
+                    ]);
+                } else {
+                    $position = ((int) $lockedVersion->files()
+                        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                        ->max('position')) + 1;
+
+                    $lockedVersion->files()->create([
+                        ...$attributes,
+                        'position' => $position,
+                        'uploaded_by' => $request->user()->id,
+                    ]);
+                }
 
                 $topic->reviews()->create([
                     'reviewer_id' => $request->user()->id,
@@ -683,6 +750,10 @@ class TopicController extends Controller
                         ?? ($isSupplemental ? 'Uploaded supplemental paper: '.$validated['document_title'] : null),
                 ]);
             });
+
+            if ($replacedPath !== null && $replacedPath !== $storedPath) {
+                Storage::disk('local')->delete($replacedPath);
+            }
         } catch (Throwable) {
             if ($storedPath !== null) {
                 Storage::disk('local')->delete($storedPath);
@@ -694,7 +765,7 @@ class TopicController extends Controller
         }
 
         return redirect()
-            ->to(route('topics.show', $topic).'#review-and-upload-files')
+            ->to(route('topics.show', $topic).'#proposal-review')
             ->with('success', $isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : 'Research Head file attached to the faculty submission.');
@@ -708,7 +779,10 @@ class TopicController extends Controller
      *     supplementalHeadUploads: Collection<int, ProposalVersionFile>,
      *     headUploadsBySource: Collection<int, Collection<int, ProposalVersionFile>>,
      *     availableFileIds: Collection<int, int>,
-     *     viewableFileIds: Collection<int, int>
+     *     viewableFileIds: Collection<int, int>,
+     *     requiredSignatureFiles: Collection<int, ProposalVersionFile>,
+     *     signedSourceFileIds: Collection<int, int>,
+     *     missingSignatureFiles: Collection<int, ProposalVersionFile>
      * }
      */
     private function headUploadWorkspaceData(TopicProposal $topic, ?ProposalVersion $latestVersion = null): array
@@ -751,6 +825,15 @@ class TopicController extends Controller
                 && ($file->mime_type === 'application/pdf'
                     || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
             ->pluck('id');
+        $requiredSignatureFiles = $latestVersion
+            ? $this->signatureWorkflow->requiredFiles($latestVersion)
+            : collect();
+        $signedSourceFileIds = $latestVersion
+            ? $this->signatureWorkflow->signedSourceFileIds($latestVersion)
+            : collect();
+        $missingSignatureFiles = $latestVersion
+            ? $this->signatureWorkflow->missingRequiredFiles($latestVersion)
+            : collect();
 
         return compact(
             'latestVersion',
@@ -760,6 +843,9 @@ class TopicController extends Controller
             'headUploadsBySource',
             'availableFileIds',
             'viewableFileIds',
+            'requiredSignatureFiles',
+            'signedSourceFileIds',
+            'missingSignatureFiles',
         );
     }
 
@@ -767,10 +853,23 @@ class TopicController extends Controller
     {
         $user = $request->user();
 
-        $canExpertView = $user->isUsingWorkspace('expert')
-            && $topic->expertAssignments()->where('expert_id', $user->id)->exists();
+        abort_unless($user->isUsingWorkspace('research_head') || $topic->user_id === $user->id, 403);
+    }
 
-        abort_unless($user->isUsingWorkspace('research_head') || $canExpertView || $topic->user_id === $user->id, 403);
+    private function ensureCanAccessVersionFile(
+        Request $request,
+        TopicProposal $topic,
+        ProposalVersionFile $file,
+    ): void {
+        if ($request->user()->isUsingWorkspace('research_head')) {
+            return;
+        }
+
+        $isUnreleasedSignedCopy = $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+            && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
+            && $topic->status !== 'approved';
+
+        abort_if($isUnreleasedSignedCopy, 404);
     }
 
     private function revisionDraftForResubmission(Request $request, TopicProposal $topic): ?ProposalDraft

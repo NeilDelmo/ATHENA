@@ -200,13 +200,6 @@
 
         @endif
 
-        @if (Auth::user()->isUsingWorkspace('expert'))
-            <a href="{{ route('expert.dashboard') }}" aria-label="Co-evaluations" title="Co-evaluations" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition {{ request()->routeIs('expert.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Co-evaluations</span>
-            </a>
-        @endif
-
         <a href="{{ route('research-calls.index') }}" aria-label="Research Calls" title="Research Calls" class="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold transition {{ request()->routeIs('research-calls.*') ? 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white' }}">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5"/></svg>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>

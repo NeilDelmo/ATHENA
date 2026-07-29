@@ -33,6 +33,8 @@ class ProposalVersionFile extends Model
 
     public const HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL = 'supplemental';
 
+    public const HEAD_UPLOAD_PURPOSE_EVALUATION = 'evaluation';
+
     protected $fillable = [
         'source_version_file_id',
         'document_type',
@@ -96,6 +98,10 @@ class ProposalVersionFile extends Model
 
     private function headUploadLabel(): string
     {
+        if (($this->source_data['purpose'] ?? null) === self::HEAD_UPLOAD_PURPOSE_EVALUATION) {
+            return $this->source_data['document_title'] ?? 'External evaluation document';
+        }
+
         if (($this->source_data['purpose'] ?? null) === self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL) {
             return $this->source_data['document_title'] ?? 'Supplemental paper';
         }
@@ -117,6 +123,7 @@ class ProposalVersionFile extends Model
             self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
             self::HEAD_UPLOAD_PURPOSE_SIGNED => 'Signed copy',
             self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL => 'Supplemental paper',
+            self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'External evaluation',
             default => 'Research Head copy',
         };
     }

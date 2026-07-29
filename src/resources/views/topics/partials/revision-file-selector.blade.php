@@ -4,28 +4,61 @@
 @endphp
 
 @if ($revisionFiles->isNotEmpty())
-    <details class="rounded-xl border border-blue-200 bg-blue-50/60 p-3" open>
-        <summary class="cursor-pointer text-[11px] font-black uppercase tracking-wider text-blue-800">Files requiring revision</summary>
-        <p class="mt-2 text-[11px] leading-4 text-blue-700">Select every paper the faculty must replace. Files with draft PDF annotations are selected automatically.</p>
-        <div class="mt-3 space-y-3">
-            @foreach ($revisionFiles as $file)
-                @php
-                    $draftAnnotationCount = $file->annotations->whereNull('topic_review_file_revision_id')->count();
-                    $isSelected = is_array($oldRevisionFileIds)
-                        ? in_array($file->id, $oldRevisionFileIds)
-                        : $draftAnnotationCount > 0;
-                @endphp
-                <div class="rounded-xl border border-blue-100 bg-white p-3">
-                    <label class="flex cursor-pointer items-start gap-2">
-                        <input type="checkbox" name="revision_file_ids[]" value="{{ $file->id }}" @checked($isSelected) class="mt-0.5 rounded border-gray-300 text-blue-700 focus:ring-blue-600">
-                        <span class="min-w-0">
-                            <span class="flex flex-wrap items-center gap-2"><span class="block text-xs font-black text-gray-800">{{ $file->label() }}</span>@if ($draftAnnotationCount > 0)<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-800">{{ $draftAnnotationCount }} annotation(s)</span>@endif</span>
-                            <span class="block truncate text-[10px] text-gray-400">{{ $file->original_filename }}</span>
-                        </span>
+    <div class="grid gap-4 lg:grid-cols-2">
+        @foreach ($revisionFiles as $file)
+            @php
+                $draftAnnotationCount = $file->annotations->whereNull('topic_review_file_revision_id')->count();
+                $isSelected = is_array($oldRevisionFileIds)
+                    ? in_array($file->id, $oldRevisionFileIds)
+                    : $draftAnnotationCount > 0;
+                $fileAvailable = $availableSubmittedFileIds->contains($file->id);
+                $fileViewable = $viewableSubmittedFileIds->contains($file->id);
+            @endphp
+
+            <article
+                x-data="{ needsRevision: @js($isSelected) }"
+                :class="needsRevision ? 'border-red-600 bg-red-50 dark:border-red-700 dark:bg-red-950/30' : 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950'"
+                class="rounded-2xl border p-4 transition"
+                data-file-review-card="{{ $file->id }}"
+            >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h4 class="text-base font-black text-gray-900">{{ $file->label() }}</h4>
+                            <span x-show="!needsRevision" class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-black text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200" data-file-review-status>No revision</span>
+                            <span x-show="needsRevision" x-cloak class="rounded-full bg-red-700 px-2.5 py-1 text-xs font-black text-white" data-file-review-status>Needs revision</span>
+                            @if ($draftAnnotationCount > 0)
+                                <span class="rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-black text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">{{ $draftAnnotationCount }} saved highlight(s)</span>
+                            @endif
+                        </div>
+                        <p class="mt-1 break-all text-sm text-gray-600">{{ $file->original_filename }}</p>
+                    </div>
+
+                    <label class="inline-flex cursor-pointer items-center gap-2 self-start rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-black text-gray-700 shadow-sm">
+                        <input
+                            type="checkbox"
+                            name="revision_file_ids[]"
+                            value="{{ $file->id }}"
+                            x-model="needsRevision"
+                            @checked($isSelected)
+                            class="rounded border-gray-300 text-red-700 focus:ring-red-700"
+                        >
+                        Mark for revision
                     </label>
-                    <textarea name="revision_file_notes[{{ $file->id }}]" rows="2" maxlength="2000" placeholder="What should change in this file?" class="mt-2 block w-full rounded-lg border-gray-200 text-[11px]">{{ old('revision_file_notes.'.$file->id) }}</textarea>
                 </div>
-            @endforeach
-        </div>
-    </details>
+
+                <div class="mt-4 flex flex-wrap gap-2">
+                    @if ($fileViewable)
+                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $file]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">View paper</a>
+                        <a href="{{ route('topics.versions.files.annotations.index', [$topic, $latestVersion, $file]) }}" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-3 py-2 text-sm font-black text-white hover:bg-red-800" data-highlight-paper>Highlight PDF</a>
+                    @endif
+                    @if ($fileAvailable)
+                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $file]) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-3 py-2 text-sm font-bold text-white hover:bg-gray-800">Download</a>
+                    @endif
+                </div>
+            </article>
+        @endforeach
+    </div>
+@else
+    <p class="rounded-xl bg-gray-50 p-4 text-sm text-gray-600">No submitted files are available for review.</p>
 @endif

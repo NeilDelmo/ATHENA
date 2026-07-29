@@ -5,10 +5,7 @@
                 <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Announcement Images</h2>
                 <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Upload poster-style announcements that will appear in the faculty dashboard carousel.</p>
             </div>
-            <a href="{{ route('research-calls.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-xs font-black text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 18 9 12l6-6" /></svg>
-                Back to research calls
-            </a>
+            <x-back-link href="{{ route('research-calls.index') }}">Back to research calls</x-back-link>
         </div>
     </x-slot>
 

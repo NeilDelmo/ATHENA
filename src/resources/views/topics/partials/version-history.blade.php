@@ -1,4 +1,6 @@
-@php($expanded = $expanded ?? false)
+@php
+    $expanded = $expanded ?? false;
+@endphp
 
 <section class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
     <details @if ($expanded) open @endif>
@@ -38,7 +40,12 @@
                                 </div>
                             @endif
 
-                            @php($proposalFiles = $version->files->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE))
+                            @php
+                                $proposalFiles = $version->files->whereNotIn('document_type', [
+                                    \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                                    \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                                ]);
+                            @endphp
                             @if ($proposalFiles->isNotEmpty())
                                 <div class="mt-4 overflow-hidden rounded-xl border border-gray-200">
                                     @foreach ($proposalFiles as $file)

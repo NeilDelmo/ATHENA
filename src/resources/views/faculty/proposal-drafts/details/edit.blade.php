@@ -5,7 +5,7 @@
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Project Details</h2>
                 <p class="mt-1 text-xs text-gray-500">Enter shared information once; Attachment A will use it automatically.</p>
             </div>
-            <a data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">&larr; Exit editor</a>
+            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
         </div>
     </x-slot>
 

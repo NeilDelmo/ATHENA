@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <div>
-            <a href="{{ route('faculty.proposal-drafts.index') }}" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">← Proposal Workspace</a>
+            <x-back-link href="{{ route('faculty.proposal-drafts.index') }}">Back to proposal workspace</x-back-link>
             <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">New Proposal</h2>
             <p class="mt-1 text-xs text-gray-500">Choose the research call and give this project a working title.</p>
         </div>

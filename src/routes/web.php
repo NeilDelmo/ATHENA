@@ -3,7 +3,6 @@
 use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
-use App\Http\Controllers\ExpertReviewController;
 use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\NotificationController;
@@ -260,6 +259,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
+    Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
     Route::post('/research-calls/extract-image', [ResearchCallController::class, 'extractImage'])->name('research-calls.extract-image');
@@ -282,11 +282,6 @@ Route::get('/research-coordinator/dashboard', [ResearchCoordinatorController::cl
 Route::get('/research-coordinator/faculty-members', [ResearchCoordinatorController::class, 'members'])
     ->middleware(['auth', 'role:research_coordinator'])
     ->name('research_coordinator.members.index');
-
-Route::middleware(['auth', 'workspace:expert'])->group(function () {
-    Route::get('/expert/dashboard', [ExpertReviewController::class, 'index'])->name('expert.dashboard');
-    Route::patch('/expert/assignments/{assignment}', [ExpertReviewController::class, 'submit'])->name('expert.assignments.submit');
-});
 
 // PROFILE ROUTES
 Route::middleware('auth')->group(function () {

@@ -5,9 +5,7 @@
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Account Profile</h2>
                 <p class="mt-1 text-xs text-gray-500">Your institutional identity, ATHENA access, and account activity.</p>
             </div>
-            <a href="{{ route('dashboard') }}" class="inline-flex self-start items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-50">
-                <span aria-hidden="true">&larr;</span> Back to workspace
-            </a>
+            <x-back-link href="{{ route('dashboard') }}" class="self-start">Back to workspace</x-back-link>
         </div>
     </x-slot>
 
@@ -17,11 +15,11 @@
             'faculty_researcher' => 'Access the research catalog and Research Support workspace.',
             'research_head' => 'Manage research calls, evaluate proposals, and issue final decisions.',
             'research_coordinator' => 'Coordinate faculty research activity for the assigned college.',
-            'expert' => 'Review assigned proposals and submit subject-matter recommendations.',
         ];
 
         $statusClass = fn (string $status) => match ($status) {
             'approved' => 'bg-green-50 text-green-700',
+            'ready_for_signature' => 'bg-red-50 text-red-800',
             'rejected' => 'bg-red-50 text-red-700',
             'revision_requested' => 'bg-blue-50 text-blue-700',
             'resubmitted', 'expert_review' => 'bg-purple-50 text-purple-700',
@@ -139,7 +137,7 @@
                     <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Proposals</p><p class="mt-2 text-3xl font-black text-gray-900">{{ $user->proposals_count }}</p></div>
                     <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Approved</p><p class="mt-2 text-3xl font-black text-green-700">{{ $user->approved_proposals_count }}</p></div>
                     <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">In progress</p><p class="mt-2 text-3xl font-black text-blue-700">{{ $user->active_proposals_count }}</p></div>
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Reviews</p><p class="mt-2 text-3xl font-black text-purple-700">{{ $user->topic_reviews_count + $user->expert_assignments_count }}</p></div>
+                    <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Decisions</p><p class="mt-2 text-3xl font-black text-purple-700">{{ $user->topic_reviews_count }}</p></div>
                 </div>
             </section>
 

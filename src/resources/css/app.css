@@ -76,7 +76,7 @@
 }
 
 .pdf-annotation-page .textLayer ::selection {
-    background: rgb(251 191 36 / 0.55);
+    background: rgb(220 38 38 / 0.42);
     color: transparent;
 }
 
@@ -95,36 +95,36 @@
     position: absolute;
     pointer-events: auto;
     cursor: pointer;
-    border: 1px solid rgb(217 119 6 / 0.55);
+    border: 1px solid rgb(185 28 28 / 0.7);
     border-radius: 0.125rem;
-    background: rgb(250 204 21 / 0.32);
+    background: rgb(239 68 68 / 0.24);
     transition: background-color 150ms ease, box-shadow 150ms ease;
 }
 
 .pdf-annotation-mark:hover,
 .pdf-annotation-mark:focus-visible {
-    background: rgb(250 204 21 / 0.5);
-    box-shadow: 0 0 0 2px rgb(245 158 11 / 0.65);
+    background: rgb(239 68 68 / 0.38);
+    box-shadow: 0 0 0 2px rgb(185 28 28 / 0.6);
     outline: none;
 }
 
 .pdf-annotation-mark-requested {
-    border-color: rgb(37 99 235 / 0.55);
-    background: rgb(96 165 250 / 0.3);
+    border-color: rgb(153 27 27 / 0.8);
+    background: rgb(220 38 38 / 0.3);
 }
 
 .pdf-annotation-mark-resolved {
-    border-color: rgb(22 163 74 / 0.5);
-    background: rgb(74 222 128 / 0.24);
+    border-color: rgb(17 24 39 / 0.7);
+    background: rgb(107 114 128 / 0.24);
 }
 
 .pdf-annotation-area-preview {
     position: absolute;
     z-index: 4;
     pointer-events: none;
-    border: 2px solid rgb(217 119 6);
+    border: 2px solid rgb(185 28 28);
     border-radius: 0.25rem;
-    background: rgb(250 204 21 / 0.25);
+    background: rgb(239 68 68 / 0.2);
 }
 
 .pdf-annotation-area-mode .pdf-annotation-page,

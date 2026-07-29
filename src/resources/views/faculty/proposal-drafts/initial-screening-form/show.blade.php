@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <div>
-            <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="text-xs font-bold text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">&larr; Proposal package</a>
+            <x-back-link href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to proposal package</x-back-link>
             <div class="mt-2 flex flex-wrap items-center gap-3">
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $projectDetailsComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $projectDetailsComplete ? 'Complete automatically' : 'Waiting for project details' }}</span>
@@ -23,7 +23,7 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">
                     <h3 class="text-base font-black text-gray-900">No faculty screening answers required</h3>
-                    <p class="mt-1 text-sm leading-6 text-gray-600">The Research/RDES Head and assigned central co-evaluator complete the submitted-document checklist, rubric, recommendation, narrative evaluation, names, dates, and signatures after the proposal is submitted. Those fields remain blank here.</p>
+                    <p class="mt-1 text-sm leading-6 text-gray-600">ATHENA submits this blank form with the proposal package. The Research Head handles any evaluation outside the system and later uploads the completed document with the official decision.</p>
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row">
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Edit shared details</a>

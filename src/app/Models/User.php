@@ -20,8 +20,6 @@ class User extends Authenticatable
 {
     public const ACTIVE_WORKSPACE_SESSION_KEY = 'active_workspace';
 
-    public const WORKSPACE_EXPERT = 'expert';
-
     public const WORKSPACE_FACULTY = 'faculty';
 
     public const WORKSPACE_FACULTY_RESEARCHER = 'faculty_researcher';
@@ -64,11 +62,6 @@ class User extends Authenticatable
                 'description' => 'Manage research calls, evaluate proposals, and oversee institutional research.',
                 'route' => 'research_head.dashboard',
             ],
-            self::WORKSPACE_EXPERT => [
-                'label' => 'Expert Evaluator',
-                'description' => 'Review assigned proposals and submit subject-matter recommendations.',
-                'route' => 'expert.dashboard',
-            ],
             self::WORKSPACE_FACULTY_RESEARCHER => [
                 'label' => 'Faculty Researcher',
                 'description' => 'Manage proposals and monitor approved institutional research projects.',
@@ -99,10 +92,6 @@ class User extends Authenticatable
                 self::WORKSPACE_FACULTY_RESEARCHER,
                 self::WORKSPACE_FACULTY,
             ];
-        }
-
-        if ($assignedRoles->contains(self::WORKSPACE_EXPERT)) {
-            $available[] = self::WORKSPACE_EXPERT;
         }
 
         if ($assignedRoles->contains(self::WORKSPACE_FACULTY_RESEARCHER)) {
@@ -233,10 +222,5 @@ class User extends Authenticatable
     public function topicReviews(): HasMany
     {
         return $this->hasMany(TopicReview::class, 'reviewer_id');
-    }
-
-    public function expertAssignments(): HasMany
-    {
-        return $this->hasMany(TopicExpertAssignment::class, 'expert_id');
     }
 }

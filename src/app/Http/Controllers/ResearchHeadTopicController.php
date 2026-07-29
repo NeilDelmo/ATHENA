@@ -2,18 +2,25 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\FinalizeResearchHeadTopicApprovalRequest;
+use App\Http\Requests\UpdateResearchHeadTopicStatusRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
+use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ProposalPackageService;
+use App\Services\ProposalSignatureWorkflow;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
+use Throwable;
 
 class ResearchHeadTopicController extends Controller
 {
@@ -21,13 +28,14 @@ class ResearchHeadTopicController extends Controller
     {
         $status = $request->string('status')->toString();
         $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', 'approved', 'rejected'];
+        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'];
 
         $summary = [
-            'screening' => TopicProposal::whereIn('status', ['pending', 'resubmitted'])->count(),
-            'expert_review' => TopicProposal::where('status', 'expert_review')->count(),
-            'final_decision' => TopicProposal::where('status', 'for_final_decision')->count(),
+            'awaiting_review' => TopicProposal::whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision'])->count(),
+            'revision_requested' => TopicProposal::where('status', 'revision_requested')->count(),
+            'ready_for_signature' => TopicProposal::where('status', TopicProposal::STATUS_READY_FOR_SIGNATURE)->count(),
             'approved' => TopicProposal::where('status', 'approved')->count(),
+            'rejected' => TopicProposal::where('status', 'rejected')->count(),
             'drafts' => ProposalDraft::query()
                 ->where('status', ProposalDraft::STATUS_DRAFT)
                 ->whereHas('researchCall', function ($query): void {
@@ -56,45 +64,30 @@ class ResearchHeadTopicController extends Controller
         return view('research_head.dashboard', compact('topics', 'summary', 'status', 'search'));
     }
 
-    public function updateStatus(Request $request, TopicProposal $topic)
-    {
-        $validated = $request->validate([
-            'status' => ['required', Rule::in(['expert_review', 'approved', 'revision_requested', 'rejected'])],
-            'redirect_to' => ['nullable', Rule::in(['topic'])],
-            'comment' => ['nullable', 'required_if:status,revision_requested,rejected', 'string', 'max:5000'],
-            'expert_ids' => ['nullable', 'required_if:status,expert_review', 'array', 'min:1'],
-            'expert_ids.*' => ['integer', 'distinct', 'exists:users,id'],
-            'signed_approval' => ['nullable', 'required_if:status,approved', 'file', 'mimes:pdf', 'max:25600'],
-            'revision_file_ids' => ['nullable', 'array'],
-            'revision_file_ids.*' => ['integer', 'distinct', 'exists:proposal_version_files,id'],
-            'revision_file_notes' => ['nullable', 'array'],
-            'revision_file_notes.*' => ['nullable', 'string', 'max:2000'],
-        ], [
-            'comment.required_if' => 'Review comments are required when requesting a revision or rejecting a proposal.',
-        ]);
+    public function updateStatus(
+        UpdateResearchHeadTopicStatusRequest $request,
+        TopicProposal $topic,
+        ProposalPackageService $packageService,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $latestVersion = $topic->latestVersion()->with('files')->first();
 
-        if ($validated['status'] === 'expert_review') {
-            $expertCount = User::role('expert')
-                ->whereKey($validated['expert_ids'])
-                ->count();
-
-            if ($expertCount !== count($validated['expert_ids'])) {
-                throw ValidationException::withMessages([
-                    'expert_ids' => 'Every selected reviewer must have the expert role.',
-                ]);
-            }
+        if (! $latestVersion instanceof ProposalVersion) {
+            throw ValidationException::withMessages([
+                'evaluation_document' => 'A submitted proposal version is required before a decision can be recorded.',
+            ]);
         }
 
+        $latestFacultyFiles = $latestVersion->files
+            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD);
         $selectedRevisionFiles = collect();
+        $selectedSignatureFiles = collect();
 
         if ($validated['status'] === 'revision_requested') {
-            $latestVersion = $topic->latestVersion()->with('files')->first();
-            $latestFiles = ($latestVersion?->files ?? collect())
-                ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD);
             $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
-            $selectedRevisionFiles = $latestFiles->whereIn('id', $selectedIds)->values();
+            $selectedRevisionFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
 
-            if ($latestFiles->isNotEmpty() && $selectedIds->isEmpty()) {
+            if ($latestFacultyFiles->isNotEmpty() && $selectedIds->isEmpty()) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Select at least one proposal file that requires revision.',
                 ]);
@@ -107,82 +100,81 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
-        $approvalPath = null;
-        if ($request->hasFile('signed_approval')) {
-            $approvalPath = $request->file('signed_approval')->store('approvals', 'local');
+        if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
+            $selectedIds = collect($validated['signature_file_ids'] ?? [])->map(fn ($id) => (int) $id);
+            $selectedSignatureFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
+
+            if ($selectedSignatureFiles->count() !== $selectedIds->count()) {
+                throw ValidationException::withMessages([
+                    'signature_file_ids' => 'Every selected signature paper must belong to the latest proposal version.',
+                ]);
+            }
         }
 
+        $screeningForm = $latestFacultyFiles
+            ->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
+        $evidenceDirectory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/review-evidence/'.Str::uuid();
+        $evaluationAttributes = $packageService->storeHeadUpload(
+            $request->file('evaluation_document'),
+            $evidenceDirectory,
+            [
+                'source_version_file_id' => $screeningForm?->id,
+                'target_document_type' => $screeningForm?->document_type,
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+                'document_title' => $validated['evaluation_title'] ?? 'External evaluation document',
+                'note' => $validated['comment'] ?? null,
+                'decision' => $validated['status'],
+                'required_signature_file_ids' => $selectedSignatureFiles->pluck('id')->all(),
+            ],
+        );
+
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $approvalPath, $selectedRevisionFiles) {
+            DB::transaction(function () use (
+                $request,
+                $topic,
+                $validated,
+                $latestVersion,
+                $evaluationAttributes,
+                $selectedRevisionFiles,
+            ): void {
                 $reviewedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if (! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'for_final_decision'], true)) {
+                if (! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
                     throw ValidationException::withMessages([
-                        'status' => 'Only pending or resubmitted proposals can be reviewed.',
+                        'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
                     ]);
                 }
 
-                if ($validated['status'] === 'approved') {
-                    $this->ensureInitialScreeningCompleted($reviewedTopic);
+                if (in_array($validated['status'], ['approved', TopicProposal::STATUS_READY_FOR_SIGNATURE], true)) {
                     $this->ensureResearchWorkloadAvailable($reviewedTopic);
                 }
 
-                if ($validated['status'] === 'expert_review') {
-                    if ($reviewedTopic->status === 'for_final_decision') {
-                        throw ValidationException::withMessages(['status' => 'Initial screening has already been completed.']);
-                    }
-
-                    if ($reviewedTopic->status === 'resubmitted') {
-                        $previousEvaluatorIds = $reviewedTopic->expertAssignments()
-                            ->pluck('expert_id')
-                            ->unique()
-                            ->sort()
-                            ->values();
-                        $selectedEvaluatorIds = collect($validated['expert_ids'])->map(fn ($id) => (int) $id)->sort()->values();
-
-                        if ($previousEvaluatorIds->isNotEmpty() && $previousEvaluatorIds->all() !== $selectedEvaluatorIds->all()) {
-                            throw ValidationException::withMessages([
-                                'expert_ids' => 'A revised proposal must repeat Initial Screening with the same assigned co-evaluator(s).',
-                            ]);
-                        }
-                    }
-
-                    $reviewedTopic->expertAssignments()->createMany(
-                        collect($validated['expert_ids'])->map(fn ($expertId) => [
-                            'expert_id' => $expertId,
-                            'assigned_by' => $request->user()->id,
-                            'status' => 'pending',
-                        ])->all()
-                    );
-
-                    $reviewedTopic->update(['status' => 'expert_review']);
-                    $reviewedTopic->reviews()->create([
-                        'reviewer_id' => $request->user()->id,
-                        'decision' => 'expert_review_assigned',
-                        'comment' => $validated['comment'] ?? null,
-                    ]);
-
-                    return;
-                }
-
-                $reviewedTopic->update([
-                    'status' => $validated['status'],
-                    'signed_approval_path' => $validated['status'] === 'approved' ? $approvalPath : null,
+                $lockedVersion = ProposalVersion::query()
+                    ->whereKey($latestVersion->id)
+                    ->where('topic_id', $reviewedTopic->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $position = ((int) $lockedVersion->files()
+                    ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                    ->max('position')) + 1;
+                $lockedVersion->files()->create([
+                    ...$evaluationAttributes,
+                    'position' => $position,
+                    'uploaded_by' => $request->user()->id,
                 ]);
+
+                $reviewedTopic->update(['status' => $validated['status']]);
+                $reviewedTopic->expertAssignments()
+                    ->where('status', 'pending')
+                    ->update(['status' => 'cancelled']);
 
                 if ($validated['status'] === 'revision_requested') {
                     $reviewedTopic->expertAssignments()
-                        ->whereIn('status', ['pending', 'completed'])
+                        ->where('status', 'completed')
                         ->update(['status' => 'superseded']);
-                }
-
-                if ($validated['status'] === 'rejected') {
-                    $reviewedTopic->expertAssignments()
-                        ->where('status', 'pending')
-                        ->update(['status' => 'cancelled']);
                 }
 
                 $review = $reviewedTopic->reviews()->create([
@@ -208,61 +200,48 @@ class ResearchHeadTopicController extends Controller
                 }
 
                 if ($validated['status'] === 'approved') {
-                    $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
-                    $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
-
-                    $reviewedTopic->user()->firstOrFail()->assignRole([$facultyRole, $facultyResearcherRole]);
                     $reviewedTopic->update(['project_status' => 'ongoing']);
+                    $this->grantFacultyResearcherAccess($reviewedTopic);
                 }
             });
-        } catch (\Throwable $exception) {
-            if ($approvalPath) {
-                Storage::disk('local')->delete($approvalPath);
-            }
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($evaluationAttributes['file_path']);
 
             throw $exception;
         }
 
-        if ($validated['status'] === 'expert_review') {
-            User::query()->whereKey($validated['expert_ids'])->get()->each->notify(
-                new ProposalActivityNotification(
-                    'Co-evaluation assigned',
-                    'You were assigned as a co-evaluator for “'.$topic->title.'”.',
-                    route('topics.show', $topic),
-                    'info',
-                    $topic->id,
-                    workspace: User::WORKSPACE_EXPERT,
-                ),
-            );
-        } else {
-            $notificationDetails = match ($validated['status']) {
-                'approved' => ['Proposal approved', 'Your proposal “'.$topic->title.'” was approved.', 'success'],
-                'revision_requested' => [
-                    'Revision requested',
-                    ($selectedRevisionFiles->isNotEmpty() ? $selectedRevisionFiles->count().' proposal file(s) require changes in ' : 'Changes were requested for ').'“'.$topic->title.'”. Review the comments and submit a new version.',
-                    'warning',
-                ],
-                'rejected' => ['Proposal rejected', 'Your proposal “'.$topic->title.'” was not approved. Review the decision comments.', 'danger'],
-            };
+        $notificationDetails = match ($validated['status']) {
+            'approved' => ['Proposal approved', 'Your proposal “'.$topic->title.'” was approved. The evaluation document is available in the proposal review.', 'success'],
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => [
+                'Proposal ready for signature',
+                'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
+                'info',
+            ],
+            'revision_requested' => [
+                'Revision requested',
+                ($selectedRevisionFiles->isNotEmpty() ? $selectedRevisionFiles->count().' proposal file(s) require changes in ' : 'Changes were requested for ').'“'.$topic->title.'”. Review the comments and evaluation document, then submit a new version.',
+                'warning',
+            ],
+            'rejected' => ['Proposal rejected', 'Your proposal “'.$topic->title.'” was not approved. Review the decision comments and evaluation document.', 'danger'],
+        };
 
-            $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
-                $notificationDetails[0],
-                $notificationDetails[1],
-                route('topics.show', $topic),
-                $notificationDetails[2],
-                $topic->id,
-                workspace: [
-                    User::WORKSPACE_FACULTY_RESEARCHER,
-                    User::WORKSPACE_FACULTY,
-                ],
-            ));
-        }
+        $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
+            $notificationDetails[0],
+            $notificationDetails[1],
+            route('topics.show', $topic),
+            $notificationDetails[2],
+            $topic->id,
+            workspace: [
+                User::WORKSPACE_FACULTY_RESEARCHER,
+                User::WORKSPACE_FACULTY,
+            ],
+        ));
 
         $message = match ($validated['status']) {
-            'approved' => 'Proposal approved successfully.',
-            'expert_review' => 'Proposal sent to the selected co-evaluator(s) for Initial Screening.',
-            'revision_requested' => 'Revision requested and your comments were sent to the faculty member.',
-            'rejected' => 'Proposal rejected and your comments were recorded.',
+            'approved' => 'Proposal approved and the evaluation document was shared with the faculty member.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
+            'revision_requested' => 'Revision requested; your comments and evaluation document were shared with the faculty member.',
+            'rejected' => 'Proposal rejected; your comments and evaluation document were shared with the faculty member.',
         };
 
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
@@ -270,22 +249,73 @@ class ResearchHeadTopicController extends Controller
         return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', $message);
     }
 
-    private function ensureInitialScreeningCompleted(TopicProposal $topic): void
-    {
-        $assignments = $topic->expertAssignments()->get();
-        $completedAssignments = $assignments->where('status', 'completed');
+    public function finalizeApproval(
+        FinalizeResearchHeadTopicApprovalRequest $request,
+        TopicProposal $topic,
+        ProposalSignatureWorkflow $signatureWorkflow,
+    ): RedirectResponse {
+        DB::transaction(function () use ($request, $topic, $signatureWorkflow): void {
+            $reviewedTopic = TopicProposal::query()
+                ->whereKey($topic->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if ($topic->status !== 'for_final_decision' || $completedAssignments->isEmpty() || $assignments->contains('status', 'pending')) {
-            throw ValidationException::withMessages([
-                'status' => 'Initial Screening must be completed by the Research/RDES Head and every assigned co-evaluator before final approval.',
-            ]);
-        }
+            if ($reviewedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only proposals that are ready for signature can be finalized.',
+                ]);
+            }
 
-        if ($completedAssignments->contains(fn ($assignment) => $assignment->recommendation !== 'recommend_approval')) {
-            throw ValidationException::withMessages([
-                'status' => 'Outstanding co-evaluator comments must be resolved through revision and Initial Screening before final approval.',
+            $latestVersion = ProposalVersion::query()
+                ->where('topic_id', $reviewedTopic->id)
+                ->with('files')
+                ->orderByDesc('version_number')
+                ->lockForUpdate()
+                ->firstOrFail();
+            $requiredSignatureFiles = $signatureWorkflow->requiredFiles($latestVersion);
+
+            if ($requiredSignatureFiles->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'status' => 'No papers were selected for final signing. Record the Research Head decision again and select the applicable papers.',
+                ]);
+            }
+
+            $missingSignatureFiles = $signatureWorkflow->missingRequiredFiles($latestVersion);
+
+            if ($missingSignatureFiles->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'status' => 'Upload signed PDFs for: '.$missingSignatureFiles->map->label()->join(', ').'.',
+                ]);
+            }
+
+            $this->ensureResearchWorkloadAvailable($reviewedTopic);
+            $reviewedTopic->update([
+                'status' => 'approved',
+                'project_status' => 'ongoing',
             ]);
-        }
+            $reviewedTopic->reviews()->create([
+                'reviewer_id' => $request->user()->id,
+                'decision' => 'approved',
+                'comment' => 'All required signed final copies were uploaded and the proposal was released as approved.',
+            ]);
+            $this->grantFacultyResearcherAccess($reviewedTopic);
+        });
+
+        $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
+            'Proposal approved',
+            'All required signed final copies for “'.$topic->title.'” are available in the proposal review.',
+            route('topics.show', $topic),
+            'success',
+            $topic->id,
+            workspace: [
+                User::WORKSPACE_FACULTY_RESEARCHER,
+                User::WORKSPACE_FACULTY,
+            ],
+        ));
+
+        return redirect()
+            ->to(route('topics.show', $topic).'#proposal-review')
+            ->with('success', 'Proposal approved. The signed final copies are now available to the faculty member.');
     }
 
     private function ensureResearchWorkloadAvailable(TopicProposal $topic): void
@@ -304,5 +334,13 @@ class ResearchHeadTopicController extends Controller
                 'status' => "This faculty researcher already has the maximum of {$researchCall->max_active_research_per_faculty} approved research projects for academic year {$researchCall->academic_year}. Applications remain unlimited, but another project cannot be approved for that year.",
             ]);
         }
+    }
+
+    private function grantFacultyResearcherAccess(TopicProposal $topic): void
+    {
+        $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
+        $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
+
+        $topic->user()->firstOrFail()->assignRole([$facultyRole, $facultyResearcherRole]);
     }
 }

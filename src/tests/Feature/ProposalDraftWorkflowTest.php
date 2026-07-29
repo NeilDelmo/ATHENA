@@ -625,7 +625,7 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('No faculty screening answers required')
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
-        ->assertSee('The Research/RDES Head and assigned central co-evaluator complete')
+        ->assertSee('The Research Head handles any evaluation outside the system')
         ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
         ->assertDontSee('data-paper-save', false)

@@ -6,7 +6,7 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     $this->withoutVite();
 
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 });
@@ -47,7 +47,6 @@ test('single workspace accounts continue directly to their dashboard', function 
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
 })->with([
     'faculty' => ['faculty', 'faculty'],
-    'expert' => ['expert', 'expert'],
 ]);
 
 test('a research head can work as faculty without retaining research head route access', function () {

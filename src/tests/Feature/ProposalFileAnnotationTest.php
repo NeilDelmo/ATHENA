@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -74,10 +74,12 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertSee('Annotation mode')
         ->assertSee('Select text')
         ->assertSee('Draw area')
+        ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
         ->assertSee('Highlight &amp; comment', false)
         ->assertSee('What should the faculty revise?')
         ->assertSee('data-annotation-tools-guide', false)
-        ->assertSee(route('topics.show', $this->topic).'#review-and-upload-files', false)
+        ->assertSee(route('topics.show', $this->topic).'#proposal-review', false)
+        ->assertSee('Return to file checklist')
         ->assertDontSee('Edit in proposal workspace');
 
     $response = $this->actingAs($this->head)->postJson(
@@ -106,12 +108,18 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->and($annotation->rectangles[0]['x'])->toEqual(0.15)
         ->and($annotation->comment)->toBe('State the sample size and selection criteria.');
 
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('x-data="{ needsRevision: true }"', false)
+        ->assertSee('1 saved highlight(s)');
+
     $this->actingAs($this->faculty)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertNotFound();
 });
 
-test('research head can draft highlights while co-evaluator review is in progress', function () {
+test('research head can draft highlights while a legacy review is in progress', function () {
     $this->topic->update(['status' => 'expert_review']);
 
     $this->actingAs($this->head)
@@ -133,7 +141,7 @@ test('research head can draft highlights while co-evaluator review is in progres
                 'width' => 0.3,
                 'height' => 0.2,
             ]],
-            'comment' => 'Revise this table after the co-evaluator feedback is complete.',
+            'comment' => 'Revise this table before the Research Head records the decision.',
         ])
         ->assertCreated()
         ->assertJsonPath('state', 'draft');
@@ -157,6 +165,7 @@ test('sending a revision request publishes highlights for the faculty', function
             'revision_file_notes' => [
                 $this->file->id => 'See the highlighted comment in ATHENA.',
             ],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic));
 

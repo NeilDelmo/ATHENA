@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ProposalTemplate;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -21,8 +22,6 @@ beforeEach(function () {
     $this->head->assignRole('research_head');
     $this->faculty = User::factory()->create();
     $this->faculty->assignRole('faculty');
-    $this->expert = User::factory()->create();
-    $this->expert->assignRole('expert');
     $this->category = ResearchCategory::create(['name' => 'Environment']);
     $this->call = ResearchCall::create([
         'title' => 'Open Institutional Call',
@@ -87,8 +86,8 @@ test('the proposal workflow generates and stores Attachment A with the submitted
         ->and($firstProposal->latestVersion->checksum)->toHaveLength(64)
         ->and($firstProposal->latestVersion->files()->count())->toBe(6)
         ->and($generatedWorkPlan)->not->toBeNull()
-        ->and($generatedWorkPlan->original_filename)->toBe('first-work-plan.docx')
-        ->and($generatedWorkPlan->mime_type)->toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        ->and($generatedWorkPlan->original_filename)->toBe('first-work-plan.pdf')
+        ->and($generatedWorkPlan->mime_type)->toBe('application/pdf')
         ->and($generatedWorkPlan->checksum)->toHaveLength(64);
 
     $firstProposal->latestVersion->files->each(
@@ -168,7 +167,6 @@ test('faculty and faculty researchers are notified when an open research call is
     }
 
     Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
-    Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
 });
 
 test('published research calls follow their configured start and end dates automatically', function () {
@@ -366,7 +364,7 @@ test('research heads can save workflow dates and a reference poster with a resea
 
 test('faculty research workload is limited to two approved projects per academic year', function () {
     $createProposal = function (ResearchCall $call, string $title, string $status): TopicProposal {
-        return TopicProposal::create([
+        $topic = TopicProposal::create([
             'user_id' => $this->faculty->id,
             'research_call_id' => $call->id,
             'research_category_id' => $this->category->id,
@@ -375,33 +373,38 @@ test('faculty research workload is limited to two approved projects per academic
             'estimated_duration_months' => 12,
             'status' => $status,
         ]);
-    };
 
-    $completeScreening = function (TopicProposal $topic): void {
-        $topic->update(['status' => 'for_final_decision']);
-        $topic->expertAssignments()->create([
-            'expert_id' => $this->expert->id,
-            'assigned_by' => $this->head->id,
-            'status' => 'completed',
-            'recommendation' => 'recommend_approval',
-            'comment' => 'Initial Screening requirements are satisfied.',
-            'reviewed_at' => now(),
+        $path = 'proposals/workload-'.$topic->id.'.pdf';
+        Storage::disk('local')->put($path, 'proposal');
+        $topic->versions()->create([
+            'submitted_by' => $this->faculty->id,
+            'version_number' => 1,
+            'submission_type' => 'initial',
+            'file_path' => $path,
+            'original_filename' => 'proposal.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 8,
+            'checksum' => hash('sha256', 'proposal'),
+            'title' => $title,
+            'estimated_budget' => 50000,
+            'estimated_duration_months' => 12,
         ]);
+
+        return $topic;
     };
 
     $createProposal($this->call, 'Approved project one', 'approved');
     $createProposal($this->call, 'Approved project two', 'approved');
     $thirdProposal = $createProposal($this->call, 'Third project in the same year', 'pending');
-    $completeScreening($thirdProposal);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $thirdProposal), [
             'status' => 'approved',
-            'signed_approval' => UploadedFile::fake()->create('third-approval.pdf', 100, 'application/pdf'),
+            'evaluation_document' => UploadedFile::fake()->create('third-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertSessionHasErrors('status');
 
-    expect($thirdProposal->fresh()->status)->toBe('for_final_decision');
+    expect($thirdProposal->fresh()->status)->toBe('pending');
 
     $nextYearCall = ResearchCall::create([
         'title' => 'Next Academic Year Call',
@@ -414,12 +417,11 @@ test('faculty research workload is limited to two approved projects per academic
     ]);
     $nextYearCall->categories()->attach($this->category);
     $nextYearProposal = $createProposal($nextYearCall, 'Project for the next academic year', 'pending');
-    $completeScreening($nextYearProposal);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
             'status' => 'approved',
-            'signed_approval' => UploadedFile::fake()->create('next-year-approval.pdf', 100, 'application/pdf'),
+            'evaluation_document' => UploadedFile::fake()->create('next-year-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertRedirect(route('research_head.dashboard'));
 
@@ -525,7 +527,7 @@ test('faculty can securely download configured proposal templates', function () 
         ->assertRedirect(route('login'));
 });
 
-test('co-evaluator recommendations complete Initial Screening before final approval', function () {
+test('research head records the final decision with external evaluation proof', function () {
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'research_call_id' => $this->call->id,
@@ -536,34 +538,38 @@ test('co-evaluator recommendations complete Initial Screening before final appro
         'initial_file_path' => 'proposals/coastal.pdf',
         'status' => 'pending',
     ]);
-
-    $this->actingAs($this->head)->patch("/research-head/topics/{$topic->id}/status", [
-        'status' => 'expert_review',
-        'expert_ids' => [$this->expert->id],
-        'comment' => 'Please evaluate the environmental need and feasibility.',
-    ])->assertRedirect(route('research_head.dashboard'));
-
-    $assignment = $topic->expertAssignments()->firstOrFail();
-    expect($topic->fresh()->status)->toBe('expert_review')
-        ->and($this->expert->notifications()->count())->toBe(1);
-
-    $this->actingAs($this->expert)->patch("/expert/assignments/{$assignment->id}", [
-        'recommendation' => 'recommend_approval',
-        'comment' => 'The project addresses a documented coastal need and is feasible.',
-    ])->assertRedirect();
-
-    expect($topic->fresh()->status)->toBe('for_final_decision')
-        ->and($this->head->notifications()->count())->toBe(1);
+    $path = 'proposals/coastal.pdf';
+    Storage::disk('local')->put($path, 'coastal proposal');
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => $path,
+        'original_filename' => 'coastal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 16,
+        'checksum' => hash('sha256', 'coastal proposal'),
+        'title' => $topic->title,
+        'estimated_budget' => 75000,
+        'estimated_duration_months' => 18,
+    ]);
 
     $this->actingAs($this->head)->patch("/research-head/topics/{$topic->id}/status", [
         'status' => 'approved',
-        'comment' => 'Approved based on the completed expert review.',
-        'signed_approval' => UploadedFile::fake()->create('signed-approval.pdf', 100, 'application/pdf'),
+        'comment' => 'Approved based on the completed external evaluation.',
+        'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
     ])->assertRedirect(route('research_head.dashboard'));
 
+    $evaluationDocument = $version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->sole();
     $topic->refresh();
     expect($topic->status)->toBe('approved')
-        ->and($topic->signed_approval_path)->not->toBeNull()
+        ->and($evaluationDocument->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
-    Storage::disk('local')->assertExists($topic->signed_approval_path);
+    Storage::disk('local')->assertExists($evaluationDocument->file_path);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.versions.files.download', [$topic, $version, $evaluationDocument]))
+        ->assertDownload('completed-evaluation.pdf');
 });

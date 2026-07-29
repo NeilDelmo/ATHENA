@@ -37,10 +37,11 @@
                 <option value="">All proposal statuses</option>
                 @foreach ([
                     'pending' => 'Pending',
-                    'expert_review' => 'Initial screening',
-                    'for_final_decision' => 'Screening complete',
+                    'expert_review' => 'Awaiting Research Head',
+                    'for_final_decision' => 'Awaiting Research Head',
                     'revision_requested' => 'Revision requested',
                     'resubmitted' => 'Resubmitted',
+                    'ready_for_signature' => 'Ready for signature',
                     'approved' => 'Approved',
                     'rejected' => 'Rejected',
                 ] as $value => $label)
@@ -82,6 +83,7 @@
                                 $fileCount = $submission->package_files_count ?: ($submission->file_path ? 1 : 0);
                                 $statusStyle = match ($submission->topic->status) {
                                     'approved' => 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+                                    'ready_for_signature' => 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
                                     'rejected' => 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
                                     'revision_requested' => 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
                                     'expert_review', 'resubmitted' => 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300',

@@ -50,8 +50,6 @@
                                 <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-700 transition group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/50 dark:text-red-300">
                                     @if ($key === 'research_head')
                                         <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v6m-9.75 3.75h13.5M4.5 5.25h15a.75.75 0 0 1 .75.75v12.75H3.75V6a.75.75 0 0 1 .75-.75Z" /></svg>
-                                    @elseif ($key === 'expert')
-                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12.75 2.25 2.25L15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                                     @elseif ($key === 'faculty_researcher')
                                         <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18.75h12M7.5 3.75h9v15h-9v-15Zm2.25 3h4.5m-4.5 3h4.5" /></svg>
                                     @else

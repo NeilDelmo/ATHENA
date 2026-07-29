@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head', 'expert'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -93,7 +93,7 @@ test('research head can attach reviewed files to exact faculty submissions', fun
             'note' => 'Annotated for the faculty revision.',
         ]);
 
-    $response->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
+    $response->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
         ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     $headUpload = $this->version->files()
@@ -111,24 +111,230 @@ test('research head can attach reviewed files to exact faculty submissions', fun
     expect($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
 });
 
-test('signed copy can be attached even after the proposal is approved', function () {
-    $this->topic->update([
-        'status' => 'approved',
-        'project_status' => 'ongoing',
-    ]);
-
+test('signed copy can be replaced after the proposal is approved', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$gadChecklist->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $gadChecklist->id,
-            'review_file' => UploadedFile::fake()->create('signed-gad-checklist.docx', 200, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'review_file' => UploadedFile::fake()->create('signed-gad-checklist.pdf', 200, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
         ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
-    expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(1);
+    $originalSignedCopy = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+        ->sole();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.finalizeApproval', $this->topic))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $gadChecklist->id,
+            'review_file' => UploadedFile::fake()->create('corrected-signed-gad-checklist.pdf', 220, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
+
+    $replacementSignedCopy = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+        ->sole();
+
+    expect($replacementSignedCopy->id)->toBe($originalSignedCopy->id)
+        ->and($replacementSignedCopy->original_filename)->toBe('corrected-signed-gad-checklist.pdf')
+        ->and(Storage::disk('local')->exists($originalSignedCopy->file_path))->toBeFalse()
+        ->and(Storage::disk('local')->exists($replacementSignedCopy->file_path))->toBeTrue();
+});
+
+test('a clean proposal moves to signing before it can be approved', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+    $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Which papers need a signed final PDF?')
+        ->assertSee('Nothing is selected automatically.')
+        ->assertDontSee('Final signature required')
+        ->assertDontSee('No final signature required')
+        ->assertDontSee('Record note (optional)');
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'redirect_to' => 'topic',
+            'signature_file_ids' => [$workPlan->id, $gadChecklist->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHas('success', 'Review completed. Upload the required signed PDFs, then finalize approval.');
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
+        ->and($this->topic->fresh()->project_status)->toBeNull()
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Upload the selected signed PDFs')
+        ->assertSee('0/2 uploaded')
+        ->assertSee('Signed final PDF')
+        ->assertSee('Finalize approval')
+        ->assertDontSee('Upload reviewed copy')
+        ->assertDontSee('Record note (optional)');
+});
+
+test('final signing never assumes which papers require a signature', function () {
+    $this->actingAs($this->head)
+        ->from(route('topics.show', $this->topic))
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHasErrors('signature_file_ids');
+
+    expect($this->topic->fresh()->status)->toBe('pending')
+        ->and($this->version->files()
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->count())->toBe(0);
+});
+
+test('signed copies are limited to signature papers in the signing stage', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+    $expenseBreakdown = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->sole();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('too-early.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertSessionHasErrors(['purpose'], null, 'headUpload');
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$workPlan->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $expenseBreakdown->id,
+            'review_file' => UploadedFile::fake()->create('unneeded-signature.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertSessionHasErrors(['source_file_id'], null, 'headUpload');
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('signed-work-plan.docx', 100, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
+
+    expect($this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+        ->count())->toBe(0);
+});
+
+test('approval stays locked until every required signed PDF is uploaded', function () {
+    $detailedProposal = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$detailedProposal->id, $workPlan->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.finalizeApproval', $this->topic))
+        ->assertSessionHasErrors('status');
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE);
+
+    $requiredDocumentTypes = [
+        ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+    ];
+
+    foreach ($requiredDocumentTypes as $documentType) {
+        $sourceFile = $this->version->files()->where('document_type', $documentType)->sole();
+
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                'source_file_id' => $sourceFile->id,
+                'review_file' => UploadedFile::fake()->create("signed-{$documentType}.pdf", 100, 'application/pdf'),
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+                'note' => 'Signed by the Research Head.',
+            ])
+            ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
+    }
+
+    $signedWorkPlan = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_version_file_id', $workPlan->id)
+        ->sole();
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertDontSee('signed-work_plan.pdf');
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.versions.files.download', [$this->topic, $this->version, $signedWorkPlan]))
+        ->assertNotFound();
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->patch(route('research_head.topics.finalizeApproval', $this->topic))
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertSessionHas('success', 'Proposal approved. The signed final copies are now available to the faculty member.');
+
+    expect($this->topic->fresh()->status)->toBe('approved')
+        ->and($this->topic->fresh()->project_status)->toBe('ongoing')
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+
+    $facultyResponse = $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic));
+
+    $facultyResponse
+        ->assertOk()
+        ->assertSee('signed-work_plan.pdf')
+        ->assertSee('Work Plan (signed copy)');
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.versions.files.download', [$this->topic, $this->version, $signedWorkPlan]))
+        ->assertDownload('signed-work_plan.pdf');
 });
 
 test('research head can upload a standalone supplemental paper after faculty turn in', function () {
@@ -142,7 +348,7 @@ test('research head can upload a standalone supplemental paper after faculty tur
             'note' => 'Received through the Research Head for the proposal record.',
         ]);
 
-    $response->assertRedirect(route('topics.show', $this->topic).'#review-and-upload-files')
+    $response->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
         ->assertSessionHas('success', 'Supplemental paper uploaded by the Research Head.');
 
     $supplementalPaper = $this->version->files()
@@ -157,7 +363,7 @@ test('research head can upload a standalone supplemental paper after faculty tur
         ->and(Storage::disk('local')->exists($supplementalPaper->file_path))->toBeTrue();
 
     $this->actingAs($this->head)
-        ->get(route('topics.head-uploads.index', $this->topic))
+        ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Administrative and supplemental papers')
         ->assertSee('Regional Endorsement Memorandum')
@@ -215,7 +421,7 @@ test('upload rejects unsupported file types and oversize files', function () {
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('the upload workspace mirrors the faculty package and surfaces research head copies', function () {
+test('the proposal review shows files shared by the Research Head', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $this->actingAs($this->head)
@@ -229,15 +435,10 @@ test('the upload workspace mirrors the faculty package and surfaces research hea
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 
     $response->assertOk()
-        ->assertSee('Review & Upload Files')
-        ->assertSee('data-research-head-file-workspace', false)
-        ->assertSee('Review and Upload Files')
-        ->assertSee('Faculty-submitted files')
-        ->assertSee('Faculty original')
+        ->assertSee('Review & decision')
+        ->assertSee('Evaluation and decision documents')
         ->assertSee('reviewed-work-plan.pdf')
-        ->assertSee('For revision')
-        ->assertSee('Use these annotations for the next revision.')
-        ->assertSee('Upload copy');
+        ->assertSee('Work Plan (for revision)');
 });
 
 test('the second proposal tab matches the active workspace', function () {
@@ -246,20 +447,18 @@ test('the second proposal tab matches the active workspace', function () {
     ])->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Review & Upload Files')
-        ->assertSee("@click=\"setTopicTab('review', 'review-and-upload-files')\"", false)
-        ->assertSee('data-research-head-file-workspace', false)
-        ->assertDontSee('Review & Submit');
+        ->assertSee('Review & decision')
+        ->assertSee("@click=\"setTopicTab('review', 'proposal-review')\"", false)
+        ->assertDontSee('Review status');
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
     ])->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Review & Submit')
-        ->assertSee("@click=\"setTopicTab('review', 'review-and-submit')\"", false)
-        ->assertDontSee('Review & Upload Files')
-        ->assertDontSee('data-research-head-file-workspace', false);
+        ->assertSee('Review status')
+        ->assertSee("@click=\"setTopicTab('review', 'proposal-review')\"", false)
+        ->assertDontSee('Review & decision');
 });
 
 test('a dual-role proposal owner only sees the faculty revision module in a faculty workspace', function () {
@@ -274,7 +473,7 @@ test('a dual-role proposal owner only sees the faculty revision module in a facu
     ])->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Review & Upload Files')
+        ->assertSee('Review & decision')
         ->assertDontSee('id="submit-revision"', false);
 
     $this->withSession([
@@ -282,12 +481,21 @@ test('a dual-role proposal owner only sees the faculty revision module in a facu
     ])->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Review & Submit')
+        ->assertSee('Review status')
+        ->assertSee('Submit your revision')
         ->assertSee('id="submit-revision"', false);
 });
 
-test('the head action timeline records head upload events', function () {
+test('the shared document list records Research Head uploads', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$workPlan->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
@@ -299,6 +507,6 @@ test('the head action timeline records head upload events', function () {
 
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 
-    $response->assertSee('head upload')
-        ->assertSee('Co-signed on 2026-07-21.');
+    $response->assertSee('signed-work-plan.pdf')
+        ->assertSee('Work Plan (signed copy)');
 });

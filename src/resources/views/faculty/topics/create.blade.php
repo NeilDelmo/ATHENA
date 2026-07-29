@@ -11,7 +11,7 @@
 
     <x-slot name="header">
         <div class="grid gap-3">
-            <a href="{{ route('faculty.dashboard') }}" class="inline-flex w-fit items-center gap-1 text-xs font-bold text-gray-500 transition hover:text-red-600">&larr; Back to dashboard</a>
+            <x-back-link href="{{ route('faculty.dashboard') }}">Back to dashboard</x-back-link>
             <div>
                 <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">Guided proposal workflow</p>
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Submit a Research Proposal</h2>
@@ -315,7 +315,14 @@
                 <div class="flex flex-col-reverse gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <a x-show="step === 1" href="{{ route('faculty.dashboard') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50">Cancel</a>
-                        <button x-show="step > 1" x-cloak type="button" @click="previousStep()" class="inline-flex items-center justify-center rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50">&larr; Back</button>
+                        <button x-show="step > 1" x-cloak type="button" @click="previousStep()" class="group inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-black text-gray-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
+                            <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition group-hover:bg-red-100 group-hover:text-red-700" aria-hidden="true">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                                </svg>
+                            </span>
+                            <span>Previous step</span>
+                        </button>
                     </div>
 
                     <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-end">

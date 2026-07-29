@@ -27,7 +27,6 @@ test('the shared application theme toggle is rendered for the research head', fu
     $this->withoutVite();
 
     Role::firstOrCreate(['name' => 'research_head']);
-    Role::firstOrCreate(['name' => 'expert']);
     $head = User::factory()->create();
     $head->assignRole('research_head');
 

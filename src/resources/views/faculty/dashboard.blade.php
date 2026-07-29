@@ -171,7 +171,7 @@
             <div class="flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
                 <div>
                     <span class="block text-[10px] font-black uppercase tracking-wider text-gray-400">Under review</span>
-                    <span class="mt-1 block text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">{{ $topics->whereIn('status', ['pending', 'expert_review', 'for_final_decision', 'resubmitted'])->count() }}</span>
+                    <span class="mt-1 block text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">{{ $topics->whereIn('status', ['pending', 'expert_review', 'for_final_decision', 'resubmitted', 'ready_for_signature'])->count() }}</span>
                 </div>
                 <div class="rounded-xl bg-amber-50 p-2.5 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300">
                     <svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -276,6 +276,7 @@
                                 {{ $topic->status === 'rejected' ? 'bg-red-50 text-red-700' : '' }}
                                 {{ $topic->status === 'pending' ? 'bg-amber-50 text-amber-700' : '' }}
                                 {{ $topic->status === 'revision_requested' ? 'bg-blue-50 text-blue-700' : '' }}
+                                {{ $topic->status === 'ready_for_signature' ? 'bg-red-50 text-red-800' : '' }}
                                 {{ $topic->status === 'resubmitted' ? 'bg-purple-50 text-purple-700' : '' }}">
                                 {{ str_replace('_', ' ', $topic->status) }}
                             </span>

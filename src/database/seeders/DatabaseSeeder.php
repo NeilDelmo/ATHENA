@@ -23,7 +23,6 @@ class DatabaseSeeder extends Seeder
         $researchHeadRole = Role::firstOrCreate(['name' => 'research_head']);
         $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
         $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
-        $expertRole = Role::firstOrCreate(['name' => 'expert']);
         Role::firstOrCreate(['name' => 'research_coordinator']);
 
         $researchHeadEmail = '23-78498@g.batstate-u.edu.ph';
@@ -41,13 +40,6 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
         $faculty->syncRoles([$facultyRole]);
-
-        $expert = User::firstOrCreate(['email' => 'expert@example.com'], [
-            'name' => 'Environmental Subject Expert',
-            'password' => Hash::make('password'),
-            'email_verified_at' => now(),
-        ]);
-        $expert->syncRoles([$expertRole]);
 
         $categories = collect(['Environment', 'Education', 'Technology', 'Health'])
             ->map(fn (string $name) => ResearchCategory::firstOrCreate(['name' => $name]));

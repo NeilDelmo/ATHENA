@@ -18,9 +18,6 @@ class ProposalFileAnnotationController extends Controller
     /** @var list<string> */
     private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision'];
 
-    /** @var list<string> */
-    private const REVISION_REQUEST_STATUSES = ['pending', 'resubmitted', 'for_final_decision'];
-
     public function index(
         Request $request,
         TopicProposal $topic,
@@ -31,7 +28,6 @@ class ProposalFileAnnotationController extends Controller
 
         $isResearchHead = $request->user()->isUsingWorkspace('research_head');
         $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
-        $canRequestRevision = $canAnnotate && in_array($topic->status, self::REVISION_REQUEST_STATUSES, true);
         $annotations = $file->annotations()
             ->with(['reviewer', 'fileRevision'])
             ->when(! $isResearchHead, fn ($query) => $query->whereNotNull('topic_review_file_revision_id'))
@@ -64,7 +60,6 @@ class ProposalFileAnnotationController extends Controller
             'pdfUrl' => route('topics.versions.files.view', [$topic, $version, $file]),
             'storeUrl' => route('topics.versions.files.annotations.store', [$topic, $version, $file]),
             'destroyUrlTemplate' => route('topics.versions.files.annotations.destroy', [$topic, $version, $file, '__ANNOTATION__']),
-            'requestRevisionUrl' => route('research_head.topics.updateStatus', $topic),
             'csrfToken' => csrf_token(),
             'canAnnotate' => $canAnnotate,
             'fileId' => $file->id,
@@ -83,7 +78,6 @@ class ProposalFileAnnotationController extends Controller
             'file',
             'isResearchHead',
             'canAnnotate',
-            'canRequestRevision',
             'annotationConfiguration',
         ));
     }

@@ -18,6 +18,7 @@ class ResearchHeadProposalSubmissionController extends Controller
         'for_final_decision',
         'revision_requested',
         'resubmitted',
+        TopicProposal::STATUS_READY_FOR_SIGNATURE,
         'approved',
         'rejected',
     ];

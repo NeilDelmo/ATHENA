@@ -12,7 +12,6 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'faculty']);
     Role::firstOrCreate(['name' => 'faculty_researcher']);
     Role::firstOrCreate(['name' => 'research_head']);
-    Role::firstOrCreate(['name' => 'expert']);
 });
 
 function createAssistantTopicFor(User $user, array $overrides = []): TopicProposal
@@ -128,7 +127,7 @@ test('all authenticated roles can open the assistant workspace', function (strin
         ->assertSee('Research Support')
         ->assertSee('Ask ATHENA')
         ->assertDontSee('RRL Finder');
-})->with(['research_head', 'expert']);
+})->with(['research_head']);
 
 test('proposal owners can launch athena with the current proposal selected', function () {
     $this->withoutVite();
@@ -185,7 +184,7 @@ test('authenticated users can receive a gemini research response', function (str
         && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role))
         && str_contains($request['messages'][0]['content'], 'Ctrl + S: Save the current paper and keep the editor open.')
         && str_contains($request['messages'][0]['content'], 'Ctrl + Enter: Save the current paper, then exit the editor.'));
-})->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
+})->with(['faculty', 'faculty_researcher', 'research_head']);
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
     config([
@@ -250,7 +249,7 @@ test('assistant rejects a malformed successful provider response', function () {
     ]);
 
     $user = User::factory()->create();
-    $user->assignRole('expert');
+    $user->assignRole('faculty');
 
     $this->actingAs($user)
         ->postJson(route('research-support.chat'), [
@@ -790,7 +789,7 @@ test('assistant history is private to its owner', function () {
         'title' => 'Private coastal study',
     ]);
     $otherUser = User::factory()->create();
-    $otherUser->assignRole('expert');
+    $otherUser->assignRole('faculty');
 
     $this->actingAs($otherUser)
         ->getJson(route('research-support.history'))
@@ -816,7 +815,7 @@ test('assistant launcher is rendered for every authenticated role', function (st
         ->assertSee('id="research-assistant-panel"', false)
         ->assertSee('$store.researchAssistant.toggleDrawer', false)
         ->assertSeeInOrder(['<body', 'x-data', 'data-app-shell'], false);
-})->with(['faculty', 'faculty_researcher', 'research_head', 'expert']);
+})->with(['faculty', 'faculty_researcher', 'research_head']);
 
 test('guests cannot send assistant messages', function () {
     Http::fake();
