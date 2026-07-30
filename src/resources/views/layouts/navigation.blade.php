@@ -61,6 +61,7 @@
         class="relative z-10 flex shrink-0 flex-col border-b border-slate-200/70 dark:border-slate-800/80"
     >
         <a
+            wire:navigate
             x-show="sidebarOpen"
             href="{{ route('dashboard') }}"
             class="flex min-w-0 items-center gap-3 rounded-2xl px-1"
@@ -148,6 +149,7 @@
     >
         @if (Auth::user()->isUsingWorkspace('research_head'))
             <a
+                wire:navigate
                 href="{{ route('research_head.dashboard') }}"
                 aria-label="Research Head Dashboard"
                 title="Research Head Dashboard"
@@ -164,6 +166,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('research_head.faculty-directory.index') }}"
                 aria-label="Faculty Directory"
                 title="Faculty Directory"
@@ -180,6 +183,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('research_head.proposal-submissions.index') }}"
                 aria-label="Proposal Submissions"
                 title="Proposal Submissions"
@@ -196,6 +200,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('research_head.projects.index') }}"
                 aria-label="Project Monitoring"
                 title="Project Monitoring"
@@ -212,6 +217,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('research_head.proposal-templates.index') }}"
                 aria-label="Proposal Templates"
                 title="Proposal Templates"
@@ -228,6 +234,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('research_head.assistant-knowledge.index') }}"
                 aria-label="Athena Knowledge"
                 title="Athena Knowledge"
@@ -249,6 +256,7 @@
         @role('research_coordinator')
             @if (session('active_role') !== 'faculty')
                 <a
+                    wire:navigate
                     href="{{ route('research_coordinator.dashboard') }}"
                     aria-label="Dashboard"
                     title="Dashboard"
@@ -265,6 +273,7 @@
                 </a>
 
                 <a
+                    wire:navigate
                     href="{{ route('research_coordinator.members.index') }}"
                     aria-label="Faculty Members"
                     title="Faculty Members"
@@ -284,6 +293,7 @@
 
         @if (session('active_role') !== 'research_coordinator' && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
             <a
+                wire:navigate
                 href="{{ route('faculty.dashboard') }}"
                 aria-label="Faculty Dashboard"
                 title="Faculty Dashboard"
@@ -300,6 +310,7 @@
             </a>
 
             <a
+                wire:navigate
                 href="{{ route('faculty.proposal-drafts.index') }}"
                 aria-label="Proposal Workspace"
                 title="Proposal Workspace"
@@ -417,6 +428,7 @@
 
         @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
             <a
+                wire:navigate
                 href="{{ route('research.index') }}"
                 aria-label="Research"
                 title="Research"
@@ -434,6 +446,7 @@
         @endif
 
         <a
+            wire:navigate
             href="{{ route('research-calls.index') }}"
             aria-label="Research Calls"
             title="Research Calls"

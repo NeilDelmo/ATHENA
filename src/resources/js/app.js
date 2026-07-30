@@ -1,5 +1,5 @@
 
-import Alpine from 'alpinejs';
+import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
@@ -323,6 +323,24 @@ async function navigateFromPaperEditor(editor, destination, message) {
 
     window.location.assign(destination);
 }
+
+document.addEventListener('livewire:navigate', (event) => {
+    const editor = currentPaperEditor();
+
+    if (!paperEditorHasUnsavedChanges(editor)) return;
+
+    event.preventDefault();
+
+    void confirmPaperEditorNavigation(
+        editor,
+        'Your changes to this paper will be lost when you leave this page.',
+    ).then((isConfirmed) => {
+        if (!isConfirmed) return;
+
+        editor.dataset.paperDirty = 'false';
+        Livewire.navigate(event.detail.url.toString());
+    });
+});
 
 function showProposalSubmissionLoadingScreen(form) {
     const loadingScreen = form.querySelector('[data-proposal-submission-loading]');
@@ -3940,4 +3958,4 @@ initializeResearchCallImageExtractors();
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
-Alpine.start();
+Livewire.start();

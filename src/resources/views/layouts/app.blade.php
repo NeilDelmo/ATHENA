@@ -14,6 +14,7 @@
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @livewireStyles
     </head>
     <body
         x-data="{ sidebarOpen: window.innerWidth >= 640 }"
@@ -153,12 +154,12 @@
                                 <p class="mt-1 text-[11px] font-bold text-red-600 dark:text-red-300">Using {{ Auth::user()->activeWorkspaceLabel() }}</p>
                             </div>
                             
-                            <a href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                            <a wire:navigate href="{{ route('profile.edit') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
                                 Account Profile
                             </a>
 
                             @if (Auth::user()->hasMultipleWorkspaces() || (Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher'])))
-                                <a href="{{ route(Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']) ? 'role-selection.show' : 'workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                <a wire:navigate href="{{ route(Auth::user()->hasRole('research_coordinator') && Auth::user()->hasAnyRole(['faculty', 'faculty_researcher']) ? 'role-selection.show' : 'workspace.select') }}" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
                                     Switch Workspace
                                 </a>
                             @endif
@@ -244,5 +245,7 @@
             initializeManilaClock();
             document.addEventListener('livewire:navigated', initializeManilaClock);
         </script>
+
+        @livewireScriptConfig
     </body>
 </html>

@@ -16,6 +16,8 @@ test('faculty sidebar expands into the research discovery features', function ()
         ->assertSee("sidebarOpen ? 'w-[280px]", false)
         ->assertSee("'sm:pl-[280px]': sidebarOpen", false)
         ->assertSee('pl-[76px]', false)
+        ->assertSee('wire:navigate', false)
+        ->assertSee('window.livewireScriptConfig', false)
         ->assertSee('data-research-help-menu', false)
         ->assertSee('aria-controls="research-help-feature-links"', false)
         ->assertSeeInOrder([
