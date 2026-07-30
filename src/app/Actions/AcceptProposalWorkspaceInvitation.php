@@ -9,7 +9,7 @@ use App\Notifications\ProposalActivityNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
-
+//accept proposal workspace invitation
 class AcceptProposalWorkspaceInvitation
 {
     public function handle(User $user, ProposalDraftMember $proposalDraftMember): ProposalDraft
