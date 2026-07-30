@@ -89,7 +89,6 @@ class User extends Authenticatable
             $available = [
                 ...$available,
                 self::WORKSPACE_RESEARCH_HEAD,
-                self::WORKSPACE_FACULTY_RESEARCHER,
                 self::WORKSPACE_FACULTY,
             ];
         }

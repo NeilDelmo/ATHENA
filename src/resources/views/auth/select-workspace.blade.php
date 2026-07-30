@@ -41,7 +41,7 @@
                     <div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300">{{ $message }}</div>
                 @enderror
 
-                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div class="grid gap-4 md:grid-cols-2">
                     @foreach ($workspaces as $key => $workspace)
                         <form method="POST" action="{{ route('workspace.store') }}" class="flex">
                             @csrf

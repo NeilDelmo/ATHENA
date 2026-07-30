@@ -11,7 +11,7 @@ beforeEach(function () {
     }
 });
 
-test('a research head can choose research head faculty researcher or faculty workspaces', function () {
+test('a research head can choose research head or faculty workspaces', function () {
     $head = User::factory()->create(['name' => 'Research Head Tester']);
     $head->assignRole('research_head');
 
@@ -19,9 +19,11 @@ test('a research head can choose research head faculty researcher or faculty wor
         ->get(route('workspace.select'))
         ->assertOk()
         ->assertSee('Choose your workspace')
+        ->assertSee('grid gap-4 md:grid-cols-2')
+        ->assertDontSee('lg:grid-cols-3')
         ->assertSee('Continue as Research Head')
-        ->assertSee('Continue as Faculty Researcher')
         ->assertSee('Continue as Faculty')
+        ->assertDontSee('Continue as Faculty Researcher')
         ->assertDontSee('Continue as Expert Evaluator');
 });
 
@@ -77,19 +79,14 @@ test('switching back restores research head access and removes faculty access', 
     $this->get(route('faculty.dashboard'))->assertForbidden();
 });
 
-test('a research head in faculty researcher mode receives researcher access and identity', function () {
+test('a research head cannot enter the faculty researcher workspace', function () {
     $head = User::factory()->create(['name' => 'Workspace Tester']);
     $head->assignRole('research_head');
 
     $this->actingAs($head)
         ->post(route('workspace.store'), ['workspace' => 'faculty_researcher'])
-        ->assertRedirect(route('faculty.dashboard'));
-
-    $this->get(route('research.index'))->assertOk();
-    $this->get(route('faculty.dashboard'))
-        ->assertOk()
-        ->assertSee('Faculty Researcher Workspace')
-        ->assertDontSee('Research Proposal Workspace');
+        ->assertSessionHasErrors('workspace')
+        ->assertSessionMissing(User::ACTIVE_WORKSPACE_SESSION_KEY);
 });
 
 test('users cannot select a workspace their assigned roles do not permit', function () {

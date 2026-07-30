@@ -431,8 +431,9 @@
                             </section>
 
                             <label class="block text-sm font-bold text-gray-700">
-                                Decision notes
+                                Decision notes <span class="text-red-600" x-show="decision === 'revision_requested' || decision === 'rejected'">Required</span>
                                 <textarea name="comment" rows="5" maxlength="5000" placeholder="Required when requesting a revision or rejecting the proposal. Give the faculty member clear next steps." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6">{{ old('comment') }}</textarea>
+                                <span class="mt-2 block text-xs font-normal leading-5 text-gray-500" x-show="decision === 'revision_requested' || decision === 'rejected'">Explain what the faculty member needs to change or why the proposal was rejected.</span>
                             </label>
 
                             <button class="w-full rounded-xl bg-red-600 px-5 py-3.5 text-base font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save decision and share with faculty</button>
