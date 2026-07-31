@@ -300,4 +300,12 @@ test('contingency and the research call budget ceiling are validated', function 
             'project_total_override' => 100001,
         ]))
         ->assertSessionHasErrors('project_total_override');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([
+            'project_total_override' => 22000,
+        ]))
+        ->assertSessionHasErrors([
+            'project_total_override' => 'The Total Project Cost must equal MOOE plus Capital Outlay (Php 21,000.00).',
+        ]);
 });

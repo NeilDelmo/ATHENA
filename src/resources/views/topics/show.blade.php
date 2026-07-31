@@ -315,7 +315,11 @@
                                                 <p class="mt-1 text-xs opacity-75">{{ $fileRevision->original_filename }}</p>
                                                 @if ($fileRevision->revision_note)<p class="mt-2 leading-6">{{ $fileRevision->revision_note }}</p>@endif
                                                 @if ($fileRevision->annotations->isNotEmpty() && $annotationVersion && $fileRevision->file)
-                                                    <a href="{{ route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $fileRevision->file]) }}" class="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white hover:bg-red-800">View {{ $fileRevision->annotations->count() }} highlighted comment(s)</a>
+                                                    @php
+                                                        $firstAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first();
+                                                        $annotationDeepLink = route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $fileRevision->file]).'?annotation='.$firstAnnotation->id.'#proposal-review';
+                                                    @endphp
+                                                    <a href="{{ $annotationDeepLink }}" class="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white hover:bg-red-800">View {{ $fileRevision->annotations->count() }} highlighted comment(s)</a>
                                                 @endif
                                             </div>
                                         @endforeach
@@ -471,7 +475,7 @@
                                     <p class="text-sm font-black text-red-900 dark:text-red-200">Files you must replace</p>
                                     <div class="mt-2 space-y-2">
                                         @foreach ($pendingFileRevisions as $fileRevision)
-                                            <div class="text-sm leading-6 text-red-900 dark:text-red-200"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="pl-2 text-sm text-red-800 dark:text-red-300">{{ $fileRevision->revision_note }}</p>@endif @if ($fileRevision->annotations->isNotEmpty() && $latestVersion && $fileRevision->file)<a href="{{ route('topics.versions.files.annotations.index', [$topic, $latestVersion, $fileRevision->file]) }}" class="mt-2 inline-flex rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white hover:bg-red-800">View highlighted comments ({{ $fileRevision->annotations->count() }})</a>@endif</div>
+                                            <div class="text-sm leading-6 text-red-900 dark:text-red-200"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="pl-2 text-sm text-red-800 dark:text-red-300">{{ $fileRevision->revision_note }}</p>@endif @if ($fileRevision->annotations->isNotEmpty() && $latestVersion && $fileRevision->file)@php $firstFacultyAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first(); $facultyAnnotationLink = route('topics.versions.files.annotations.index', [$topic, $latestVersion, $fileRevision->file]).'?annotation='.$firstFacultyAnnotation->id.'#proposal-review'; @endphp <a href="{{ $facultyAnnotationLink }}" class="mt-2 inline-flex rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white hover:bg-red-800">View highlighted comments ({{ $fileRevision->annotations->count() }})</a>@endif</div>
                                         @endforeach
                                     </div>
                                 </div>

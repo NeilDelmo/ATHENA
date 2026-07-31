@@ -14,6 +14,10 @@ class InitialScreeningFormDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
+    public function __construct(
+        private readonly WordDocumentPaginationService $paginationService,
+    ) {}
+
     /** @param array{project_title: string, project_leader: string} $screeningForm */
     public function generate(array $screeningForm): string
     {
@@ -48,6 +52,7 @@ class InitialScreeningFormDocumentService
                 throw new RuntimeException('The generated Initial Screening Form could not be written.');
             }
 
+            $this->paginationService->addPageNumbers($archive);
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);

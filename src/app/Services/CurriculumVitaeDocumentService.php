@@ -22,6 +22,10 @@ class CurriculumVitaeDocumentService
 
     private int $nextContentControlId = 100000000;
 
+    public function __construct(
+        private readonly WordDocumentPaginationService $paginationService,
+    ) {}
+
     /** @param array{people: array<int, array<string, mixed>>} $curriculumVitae */
     public function generate(array $curriculumVitae): string
     {
@@ -56,6 +60,7 @@ class CurriculumVitaeDocumentService
                 throw new RuntimeException('The generated Curriculum Vitae could not be written.');
             }
 
+            $this->paginationService->addPageNumbers($archive);
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);

@@ -14,8 +14,20 @@ use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'email_verified_at'])]
+#[Fillable(['name', 'email', 'password', 'google_id', 'avatar', 'college', 'contact_number', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
+/**
+ * A single `User` row represents one person regardless of how many roles they
+ * hold. The `college` and `contact_number` columns are GLOBAL to the account:
+ * they are the same value whether the person is acting as a faculty member, a
+ * research head, a faculty researcher, or a research coordinator. Roles only
+ * change which routes and notifications are visible, never the personal
+ * identity columns. This guarantees that a dual-role user (e.g. faculty +
+ * research head, faculty + research coordinator, or faculty + faculty
+ * researcher) automatically uses the same college and contact number across
+ * every workspace, so proposal forms, the CV, and the profile never show
+ * conflicting personal information.
+ */
 class User extends Authenticatable
 {
     public const ACTIVE_WORKSPACE_SESSION_KEY = 'active_workspace';
@@ -77,6 +89,13 @@ class User extends Authenticatable
 
     /**
      * Return every workspace this account may enter without changing its assigned roles.
+     *
+     * A user may carry several roles at once (e.g. `faculty` + `research_head`,
+     * `faculty` + `faculty_researcher`, or `faculty` + `research_coordinator`).
+     * Each role maps to one or two workspaces; the union of those workspaces
+     * is what the user can switch into. The college and contact number are
+     * NOT copied per workspace — they live on the `User` row itself, so
+     * the same values follow the user into every workspace they enter.
      *
      * @return list<string>
      */

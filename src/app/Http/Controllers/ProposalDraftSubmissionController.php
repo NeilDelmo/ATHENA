@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\SubmitProposalDraft;
 use App\Http\Requests\SubmitProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Gate;
@@ -16,6 +17,7 @@ class ProposalDraftSubmissionController extends Controller
     public function show(
         ProposalDraft $proposalDraft,
         ProposalDraftReadiness $readiness,
+        ProposalBudgetConsistency $proposalBudgetConsistency,
     ) {
         Gate::authorize('view', $proposalDraft);
 
@@ -24,6 +26,7 @@ class ProposalDraftSubmissionController extends Controller
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);
         $readyToSubmit = $readinessErrors === [];
+        $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
 
         return view('faculty.proposal-drafts.review', compact(
             'proposalDraft',
@@ -31,6 +34,7 @@ class ProposalDraftSubmissionController extends Controller
             'projectDetailsComplete',
             'readinessErrors',
             'readyToSubmit',
+            'budgetConsistency',
         ));
     }
 

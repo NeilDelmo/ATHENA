@@ -10,6 +10,7 @@ use App\Models\ProposalTemplate;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
@@ -69,6 +70,7 @@ class ProposalDraftController extends Controller
         ProposalPaperCatalog $catalog,
         ProposalDraftReadiness $readiness,
         ProposalWorkspacePeople $proposalWorkspacePeople,
+        ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
         Gate::authorize('view', $proposalDraft);
 
@@ -82,6 +84,7 @@ class ProposalDraftController extends Controller
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);
         $readyToSubmit = $readinessErrors === [];
+        $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
         $minimumProjectDate = now()->toDateString();
         $initialDuration = old('duration_months', $proposalDraft->duration_months);
@@ -103,6 +106,7 @@ class ProposalDraftController extends Controller
             'projectDetailsComplete',
             'readinessErrors',
             'readyToSubmit',
+            'budgetConsistency',
             'workspacePeople',
             'minimumProjectDate',
             'initialDuration',
@@ -244,7 +248,7 @@ class ProposalDraftController extends Controller
         $memberUserIds = $proposalDraft->members->pluck('user_id')->filter()->all();
 
         return User::query()
-            ->select(['id', 'name', 'email', 'college', 'email_verified_at'])
+            ->select(['id', 'name', 'email', 'avatar', 'college', 'email_verified_at'])
             ->whereNotNull('email_verified_at')
             ->whereKeyNot($proposalDraft->user_id)
             ->whereHas('roles', fn (Builder $roles): Builder => $roles->whereIn('name', [
@@ -266,6 +270,7 @@ class ProposalDraftController extends Controller
             ->map(fn (User $user): array => [
                 'name' => $user->name,
                 'email' => $user->email,
+                'avatar' => $user->avatar,
                 'college' => $user->college,
             ])
             ->values();

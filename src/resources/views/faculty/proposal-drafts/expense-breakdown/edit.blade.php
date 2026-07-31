@@ -52,6 +52,8 @@
             </x-proposal-alert>
         @endif
 
+        <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
+
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
         <x-paper-editor-submit-status />
@@ -201,12 +203,12 @@
                 <button type="button" x-on:click="addItem(true)" class="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">Add another expense item</button>
             </section>
 
-            <section class="rounded-2xl border border-gray-900 bg-gray-900 p-5 text-white shadow-sm sm:p-6">
-                <p class="text-xs font-black uppercase tracking-wider text-gray-300">Total MOOE and Capital Outlay</p>
-                <p class="mt-1 text-3xl font-black">Php <span x-text="formatMoney(grandTotal())"></span></p>
-                <div class="mt-4 grid gap-3 border-t border-gray-700 pt-4 text-sm sm:grid-cols-2">
-                    <p>MOOE: <strong>Php <span x-text="formatMoney(categoryTotal('mooe'))"></span></strong></p>
-                    <p>Capital Outlay: <strong>Php <span x-text="formatMoney(categoryTotal('capital_outlay'))"></span></strong></p>
+            <section class="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm sm:p-6">
+                <p class="text-xs font-black uppercase tracking-wider text-red-700">Total estimated budget</p>
+                <p class="mt-1 text-3xl font-black text-gray-900">Php <span x-text="formatMoney(grandTotal())"></span></p>
+                <div class="mt-4 grid gap-3 border-t border-red-200 pt-4 text-sm text-gray-700 sm:grid-cols-2">
+                    <p>MOOE: <strong class="text-gray-900">Php <span x-text="formatMoney(categoryTotal('mooe'))"></span></strong></p>
+                    <p>Capital Outlay: <strong class="text-gray-900">Php <span x-text="formatMoney(categoryTotal('capital_outlay'))"></span></strong></p>
                 </div>
             </section>
 

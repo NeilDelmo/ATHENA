@@ -4,6 +4,7 @@
         ->filter()
         ->values()
         ->all();
+    $signatoryName = fn (string $key): string => \Illuminate\Support\Str::upper($detailedProposal[$key] ?: 'NAME');
     $sdgs = config('detailed_proposal.sdgs');
 @endphp
 <!DOCTYPE html>
@@ -39,7 +40,7 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">III. Sustainable Development Goal:</span> <span class="detailed-proposal-section-note">(Check all applicable SDG)</span></p>
+                            <p><span class="detailed-proposal-section-heading">III. Sustainable Development Goal:</span> <span class="detailed-proposal-section-note is-plain">(Check all applicable SDG)</span></p>
                             <table class="detailed-proposal-sdg-table">
                                 <tbody>
                                     @foreach ([[1, 10], [2, 11], [3, 12], [4, 13], [5, 14], [6, 15], [7, 16], [8, 17], [9, null]] as [$leftSdg, $rightSdg])
@@ -55,13 +56,13 @@
                     <tr>
                         <td colspan="4">
                             <div class="detailed-proposal-member-block">
-                                <p><span class="detailed-proposal-section-heading">IV. Project Leader:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['project_leader'] }}</span></p>
+                                <p><span class="detailed-proposal-section-heading">IV. Project Leader:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['project_leader_display'] }}</span></p>
                                 <p class="detailed-proposal-indent">Email Address: {{ $detailedProposal['leader_email'] }}</p>
                                 <p class="detailed-proposal-indent">Contact Number: {{ $detailedProposal['leader_contact'] }}</p>
                             </div>
                             @foreach ($detailedProposal['staff'] as $member)
                                 <div class="detailed-proposal-member-block">
-                                    <p><span class="detailed-proposal-section-heading">Project Staff (s):</span> <span class="detailed-proposal-section-value">{{ $member['name'] }}</span></p>
+                                    <p><span class="detailed-proposal-section-heading">Project Staff (s):</span> <span class="detailed-proposal-section-value">{{ $member['display_name'] }}</span></p>
                                     <p class="detailed-proposal-indent">Email Address: {{ $member['email'] }}</p>
                                     <p class="detailed-proposal-indent">Contact Number: {{ $member['contact'] }}</p>
                                 </div>
@@ -107,7 +108,7 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">X. Expected Output of the Project:</span> <span class="detailed-proposal-section-note">(based on expanded 6Ps &amp; 2Is of research)</span></p>
+                            <p><span class="detailed-proposal-section-heading">X. Expected Output of the Project:</span> <span class="detailed-proposal-section-note is-plain">(based on expanded 6Ps &amp; 2Is of research)</span></p>
                             <ol class="detailed-proposal-output-list">
                                 @foreach (config('detailed_proposal.expected_outputs') as $key => $label)
                                     <li>{{ $label }}: {{ $detailedProposal['expected_outputs'][$key] }}</li>
@@ -117,7 +118,11 @@
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p><span class="detailed-proposal-section-heading">XI. Review of Related Literature:</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
+                            <p class="detailed-proposal-section-heading">XI. Introduction:</p>
+                            @foreach ($paragraphs($detailedProposal['introduction']) as $paragraph)
+                                <p>{{ $paragraph }}</p>
+                            @endforeach
+                            <p><span class="detailed-proposal-section-heading">Related Studies and Literature:</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
                             @foreach ($paragraphs($detailedProposal['related_literature']) as $paragraph)
                                 <p>{{ $paragraph }}</p>
                             @endforeach
@@ -126,19 +131,34 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XII. Methodology:</p>
-                            @foreach (config('detailed_proposal.methodology') as $key => $label)
-                                <p class="detailed-proposal-methodology-heading">{{ $label }}</p>
-                                @foreach ($paragraphs($detailedProposal['methodology'][$key]) as $paragraph)
-                                    <p>{{ $paragraph }}</p>
+                            @php($figureNumber = 0)
+                            <ul class="detailed-proposal-methodology-list">
+                                @foreach (config('detailed_proposal.methodology') as $key => $label)
+                                    @continue(blank($detailedProposal['methodology'][$key]))
+                                    <li>
+                                        <p class="detailed-proposal-methodology-heading">{{ $label }}</p>
+                                        @if ($key === 'research_design')
+                                            @foreach (collect($detailedProposal['methodology_images'])->where('section', 'research_design') as $image)
+                                                @php($figureNumber++)
+                                                <p class="detailed-proposal-methodology-visual is-{{ $image['alignment'] }} is-{{ $image['size'] }}">
+                                                    <img src="{{ $image['data_url'] }}" alt="{{ $image['caption'] ?: 'Research Design visual' }}">
+                                                </p>
+                                                <p class="detailed-proposal-methodology-caption is-{{ $image['alignment'] }}">{{ 'Figure '.$figureNumber.'.'.($image['caption'] ? ' '.$image['caption'] : '') }}</p>
+                                            @endforeach
+                                        @endif
+                                        @foreach ($paragraphs($detailedProposal['methodology'][$key]) as $paragraph)
+                                            <p>{{ $paragraph }}</p>
+                                        @endforeach
+                                    </li>
                                 @endforeach
-                            @endforeach
+                            </ul>
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XIII. Duties and Responsibilities of each member:</p>
                             @foreach ($detailedProposal['responsibilities'] as $responsibility)
-                                <p class="detailed-proposal-responsibility-name">{{ $loop->first ? 'Project Leader' : 'Project Staff (s)' }}: {{ $responsibility['name'] }}</p>
+                                <p class="detailed-proposal-responsibility-name">{{ $loop->first ? 'Project Leader' : 'Project Staff (s)' }}: <span>{{ \Illuminate\Support\Str::upper($responsibility['name']) }} ({{ $responsibility['percentage'] }}%)</span></p>
                                 @foreach ($paragraphs($responsibility['duties']) as $paragraph)
                                     <p>{{ $paragraph }}</p>
                                 @endforeach
@@ -183,14 +203,15 @@
                         <td colspan="2" rowspan="3" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Prepared by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
-                            <p class="detailed-proposal-signature-name">{{ $detailedProposal['project_leader'] }}</p>
+                            <p class="detailed-proposal-signature-line">________________________________</p>
+                            <p class="detailed-proposal-signature-name">{{ \Illuminate\Support\Str::upper($detailedProposal['project_leader']) }}</p>
                             <p>Project Leader</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
-                        <td colspan="2"><p><span class="detailed-proposal-section-heading">Department:</span> {{ $detailedProposal['proponent_department'] }}</p></td>
+                        <td colspan="2"><p>Department: {{ $detailedProposal['proponent_department'] }}</p></td>
                     </tr>
-                    <tr><td colspan="2"><p><span class="detailed-proposal-section-heading">College:</span> {{ $detailedProposal['proponent_college'] }}</p></td></tr>
-                    <tr><td colspan="2"><p><span class="detailed-proposal-section-heading">Campus:</span> {{ $detailedProposal['proponent_campus'] }}</p></td></tr>
+                    <tr><td colspan="2"><p>College: {{ $detailedProposal['proponent_college'] }}</p></td></tr>
+                    <tr><td colspan="2"><p>Campus: {{ $detailedProposal['proponent_campus'] }}</p></td></tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-privacy">Pursuant to Republic Act No. 10173, also known as the Data Privacy Act of 2012, the Batangas State University, the National Engineering University recognizes its commitment to protect and respect the privacy of its customers and/or stakeholders and ensure that all information collected from them are all processed in accordance with the principles of transparency, legitimate purpose and proportionality mandated under the Data Privacy Act of 2012.</td>
                     </tr>
@@ -208,7 +229,7 @@
                             <p>Score: _______</p>
                         </td>
                         <td colspan="2" class="detailed-proposal-checklist">
-                            <p><strong>Level of Call</strong></p>
+                            <p>Level of Call</p>
                             <p>☐ Central Agency (VPRDES, President)</p>
                             <p>☐ Constituent Campus (VCRDES, Chancellor)</p>
                         </td>
@@ -219,16 +240,16 @@
                             <p class="detailed-proposal-signature-heading">Checked and Verified by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
                             <p class="detailed-proposal-signature-line">________________________________</p>
-                            <p>NAME</p>
-                            <p>Director, Research / Head, Research / Head, Research &amp; Extension</p>
+                            <p class="detailed-proposal-signature-name">{{ $signatoryName('checked_verified_by_name') }}</p>
+                            <p>Head, Research Office</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
                         <td colspan="2" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Recommending Approval:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
                             <p class="detailed-proposal-signature-line">________________________________</p>
-                            <p>NAME</p>
-                            <p>Vice President/Vice Chancellor for Research Development and Extension Services</p>
+                            <p class="detailed-proposal-signature-name">{{ $signatoryName('recommending_approval_name') }}</p>
+                            <p>Vice Chancellor for Research Development and Extension Services</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
                     </tr>
@@ -237,7 +258,7 @@
                             <p class="detailed-proposal-signature-heading">Approved by the Research Council/Local Research Evaluation Committee-Chair (LREC-Chair) Represented by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
                             <p class="detailed-proposal-signature-line">__________________________________</p>
-                            <p>NAME</p>
+                            <p class="detailed-proposal-signature-name">{{ $signatoryName('approved_by_name') }}</p>
                             <p>University President/Vice President for RDES</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
@@ -253,7 +274,10 @@
                 <p class="detailed-proposal-note-indented detailed-proposal-note-detail">Head, Research/Head Research &amp; Extension; Vice Chancellor for RDES; &amp; Vice President for RDES</p>
             </div>
 
-            <footer><span>Tracking No. ________________</span><span>&nbsp;</span></footer>
+            <footer>
+                <span>Tracking No. ________________</span>
+                <span class="detailed-proposal-page-number">Page 1 of 1</span>
+            </footer>
         </main>
     </body>
 </html>

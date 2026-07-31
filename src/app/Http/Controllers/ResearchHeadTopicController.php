@@ -228,7 +228,7 @@ class ResearchHeadTopicController extends Controller
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
             $notificationDetails[0],
             $notificationDetails[1],
-            route('topics.show', $topic),
+            $this->revisionDeepLinkUrl($topic, $latestVersion, $validated['status']),
             $notificationDetails[2],
             $topic->id,
             workspace: [
@@ -336,11 +336,52 @@ class ResearchHeadTopicController extends Controller
         }
     }
 
+    /**
+     * Auto-grant the topic owner the `faculty` + `faculty_researcher` roles
+     * once their proposal is approved. The `college` and `contact_number`
+     * columns on the User row are intentionally NOT touched here: they are the
+     * person's single personal identity, shared by every role they hold, so
+     * promoting them to faculty_researcher must not duplicate or shift those
+     * values into a different column.
+     */
     private function grantFacultyResearcherAccess(TopicProposal $topic): void
     {
         $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
         $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
 
         $topic->user()->firstOrFail()->assignRole([$facultyRole, $facultyResearcherRole]);
+    }
+
+    /**
+     * Build the URL a faculty member should land on after receiving a
+     * Research Head decision. For revision requests we deep-link straight into
+     * the PDF annotation workspace for the first highlighted comment, so the
+     * faculty user is dropped on the exact passage that needs a change instead
+     * of having to hunt through the proposal overview.
+     */
+    private function revisionDeepLinkUrl(
+        TopicProposal $topic,
+        ?ProposalVersion $latestVersion,
+        string $status,
+    ): string {
+        if ($status !== 'revision_requested' || ! $latestVersion instanceof ProposalVersion) {
+            return route('topics.show', $topic);
+        }
+
+        $annotation = ProposalFileAnnotation::query()
+            ->whereHas('fileRevision.review', fn ($query) => $query->where('topic_id', $topic->id))
+            ->whereHas('file', fn ($query) => $query->where('proposal_version_id', $latestVersion->id))
+            ->with('file')
+            ->orderBy('page_number')
+            ->orderBy('id')
+            ->first();
+
+        if (! $annotation || ! $annotation->file) {
+            return route('topics.show', $topic).'#submit-revision';
+        }
+
+        return route('topics.versions.files.annotations.index', [$topic, $latestVersion, $annotation->file])
+            .'?annotation='.$annotation->id
+            .'#proposal-review';
     }
 }

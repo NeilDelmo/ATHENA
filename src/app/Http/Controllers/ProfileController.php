@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\UpdateCollegeRequest;
+use App\Http\Requests\UpdateContactNumberRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -40,5 +41,16 @@ class ProfileController extends Controller
         $request->user()->update($request->validated());
 
         return back()->with('status', 'college-updated');
+    }
+
+    public function updateContactNumber(UpdateContactNumberRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        $request->user()->update([
+            'contact_number' => $validated['contact_number'] ?? null,
+        ]);
+
+        return back()->with('status', 'contact-number-updated');
     }
 }

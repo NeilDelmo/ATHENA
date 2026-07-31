@@ -122,6 +122,7 @@ beforeEach(function () {
             'social_impact' => 'Improved participation',
             'economic_impact' => 'Protected livelihoods',
         ],
+        'introduction' => 'The project responds to coastal habitat degradation through community research.',
         'related_literature' => 'Recent literature supports participatory coastal habitat restoration.',
         'methodology' => [
             'research_design' => 'The project uses a mixed-method design.',
@@ -130,6 +131,7 @@ beforeEach(function () {
         ],
         'responsibilities' => [[
             'name' => 'Faculty Owner',
+            'percentage' => 100,
             'duties' => 'Leads implementation, quality assurance, and reporting.',
         ]],
         'references' => 'Author, A. (2025). Coastal habitat restoration. Research Journal, 1(1), 1-10.',
@@ -147,6 +149,11 @@ beforeEach(function () {
                 $sourceData = match ($paper['slug']) {
                     'detailed-proposal' => ($this->detailedProposal)(),
                     'work-plan' => ($this->workPlan)(),
+                    'line-item-budget' => [
+                        'amounts' => [
+                            'telephone_expenses' => 3600,
+                        ],
+                    ],
                     'expense-breakdown' => ($this->expenseBreakdown)(),
                     'curriculum-vitae' => [
                         'people' => [[
@@ -368,9 +375,9 @@ test('the proposal hub presents project details and the seven code-owned require
     $workspaceView = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
 
     expect($workspaceView)
-        ->toContain('lg:grid-cols-[1fr_1fr_auto] lg:items-start')
-        ->toContain('uppercase leading-4 tracking-wider')
-        ->toContain('lg:mt-[1.375rem] lg:w-auto')
+        ->toContain('data-open-collaborator-modal')
+        ->toContain('data-collaborator-invitation-modal')
+        ->toContain('<x-modal name="proposal-collaborator-invitation"')
         ->not->toContain('lg:grid-cols-[1fr_1fr_auto] lg:items-end');
 });
 
@@ -586,6 +593,20 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
             ->toContain('Faculty Owner')
             ->toContain('12.32');
 
+        $gadFooterXml = $generated->getFromName('word/footer1.xml');
+        $gadSettingsXml = $generated->getFromName('word/settings.xml');
+        $gadFooterDom = new DOMDocument;
+        $gadFooterDom->loadXML($gadFooterXml, LIBXML_NONET);
+        $gadFooterXPath = new DOMXPath($gadFooterDom);
+        $gadFooterXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $gadSettingsDom = new DOMDocument;
+        $gadSettingsDom->loadXML($gadSettingsXml, LIBXML_NONET);
+        $gadSettingsXPath = new DOMXPath($gadSettingsDom);
+        $gadSettingsXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($gadFooterXPath->query('//w:instrText[starts-with(normalize-space(.), "PAGE")]')->length)->toBe(1)
+            ->and($gadSettingsXPath->query('/w:settings/w:updateFields[@w:val = "true"]')->length)->toBe(1);
+
         foreach (['word/footer1.xml', 'word/footnotes.xml', 'word/numbering.xml', 'word/styles.xml', 'word/media/image1.png'] as $preservedPart) {
             expect($generated->getFromName($preservedPart))->toBe($template->getFromName($preservedPart));
         }
@@ -678,11 +699,26 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
             ->toContain('Center Head/ Assistant Director for Research')
             ->toContain('Director, Research/ Vice Chancellor for RDES');
 
+        $footerXml = $generated->getFromName('word/footer1.xml');
+        $settingsXml = $generated->getFromName('word/settings.xml');
+        $footerDom = new DOMDocument;
+        $footerDom->loadXML($footerXml, LIBXML_NONET);
+        $footerXPath = new DOMXPath($footerDom);
+        $footerXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $settingsDom = new DOMDocument;
+        $settingsDom->loadXML($settingsXml, LIBXML_NONET);
+        $settingsXPath = new DOMXPath($settingsDom);
+        $settingsXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($footerXPath->query('//w:instrText[normalize-space(.) = "PAGE"]')->length)->toBe(1)
+            ->and($footerXPath->query('//w:instrText[normalize-space(.) = "NUMPAGES"]')->length)->toBe(1)
+            ->and($settingsXPath->query('/w:settings/w:updateFields[@w:val = "true"]')->length)->toBe(1);
+
         for ($index = 0; $index < $template->numFiles; $index++) {
             $entry = $template->statIndex($index);
             $name = $entry['name'];
 
-            if ($name !== 'word/document.xml') {
+            if (! in_array($name, ['word/document.xml', 'word/settings.xml'], true)) {
                 expect($generated->getFromName($name))->toBe($template->getFromName($name));
             }
         }
@@ -983,6 +1019,49 @@ test('incomplete and closed-call drafts remain available and cannot be submitted
     expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->toBeEmpty();
 });
 
+test('budget mismatches are identified in the interface and prevent final submission', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $lineItemBudget = $draft->documents
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
+    $lineItemBudget->update([
+        'source_data' => [
+            'amounts' => [
+                'telephone_expenses' => 4200,
+            ],
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('Budget totals do not match')
+        ->assertSee('Submission blocked')
+        ->assertSee('MOOE')
+        ->assertSee('Total Project Cost')
+        ->assertSee('Php 4,200.00')
+        ->assertSee('Php 3,600.00');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $draft))
+        ->assertOk()
+        ->assertSee('Budget totals do not match');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $draft))
+        ->assertOk()
+        ->assertSee('Budget totals do not match');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasErrors([
+            'budget_consistency.mooe_total',
+            'budget_consistency.project_total',
+        ]);
+
+    expect(ProposalDraft::find($draft->id))->not->toBeNull()
+        ->and(TopicProposal::query()->count())->toBe(0);
+});
+
 test('a PDF conversion failure keeps the complete draft available for another Turn in attempt', function () {
     $draft = ($this->completeDraft)(($this->createDraft)());
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
@@ -1032,6 +1111,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $topic = TopicProposal::query()->sole();
     $version = $topic->versions()->with('files')->sole();
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
+    $lineItemBudget = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
     $expenseBreakdown = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
     $gadChecklist = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
     $initialScreeningForm = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
@@ -1059,6 +1139,9 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
         ->and($workPlan->source_data['prepared_by'])->toBe('Faculty Owner')
+        ->and($lineItemBudget->source_data['mooe_total'])->toBe(3600)
+        ->and($lineItemBudget->source_data['co_total'])->toBe(0)
+        ->and($lineItemBudget->source_data['project_total'])->toBe(3600)
         ->and($expenseBreakdown->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($expenseBreakdown->source_data['items'][0]['account'])->toBe('Communication Expenses')
         ->and($expenseBreakdown->mime_type)->toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

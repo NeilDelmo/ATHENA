@@ -20,12 +20,13 @@
         $initialProposalTab = in_array(session('proposal_tab'), ['details', 'attachments', 'collaborators'], true)
             ? session('proposal_tab')
             : null;
+        $memberInvitationHasErrors = $errors->hasAny(['email', 'name']);
     @endphp
 
     <div
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         x-data="{
-            activeProposalTab: @js($initialProposalTab) || (
+            activeProposalTab: @js($memberInvitationHasErrors ? 'collaborators' : $initialProposalTab) || (
                 window.location.hash === '#required-pdf-attachments'
                     ? 'attachments'
                     : window.location.hash === '#proposal-collaborators'
@@ -56,6 +57,8 @@
                 <p class="mt-1">{{ $readinessErrors['research_call'] }}</p>
             </div>
         @endif
+
+        <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
 
         <div class="overflow-x-auto border-b border-gray-200" role="tablist" aria-label="Proposal workspace sections">
             <nav class="flex min-w-max gap-6">
@@ -252,33 +255,41 @@
             </div>
         </section>
 
-        <section id="proposal-collaborators-tab" x-show="activeProposalTab === 'collaborators'" x-cloak role="tabpanel" aria-labelledby="proposal-collaborators-tab-button" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
+        <section id="proposal-collaborators-tab" x-show="activeProposalTab === 'collaborators'" x-cloak role="tabpanel" aria-labelledby="proposal-collaborators-tab-button" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 id="workspace-members-heading" class="text-lg font-black text-gray-900">Proposal collaborators</h3>
-                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-500">Invite a teammate using their BatStateU Google email. Existing ATHENA accounts receive an in-app invitation to accept; new accounts are connected automatically on their first verified sign-in.</p>
+                    <h3 id="workspace-members-heading" class="text-lg font-black text-gray-900 dark:text-white">Proposal collaborators</h3>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-500 dark:text-slate-400">Invite a teammate using their BatStateU Google email. Existing ATHENA accounts receive an in-app invitation to accept; new accounts are connected automatically on their first verified sign-in.</p>
                 </div>
-                <span class="inline-flex w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800">{{ 1 + $proposalDraft->members->count() }} {{ Str::plural('member', 1 + $proposalDraft->members->count()) }}</span>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ 1 + $proposalDraft->members->count() }} {{ Str::plural('member', 1 + $proposalDraft->members->count()) }}</span>
+                    @can('manageMembers', $proposalDraft)
+                        <button type="button" data-open-collaborator-modal x-on:click="$dispatch('open-modal', 'proposal-collaborator-invitation')" class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" /></svg>
+                            Add collaborator
+                        </button>
+                    @endcan
+                </div>
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <article class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40">
-                    <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900">{{ $proposalDraft->owner->name }}</p><span class="rounded-full bg-blue-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
-                    <p class="mt-1 break-all text-xs text-gray-600">{{ $proposalDraft->owner->email }}</p>
-                    <p class="mt-3 text-[11px] font-semibold text-blue-800">Full workspace, invitation, submission, and deletion control</p>
+                <article class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-950 dark:bg-red-950/30">
+                    <div class="flex items-start justify-between gap-3"><p class="font-black text-gray-900 dark:text-white">{{ $proposalDraft->owner->name }}</p><span class="rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Owner</span></div>
+                    <p class="mt-1 break-all text-xs text-gray-600 dark:text-slate-300">{{ $proposalDraft->owner->email }}</p>
+                    <p class="mt-3 text-[11px] font-semibold text-red-800 dark:text-red-200">Full workspace, invitation, submission, and deletion control</p>
                 </article>
                 @foreach ($proposalDraft->members as $member)
-                    <article class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <article class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
                         <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0"><p class="truncate font-black text-gray-900">{{ $member->user?->name ?? $member->name }}</p><p class="mt-1 break-all text-xs text-gray-600">{{ $member->user?->email ?? $member->email }}</p></div>
-                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-green-100 text-green-800' : ($member->isLinked() ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800') }}">{{ $member->isAccepted() ? 'Joined' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
+                            <div class="min-w-0"><p class="truncate font-black text-gray-900 dark:text-white">{{ $member->user?->name ?? $member->name }}</p><p class="mt-1 break-all text-xs text-gray-600 dark:text-slate-300">{{ $member->user?->email ?? $member->email }}</p></div>
+                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Joined' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
                         </div>
-                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-green-700' : ($member->isLinked() ? 'text-blue-700' : 'text-amber-800') }}">{{ $member->isAccepted() ? 'Can open and edit every draft paper.' : ($member->isLinked() ? 'Waiting for the collaborator to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
+                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-red-700 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Can open and edit every draft paper.' : ($member->isLinked() ? 'Waiting for the collaborator to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
                         @can('manageMembers', $proposalDraft)
-                            <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-3">
+                            <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-3 dark:border-slate-700">
                                 <form action="{{ route('faculty.proposal-drafts.members.invitation', [$proposalDraft, $member]) }}" method="POST">
                                     @csrf
-                                    <button type="submit" class="text-xs font-bold text-blue-700 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600">Resend invitation</button>
+                                    <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Resend invitation</button>
                                 </form>
                                 <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" data-proposal-confirm data-confirm-title="Remove collaborator?" data-confirm-text="This collaborator will immediately lose access to the proposal workspace." data-confirm-button="Remove collaborator">
                                     @csrf
@@ -291,29 +302,115 @@
                 @endforeach
             </div>
 
-            @can('manageMembers', $proposalDraft)
-                <div class="mt-5 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900 dark:bg-blue-950/30 sm:p-5">
-                    <h4 class="text-sm font-black text-blue-950 dark:text-blue-100">Send a workspace invitation</h4>
-                    <p class="mt-1 text-xs leading-5 text-blue-800 dark:text-blue-200">ATHENA emails the teammate and links access only when their verified Google sign-in matches the invited address.</p>
-                    <form action="{{ route('faculty.proposal-drafts.members.store', $proposalDraft) }}" method="POST" class="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-start" x-data="proposalDraftMembers({ candidates: @js($memberCandidates) })">
-                        @csrf
-                        <div>
-                            <label for="workspace-member-email" class="block text-[10px] font-black uppercase leading-4 tracking-wider text-gray-700 dark:text-gray-300">BatStateU Google email</label>
-                            <input id="workspace-member-email" name="email" type="email" list="workspace-member-accounts" x-model="email" x-on:input="syncAccount" value="{{ old('email') }}" maxlength="255" required placeholder="name@g.batstate-u.edu.ph" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
-                            <datalist id="workspace-member-accounts">@foreach ($memberCandidates as $candidate)<option value="{{ $candidate['email'] }}">{{ $candidate['name'] }}</option>@endforeach</datalist>
-                            <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">Choose an ATHENA account or enter the exact institutional email they will use to sign in.</p>
-                        </div>
-                        <div>
-                            <label for="workspace-member-name" class="block text-[10px] font-black uppercase leading-4 tracking-wider text-gray-700 dark:text-gray-300">Teammate name</label>
-                            <input id="workspace-member-name" name="name" type="text" x-model="name" value="{{ old('name') }}" maxlength="255" required placeholder="Full name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-blue-600 focus:ring-blue-600">
-                            <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400" x-text="matchedAccount ? 'Pulled from the linked ATHENA account.' : 'Used until their ATHENA account is linked.'"></p>
-                        </div>
-                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 lg:mt-[1.375rem] lg:w-auto">Send invitation</button>
-                    </form>
-                </div>
-            @endcan
         </section>
     </div>
+
+    @can('manageMembers', $proposalDraft)
+        <x-modal name="proposal-collaborator-invitation" :show="$memberInvitationHasErrors" maxWidth="xl" focusable>
+            <div
+                x-data="proposalDraftMembers({ candidates: @js($memberCandidates) })"
+                data-collaborator-invitation-modal
+                data-opened-from-validation="{{ $memberInvitationHasErrors ? 'true' : 'false' }}"
+                class="bg-white dark:bg-slate-900"
+            >
+                <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                    <div>
+                        <h2 class="text-lg font-black text-gray-900 dark:text-white">Add collaborator</h2>
+                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Invite a teammate using the exact BatStateU Google account they use for ATHENA.</p>
+                    </div>
+                    <button type="button" x-on:click="$dispatch('close-modal', 'proposal-collaborator-invitation')" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close collaborator invitation" title="Close">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                    </button>
+                </div>
+
+                <form action="{{ route('faculty.proposal-drafts.members.store', $proposalDraft) }}" method="POST">
+                    @csrf
+                    <div class="space-y-5 px-5 py-5 sm:px-6">
+                        <div>
+                            <label for="workspace-member-email" class="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-slate-300">BatStateU Google email</label>
+                            <div class="relative mt-2" data-collaborator-account-picker x-on:click.outside="closePicker()">
+                                <input
+                                    id="workspace-member-email"
+                                    name="email"
+                                    type="email"
+                                    x-model="email"
+                                    x-on:focus="openPicker()"
+                                    x-on:input="handleEmailInput()"
+                                    x-on:keydown="handleEmailKeydown($event)"
+                                    x-bind:aria-expanded="pickerOpen"
+                                    x-bind:aria-activedescendant="pickerOpen && highlightedIndex >= 0 ? `workspace-member-option-${highlightedIndex}` : null"
+                                    aria-autocomplete="list"
+                                    aria-controls="workspace-member-account-options"
+                                    role="combobox"
+                                    value="{{ old('email') }}"
+                                    maxlength="255"
+                                    required
+                                    autocomplete="off"
+                                    placeholder="name@g.batstate-u.edu.ph"
+                                    class="block w-full rounded-xl border-gray-300 py-2.5 pl-3 pr-11 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                                >
+                                <button type="button" x-on:click="pickerOpen ? closePicker() : openPicker()" class="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-xl text-gray-400 transition hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-slate-400 dark:hover:text-white" aria-label="Show ATHENA accounts" x-bind:aria-expanded="pickerOpen" aria-controls="workspace-member-account-options">
+                                    <svg class="h-4 w-4 transition" x-bind:class="{ 'rotate-180': pickerOpen }" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                </button>
+
+                                <div
+                                    id="workspace-member-account-options"
+                                    x-show="pickerOpen"
+                                    x-cloak
+                                    x-transition.origin.top
+                                    role="listbox"
+                                    aria-label="ATHENA accounts"
+                                    class="absolute z-30 mt-2 max-h-64 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-1.5 shadow-xl shadow-gray-900/10 dark:border-slate-700 dark:bg-slate-800"
+                                >
+                                    <template x-for="(candidate, index) in filteredCandidates" x-bind:key="candidate.email">
+                                        <button
+                                            type="button"
+                                            x-bind:id="`workspace-member-option-${index}`"
+                                            role="option"
+                                            x-bind:aria-selected="highlightedIndex === index"
+                                            x-on:mouseenter="highlightedIndex = index"
+                                            x-on:click="selectCandidate(candidate)"
+                                            x-bind:class="highlightedIndex === index ? 'bg-red-50 dark:bg-red-950/40' : 'hover:bg-gray-50 dark:hover:bg-slate-700/70'"
+                                            class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition"
+                                        >
+                                            <span class="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-200 dark:ring-red-900">
+                                                <img x-show="candidate.avatar" x-bind:src="candidate.avatar" x-bind:alt="candidate.name" x-on:error="candidate.avatar = ''" class="h-full w-full object-cover">
+                                                <span x-show="!candidate.avatar" x-text="candidateInitials(candidate.name)"></span>
+                                            </span>
+                                            <span class="min-w-0 flex-1">
+                                                <span class="block truncate text-sm font-bold text-gray-900 dark:text-white" x-text="candidate.name"></span>
+                                                <span class="block truncate text-xs text-gray-500 dark:text-slate-400" x-text="candidate.email"></span>
+                                            </span>
+                                            <svg class="h-4 w-4 shrink-0 text-red-600 opacity-0" x-bind:class="{ 'opacity-100': matchedAccount?.email === candidate.email }" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
+                                        </button>
+                                    </template>
+
+                                    <div x-show="filteredCandidates.length === 0" class="px-3 py-4 text-center">
+                                        <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No matching ATHENA account</p>
+                                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">You can still invite the exact BatStateU Google email they will use to sign in.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">Choose an ATHENA account or enter the exact institutional email they will use to sign in.</p>
+                            @error('email')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div>
+                            <label for="workspace-member-name" class="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-slate-300">Teammate name</label>
+                            <input id="workspace-member-name" name="name" type="text" x-model="name" value="{{ old('name') }}" maxlength="255" required placeholder="Full name" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                            <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="matchedAccount ? 'Pulled from the linked ATHENA account.' : 'Used until their ATHENA account is linked.'"></p>
+                            @error('name')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/70 sm:flex-row sm:justify-end sm:px-6">
+                        <button type="button" x-on:click="$dispatch('close-modal', 'proposal-collaborator-invitation')" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
+                        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Send invitation</button>
+                    </div>
+                </form>
+            </div>
+        </x-modal>
+    @endcan
 
     <x-modal name="proposal-review" maxWidth="6xl" focusable>
         <div class="flex max-h-[calc(100vh-3rem)] flex-col">

@@ -54,6 +54,55 @@ test('users can save their college from their profile', function () {
         ->assertSee('value="'.$college.'" selected', false);
 });
 
+test('users can save their contact number from their profile', function () {
+    $user = User::factory()->create();
+    $contactNumber = '09171234567';
+
+    $this->actingAs($user)
+        ->patch(route('profile.contact-number.update'), ['contact_number' => $contactNumber])
+        ->assertRedirect()
+        ->assertSessionHas('status', 'contact-number-updated');
+
+    expect($user->refresh()->contact_number)->toBe($contactNumber);
+
+    $this->withoutVite();
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee('id="contact_number"', false)
+        ->assertSee('value="'.$contactNumber.'"', false);
+});
+
+test('contact number must contain exactly 11 digits when provided', function () {
+    $user = User::factory()->create(['contact_number' => null]);
+
+    $this->actingAs($user)
+        ->from(route('profile.edit'))
+        ->patch(route('profile.contact-number.update'), ['contact_number' => '0917ABCDEFG'])
+        ->assertRedirect(route('profile.edit'))
+        ->assertSessionHasErrors('contact_number');
+
+    expect($user->refresh()->contact_number)->toBeNull();
+});
+
+test('contact number can be cleared from the profile', function () {
+    $user = User::factory()->create(['contact_number' => '09171234567']);
+
+    $this->actingAs($user)
+        ->patch(route('profile.contact-number.update'), ['contact_number' => null])
+        ->assertRedirect()
+        ->assertSessionHas('status', 'contact-number-updated');
+
+    expect($user->refresh()->contact_number)->toBeNull();
+});
+
+test('guests cannot update a contact number', function () {
+    $this->patch(route('profile.contact-number.update'), [
+        'contact_number' => '09171234567',
+    ])->assertRedirect(route('login'));
+});
+
 test('college must be one of the supported colleges', function () {
     $user = User::factory()->create();
 

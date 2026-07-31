@@ -25,10 +25,10 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 
 .detailed-proposal-table { width: 100%; table-layout: fixed; border: 1pt solid #000; border-collapse: collapse; }
 
-.detailed-proposal-table col.detailed-proposal-col-seal { width: 16%; }
-.detailed-proposal-table col.detailed-proposal-col-reference { width: 30%; }
-.detailed-proposal-table col.detailed-proposal-col-effectivity { width: 30%; }
-.detailed-proposal-table col.detailed-proposal-col-revision { width: 24%; }
+.detailed-proposal-table col.detailed-proposal-col-seal { width: 12%; }
+.detailed-proposal-table col.detailed-proposal-col-reference { width: 35%; }
+.detailed-proposal-table col.detailed-proposal-col-effectivity { width: 34%; }
+.detailed-proposal-table col.detailed-proposal-col-revision { width: 19%; }
 
 .detailed-proposal-table th,
 .detailed-proposal-table td {
@@ -43,13 +43,21 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 
 .detailed-proposal-table p { margin: 0; }
 
-.detailed-proposal-header-cell { font-weight: 700; text-align: center !important; vertical-align: middle !important; }
-.detailed-proposal-seal { display: block; width: 0.95in; height: auto; margin: 0 auto; }
+.detailed-proposal-header-cell {
+    overflow-wrap: normal !important;
+    font-size: 9pt;
+    font-weight: 700;
+    white-space: nowrap;
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+.detailed-proposal-seal { display: block; width: 0.65in; height: auto; margin: 0 auto; }
 
 .detailed-proposal-table-title { padding: 3pt 5pt !important; font-weight: 700; text-align: center !important; }
 
 .detailed-proposal-section-heading { font-weight: 700; }
 .detailed-proposal-section-note { font-weight: 400; font-style: italic; }
+.detailed-proposal-section-note.is-plain { font-style: normal; }
 .detailed-proposal-section-value { font-weight: 700; }
 .detailed-proposal-indent { padding-left: 0.45in; }
 
@@ -67,8 +75,22 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .detailed-proposal-output-list { margin: 2pt 0 0; padding-left: 0.35in; list-style: decimal outside; }
 .detailed-proposal-output-list li { margin: 0 0 2pt; padding-left: 4pt; }
 
-.detailed-proposal-methodology-heading { margin: 8pt 0 2pt !important; font-weight: 700; font-style: italic; text-align: left !important; }
+.detailed-proposal-methodology-list { margin: 4pt 0 0; padding-left: 0.35in; list-style: disc outside; }
+.detailed-proposal-methodology-list > li { margin: 0 0 8pt; padding-left: 3pt; }
+.detailed-proposal-methodology-list > li:last-child { margin-bottom: 0; }
+.detailed-proposal-methodology-heading { margin: 0 0 2pt !important; font-weight: 400; font-style: normal; text-align: left !important; }
+.detailed-proposal-methodology-visual { margin: 8pt 0 !important; text-align: center !important; }
+.detailed-proposal-methodology-visual img { display: inline-block; max-width: 100%; height: auto; border: 1pt solid #000; }
+.detailed-proposal-methodology-visual.is-left { text-align: left !important; }
+.detailed-proposal-methodology-visual.is-right { text-align: right !important; }
+.detailed-proposal-methodology-visual.is-small img { width: 42%; }
+.detailed-proposal-methodology-visual.is-medium img { width: 70%; }
+.detailed-proposal-methodology-visual.is-large img { width: 100%; }
+.detailed-proposal-methodology-caption { margin: -3pt 0 8pt !important; font-size: 10pt; text-align: center !important; }
+.detailed-proposal-methodology-caption.is-left { text-align: left !important; }
+.detailed-proposal-methodology-caption.is-right { text-align: right !important; }
 .detailed-proposal-responsibility-name { margin: 8pt 0 2pt !important; font-style: italic; text-align: left !important; }
+.detailed-proposal-responsibility-name span { font-weight: 700; text-transform: uppercase; }
 
 .detailed-proposal-budget-table { width: 100%; margin-top: 4pt; border: 1pt solid #000; border-collapse: collapse; }
 .detailed-proposal-budget-table th,
@@ -81,7 +103,7 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .detailed-proposal-signature-heading { text-align: left; }
 .detailed-proposal-signature-space { height: 0.42in; }
 .detailed-proposal-signature-line { letter-spacing: -0.5pt; }
-.detailed-proposal-signature-name { font-weight: 700; text-decoration: underline; }
+.detailed-proposal-signature-name { font-weight: 700; text-transform: uppercase; text-decoration: none; }
 .detailed-proposal-signature-date { margin-top: 0.1in !important; text-align: left; }
 
 .detailed-proposal-privacy { font-size: 9pt; line-height: 1.25; text-align: justify; }
@@ -92,11 +114,11 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .detailed-proposal-checklist .detailed-proposal-sub-items { padding-left: 0.35in; }
 .detailed-proposal-checklist .detailed-proposal-sub-items p { margin: 0; }
 
-.detailed-proposal-notes { margin-top: 6pt; font-size: 9pt; font-style: italic; }
+.detailed-proposal-notes { margin-top: 6pt; margin-left: 0.55in; font-size: 9pt; font-style: italic; }
 .detailed-proposal-notes p { margin: 0 0 2pt; }
 .detailed-proposal-notes .detailed-proposal-note-heading { font-style: normal; }
-.detailed-proposal-notes .detailed-proposal-note-indented { padding-left: 0.45in; }
-.detailed-proposal-notes .detailed-proposal-note-detail { padding-left: 0.9in; }
+.detailed-proposal-notes .detailed-proposal-note-indented { padding-left: 0.3in; }
+.detailed-proposal-notes .detailed-proposal-note-detail { padding-left: 0.55in; }
 
 .detailed-proposal-sheet footer {
     position: absolute;

@@ -289,7 +289,7 @@ test('the preview reuses Attachment A for every 12-month project year', function
         ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(4);
 });
 
-test('the Word download patches only the official template body', function () {
+test('the Word download patches the official template body and adds page numbering', function () {
     $payload = ($this->validWorkPlan)();
     $payload['entries'] = collect(range(1, 7))
         ->map(fn (int $number): array => [
@@ -308,11 +308,10 @@ test('the Word download patches only the official template body', function () {
 
     $temporaryPath = tempnam(sys_get_temp_dir(), 'work-plan-test-');
     file_put_contents($temporaryPath, $response->streamedContent());
+    $generatedArchive = new ZipArchive;
+    $templateArchive = new ZipArchive;
 
     try {
-        $generatedArchive = new ZipArchive;
-        $templateArchive = new ZipArchive;
-
         expect($generatedArchive->open($temporaryPath))->toBeTrue()
             ->and($templateArchive->open(config('work_plan.template_path')))->toBeTrue();
 
@@ -379,20 +378,50 @@ test('the Word download patches only the official template body', function () {
             ->and($hasDirectFormatting($verifiedParagraphs->item(6), 'sz'))->toBeFalse()
             ->and($documentXml)->not->toContain('>NAME<');
 
+        foreach (['word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'] as $footerPartName) {
+            $footer = new DOMDocument;
+            $footer->loadXML($generatedArchive->getFromName($footerPartName), LIBXML_NONET);
+            $footerXPath = new DOMXPath($footer);
+            $footerXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            $pageNumberText = '';
+
+            foreach ($footerXPath->query('//w:p[.//w:instrText[normalize-space(.) = "PAGE"]]//w:t') as $textNode) {
+                $pageNumberText .= $textNode->textContent;
+            }
+
+            expect($footerXPath->query('//w:instrText[normalize-space(.) = "PAGE"]')->length)->toBe(1)
+                ->and($footerXPath->query('//w:instrText[normalize-space(.) = "NUMPAGES"]')->length)->toBe(1)
+                ->and($footerXPath->query('//w:p[.//w:instrText[normalize-space(.) = "PAGE"]]/w:pPr/w:jc[@w:val = "right"]')->length)->toBe(1)
+                ->and($pageNumberText)->toBe('Page 1 of 1');
+        }
+
+        $settings = new DOMDocument;
+        $settings->loadXML($generatedArchive->getFromName('word/settings.xml'), LIBXML_NONET);
+        $settingsXPath = new DOMXPath($settings);
+        $settingsXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($settingsXPath->query('/w:settings/w:updateFields[@w:val = "true"]')->length)->toBe(1);
+
         for ($index = 0; $index < $templateArchive->numFiles; $index++) {
             $partName = $templateArchive->getNameIndex($index);
 
-            if ($partName === 'word/document.xml') {
+            if (in_array($partName, [
+                'word/document.xml',
+                'word/footer1.xml',
+                'word/footer2.xml',
+                'word/footer3.xml',
+                'word/settings.xml',
+            ], true)) {
                 continue;
             }
 
             expect(hash('sha256', $generatedArchive->getFromName($partName)))
                 ->toBe(hash('sha256', $templateArchive->getFromName($partName)));
         }
-
+    } finally {
         $generatedArchive->close();
         $templateArchive->close();
-    } finally {
+
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
         }

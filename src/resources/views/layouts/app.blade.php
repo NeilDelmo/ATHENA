@@ -25,6 +25,13 @@
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
             data-research-assistant-history-url="{{ route('research-support.history') }}"
+            @if ($researchAssistantPaperContext ?? null)
+                data-research-assistant-paper-slug="{{ $researchAssistantPaperContext['paper_slug'] }}"
+                data-research-assistant-paper-label="{{ $researchAssistantPaperContext['paper_label'] }}"
+            @endif
+            @if ($researchAssistantProposalDraftId ?? null)
+                data-research-assistant-proposal-draft-id="{{ $researchAssistantProposalDraftId }}"
+            @endif
         @endauth
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-literature-search-url="{{ route('research-support.literature-search') }}" @endif
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif

@@ -76,7 +76,7 @@ class ResearchCallImageParser
                         ],
                     ],
                     'temperature' => 0,
-                    'max_completion_tokens' => 1400,
+                    'max_completion_tokens' => 2500,
                     'response_format' => ['type' => 'json_object'],
                     'stream' => false,
                 ]);
@@ -142,7 +142,7 @@ PROMPT;
     private function userPrompt(): string
     {
         return <<<'PROMPT'
-Read this research-call poster and return exactly these keys:
+Read this research-call poster and return one JSON object with exactly these top-level keys and no others:
 {
   "title": null,
   "academic_year": null,
@@ -162,7 +162,15 @@ Read this research-call poster and return exactly these keys:
   "implementation_end_date": null
 }
 
-Copy the poster's heading into title. Put the explanatory text and the full list under headings such as "THE RESEARCH PROPOSALS MUST BE:" into description as readable plain text with line breaks. Extract explicit currency amounts into maximum_budget only when they describe the call's budget limit. Extract submission dates into opens_at and closes_at using YYYY-MM-DDTHH:MM; use 00:00 for a start date and 23:59 for an end date when the poster gives no time. Extract workflow milestone dates using YYYY-MM-DD. For a one-day milestone, use that date for the start and leave the end null. For a month-only milestone such as August 2026, use the first day of that month for the start and leave the end null. Keep academic_year, term, and categories null/empty when the poster does not state them clearly.
+Strict rules:
+- Output a single valid JSON object only. No Markdown fences, no commentary, no extra keys, no trailing prose.
+- Each value must be a separate JSON key. Never embed one field's value inside another field's string. In particular, dates and budget must live in their own keys, never anywhere inside the description string.
+- Description holds only the poster's explanatory prose (such as the lines under "THE RESEARCH PROPOSALS MUST BE:") as plain text. Keep the original line breaks by using the \n escape sequence inside the JSON string. Do NOT include quotes, commas, or any other JSON syntax inside description. Do NOT echo other key names or their values there.
+- Copy the poster's heading into title.
+- Extract explicit currency amounts into maximum_budget only when they describe the call's budget limit.
+- Extract submission dates into opens_at and closes_at using YYYY-MM-DDTHH:MM; use 00:00 for a start date and 23:59 for an end date when the poster gives no time.
+- Extract workflow milestone dates using YYYY-MM-DD. For a one-day milestone, use that date for the start and leave the end null. For a month-only milestone such as August 2026, use the first day of that month for the start and leave the end null.
+- Keep academic_year, term, and categories null/empty when the poster does not state them clearly.
 PROMPT;
     }
 
@@ -231,7 +239,7 @@ PROMPT;
             'title' => $this->nullableString($this->field($data, ['title', 'call_title'])),
             'academic_year' => $this->nullableString($this->field($data, ['academic_year', 'academicYear'])),
             'term' => $this->nullableString($this->field($data, ['term', 'semester'])),
-            'description' => $this->nullableString($this->field($data, ['description', 'guidelines', 'requirements'])),
+            'description' => $this->normalizeText($this->field($data, ['description', 'guidelines', 'requirements'])),
             'opens_at' => $this->normalizeDateTime($this->field($data, ['opens_at', 'submission_start', 'submission_start_date', 'submission_window.start']), false),
             'closes_at' => $this->normalizeDateTime($this->field($data, ['closes_at', 'submission_end', 'submission_end_date', 'submission_window.end']), true),
             'maximum_budget' => $this->normalizeBudget($this->field($data, ['maximum_budget', 'max_budget', 'budget'])),
@@ -305,7 +313,7 @@ PROMPT;
             $data['title'] = Str::squish($match[1]);
         }
 
-        if (preg_match('/THE\s+RESEARCH\s+PROPOSALS\s+MUST\s+BE\s*:\s*(.*?)(?=TO\s+DOWNLOAD\s+FORMS|IMPORTANT\s+DATES|$)/is', $content, $match)) {
+        if (preg_match('/THE\s+RESEARCH\s+PROPOSALS\s+MUST\s+BE\s*:\s*(.*?)(?=",\s*"\w+"\s*:|TO\s+DOWNLOAD\s+FORMS|IMPORTANT\s+DATES|$)/is', $content, $match)) {
             $data['description'] = Str::squish($match[0]);
         }
 
@@ -364,6 +372,40 @@ PROMPT;
         }
 
         $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Normalize free-text fields returned by the vision model.
+     *
+     * Some Gemini responses leak partial JSON markup into prose values when the
+     * output is truncated, and others keep the literal `\n` escape sequence
+     * instead of a real newline. This helper restores readable line breaks and
+     * strips residual `", "key": "..."` JSON fragments so a field such as the
+     * poster's requirements list lands cleanly in description rather than
+     * dragging the rest of the object along with it.
+     */
+    private function normalizeText(mixed $value): ?string
+    {
+        if (! is_string($value) && ! is_numeric($value)) {
+            return null;
+        }
+
+        $value = (string) $value;
+
+        if (preg_match('/",\s*"\w+"\s*:/s', $value)) {
+            $value = preg_replace('/",\s*"\w+"\s*:.*$/s', '', $value) ?? $value;
+        }
+
+        $value = strtr($value, [
+            '\n' => "\n",
+            '\r' => "\r",
+            '\t' => "\t",
+            '\\\\' => '\\',
+        ]);
+
+        $value = trim($value, " \t\n\r\"',");
 
         return $value === '' ? null : $value;
     }

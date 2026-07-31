@@ -72,6 +72,14 @@ class LineItemBudgetRules
                 );
             }
 
+            if ($data['project_total_overridden']
+                && abs($data['project_total'] - $data['computed_project_total']) > 0.005) {
+                $validator->errors()->add(
+                    'project_total_override',
+                    'The Total Project Cost must equal MOOE plus Capital Outlay (Php '.number_format($data['computed_project_total'], 2).').',
+                );
+            }
+
             if ($maximumBudget > 0 && $data['project_total'] > $maximumBudget) {
                 $validator->errors()->add(
                     'project_total_override',

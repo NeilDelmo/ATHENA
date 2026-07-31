@@ -362,12 +362,21 @@ class SubmitProposalDraft
         ));
         $validated = $validator->validate();
         $lineItemBudget = LineItemBudgetData::fromValidated($validated);
+        $submittedSourceData = [
+            ...$validated,
+            'computed_mooe_total' => $lineItemBudget['computed_mooe_total'],
+            'mooe_total' => $lineItemBudget['mooe_total'],
+            'computed_co_total' => $lineItemBudget['computed_co_total'],
+            'co_total' => $lineItemBudget['co_total'],
+            'computed_project_total' => $lineItemBudget['computed_project_total'],
+            'project_total' => $lineItemBudget['project_total'],
+        ];
 
         return $this->packageService->storeGeneratedLineItemBudget(
             $this->lineItemBudgetDocumentService->generate($lineItemBudget),
             $permanentDirectory,
             $draft->project_title,
-            $validated,
+            $submittedSourceData,
         );
     }
 

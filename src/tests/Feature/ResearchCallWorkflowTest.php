@@ -352,6 +352,59 @@ POSTER,
         ->assertJsonPath('fields.description', 'THE RESEARCH PROPOSALS MUST BE: Aligned with the BatStateU The NEU research agenda With Budget Requirement of lower that Php 150,000.00 Cross disciplinary or interdisciplinary research projects');
 });
 
+test('research-call extraction strips leaked JSON markup and literal escapes from truncating poster text', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => <<<'POSTER'
+CALL FOR PROPOSALS
+FOR AUGUST 2026 IMPLEMENTATION
+
+THE RESEARCH PROPOSALS MUST BE:\n- Aligned with BatStateU The NEU research agenda\n- With Budget Requirement of lower that Php 150,000.00\n- Collaborative research focusing on product development and patent", "opens_at": "2026-02-05T00:00", "closes_at": "2026-
+
+IMPORTANT DATES
+FEBRUARY 5, 2026 - MARCH 2, 2026 Deadline of Submission
+MARCH 3-10, 2026 Initial Evaluation
+POSTER,
+                ],
+            ]],
+        ]),
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->post(route('research-calls.extract-image'), [
+            'reference_image' => UploadedFile::fake()->image('research-call.jpg'),
+        ])
+        ->assertOk();
+
+    $response
+        ->assertJsonPath('fields.title', 'CALL FOR PROPOSALS FOR AUGUST 2026 IMPLEMENTATION')
+        ->assertJsonPath('fields.opens_at', '2026-02-05T00:00')
+        ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
+        ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
+        ->assertJsonPath('fields.initial_evaluation_end_date', '2026-03-10')
+        ->assertJsonPath('fields.maximum_budget', 150000)
+        ->assertJsonPath('fields.implementation_start_date', '2026-08-01');
+
+    $description = $response->json('fields.description');
+
+    expect($description)
+        ->toStartWith('THE RESEARCH PROPOSALS MUST BE:')
+        ->and($description)->toContain('- Aligned with BatStateU The NEU research agenda')
+        ->and($description)->toContain('Collaborative research focusing on product development and patent')
+        ->and($description)->not->toContain('\n')
+        ->and($description)->not->toContain('opens_at')
+        ->and($description)->not->toContain('closes_at')
+        ->and($description)->not->toContain('"');
+});
+
 test('research heads can save workflow dates and a reference poster with a research call', function () {
     $poster = UploadedFile::fake()->image('call-poster.jpg');
 

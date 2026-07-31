@@ -28,6 +28,8 @@
     </dl>
 </section>
 
+<x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
+
 <section aria-labelledby="review-papers-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
     <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required package attachments</h3><p class="mt-1 text-xs text-gray-500">Turn in creates six fixed PDFs and preserves the generated Expense Breakdown as an Excel workbook.</p></div>
 

@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\ProposalDraft;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchAssistantConversation;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
@@ -85,7 +87,9 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Ask Athena about results')
         ->assertSee('Grounded assistance:')
         ->assertSee('Matching approved ATHENA knowledge')
-        ->assertSee('Grounded with ATHENA knowledge')
+        ->assertSee('Sources')
+        ->assertSee('<details x-show="Array.isArray(message.sources)', false)
+        ->assertDontSee('Grounded with ATHENA knowledge')
         ->assertSee('Conference Finder')
         ->assertSee('HTML scraping')
         ->assertSee('Relevance ranked')
@@ -145,6 +149,37 @@ test('proposal owners can launch athena with the current proposal selected', fun
         ->assertSee('openWithContext('.$topic->id, false)
         ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
         ->assertSee('Context-aware freshwater research');
+});
+
+test('proposal draft editors expose the current paper and proposal to athena', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = createAssistantTopicFor($faculty, [
+        'title' => 'Paper-aware proposal',
+    ]);
+    $draft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $topic->research_call_id,
+        'topic_id' => $topic->id,
+        'project_title' => $topic->title,
+        'duration_months' => 12,
+        'planned_start' => now()->startOfMonth(),
+        'planned_end' => now()->startOfMonth()->addMonths(11)->endOfMonth(),
+        'project_leader' => $faculty->name,
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.proposal-drafts.details.edit', $draft))
+        ->assertOk()
+        ->assertSee('data-research-assistant-paper-slug="project-details"', false)
+        ->assertSee('data-research-assistant-paper-label="Project Details"', false)
+        ->assertSee('data-research-assistant-proposal-draft-id="'.$draft->id.'"', false)
+        ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
+        ->assertSee('Paper help')
+        ->assertSee('Live context')
+        ->assertSee('paperContextLabel()', false);
 });
 
 test('authenticated users can receive a gemini research response', function (string $role) {
@@ -300,6 +335,139 @@ test('users can attach their own proposal context to a chat request', function (
             && str_contains($message['content'], 'Community-based mangrove monitoring')
             && str_contains($message['content'], 'Clarify the sampling frame')
     ));
+});
+
+test('athena receives a safe application context packet with live row values and saved budget mismatches', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'Use ream as the unit, then reconcile the saved MOOE totals.'],
+            ]],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = createAssistantTopicFor($faculty);
+    $draft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $topic->research_call_id,
+        'topic_id' => $topic->id,
+        'project_title' => 'Context packet budget study',
+        'duration_months' => 12,
+        'planned_start' => '2026-08-01',
+        'planned_end' => '2027-07-31',
+        'project_leader' => $faculty->name,
+    ]);
+    $draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'source_data' => [
+            'amounts' => ['telephone_expenses' => 4200],
+        ],
+        'completed_at' => now(),
+    ]);
+    $draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'source_data' => [
+            'items' => [[
+                'category' => 'mooe',
+                'account' => 'Communication Expenses',
+                'sub_account' => 'Telephone Expenses',
+                'particulars' => 'Bond Paper',
+                'details' => 'A4 paper for questionnaires',
+                'purpose' => 'Printing research instruments',
+                'unit' => 'ream',
+                'quantity' => 12,
+                'unit_cost' => 300,
+            ]],
+        ],
+        'completed_at' => now(),
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'context' => [
+                'proposal_draft_id' => $draft->id,
+                'paper_slug' => 'expense-breakdown',
+                'field' => 'items[0][unit]',
+                'form' => [
+                    'section' => 'Expense items / MOOE',
+                    'row' => 'Items row 1 — Particular/s: Bond Paper',
+                    'values' => [
+                        ['field' => 'items[0][particulars]', 'label' => 'Particular/s', 'value' => 'Bond Paper'],
+                        ['field' => 'items[0][unit]', 'label' => 'Unit', 'value' => 'ream'],
+                        ['field' => 'items[0][quantity]', 'label' => 'Quantity', 'value' => '10'],
+                        ['field' => 'items[0][unit_cost]', 'label' => 'Unit Cost', 'value' => '250'],
+                        ['field' => 'leader_email', 'label' => 'Leader email', 'value' => 'person@example.edu'],
+                    ],
+                    'constraints' => ['A value is required by the current browser form.'],
+                    'validation' => ['Quantity: Please fill out this field.'],
+                ],
+            ],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'What should I put here, and why do my totals differ?',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'Use ream as the unit, then reconcile the saved MOOE totals.');
+
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, 'ATHENA application context packet')
+            && str_contains($prompt, 'Context packet budget study')
+            && str_contains($prompt, '"current_section": "Expense items / MOOE"')
+            && str_contains($prompt, 'Bond Paper')
+            && str_contains($prompt, '"line_item_budget": 4200')
+            && str_contains($prompt, '"expense_breakdown": 3600')
+            && str_contains($prompt, '"difference": 600')
+            && str_contains($prompt, '[redacted sensitive value]')
+            && str_contains($prompt, 'unsaved, stale, incomplete, or user-edited')
+            && ! str_contains($prompt, 'person@example.edu');
+    });
+});
+
+test('users cannot attach an inaccessible proposal draft to an assistant request', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+    Http::fake();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole('faculty');
+    $otherTopic = createAssistantTopicFor($otherFaculty);
+    $otherDraft = ProposalDraft::create([
+        'user_id' => $otherFaculty->id,
+        'research_call_id' => $otherTopic->research_call_id,
+        'topic_id' => $otherTopic->id,
+        'project_title' => 'Private draft',
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'context' => ['proposal_draft_id' => $otherDraft->id],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'Explain this draft.',
+            ]],
+        ])
+        ->assertForbidden()
+        ->assertJsonPath('message', 'That proposal draft context is unavailable for your account.');
+
+    Http::assertNothingSent();
 });
 
 test('users cannot attach another faculty member proposal as context', function () {

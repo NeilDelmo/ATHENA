@@ -7,6 +7,16 @@ import initializeAnnouncementImageUploads from './announcement-image-upload';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
 import initializeResearchCallImageExtractors from './research-call-image-extractor';
+import {
+    filterWorkspacePeople,
+    formatPersonName,
+    personInitials,
+} from './proposal-people';
+import {
+    escapeAssistantHtml,
+    formatAssistantMarkdown,
+    stripAssistantGroundingFooter,
+} from './research-assistant-markdown';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -623,6 +633,13 @@ const defaultAssistantContextId = assistantContexts.some((context) => Number(con
 const assistantHistory = Array.isArray(window.athenaResearchAssistantHistory)
     ? window.athenaResearchAssistantHistory
     : [];
+const assistantPaperContext = document.body?.dataset.researchAssistantPaperSlug
+    ? {
+        paperSlug: document.body.dataset.researchAssistantPaperSlug,
+        paperLabel: document.body.dataset.researchAssistantPaperLabel || document.body.dataset.researchAssistantPaperSlug,
+    }
+    : null;
+const assistantProposalDraftId = Number(document.body?.dataset.researchAssistantProposalDraftId || 0);
 const researchAssistantMessageLimit = 8000;
 
 function compactAssistantText(value, maxLength = 280) {
@@ -633,32 +650,104 @@ function compactAssistantText(value, maxLength = 280) {
     return `${normalized.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
 }
 
-function escapeAssistantHtml(value) {
-    return String(value ?? '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+function assistantFieldLabel(control) {
+    const associatedLabel = Array.from(control.labels || [])
+        .map((label) => label.textContent)
+        .find((label) => String(label || '').trim());
+    const fieldIdentifier = String(control.getAttribute('name') || control.id || '').trim();
+    const fallbackLabel = fieldIdentifier
+        .replaceAll('][', ' ')
+        .replace(/[\[\]_.-]+/g, ' ')
+        .replace(/\b\d+\b/g, '');
+
+    return compactAssistantText(
+        String(
+            associatedLabel
+            || control.getAttribute('aria-label')
+            || control.getAttribute('placeholder')
+            || fallbackLabel
+            || 'Selected field',
+        )
+            .replace(/\bRequired\b/gi, '')
+            .replaceAll('*', '')
+            .replace(/\s+/g, ' ')
+            .trim(),
+        100,
+    );
 }
 
-function formatAssistantMarkdown(value) {
-    const codeSpans = [];
-    let formatted = escapeAssistantHtml(value).replace(/`([^`\n]+)`/g, (_, code) => {
-        const index = codeSpans.push(code) - 1;
+function assistantIsSensitiveField(field, label) {
+    return /(?:password|email|contact|phone|cell|landline|birthday|birth|street|barangay|municipality|province|address|name|leader|staff|person|author|prepared)/i
+        .test(`${field} ${label}`);
+}
 
-        return `\uE000${index}\uE001`;
-    });
+function assistantSafeValue(field, label, rawValue) {
+    if (assistantIsSensitiveField(field, label)) return '[redacted sensitive value]';
 
-    formatted = formatted
-        .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/__([^_\n]+)__/g, '<strong>$1</strong>')
-        .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>')
-        .replace(/(^|[^\w])_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>')
-        .replace(/\uE000(\d+)\uE001/g, (_, index) => `<code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.9em] dark:bg-slate-800">${codeSpans[Number(index)]}</code>`)
-        .replace(/\n/g, '<br>');
+    return compactAssistantText(String(rawValue || '').replace(
+        /[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/gi,
+        '[redacted email]',
+    ).replace(
+        /(^|\D)\+?\d[\d\s().-]{6,}\d(?=\D|$)/g,
+        '$1[redacted number]',
+    ), 400) || '(blank)';
+}
 
-    return formatted;
+function assistantControlValue(control) {
+    if (control instanceof HTMLSelectElement) {
+        const selectedOptions = Array.from(control.selectedOptions)
+            .map((option) => String(option.textContent || option.value).trim())
+            .filter(Boolean);
+
+        return selectedOptions.join(', ');
+    }
+
+    if (control instanceof HTMLInputElement && ['checkbox', 'radio'].includes(control.type)) {
+        return control.checked ? 'Selected' : 'Not selected';
+    }
+
+    return control.value;
+}
+
+function assistantRepeatedRowPrefix(fieldIdentifier) {
+    const matches = Array.from(fieldIdentifier.matchAll(/\[\d+\]/g));
+    const finalMatch = matches.at(-1);
+
+    if (!finalMatch || finalMatch.index === undefined) return null;
+
+    return fieldIdentifier.slice(0, finalMatch.index + finalMatch[0].length);
+}
+
+function assistantRepeatedRowLabel(rowPrefix) {
+    const numberMatch = rowPrefix.match(/\[(\d+)\]$/);
+    if (!numberMatch) return null;
+
+    const groupPrefix = rowPrefix.slice(0, -numberMatch[0].length);
+    const groupKey = groupPrefix.match(/(?:^|\[)([^\[\]]+)$/)?.[1] || 'entry';
+    const groupLabel = groupKey
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, (character) => character.toUpperCase());
+
+    return `${groupLabel} row ${Number(numberMatch[1]) + 1}`;
+}
+
+function assistantSectionLabel(control) {
+    const region = control.closest('[data-assistant-section], fieldset, section, article');
+    if (!region) return null;
+
+    const labelledBy = region.getAttribute('aria-labelledby');
+    const labelledByText = labelledBy ? document.getElementById(labelledBy)?.textContent : null;
+    const heading = region.querySelector(':scope > legend, :scope > h1, :scope > h2, :scope > h3, :scope > h4')
+        || region.querySelector('legend, h1, h2, h3, h4');
+
+    return compactAssistantText(
+        region.getAttribute('data-assistant-section')
+        || region.getAttribute('aria-label')
+        || labelledByText
+        || heading?.textContent
+        || '',
+        120,
+    ) || null;
 }
 
 const researchAssistantQuickPrompts = [
@@ -716,6 +805,9 @@ Alpine.store('researchAssistant', {
     contextOptions: assistantContexts,
     contextEnabled: Boolean(activeAssistantContextId),
     selectedContextId: defaultAssistantContextId,
+    paperContext: assistantPaperContext,
+    proposalDraftId: assistantProposalDraftId,
+    activePaperField: null,
     quickPrompts: researchAssistantQuickPrompts,
     history: assistantHistory,
     currentConversationId: null,
@@ -737,6 +829,9 @@ Alpine.store('researchAssistant', {
                 event.preventDefault();
                 this.openHistorySearch();
             }
+        });
+        document.addEventListener('focusin', (event) => {
+            this.capturePaperField(event.target);
         });
     },
 
@@ -807,18 +902,195 @@ Alpine.store('researchAssistant', {
     },
 
     starterPrompts() {
-        return this.quickPrompts.map((prompt) => ({
+        const formContext = this.formContext();
+        const paperPrompts = [];
+
+        if (this.paperContext) {
+            paperPrompts.push({
+                label: this.activePaperField ? 'Focused field' : 'Current paper',
+                prompt: this.activePaperField
+                    ? `What should I enter in the ${this.activePaperField.label} field based on the current form context?`
+                    : `Explain the fields I need to complete in ${this.paperContext.paperLabel}.`,
+            });
+
+            if (formContext?.validation?.length) {
+                paperPrompts.push({
+                    label: 'Validation help',
+                    prompt: `Why is the current ${this.activePaperField?.label || 'field'} failing validation, and how should I fix it?`,
+                });
+            }
+
+            if (formContext?.row) {
+                paperPrompts.push({
+                    label: 'Current row',
+                    prompt: `Review the current ${formContext.row} and point out missing, inconsistent, or unclear values without changing them.`,
+                });
+            }
+
+            paperPrompts.push({
+                label: 'Value source',
+                prompt: this.activePaperField
+                    ? `Where does the ${this.activePaperField.label} value come from, and which other proposal papers should agree with it?`
+                    : `How does ${this.paperContext.paperLabel} relate to the other proposal papers in ATHENA?`,
+            });
+
+            if (formContext?.row) {
+                paperPrompts.push({
+                    label: 'Calculation',
+                    prompt: 'Explain any calculation that uses the values in my current row.',
+                });
+            }
+        }
+
+        const generalPrompts = this.quickPrompts.map((prompt) => ({
             label: 'Suggested prompt',
             prompt,
         }));
+
+        return [...paperPrompts, ...generalPrompts].slice(0, 6);
+    },
+
+    capturePaperField(target) {
+        if (!this.paperContext || !(target instanceof HTMLElement)) return;
+        if (!target.matches('input:not([type="hidden"]):not([type="file"]), select, textarea')) return;
+        if (target.matches('[data-assistant-composer]') || target.closest('[data-assistant-workspace], #research-assistant-panel')) return;
+
+        const fieldIdentifier = String(target.getAttribute('name') || target.id || '').trim();
+        if (!fieldIdentifier) return;
+
+        this.activePaperField = {
+            field: fieldIdentifier.slice(0, 160),
+            label: assistantFieldLabel(target),
+        };
+    },
+
+    currentPaperFieldElement() {
+        if (!this.activePaperField?.field) return null;
+
+        return Array.from(document.querySelectorAll('input:not([type="hidden"]):not([type="file"]), select, textarea'))
+            .find((control) => (
+                control.getAttribute('name') === this.activePaperField.field
+                || (!control.getAttribute('name') && control.id === this.activePaperField.field)
+            ) && !control.matches('[data-assistant-composer]')
+                && !control.closest('[data-assistant-workspace], #research-assistant-panel')) || null;
+    },
+
+    formContext() {
+        const currentControl = this.currentPaperFieldElement();
+        if (!this.paperContext || !currentControl) return null;
+
+        const fieldIdentifier = String(currentControl.getAttribute('name') || currentControl.id || '');
+        const rowPrefix = assistantRepeatedRowPrefix(fieldIdentifier);
+        const formScope = currentControl.form || document;
+        const sectionRegion = currentControl.closest('[data-assistant-section], fieldset, section, article');
+        const allControls = Array.from(formScope.querySelectorAll('input:not([type="hidden"]):not([type="file"]):not([type="password"]), select, textarea'))
+            .filter((control) => !control.matches('[data-assistant-composer]'));
+        const scopedControls = rowPrefix
+            ? allControls.filter((control) => String(control.getAttribute('name') || '').startsWith(`${rowPrefix}[`))
+            : sectionRegion
+                ? allControls.filter((control) => sectionRegion.contains(control))
+                : [currentControl];
+        const relevantControls = [currentControl, ...scopedControls]
+            .filter((control, index, controls) => controls.indexOf(control) === index)
+            .slice(0, 16);
+        const values = relevantControls.map((control) => {
+            const field = String(control.getAttribute('name') || control.id || '').slice(0, 160);
+            const label = assistantFieldLabel(control);
+
+            return {
+                field,
+                label,
+                value: assistantSafeValue(field, label, assistantControlValue(control)),
+            };
+        });
+        const constraints = [];
+
+        if (currentControl.required) constraints.push('A value is required by the current browser form.');
+        if (currentControl.getAttribute('type')) constraints.push(`Input type: ${currentControl.getAttribute('type')}.`);
+        if (currentControl.getAttribute('min')) constraints.push(`Minimum: ${currentControl.getAttribute('min')}.`);
+        if (currentControl.getAttribute('max')) constraints.push(`Maximum: ${currentControl.getAttribute('max')}.`);
+        if (currentControl.getAttribute('step')) constraints.push(`Allowed step: ${currentControl.getAttribute('step')}.`);
+        if (currentControl.maxLength > 0) constraints.push(`Maximum length: ${currentControl.maxLength} characters.`);
+
+        if (currentControl instanceof HTMLSelectElement) {
+            const options = Array.from(currentControl.options)
+                .map((option) => compactAssistantText(option.textContent, 60))
+                .filter(Boolean)
+                .slice(0, 12);
+
+            if (options.length) constraints.push(compactAssistantText(`Options shown: ${options.join(', ')}.`, 190));
+        }
+
+        const validation = relevantControls
+            .filter((control) => !control.checkValidity())
+            .map((control) => `${assistantFieldLabel(control)}: ${compactAssistantText(control.validationMessage, 220)}`)
+            .filter((message) => !message.endsWith(': '))
+            .slice(0, 8);
+        const visibleAlerts = Array.from(document.querySelectorAll('[role="alert"]'))
+            .filter((alert) => !alert.closest('[data-assistant-workspace], #research-assistant-panel')
+                && !alert.hasAttribute('x-cloak')
+                && alert.getClientRects().length > 0)
+            .map((alert) => compactAssistantText(alert.textContent, 260))
+            .filter(Boolean);
+
+        validation.push(...visibleAlerts);
+        let section = assistantSectionLabel(currentControl);
+        let row = rowPrefix ? assistantRepeatedRowLabel(rowPrefix) : null;
+        const sectionValue = values.find((value) => (
+            /(?:category|type|section)/i.test(`${value.field} ${value.label}`)
+            && !['(blank)', 'Select an official account'].includes(value.value)
+        ));
+        const rowIdentity = values.find((value) => (
+            /(?:particular|objective|activity|title|account)/i.test(`${value.field} ${value.label}`)
+            && !['(blank)', '[redacted sensitive value]'].includes(value.value)
+        ));
+
+        if (sectionValue && !String(section || '').toLowerCase().includes(sectionValue.value.toLowerCase())) {
+            section = compactAssistantText([section, sectionValue.value].filter(Boolean).join(' / '), 120);
+        }
+
+        if (row && rowIdentity) {
+            row = compactAssistantText(`${row} — ${rowIdentity.label}: ${rowIdentity.value}`, 120);
+        }
+
+        return {
+            ...(section ? { section } : {}),
+            ...(row ? { row } : {}),
+            values,
+            constraints: constraints.slice(0, 8),
+            validation: validation.slice(0, 8),
+        };
+    },
+
+    hasLiveFormContext() {
+        return Boolean(this.formContext());
+    },
+
+    hasPaperContext() {
+        return Boolean(this.paperContext);
+    },
+
+    paperContextLabel() {
+        if (!this.paperContext) return '';
+
+        return this.activePaperField
+            ? `${this.paperContext.paperLabel} · ${this.activePaperField.label}`
+            : this.paperContext.paperLabel;
     },
 
     hasConversation() {
         return this.messages.some((message) => message.role === 'user');
     },
 
-    renderMessage(content) {
-        return formatAssistantMarkdown(content);
+    renderMessage(message) {
+        const content = typeof message === 'object' ? message?.content : message;
+        const hasSeparateSources = typeof message === 'object'
+            && Array.isArray(message?.sources)
+            && message.sources.length > 0;
+
+        return formatAssistantMarkdown(
+            hasSeparateSources ? stripAssistantGroundingFooter(content) : content,
+        );
     },
 
     usePrompt(prompt) {
@@ -845,12 +1117,32 @@ Alpine.store('researchAssistant', {
         return this.contextOptions.find((context) => Number(context.id) === Number(this.selectedContextId)) || null;
     },
 
-    contextPayload() {
-        if (!this.contextEnabled || !this.selectedContextId) return null;
+    contextPayload(includeForm = true) {
+        const context = {};
 
-        return {
-            topic_id: Number(this.selectedContextId),
-        };
+        if (this.contextEnabled && this.selectedContextId) {
+            context.topic_id = Number(this.selectedContextId);
+        }
+
+        if (this.paperContext?.paperSlug) {
+            context.paper_slug = this.paperContext.paperSlug;
+        }
+
+        if (this.proposalDraftId) {
+            context.proposal_draft_id = this.proposalDraftId;
+        }
+
+        if (this.activePaperField?.field) {
+            context.field = this.activePaperField.field;
+        }
+
+        if (includeForm) {
+            const form = this.formContext();
+
+            if (form) context.form = form;
+        }
+
+        return Object.keys(context).length ? context : null;
     },
 
     historyUrl() {
@@ -967,7 +1259,7 @@ Alpine.store('researchAssistant', {
         const payload = JSON.stringify({
             id: this.currentConversationId,
             messages: this.messages,
-            context: this.contextPayload(),
+            context: this.contextPayload(false),
         });
 
         const request = fetch(this.historyUrl(), {
@@ -2903,6 +3195,24 @@ Alpine.data('proposalDraftMembers', (config = {}) => ({
     email: '',
     name: '',
     matchedAccount: null,
+    pickerOpen: false,
+    highlightedIndex: -1,
+
+    get filteredCandidates() {
+        const query = String(this.email || '').trim().toLowerCase();
+
+        if (!query) {
+            return this.candidates.slice(0, 8);
+        }
+
+        return this.candidates
+            .filter((candidate) => [
+                candidate.name,
+                candidate.email,
+                candidate.college,
+            ].some((value) => String(value || '').toLowerCase().includes(query)))
+            .slice(0, 8);
+    },
 
     init() {
         this.email = String(this.$root.querySelector('[name="email"]')?.value || '').trim();
@@ -2919,6 +3229,76 @@ Alpine.data('proposalDraftMembers', (config = {}) => ({
         if (this.matchedAccount) {
             this.name = String(this.matchedAccount.name || '');
         }
+    },
+
+    openPicker() {
+        this.pickerOpen = true;
+        this.highlightedIndex = this.filteredCandidates.length > 0 ? 0 : -1;
+    },
+
+    closePicker() {
+        this.pickerOpen = false;
+        this.highlightedIndex = -1;
+    },
+
+    handleEmailInput() {
+        this.syncAccount();
+        this.openPicker();
+    },
+
+    selectCandidate(candidate) {
+        this.email = String(candidate.email || '');
+        this.name = String(candidate.name || '');
+        this.matchedAccount = candidate;
+        this.closePicker();
+    },
+
+    handleEmailKeydown(event) {
+        if (event.key === 'Escape') {
+            this.closePicker();
+
+            return;
+        }
+
+        if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) {
+            return;
+        }
+
+        if (!this.pickerOpen) {
+            this.openPicker();
+        }
+
+        const candidateCount = this.filteredCandidates.length;
+
+        if (candidateCount === 0) {
+            return;
+        }
+
+        event.preventDefault();
+
+        if (event.key === 'ArrowDown') {
+            this.highlightedIndex = (this.highlightedIndex + 1) % candidateCount;
+
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            this.highlightedIndex = (this.highlightedIndex - 1 + candidateCount) % candidateCount;
+
+            return;
+        }
+
+        this.selectCandidate(this.filteredCandidates[this.highlightedIndex < 0 ? 0 : this.highlightedIndex]);
+    },
+
+    candidateInitials(name) {
+        return String(name || '')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part.charAt(0).toUpperCase())
+            .join('') || '?';
     },
 }));
 
@@ -3691,8 +4071,11 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     nextId: 0,
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     selectedWorkspacePerson: '',
+    workspacePersonQuery: '',
+    workspacePickerOpen: false,
     researchAgenda: '',
     sdgs: [],
+    leaderTitle: '',
     leaderEmail: '',
     leaderContact: '',
     staff: [],
@@ -3704,9 +4087,19 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     rationale: '',
     objectives: '',
     expectedOutputs: {},
+    introduction: '',
     relatedLiterature: '',
     methodology: {},
+    methodologyImages: [],
+    methodologySections: config.methodologySections && typeof config.methodologySections === 'object'
+        ? config.methodologySections
+        : {},
+    methodologyImageTarget: 'research_design',
+    draggedMethodologyImage: '',
     responsibilities: [],
+    checkedVerifiedByName: '',
+    recommendingApprovalName: '',
+    approvedByName: '',
     references: '',
     validationMessage: '',
     previewHtml: '',
@@ -3720,6 +4113,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
         this.researchAgenda = String(data.research_agenda ?? '');
         this.sdgs = Array.isArray(data.sdgs) ? data.sdgs.map((sdg) => Number(sdg)) : [];
+        this.leaderTitle = String(data.leader_title ?? '');
         this.leaderEmail = String(data.leader_email ?? '');
         this.leaderContact = this.normalizeContactNumber(data.leader_contact);
         this.staff = Array.isArray(data.staff)
@@ -3735,13 +4129,24 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.expectedOutputs = Object.fromEntries(
             (config.expectedOutputKeys || []).map((key) => [key, String(data.expected_outputs?.[key] ?? '')]),
         );
+        this.introduction = String(data.introduction ?? '');
         this.relatedLiterature = String(data.related_literature ?? '');
         this.methodology = Object.fromEntries(
             (config.methodologyKeys || []).map((key) => [key, String(data.methodology?.[key] ?? '')]),
         );
+        this.methodologyImages = Array.isArray(data.methodology_images)
+            ? data.methodology_images.map((image) => this.newMethodologyImage(image))
+                .filter((image) => image.id)
+            : [];
         this.responsibilities = Array.isArray(data.responsibilities) && data.responsibilities.length
-            ? data.responsibilities.map((responsibility) => this.newResponsibility(responsibility))
-            : [this.newResponsibility({ name: config.projectLeader })];
+            ? data.responsibilities.map((responsibility, index) => this.newResponsibility({
+                ...responsibility,
+                percentage: responsibility.percentage ?? (index === 0 ? 100 : ''),
+            }))
+            : [this.newResponsibility({ name: config.projectLeader, percentage: 100 })];
+        this.checkedVerifiedByName = String(data.checked_verified_by_name ?? '');
+        this.recommendingApprovalName = String(data.recommending_approval_name ?? '');
+        this.approvedByName = String(data.approved_by_name ?? '');
         this.references = String(data.references ?? '');
     },
 
@@ -3751,7 +4156,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return {
             id: this.nextId,
             key: String(values.key ?? ''),
-            name: String(values.name ?? ''),
+            title: String(values.title ?? ''),
+            name: formatPersonName(values.name),
             email: String(values.email ?? ''),
             contact: this.normalizeContactNumber(values.contact),
         };
@@ -3763,8 +4169,168 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return {
             id: this.nextId,
             name: String(values.name ?? ''),
+            percentage: String(values.percentage ?? ''),
             duties: String(values.duties ?? ''),
         };
+    },
+
+    newMethodologyImage(values = {}) {
+        const id = String(values.id ?? '');
+
+        return {
+            clientId: this.newMethodologyImageClientId(),
+            id,
+            section: 'research_design',
+            alignment: ['left', 'center', 'right'].includes(values.alignment) ? values.alignment : 'center',
+            size: ['small', 'medium', 'large'].includes(values.size) ? values.size : 'medium',
+            caption: String(values.caption ?? ''),
+            originalFilename: String(values.original_filename ?? values.originalFilename ?? 'Methodology visual'),
+            previewUrl: id ? this.methodologyImageUrl(id) : '',
+            currentFile: null,
+        };
+    },
+
+    newMethodologyImageClientId() {
+        if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+
+        this.nextId += 1;
+
+        return `methodology-image-${Date.now()}-${this.nextId}`;
+    },
+
+    methodologyImageUrl(id) {
+        return String(config.methodologyImageUrlTemplate || '').replace('__image_id__', encodeURIComponent(id));
+    },
+
+    methodologyImagesFor(section) {
+        return this.methodologyImages.filter((image) => image.section === section);
+    },
+
+    methodologyImageIndex(image) {
+        return this.methodologyImages.indexOf(image);
+    },
+
+    methodologyImageFigureNumber(image) {
+        let figureNumber = 0;
+
+        for (const section of Object.keys(this.methodologySections)) {
+            for (const sectionImage of this.methodologyImagesFor(section)) {
+                figureNumber += 1;
+
+                if (sectionImage === image) return figureNumber;
+            }
+        }
+
+        return figureNumber + 1;
+    },
+
+    openMethodologyImagePicker(section) {
+        this.methodologyImageTarget = section;
+        this.$refs.methodologyImagePicker.value = '';
+        this.$refs.methodologyImagePicker.click();
+    },
+
+    addMethodologyImages(files, section) {
+        const images = Array.from(files || []).filter((file) => file.type.startsWith('image/'));
+
+        if (images.length === 0) {
+            this.validationMessage = 'Choose an image in PNG, JPG, GIF, or BMP format.';
+
+            return;
+        }
+
+        this.validationMessage = '';
+        const newImages = images.map((file) => {
+            const image = this.newMethodologyImage({ section, originalFilename: file.name });
+            image.previewUrl = URL.createObjectURL(file);
+            image.currentFile = file;
+            this.methodologyImages.push(image);
+
+            return image;
+        });
+
+        this.$nextTick(() => {
+            newImages.forEach((image) => this.assignMethodologyImageFile(image, image.currentFile));
+        });
+    },
+
+    assignMethodologyImageFile(image, file) {
+        const input = document.getElementById(`methodology-image-file-${image.clientId}`);
+
+        if (!input || !file || !window.DataTransfer) return;
+
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+    },
+
+    replaceMethodologyImage(image, files) {
+        const [file] = Array.from(files || []);
+
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            this.validationMessage = 'Choose an image in PNG, JPG, GIF, or BMP format.';
+
+            return;
+        }
+
+        if (image.previewUrl.startsWith('blob:')) URL.revokeObjectURL(image.previewUrl);
+        image.previewUrl = URL.createObjectURL(file);
+        image.currentFile = file;
+        image.originalFilename = file.name;
+        this.validationMessage = '';
+    },
+
+    startMethodologyImageDrag(clientId) {
+        this.draggedMethodologyImage = clientId;
+    },
+
+    handleMethodologyDrop(event, section) {
+        const files = Array.from(event.dataTransfer?.files || []);
+
+        if (files.length > 0) {
+            this.addMethodologyImages(files, section);
+
+            return;
+        }
+
+        const image = this.methodologyImages.find((item) => item.clientId === this.draggedMethodologyImage);
+
+        if (image) this.moveMethodologyImageToSection(image, section);
+        this.draggedMethodologyImage = '';
+    },
+
+    moveMethodologyImageToSection(image, section) {
+        const imageIndex = this.methodologyImageIndex(image);
+
+        if (imageIndex < 0) return;
+
+        this.methodologyImages.splice(imageIndex, 1);
+        image.section = section;
+        const sectionImages = this.methodologyImagesFor(section);
+        const lastSectionImage = sectionImages.at(-1);
+        const targetIndex = lastSectionImage ? this.methodologyImageIndex(lastSectionImage) + 1 : this.methodologyImages.length;
+        this.methodologyImages.splice(targetIndex, 0, image);
+    },
+
+    moveMethodologyImage(image, direction) {
+        const sectionImages = this.methodologyImagesFor(image.section);
+        const sectionIndex = sectionImages.indexOf(image);
+        const destination = sectionImages[sectionIndex + direction];
+
+        if (!destination) return;
+
+        const imageIndex = this.methodologyImageIndex(image);
+        const destinationIndex = this.methodologyImageIndex(destination);
+        this.methodologyImages.splice(imageIndex, 1);
+        this.methodologyImages.splice(destinationIndex, 0, image);
+    },
+
+    removeMethodologyImage(image) {
+        if (image.previewUrl.startsWith('blob:')) URL.revokeObjectURL(image.previewUrl);
+
+        this.methodologyImages.splice(this.methodologyImageIndex(image), 1);
     },
 
     normalizeContactNumber(value) {
@@ -3782,9 +4348,21 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         });
     },
 
-    addWorkspacePerson() {
+    filteredWorkspacePeople() {
+        return filterWorkspacePeople(this.availableWorkspacePeople(), this.workspacePersonQuery);
+    },
+
+    personDisplayName(name) {
+        return formatPersonName(name);
+    },
+
+    personInitials(name) {
+        return personInitials(name);
+    },
+
+    addWorkspacePerson(personKey = this.selectedWorkspacePerson) {
         const person = this.workspacePeople.find(
-            (candidate) => String(candidate.key) === String(this.selectedWorkspacePerson),
+            (candidate) => String(candidate.key) === String(personKey),
         );
 
         if (!person) return;
@@ -3798,6 +4376,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         }
 
         this.selectedWorkspacePerson = '';
+        this.workspacePersonQuery = '';
+        this.workspacePickerOpen = false;
     },
 
     addStaff() {
@@ -3813,7 +4393,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         if (!person) return;
 
         member.key = String(person.key || '');
-        member.name = String(person.name || member.name);
+        member.name = formatPersonName(person.name || member.name);
         member.email = String(person.email || member.email);
     },
 

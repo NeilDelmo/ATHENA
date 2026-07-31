@@ -17,6 +17,10 @@ class LineItemBudgetDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
+    public function __construct(
+        private readonly WordDocumentPaginationService $paginationService,
+    ) {}
+
     /** @param array<string, mixed> $budget */
     public function generate(array $budget): string
     {
@@ -52,6 +56,7 @@ class LineItemBudgetDocumentService
             $archive->addFromString('word/document.xml', $this->renderDocumentXml($documentXml, $budget));
             $archive->addFromString('word/footer1.xml', $this->renderFooterXml($footerXml, $budget['project_title']));
             $archive->addFromString('word/settings.xml', $this->enableFieldUpdates($settingsXml));
+            $this->paginationService->addPageNumbers($archive);
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);

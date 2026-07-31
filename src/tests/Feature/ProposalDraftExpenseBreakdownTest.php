@@ -89,6 +89,8 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertSee('Purpose in the project')
         ->assertSee('Unit Cost (Php)')
         ->assertSee('Select an official account')
+        ->assertSee('Total estimated budget')
+        ->assertSee('border-red-200 bg-red-50', false)
         ->assertSee('Preview paper')
         ->assertSee('Download Excel file')
         ->assertDontSee('Choose completed PDF');

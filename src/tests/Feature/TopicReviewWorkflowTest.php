@@ -585,7 +585,13 @@ test('faculty can preview and download an auto-filled official Comment-Response 
 
         $footerXpath = new DOMXPath($footerDom);
         $footerXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
-        expect($footerXpath->query('//w:p[.//w:instrText[contains(., "PAGE")]]//w:t[text() = "1"]')->length)->toBe(2);
+        $settingsDom = new DOMDocument;
+        $settingsDom->loadXML($generated->getFromName('word/settings.xml'), LIBXML_NONET);
+        $settingsXpath = new DOMXPath($settingsDom);
+        $settingsXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($footerXpath->query('//w:p[.//w:instrText[contains(., "PAGE")]]//w:t[text() = "1"]')->length)->toBe(2)
+            ->and($settingsXpath->query('/w:settings/w:updateFields[@w:val = "true"]')->length)->toBe(1);
 
         $xpath = new DOMXPath($documentDom);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
@@ -598,7 +604,7 @@ test('faculty can preview and download an auto-filled official Comment-Response 
             $entry = $template->statIndex($index);
             $name = $entry['name'];
 
-            if (! in_array($name, ['word/document.xml', 'word/footer1.xml'], true)) {
+            if (! in_array($name, ['word/document.xml', 'word/footer1.xml', 'word/settings.xml'], true)) {
                 expect($generated->getFromName($name))->toBe($template->getFromName($name));
             }
         }
@@ -940,7 +946,7 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $fileRevision = $topic->reviews()->latest()->firstOrFail()->fileRevisions()->firstOrFail();
 
-    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic))
+    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic).'#submit-revision')
         ->and($fileRevision->proposal_version_file_id)->toBe($workPlanFile->id)
         ->and($fileRevision->revision_note)->toContain('second year')
         ->and($fileRevision->resolved_at)->toBeNull();

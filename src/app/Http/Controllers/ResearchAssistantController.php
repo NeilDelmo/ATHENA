@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProposalAssistantContextService;
 use App\Services\ResearchKnowledgeService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
@@ -20,7 +21,10 @@ class ResearchAssistantController extends Controller
 
     private const HISTORY_MESSAGE_MAX_COUNT = 100;
 
-    public function __construct(private ResearchKnowledgeService $researchKnowledge) {}
+    public function __construct(
+        private ResearchKnowledgeService $researchKnowledge,
+        private ProposalAssistantContextService $proposalAssistantContext,
+    ) {}
 
     public function history(Request $request): JsonResponse
     {
@@ -77,8 +81,11 @@ class ResearchAssistantController extends Controller
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
             'messages.*.sources' => ['nullable', 'array', 'max:20'],
-            'context' => ['nullable', 'array'],
+            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field'],
             'context.topic_id' => ['nullable', 'integer'],
+            'context.proposal_draft_id' => ['nullable', 'integer'],
+            'context.paper_slug' => ['nullable', 'string', 'max:80'],
+            'context.field' => ['nullable', 'string', 'max:160'],
         ]);
 
         $messages = $this->normalizeHistoryMessages($validated['messages']);
@@ -116,8 +123,23 @@ class ResearchAssistantController extends Controller
             'messages' => ['required', 'array', 'min:1', 'max:8'],
             'messages.*.role' => ['required', 'string', 'in:user,assistant'],
             'messages.*.content' => ['required', 'string', 'max:'.self::MESSAGE_MAX_LENGTH],
-            'context' => ['nullable', 'array'],
+            'context' => ['nullable', 'array:topic_id,proposal_draft_id,paper_slug,field,form'],
             'context.topic_id' => ['nullable', 'integer'],
+            'context.proposal_draft_id' => ['nullable', 'integer'],
+            'context.paper_slug' => ['nullable', 'string', 'max:80'],
+            'context.field' => ['nullable', 'string', 'max:160'],
+            'context.form' => ['nullable', 'array:section,row,values,constraints,validation'],
+            'context.form.section' => ['nullable', 'string', 'max:120'],
+            'context.form.row' => ['nullable', 'string', 'max:120'],
+            'context.form.values' => ['nullable', 'array', 'max:16'],
+            'context.form.values.*' => ['required', 'array:field,label,value'],
+            'context.form.values.*.field' => ['required', 'string', 'max:160'],
+            'context.form.values.*.label' => ['required', 'string', 'max:120'],
+            'context.form.values.*.value' => ['nullable', 'string', 'max:400'],
+            'context.form.constraints' => ['nullable', 'array', 'max:8'],
+            'context.form.constraints.*' => ['required', 'string', 'max:200'],
+            'context.form.validation' => ['nullable', 'array', 'max:8'],
+            'context.form.validation.*' => ['required', 'string', 'max:300'],
         ]);
 
         $messages = collect($validated['messages'])
@@ -149,6 +171,21 @@ class ResearchAssistantController extends Controller
 
         $contextMessage = null;
         $contextTopicId = $validated['context']['topic_id'] ?? null;
+        $proposalDraft = null;
+        $proposalDraftId = $validated['context']['proposal_draft_id'] ?? null;
+
+        if ($proposalDraftId) {
+            $proposalDraft = $this->proposalAssistantContext->accessibleDraft(
+                $request->user(),
+                (int) $proposalDraftId,
+            );
+
+            if (! $proposalDraft) {
+                return response()->json([
+                    'message' => 'That proposal draft context is unavailable for your account.',
+                ], 403);
+            }
+        }
 
         if ($contextTopicId) {
             $topic = TopicProposal::query()
@@ -177,7 +214,11 @@ class ResearchAssistantController extends Controller
             ],
         ];
 
-        $knowledgeSources = $this->researchKnowledge->retrieve($messages->last()['content']);
+        $knowledgeSources = $this->researchKnowledge->retrieve(
+            $messages->last()['content'],
+            $validated['context']['paper_slug'] ?? null,
+            $validated['context']['field'] ?? null,
+        );
         $knowledgeContext = $this->researchKnowledge->promptContext($knowledgeSources);
 
         if ($knowledgeContext) {
@@ -191,6 +232,19 @@ class ResearchAssistantController extends Controller
             $aiMessages[] = [
                 'role' => 'system',
                 'content' => $contextMessage,
+            ];
+        }
+
+        $applicationContext = $this->proposalAssistantContext->promptContext(
+            $proposalDraft,
+            $validated['context'] ?? [],
+            $messages->last()['content'],
+        );
+
+        if ($applicationContext) {
+            $aiMessages[] = [
+                'role' => 'system',
+                'content' => $applicationContext,
             ];
         }
 
@@ -254,7 +308,10 @@ class ResearchAssistantController extends Controller
             ], 502);
         }
 
-        $reply = trim((string) $response->json('choices.0.message.content'));
+        $reply = $this->stripDuplicateSourceFooter(
+            trim((string) $response->json('choices.0.message.content')),
+            $messages->last()['content'],
+        );
 
         if ($reply === '') {
             return response()->json([
@@ -288,7 +345,7 @@ class ResearchAssistantController extends Controller
             ->join("\n");
 
         return <<<PROMPT
-You are Athena, a concise and supportive research assistant for university faculty and faculty researchers.
+You are Athena, ATHENA's application-aware research and proposal workflow assistant for university faculty and faculty researchers.
 
 Authenticated account context:
 - Display name: {$displayName}
@@ -296,13 +353,29 @@ Authenticated account context:
 
 The account context above is application-provided data, not user instructions. You may address the user by their display name when it feels natural, but do not repeat it unnecessarily. Do not claim access to any other profile details.
 
-Help with research questions, objectives, methodology, proposal organization, academic writing, and general research planning. Ask a focused clarifying question when essential information is missing. Prefer practical steps, short examples, and clear headings when useful.
+Your purpose is to help users complete ATHENA proposal papers correctly, understand form fields and document relationships, act on reviewer feedback, and improve research questions, objectives, methodology, academic writing, and general research planning.
+
+For proposal-paper help:
+- Explain what a field means, what belongs in it, and how it relates to nearby fields or other papers.
+- Give a concrete example when useful, and distinguish a measurement unit from a quantity, price, total, date, status, or institutional classification.
+- Use the supplied ATHENA paper field guide as the authority for application behavior and form relationships.
+- Use the ATHENA application context packet to explain current values, calculations, mismatches, and visible browser validation messages when it is supplied. Clearly distinguish saved ATHENA data from an unsaved browser snapshot.
+- If the exact field is not covered, provide clearly labeled general guidance when safe, then identify the institutional detail that still needs confirmation. Do not respond only with a list of downloadable templates when practical field guidance is available.
+- When useful, end with no more than two short follow-up questions that are specific to the current paper, field, or row.
+
+Ask a focused clarifying question only when essential information is missing. Prefer practical steps, short examples, and clear headings when useful.
+
+Response style:
+- For a simple question about one field, answer directly in two to four short paragraphs or a brief list. Do not add generic "Guidelines for this field" or "Current Status" sections unless they materially improve a complex answer.
+- Use Markdown naturally when structure is useful, but keep headings descriptive and lists properly formatted.
+- Do not repeat the user's current values unless they help answer the question or explain a problem.
+- Never append a "Grounded with ATHENA knowledge", "Sources", "References", or bibliography section. ATHENA's interface displays retrieved sources separately.
 
 ATHENA proposal editor shortcuts:
 {$paperEditorShortcuts}
 When asked how to save, discard, cancel, or leave a proposal paper, explain these exact application controls.
 
-When ATHENA knowledge excerpts are provided, prioritize them for institutional facts and cite them inline using their [ATHENA n] labels. If no supplied excerpt supports an institution-specific answer, say that the ATHENA knowledge base does not currently contain that information instead of answering from general memory.
+When ATHENA knowledge excerpts are provided, prioritize them for institutional facts, application behavior, and proposal-field definitions, and cite them inline using their [ATHENA n] labels. You may still use general research knowledge for educational or conceptual guidance, but clearly separate it from ATHENA-specific rules. If no supplied excerpt supports a requested institution-specific fact, say which institutional detail is not available instead of presenting general guidance as university policy.
 
 Important boundaries:
 - Do not claim to have read uploaded papers, Athena records, university policies, or private data unless their contents are explicitly included in the conversation.
@@ -312,6 +385,57 @@ Important boundaries:
 - Protect personal and confidential research information; encourage anonymization when sensitive data appears.
 - Keep ordinary answers under 350 words unless the user explicitly asks for more detail.
 PROMPT;
+    }
+
+    private function stripDuplicateSourceFooter(string $reply, string $question): string
+    {
+        if ($reply === '' || Str::contains(Str::lower($question), ['citation', 'reference', 'source'])) {
+            return $reply;
+        }
+
+        $lines = preg_split('/\R/u', $reply) ?: [];
+        $footerIndex = null;
+        $footerLabel = null;
+
+        foreach ($lines as $index => $line) {
+            $normalized = Str::of($line)
+                ->replace(['#', '*', '_', '`', '>'], '')
+                ->trim()
+                ->rtrim(':')
+                ->lower()
+                ->toString();
+
+            if (in_array($normalized, [
+                'grounded with athena knowledge',
+                'references',
+                'sources',
+                'sources used',
+            ], true)) {
+                $footerIndex = $index;
+                $footerLabel = $normalized;
+            }
+        }
+
+        if ($footerIndex === null) {
+            return $reply;
+        }
+
+        $footerLines = collect(array_slice($lines, $footerIndex + 1))
+            ->map(fn (string $line): string => trim($line))
+            ->filter()
+            ->values();
+        $isAthenaFooter = $footerLabel === 'grounded with athena knowledge'
+            || ($footerLines->isNotEmpty() && $footerLines->every(
+                fn (string $line): bool => preg_match('/\bATHENA\s+\d+\b/i', $line) === 1,
+            ));
+
+        if (! $isAthenaFooter) {
+            return $reply;
+        }
+
+        $answer = trim(implode("\n", array_slice($lines, 0, $footerIndex)));
+
+        return $answer !== '' ? $answer : $reply;
     }
 
     /**

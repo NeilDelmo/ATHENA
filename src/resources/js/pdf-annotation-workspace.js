@@ -98,7 +98,16 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.annotations = Array.isArray(this.config.annotations) ? this.config.annotations : [];
                 this.revisionCandidates = Array.isArray(this.config.revisionCandidates) ? this.config.revisionCandidates : [];
                 this.canAnnotate = Boolean(this.config.canAnnotate);
+                this.focusAnnotationId = this.readFocusAnnotationId();
                 this.loadPdf();
+            },
+
+            readFocusAnnotationId() {
+                const search = new URLSearchParams(window.location.search);
+                const raw = search.get('annotation');
+                const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+
+                return Number.isFinite(parsed) ? parsed : null;
             },
 
             setMode(mode) {
@@ -121,6 +130,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         withCredentials: true,
                     }).promise;
                     await this.renderDocument(pdfJs);
+                    this.focusRequestedAnnotation();
                 } catch (error) {
                     this.loadError = error instanceof Error
                         ? error.message
@@ -128,6 +138,23 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 } finally {
                     this.loading = false;
                 }
+            },
+
+            focusRequestedAnnotation() {
+                if (this.focusAnnotationId === null) return;
+
+                const target = this.annotations.find(
+                    (annotation) => Number(annotation.id) === this.focusAnnotationId,
+                );
+
+                if (!target) {
+                    this.focusAnnotationId = null;
+
+                    return;
+                }
+
+                this.jumpToAnnotation(target);
+                this.focusAnnotationId = null;
             },
 
             async renderDocument(pdfJs = null) {

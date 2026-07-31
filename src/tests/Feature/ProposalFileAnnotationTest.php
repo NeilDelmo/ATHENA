@@ -192,6 +192,48 @@ test('sending a revision request publishes highlights for the faculty', function
         ->assertSee('Required PDF attachments');
 });
 
+test('the revision notification deep-links the faculty to the first highlighted comment', function () {
+    $firstAnnotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Tighten the work-plan narrative here.',
+    ]);
+    $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_TEXT,
+        'page_number' => 3,
+        'rectangles' => [['x' => 0.2, 'y' => 0.4, 'width' => 0.4, 'height' => 0.03]],
+        'comment' => 'Replace with a clearer sampling table.',
+    ]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'redirect_to' => 'topic',
+            'comment' => 'Please address the highlighted comments in the work plan.',
+            'revision_file_ids' => [$this->file->id],
+            'revision_file_notes' => [
+                $this->file->id => 'See the highlighted comments in ATHENA.',
+            ],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic));
+
+    $expectedUrl = route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file])
+        .'?annotation='.$firstAnnotation->id
+        .'#proposal-review';
+
+    expect($this->faculty->notifications()->sole()->data['url'])->toBe($expectedUrl);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('annotation='.$firstAnnotation->id, false)
+        ->assertSee('View highlighted comments (2)', false);
+});
+
 test('a downloaded generated paper is staged in its matching revision attachment', function () {
     $this->topic->update(['status' => 'revision_requested']);
     Storage::disk('local')->put('proposal-packages/coastal-habitat.pdf', '%PDF-1.4 primary');

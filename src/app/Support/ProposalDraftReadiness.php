@@ -9,7 +9,10 @@ use Illuminate\Support\Facades\Storage;
 
 class ProposalDraftReadiness
 {
-    public function __construct(private readonly ProposalPaperCatalog $catalog) {}
+    public function __construct(
+        private readonly ProposalPaperCatalog $catalog,
+        private readonly ProposalBudgetConsistency $proposalBudgetConsistency,
+    ) {}
 
     public function projectDetailsAreComplete(ProposalDraft $draft): bool
     {
@@ -67,6 +70,7 @@ class ProposalDraftReadiness
     {
         return $this->projectDetailsAreComplete($draft)
             && $this->allPapersAreComplete($draft)
+            && $this->proposalBudgetConsistency->compare($draft)['consistent']
             && $draft->researchCall?->isAcceptingSubmissions();
     }
 
@@ -83,6 +87,15 @@ class ProposalDraftReadiness
             if (! $item['complete']) {
                 $errors['papers.'.$slug] = $item['paper']['label'].' is incomplete or its staged file is unavailable.';
             }
+        }
+
+        foreach ($this->proposalBudgetConsistency->compare($draft)['mismatches'] as $mismatch) {
+            $errors['budget_consistency.'.$mismatch['key']] = sprintf(
+                '%s does not match: Attachment B is Php %s while the Estimated Expense Breakdown is Php %s.',
+                $mismatch['label'],
+                number_format($mismatch['line_item_budget'], 2),
+                number_format($mismatch['expense_breakdown'], 2),
+            );
         }
 
         if (! $draft->researchCall?->isAcceptingSubmissions()) {

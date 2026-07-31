@@ -2,6 +2,9 @@
 
 namespace App\Support;
 
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
+
 class DetailedProposalData
 {
     /**
@@ -17,6 +20,10 @@ class DetailedProposalData
         $methodology = is_array($validated['methodology'] ?? null)
             ? $validated['methodology']
             : [];
+        $methodologyImages = self::methodologyImages($validated['methodology_images'] ?? []);
+        $projectLeader = self::text($validated['project_leader'] ?? '');
+        $leaderTitle = self::text($validated['leader_title'] ?? '');
+        $staff = self::rows($validated['staff'] ?? [], ['title', 'name', 'email', 'contact']);
 
         return [
             'project_title' => self::text($validated['project_title'] ?? ''),
@@ -27,10 +34,17 @@ class DetailedProposalData
                 ->sort()
                 ->values()
                 ->all(),
-            'project_leader' => self::text($validated['project_leader'] ?? ''),
+            'project_leader' => $projectLeader,
+            'leader_title' => $leaderTitle,
+            'project_leader_display' => self::titledName($leaderTitle, $projectLeader),
             'leader_email' => self::text($validated['leader_email'] ?? ''),
             'leader_contact' => self::text($validated['leader_contact'] ?? ''),
-            'staff' => self::rows($validated['staff'] ?? [], ['name', 'email', 'contact']),
+            'staff' => collect($staff)
+                ->map(fn (array $member): array => [
+                    ...$member,
+                    'display_name' => self::titledName($member['title'], $member['name']),
+                ])
+                ->all(),
             'proponent_agency' => (string) config('detailed_proposal.proponent_agency'),
             'proponent_department' => self::text($validated['proponent_department'] ?? ''),
             'proponent_college' => self::text($validated['proponent_college'] ?? ''),
@@ -44,13 +58,18 @@ class DetailedProposalData
                     $key => self::narrative($expectedOutputs[$key] ?? ''),
                 ])
                 ->all(),
+            'introduction' => self::narrative($validated['introduction'] ?? ''),
             'related_literature' => self::narrative($validated['related_literature'] ?? ''),
             'methodology' => [
                 'research_design' => self::narrative($methodology['research_design'] ?? ''),
                 'specific_methods' => self::narrative($methodology['specific_methods'] ?? ''),
                 'data_analysis' => self::narrative($methodology['data_analysis'] ?? ''),
             ],
-            'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'duties'], true),
+            'methodology_images' => $methodologyImages,
+            'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'percentage', 'duties'], true),
+            'checked_verified_by_name' => self::text($validated['checked_verified_by_name'] ?? ''),
+            'recommending_approval_name' => self::text($validated['recommending_approval_name'] ?? ''),
+            'approved_by_name' => self::text($validated['approved_by_name'] ?? ''),
             'mooe_total' => round((float) ($budgetTotals['mooe_total'] ?? 0), 2),
             'co_total' => round((float) ($budgetTotals['co_total'] ?? 0), 2),
             'references' => self::narrative($validated['references'] ?? ''),
@@ -67,6 +86,46 @@ class DetailedProposalData
         $value = str_replace(["\r\n", "\r"], "\n", self::validXml((string) $value));
 
         return trim((string) preg_replace('/[ \t]+$/m', '', $value));
+    }
+
+    private static function titledName(mixed $title, mixed $name): string
+    {
+        return trim(self::text($title).' '.Str::upper(self::text($name)));
+    }
+
+    /**
+     * @return list<array{id: string, section: string, alignment: string, size: string, caption: string, stored_path: ?string, mime_type: ?string, original_filename: ?string, image: ?UploadedFile}>
+     */
+    private static function methodologyImages(mixed $images): array
+    {
+        $sections = ['research_design'];
+
+        return collect($images)
+            ->filter(fn (mixed $image): bool => is_array($image))
+            ->filter(fn (array $image): bool => in_array($image['section'] ?? null, $sections, true))
+            ->map(function (array $image): array {
+                $uploadedImage = $image['image'] ?? null;
+                $storedPath = $image['stored_path'] ?? null;
+
+                return [
+                    'id' => filled($image['id'] ?? null) ? self::text($image['id']) : Str::uuid()->toString(),
+                    'section' => self::text($image['section'] ?? ''),
+                    'alignment' => in_array($image['alignment'] ?? null, ['left', 'center', 'right'], true)
+                        ? $image['alignment']
+                        : 'center',
+                    'size' => in_array($image['size'] ?? null, ['small', 'medium', 'large'], true)
+                        ? $image['size']
+                        : 'medium',
+                    'caption' => self::text($image['caption'] ?? ''),
+                    'stored_path' => is_string($storedPath) ? $storedPath : null,
+                    'mime_type' => is_string($image['mime_type'] ?? null) ? $image['mime_type'] : null,
+                    'original_filename' => is_string($image['original_filename'] ?? null) ? $image['original_filename'] : null,
+                    'image' => $uploadedImage instanceof UploadedFile ? $uploadedImage : null,
+                ];
+            })
+            ->filter(fn (array $image): bool => $image['image'] instanceof UploadedFile || filled($image['stored_path']))
+            ->values()
+            ->all();
     }
 
     /**

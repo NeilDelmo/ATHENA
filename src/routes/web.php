@@ -93,6 +93,7 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
         Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
         Route::get('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'edit'])->name('detailed-proposal.edit');
         Route::put('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'update'])->name('detailed-proposal.update');
+        Route::get('/{proposalDraft}/detailed-proposal/methodology-images/{imageId}', [ProposalDraftDetailedProposalController::class, 'methodologyImage'])->name('detailed-proposal.methodology-images.show');
         Route::post('/{proposalDraft}/detailed-proposal/preview', [ProposalDraftDetailedProposalController::class, 'preview'])->name('detailed-proposal.preview');
         Route::post('/{proposalDraft}/detailed-proposal/download', [ProposalDraftDetailedProposalController::class, 'download'])->name('detailed-proposal.download');
         Route::get('/{proposalDraft}/work-plan', [ProposalDraftWorkPlanController::class, 'edit'])->name('work-plan.edit');
@@ -287,6 +288,7 @@ Route::get('/research-coordinator/faculty-members', [ResearchCoordinatorControll
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile/college', [ProfileController::class, 'updateCollege'])->name('profile.college.update');
+    Route::patch('/profile/contact-number', [ProfileController::class, 'updateContactNumber'])->name('profile.contact-number.update');
 });
 
 // GOOGLE AUTHENTICATION ROUTES

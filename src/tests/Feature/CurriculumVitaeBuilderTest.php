@@ -326,6 +326,15 @@ test('CV contact numbers must contain exactly 11 digits when provided', function
         ->assertSessionHasErrors(['people.0.landline', 'people.0.cellphone']);
 });
 
+test('the first CV draft seeds the project leader cellphone from the profile contact number', function () {
+    $this->faculty->forceFill(['contact_number' => '09170000099'])->save();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.curriculum-vitae.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('cellphone\u0022:\u002209170000099\u0022', false);
+});
+
 test('the generated Word file preserves the official form and adds one complete block per team member', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), ($this->payload)())
@@ -346,21 +355,41 @@ test('the generated Word file preserves the official form and adds one complete 
         for ($index = 0; $index < $templateArchive->numFiles; $index++) {
             $partName = $templateArchive->getNameIndex($index);
 
-            if ($partName !== 'word/document.xml') {
+            if (! in_array($partName, [
+                'word/document.xml',
+                'word/footer1.xml',
+                'word/settings.xml',
+            ], true)) {
                 expect($archive->getFromName($partName))->toBe($templateArchive->getFromName($partName));
             }
         }
 
         $documentXml = $archive->getFromName('word/document.xml');
+        $footerXml = $archive->getFromName('word/footer1.xml');
+        $settingsXml = $archive->getFromName('word/settings.xml');
         $document = new DOMDocument;
         $document->loadXML($documentXml, LIBXML_NONET);
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
         $xpath->registerNamespace('w14', 'http://schemas.microsoft.com/office/word/2010/wordml');
+        $footer = new DOMDocument;
+        $footer->loadXML($footerXml, LIBXML_NONET);
+        $footerXPath = new DOMXPath($footer);
+        $footerXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $settings = new DOMDocument;
+        $settings->loadXML($settingsXml, LIBXML_NONET);
+        $settingsXPath = new DOMXPath($settings);
+        $settingsXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
         $contentControlIds = [];
 
         foreach ($xpath->query('//w:sdtPr/w:id') as $contentControlId) {
             $contentControlIds[] = $xpath->evaluate('string(@w:val)', $contentControlId);
+        }
+
+        $pageNumberText = '';
+
+        foreach ($footerXPath->query('//w:p[.//w:instrText[normalize-space(.) = "PAGE"]]//w:t') as $textNode) {
+            $pageNumberText .= $textNode->textContent;
         }
 
         $nameLabelCells = $xpath->query('//w:body/w:tbl[1]/w:tr[3]/w:tc');
@@ -416,7 +445,12 @@ test('the generated Word file preserves the official form and adds one complete 
             ->and($documentXml)->toContain('Doctor of Information Technology')
             ->and($xpath->query('//w:t[.="Present"]')->length)->toBe(1)
             ->and($documentXml)->toContain('Researcher')
-            ->and($documentXml)->toContain('Two');
+            ->and($documentXml)->toContain('Two')
+            ->and($footerXPath->query('//w:instrText[normalize-space(.) = "PAGE"]')->length)->toBe(1)
+            ->and($footerXPath->query('//w:instrText[normalize-space(.) = "NUMPAGES"]')->length)->toBe(1)
+            ->and($footerXPath->query('//w:p[.//w:instrText[normalize-space(.) = "PAGE"]]/w:pPr/w:jc[@w:val = "right"]')->length)->toBe(1)
+            ->and($pageNumberText)->toBe('Page 1 of 1')
+            ->and($settingsXPath->query('/w:settings/w:updateFields[@w:val = "true"]')->length)->toBe(1);
     } finally {
         $archive->close();
         $templateArchive->close();

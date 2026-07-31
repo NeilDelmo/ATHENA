@@ -8,6 +8,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
+use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
@@ -18,18 +19,23 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProposalDraftExpenseBreakdownController extends Controller
 {
-    public function edit(ProposalDraft $proposalDraft, ProposalPaperCatalog $catalog): View
-    {
+    public function edit(
+        ProposalDraft $proposalDraft,
+        ProposalPaperCatalog $catalog,
+        ProposalBudgetConsistency $proposalBudgetConsistency,
+    ): View {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('expense-breakdown');
         $expenseBreakdownDocument = $this->document($proposalDraft);
         $sourceData = $expenseBreakdownDocument?->source_data ?? ['items' => []];
+        $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
 
         return view('faculty.proposal-drafts.expense-breakdown.edit', compact(
             'proposalDraft',
             'paper',
             'expenseBreakdownDocument',
             'sourceData',
+            'budgetConsistency',
         ));
     }
 

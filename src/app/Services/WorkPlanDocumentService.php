@@ -17,6 +17,10 @@ class WorkPlanDocumentService
 
     private const XML_NAMESPACE = 'http://www.w3.org/XML/1998/namespace';
 
+    public function __construct(
+        private readonly WordDocumentPaginationService $paginationService,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $workPlan
      */
@@ -53,6 +57,7 @@ class WorkPlanDocumentService
                 throw new RuntimeException('The generated Work Plan could not be written.');
             }
 
+            $this->paginationService->addPageNumbers($archive);
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);

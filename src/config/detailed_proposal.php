@@ -2,9 +2,17 @@
 
 return [
     'template_path' => resource_path('documents/BatStateU-FO-RES-02-Detailed-Research-Proposal.docx'),
-    'proponent_agency' => 'Batangas State University, The National Engineering University',
+    'proponent_agency' => '',
     'default_campus' => 'BatStateU The NEU ARASOF-Nasugbu Campus',
     'maximum_narrative_length' => 100000,
+    'professional_titles' => [
+        'Asst Prof.',
+        'Assoc Prof.',
+        'Prof.',
+        'Dr.',
+        'Engr.',
+        'Atty.',
+    ],
     'sdgs' => [
         1 => 'No Poverty',
         2 => 'Zero Hunger',

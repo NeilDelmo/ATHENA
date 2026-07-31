@@ -45,6 +45,12 @@
                 <p x-show="!$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
             </div>
 
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-xl bg-red-50 px-3 py-2.5 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p class="font-black uppercase tracking-wider">Paper help</p>
+                <p class="mt-1 font-semibold leading-4" x-text="$store.researchAssistant.paperContextLabel()"></p>
+                <p x-show="$store.researchAssistant.hasLiveFormContext()" class="mt-1.5 font-bold text-red-700 dark:text-red-300">Focused field and current row context included</p>
+            </div>
+
             <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mt-6 border-t border-gray-200 pt-5 dark:border-slate-800">
                 <label for="assistant-workspace-context" class="flex items-center gap-2 text-[11px] font-bold text-gray-700 dark:text-slate-300">
                     <input type="checkbox" x-model="$store.researchAssistant.contextEnabled" class="rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-slate-700">
@@ -127,7 +133,25 @@
                             </div>
                             <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
-                                <p class="whitespace-pre-wrap" x-html="$store.researchAssistant.renderMessage(message.content)"></p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
                                 <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
                             </div>
                         </div>
@@ -152,6 +176,12 @@
                 <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
                     <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
                     <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200 lg:hidden">
+                    <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                    <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                    <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
                 </div>
 
                 <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2 lg:hidden">
@@ -179,7 +209,7 @@
                     </button>
                     <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
                 </form>
-                <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. Verify research guidance with your adviser and official university policies. Press Shift+Enter for a new line.</p>
+                <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. A limited focused-field snapshot is included on proposal forms; avoid confidential data. Verify guidance with official university policies. Press Shift+Enter for a new line.</p>
             </div>
         </footer>
     </div>

@@ -64,7 +64,7 @@
                                     <option selected>{{ $user->college ?: 'No college set' }}</option>
                                 </select>
                                 <span class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300" title="College locked" aria-label="College locked">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 0h10.5A2.25 2.25 0 0 1 19.5 12.75v6A2.25 2.25 0 0 1 17.25 21H6.75a2.25 2.25 0 0 1-2.25-2.25v-6a2.25 2.25 0 0 1 2.25-2.25Z" /></svg>
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 0h10.5A2.25 2.25 0 0 1 19.5 12.75v6A2.25 2.25 0 0 1 17.25 21H6.75A2.25 2.25 0 0 1 4.25 18.75v-6A2.25 2.25 0 0 1 6.75 12.75ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                                 </span>
                             </div>
                             <p class="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">College is locked while you are a Research Coordinator. Ask the Research Head to remove the coordinator assignment before changing it.</p>
@@ -96,6 +96,25 @@
                             @endif
                         </form>
                     @endif
+
+                    <form method="POST" action="{{ route('profile.contact-number.update') }}" class="mt-4" data-profile-contact-number>
+                        @csrf
+                        @method('PATCH')
+                        <label for="contact_number" class="sr-only">Contact number</label>
+                        <div class="flex items-center gap-2">
+                            <input id="contact_number" name="contact_number" type="tel" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" value="{{ old('contact_number', $user->contact_number) }}" placeholder="09171234567" class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 px-3 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500" autocomplete="tel">
+                            <button type="submit" aria-label="Save contact number" title="Save contact number" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.75 10 17.75 19 6.75"/></svg>
+                            </button>
+                        </div>
+                        <p class="mt-2 text-[11px] font-semibold leading-5 text-gray-500">Used as the default contact number on the detailed research proposal and curriculum vitae. Leave blank to type one per proposal.</p>
+                        @error('contact_number')
+                            <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
+                        @enderror
+                        @if (session('status') === 'contact-number-updated')
+                            <p class="mt-2 text-xs font-semibold text-green-700">Contact number saved.</p>
+                        @endif
+                    </form>
 
                     <dl class="mt-6 space-y-4 border-t border-gray-100 pt-5">
                         <div>

@@ -14,6 +14,10 @@ class GADChecklistDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
+    public function __construct(
+        private readonly WordDocumentPaginationService $paginationService,
+    ) {}
+
     /** @param array{project_title: string, project_leader: string} $checklist */
     public function generate(array $checklist): string
     {
@@ -48,6 +52,7 @@ class GADChecklistDocumentService
                 throw new RuntimeException('The generated GAD Generic Checklist could not be written.');
             }
 
+            $this->paginationService->addPageNumbers($archive);
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalDraft;
 use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -47,6 +48,28 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('researchAssistantHistory', $history);
 
+            $paperSlug = collect(config('proposal_field_guidance.route_patterns', []))
+                ->first(fn (string $configuredPaperSlug, string $routePattern): bool => request()->routeIs($routePattern));
+            $paperGuide = is_string($paperSlug)
+                ? config('proposal_field_guidance.papers.'.$paperSlug)
+                : null;
+
+            $view->with('researchAssistantPaperContext', is_array($paperGuide)
+                ? [
+                    'paper_slug' => $paperSlug,
+                    'paper_label' => $paperGuide['label'] ?? Str::headline($paperSlug),
+                ]
+                : null);
+
+            $routeDraft = request()->route('proposalDraft');
+            $activeProposalDraftId = $user
+                && $routeDraft instanceof ProposalDraft
+                && ProposalDraft::query()->accessibleTo($user)->whereKey($routeDraft->getKey())->exists()
+                    ? $routeDraft->getKey()
+                    : null;
+
+            $view->with('researchAssistantProposalDraftId', $activeProposalDraftId);
+
             if (! $user || ! $user->isUsingWorkspace([
                 User::WORKSPACE_FACULTY,
                 User::WORKSPACE_FACULTY_RESEARCHER,
@@ -74,9 +97,11 @@ class AppServiceProvider extends ServiceProvider
                 ]);
 
             $routeTopic = request()->route('topic');
-            $activeContextId = $routeTopic instanceof TopicProposal && $routeTopic->user_id === $user->id
-                ? $routeTopic->id
-                : null;
+            $activeContextId = match (true) {
+                $routeTopic instanceof TopicProposal && $routeTopic->user_id === $user->id => $routeTopic->id,
+                $routeDraft instanceof ProposalDraft && $routeDraft->topic?->user_id === $user->id => $routeDraft->topic_id,
+                default => null,
+            };
 
             $view->with('researchAssistantContexts', $contexts);
             $view->with('activeResearchAssistantContextId', $activeContextId);

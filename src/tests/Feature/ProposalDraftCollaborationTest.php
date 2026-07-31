@@ -28,6 +28,7 @@ beforeEach(function () {
     $this->collaborator = User::factory()->create([
         'name' => 'Linked Collaborator',
         'email' => 'collaborator@g.batstate-u.edu.ph',
+        'avatar' => 'https://example.com/linked-collaborator.jpg',
         'college' => 'CTE',
     ]);
     $this->collaborator->assignRole('faculty');
@@ -74,7 +75,14 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->assertOk()
         ->assertSee('Proposal collaborators')
         ->assertSee($this->collaborator->email)
-        ->assertSee('Send a workspace invitation')
+        ->assertSee('linked-collaborator.jpg')
+        ->assertSee('Add collaborator')
+        ->assertSee('proposal-collaborator-invitation')
+        ->assertSee('data-collaborator-account-picker', false)
+        ->assertSee('role="combobox"', false)
+        ->assertSee('role="listbox"', false)
+        ->assertDontSee('workspace-member-accounts')
+        ->assertSee('Cancel')
         ->assertSee('Send invitation');
 
     $this->actingAs($this->owner)
@@ -247,12 +255,18 @@ test('an owner can resend a collaborator invitation email', function () {
 });
 
 test('workspace invitations require an institutional Google email', function () {
-    $this->actingAs($this->owner)
+    $response = $this->actingAs($this->owner)
+        ->from(route('faculty.proposal-drafts.show', $this->draft))
+        ->followingRedirects()
         ->post(route('faculty.proposal-drafts.members.store', $this->draft), [
             'name' => 'Personal Email Member',
             'email' => 'personal@example.com',
-        ])
-        ->assertSessionHasErrors('email');
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertSee('data-opened-from-validation="true"', false)
+        ->assertSee('Invite a BatStateU Google account that can sign in to ATHENA.');
 
     expect($this->draft->members()->count())->toBe(0);
     Notification::assertNothingSent();

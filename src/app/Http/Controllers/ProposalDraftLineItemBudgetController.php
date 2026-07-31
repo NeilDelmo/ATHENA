@@ -8,6 +8,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Services\LineItemBudgetDocumentService;
 use App\Support\LineItemBudgetData;
+use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,7 @@ class ProposalDraftLineItemBudgetController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         ProposalWorkspacePeople $proposalWorkspacePeople,
+        ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
         Gate::authorize('update', $proposalDraft);
         $proposalDraft->load(['researchCall', 'owner:id,college']);
@@ -63,7 +65,13 @@ class ProposalDraftLineItemBudgetController extends Controller
         if (blank($sourceData['leader_college'] ?? null)) {
             $sourceData['leader_college'] = (string) ($proposalDraft->owner?->college ?? '');
         }
+        // Note: unlike the detailed proposal and the CV, the line-item budget
+        // does NOT fall back to the currently signed-in user's college. The
+        // leader is the proposal owner — if the owner has no college set, the
+        // reviewer/editor's own college must not silently replace it, since
+        // that would publish the wrong proponent college on the printed PDF.
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
+        $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
 
         return view('faculty.proposal-drafts.line-item-budget.edit', compact(
             'proposalDraft',
@@ -72,6 +80,7 @@ class ProposalDraftLineItemBudgetController extends Controller
             'expenseBreakdownDocument',
             'sourceData',
             'workspacePeople',
+            'budgetConsistency',
         ));
     }
 

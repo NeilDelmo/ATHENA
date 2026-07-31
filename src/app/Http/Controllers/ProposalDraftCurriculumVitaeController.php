@@ -11,6 +11,7 @@ use App\Support\CurriculumVitaeData;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -20,6 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ProposalDraftCurriculumVitaeController extends Controller
 {
     public function edit(
+        Request $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         ProposalWorkspacePeople $proposalWorkspacePeople,
@@ -34,8 +36,12 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ])
             ->all();
         $sourceData = $curriculumVitaeDocument?->source_data ?? [
-            'people' => $this->seedPeople($proposalDraft, $workspacePeople),
+            'people' => $this->seedPeople($proposalDraft, $workspacePeople, (string) ($request->user()?->contact_number ?? '')),
         ];
+        $sourceData['people'] = $this->applyOwnerContactNumber(
+            $sourceData['people'] ?? [],
+            (string) ($proposalDraft->owner?->contact_number ?? $request->user()?->contact_number ?? ''),
+        );
 
         return view('faculty.proposal-drafts.curriculum-vitae.edit', compact(
             'proposalDraft',
@@ -124,7 +130,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function seedPeople(ProposalDraft $proposalDraft, array $workspacePeople): array
+    private function seedPeople(ProposalDraft $proposalDraft, array $workspacePeople, string $ownerContactNumber = ''): array
     {
         $lineItemBudgetSource = $proposalDraft->documents()
             ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
@@ -140,7 +146,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->filter(fn (mixed $name): bool => is_string($name) && filled($name))
             ->map(fn (string $name): array => ['name' => $name, 'email' => '']);
 
-        return CurriculumVitaeData::seedPeopleWithContacts(
+        $people = CurriculumVitaeData::seedPeopleWithContacts(
             collect($workspacePeople)
                 ->map(fn (array $person): array => ['name' => $person['name'], 'email' => $person['email']])
                 ->concat($additionalPeople)
@@ -148,6 +154,43 @@ class ProposalDraftCurriculumVitaeController extends Controller
                 ->values()
                 ->all(),
         );
+
+        return $this->applyOwnerContactNumber($people, $ownerContactNumber);
+    }
+
+    /**
+     * Stamp the saved contact number onto the project leader's CV record when
+     * the CV workspace first opens, so faculty don't have to retype it.
+     *
+     * The contact number that wins the auto-fill is the proposal owner's
+     * `contact_number` (the same single source of truth used by the detailed
+     * proposal and the profile page), with the currently signed-in user's
+     * `contact_number` as a fallback. This keeps the project leader's CV
+     * consistent regardless of whether the editor is a research head, a
+     * faculty researcher, or the owner themselves.
+     *
+     * @param  array<int, array<string, mixed>>  $people
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyOwnerContactNumber(array $people, string $contactNumber): array
+    {
+        if ($contactNumber === '') {
+            return $people;
+        }
+
+        foreach ($people as $index => $person) {
+            if (! is_array($person)) {
+                continue;
+            }
+
+            if (! blank($person['cellphone'] ?? null)) {
+                continue;
+            }
+
+            $people[$index]['cellphone'] = $contactNumber;
+        }
+
+        return $people;
     }
 
     private function document(ProposalDraft $proposalDraft): ?ProposalDraftDocument
