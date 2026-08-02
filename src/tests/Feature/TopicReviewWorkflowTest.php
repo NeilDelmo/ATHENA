@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -9,6 +10,7 @@ use App\Models\TopicReview;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 function createTopicReviewSubmission(TopicProposal $topic, User $faculty): ProposalVersion
@@ -54,13 +56,13 @@ beforeEach(function () {
     });
 });
 
-test('a research head can request a revision with comments', function () {
+test('a research head can request a revision with highlighted comments', function () {
     Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
 
     $faculty = User::factory()->create();
-    $faculty->assignRole(['faculty', 'research_head']);
+    $faculty->assignRole(['faculty', 'faculty_researcher', 'research_head']);
 
     $topic = TopicProposal::create([
         'user_id' => $faculty->id,
@@ -69,11 +71,29 @@ test('a research head can request a revision with comments', function () {
         'initial_file_path' => 'proposals/original.pdf',
         'status' => 'pending',
     ]);
-    createTopicReviewSubmission($topic, $faculty);
+    $version = createTopicReviewSubmission($topic, $faculty);
+    $file = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $version->file_path,
+        'original_filename' => 'submitted-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 18,
+        'checksum' => hash('sha256', 'submitted proposal'),
+        'is_carried_forward' => false,
+    ]);
+    $file->annotations()->create([
+        'reviewer_id' => $head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
+        'comment' => 'Clarify the methodology in this passage.',
+    ]);
 
     $response = $this->actingAs($head)->patch("/research-head/topics/{$topic->id}/status", [
         'status' => 'revision_requested',
         'comment' => 'Clarify the methodology and reduce the travel budget.',
+        'revision_file_ids' => [$file->id],
         'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
     ]);
 
@@ -282,7 +302,8 @@ test('a research head can approve a resubmitted proposal with external evaluatio
 
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->reviews()->count())->toBe(2)
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($topic->fresh()->project_status)->toBeNull()
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
 
 test('legacy review records do not block the Research Head decision', function () {
@@ -316,7 +337,8 @@ test('legacy review records do not block the Research Head decision', function (
         ->assertSessionHasNoErrors();
 
     expect($topic->fresh()->status)->toBe('approved')
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($topic->fresh()->project_status)->toBeNull()
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
 
 test('a rejected proposal remains final', function () {
@@ -865,7 +887,7 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     foreach ([
         'detailed_proposal' => 'proposal.pdf',
-        'work_plan' => 'work-plan.docx',
+        'work_plan' => 'work-plan.pdf',
         'line_item_budget' => 'budget.docx',
         'expense_breakdown' => 'expenses.xlsx',
         'curriculum_vitae' => 'cv.pdf',
@@ -879,6 +901,7 @@ test('the proposal workspace is complete role-aware and private', function () {
             'position' => 0,
             'file_path' => $path,
             'original_filename' => $filename,
+            'mime_type' => Str::endsWith($filename, '.pdf') ? 'application/pdf' : null,
             'file_size' => strlen($type),
             'checksum' => hash('sha256', $type),
             'is_carried_forward' => false,
@@ -933,6 +956,14 @@ test('the proposal workspace is complete role-aware and private', function () {
         ])
         ->assertSessionHasErrors('revision_file_ids');
 
+    $firstAnnotation = $workPlanFile->annotations()->create([
+        'reviewer_id' => $head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 2,
+        'rectangles' => [['x' => 0.12, 'y' => 0.3, 'width' => 0.5, 'height' => 0.08]],
+        'comment' => 'Extend these activities through the second year.',
+    ]);
+
     $this->actingAs($head)
         ->patch(route('research_head.topics.updateStatus', $topic), [
             'status' => 'revision_requested',
@@ -946,7 +977,11 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $fileRevision = $topic->reviews()->latest()->firstOrFail()->fileRevisions()->firstOrFail();
 
-    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $topic).'#submit-revision')
+    $expectedNotificationUrl = route('topics.versions.files.annotations.index', [$topic, $version, $workPlanFile])
+        .'?annotation='.$firstAnnotation->id
+        .'#proposal-review';
+
+    expect($faculty->notifications()->firstOrFail()->data['url'])->toBe($expectedNotificationUrl)
         ->and($fileRevision->proposal_version_file_id)->toBe($workPlanFile->id)
         ->and($fileRevision->revision_note)->toContain('second year')
         ->and($fileRevision->resolved_at)->toBeNull();
@@ -1024,5 +1059,6 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertRedirect(route('topics.show', $topic).'#proposal-review');
 
     expect($topic->fresh()->status)->toBe('approved')
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($topic->fresh()->project_status)->toBeNull()
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });

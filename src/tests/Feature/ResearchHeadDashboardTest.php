@@ -28,7 +28,7 @@ beforeEach(function () {
 
 function createDashboardTopic(User $researcher, ResearchCall $call, array $overrides = []): TopicProposal
 {
-    return TopicProposal::create(array_merge([
+    $attributes = array_merge([
         'user_id' => $researcher->id,
         'research_call_id' => $call->id,
         'title' => 'Community Health Research',
@@ -36,7 +36,13 @@ function createDashboardTopic(User $researcher, ResearchCall $call, array $overr
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,
         'status' => 'pending',
-    ], $overrides));
+    ], $overrides);
+
+    if ($attributes['status'] === 'approved' && ! array_key_exists('notice_to_proceed_issued_at', $overrides)) {
+        $attributes['notice_to_proceed_issued_at'] = now();
+    }
+
+    return TopicProposal::create($attributes);
 }
 
 test('Research Head pages are protected by role', function () {
@@ -56,6 +62,16 @@ test('proposal dashboard supports search and status filters', function () {
         ->assertOk()
         ->assertSee('Mangrove Restoration')
         ->assertDontSee('Solar Irrigation');
+});
+
+test('proposal dashboard presents a focused research head workspace', function () {
+    $this->actingAs($this->head)
+        ->get(route('research_head.dashboard'))
+        ->assertOk()
+        ->assertSee('data-dashboard-palette="red-black-white"', false)
+        ->assertSee('Proposal pipeline')
+        ->assertSee('Inbox controls')
+        ->assertSee('Apply filters');
 });
 
 test('proposal dashboard shows received files and opens the submitted package', function () {

@@ -227,7 +227,7 @@ test('published research calls follow their configured start and end dates autom
         ->assertSee('The submission period ended automatically.');
 });
 
-test('research call budgets cannot exceed the PHP 150000 institutional ceiling', function () {
+test('research calls always use the PHP 150000 institutional limit', function () {
     $payload = [
         'title' => 'Budget-controlled call',
         'academic_year' => '2027-2028',
@@ -239,14 +239,16 @@ test('research call budgets cannot exceed the PHP 150000 institutional ceiling',
     ];
 
     $this->actingAs($this->head)
-        ->post(route('research-calls.store'), [...$payload, 'maximum_budget' => 150000.01])
-        ->assertSessionHasErrors('maximum_budget');
-
-    $this->actingAs($this->head)
-        ->post(route('research-calls.store'), [...$payload, 'maximum_budget' => 150000])
+        ->post(route('research-calls.store'), [...$payload, 'maximum_budget' => 100000])
         ->assertRedirect(route('research-calls.index'));
 
     expect(ResearchCall::where('title', 'Budget-controlled call')->value('maximum_budget'))->toBe('150000.00');
+
+    $this->actingAs($this->head)
+        ->get(route('research-calls.index'))
+        ->assertOk()
+        ->assertSee('Fixed institutional limit for every research call.')
+        ->assertDontSee('name="maximum_budget"', false);
 });
 
 test('research heads can read a research-call poster into blank form fields', function () {
@@ -653,7 +655,8 @@ test('research head records the final decision with external evaluation proof', 
     $topic->refresh();
     expect($topic->status)->toBe('approved')
         ->and($evaluationDocument->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($topic->project_status)->toBeNull()
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
     Storage::disk('local')->assertExists($evaluationDocument->file_path);
 
     $this->actingAs($this->faculty)

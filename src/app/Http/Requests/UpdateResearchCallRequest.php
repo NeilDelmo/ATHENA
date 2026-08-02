@@ -33,7 +33,6 @@ class UpdateResearchCallRequest extends FormRequest
             'implementation_start_date' => ['nullable', 'date'],
             'implementation_end_date' => ['nullable', 'date'],
             'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
-            'maximum_budget' => ['required', 'numeric', 'min:0', 'max:150000'],
             'categories' => ['required', 'string', 'max:1000'],
         ];
     }

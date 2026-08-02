@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -24,6 +25,10 @@ class TopicProposal extends Model
         'initial_file_path',
         'final_file_path',
         'signed_approval_path',
+        'notice_to_proceed_path',
+        'notice_to_proceed_original_filename',
+        'notice_to_proceed_issued_by',
+        'notice_to_proceed_issued_at',
         'status',
         'project_status',
     ];
@@ -32,12 +37,31 @@ class TopicProposal extends Model
     {
         return [
             'estimated_budget' => 'decimal:2',
+            'notice_to_proceed_issued_at' => 'datetime',
         ];
+    }
+
+    public function scopeMonitoringAvailable(Builder $query): Builder
+    {
+        return $query
+            ->where('status', 'approved')
+            ->whereNotNull('notice_to_proceed_issued_at');
+    }
+
+    public function isMonitoringAvailable(): bool
+    {
+        return $this->status === 'approved'
+            && $this->notice_to_proceed_issued_at !== null;
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function noticeIssuer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'notice_to_proceed_issued_by');
     }
 
     public function reviews(): HasMany
@@ -86,10 +110,23 @@ class TopicProposal extends Model
         return $this->hasMany(ProjectProgressReport::class, 'topic_id')->latest('reporting_date');
     }
 
+    public function narrativeReports(): HasMany
+    {
+        return $this->hasMany(ProjectNarrativeReport::class, 'topic_id')->latest('submission_date');
+    }
+
     public function latestProgressReport(): HasOne
     {
         return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany([
             'reporting_date' => 'max',
+            'id' => 'max',
+        ]);
+    }
+
+    public function latestNarrativeReport(): HasOne
+    {
+        return $this->hasOne(ProjectNarrativeReport::class, 'topic_id')->ofMany([
+            'submission_date' => 'max',
             'id' => 'max',
         ]);
     }

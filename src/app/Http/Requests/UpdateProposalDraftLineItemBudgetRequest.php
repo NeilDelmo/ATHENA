@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
+use App\Models\ResearchCall;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -82,7 +83,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
     {
         $draft = $this->route('proposalDraft');
         $maximumBudget = $draft instanceof ProposalDraft
-            ? (float) ($draft->researchCall()->value('maximum_budget') ?? 0)
+            ? ($draft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET)
             : 0;
 
         return LineItemBudgetRules::afterCallbacks(

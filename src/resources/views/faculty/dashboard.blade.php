@@ -272,13 +272,14 @@
                         <div class="flex flex-wrap items-center gap-2">
                             <h4 class="text-sm font-bold text-gray-900">{{ $topic->title }}</h4>
                             <span class="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider
-                                {{ $topic->status === 'approved' ? 'bg-green-50 text-green-700' : '' }}
+                                {{ $topic->status === 'approved' && $topic->isMonitoringAvailable() ? 'bg-green-50 text-green-700' : '' }}
+                                {{ $topic->status === 'approved' && ! $topic->isMonitoringAvailable() ? 'bg-amber-50 text-amber-700' : '' }}
                                 {{ $topic->status === 'rejected' ? 'bg-red-50 text-red-700' : '' }}
                                 {{ $topic->status === 'pending' ? 'bg-amber-50 text-amber-700' : '' }}
                                 {{ $topic->status === 'revision_requested' ? 'bg-blue-50 text-blue-700' : '' }}
                                 {{ $topic->status === 'ready_for_signature' ? 'bg-red-50 text-red-800' : '' }}
                                 {{ $topic->status === 'resubmitted' ? 'bg-purple-50 text-purple-700' : '' }}">
-                                {{ str_replace('_', ' ', $topic->status) }}
+                                {{ $topic->status === 'approved' && ! $topic->isMonitoringAvailable() ? 'approved - awaiting notice' : str_replace('_', ' ', $topic->status) }}
                             </span>
                         </div>
                         <p class="mt-1 text-xs text-gray-500">{{ $topic->description ?: 'No description provided.' }}</p>

@@ -147,6 +147,76 @@ test('research head can draft highlights while a legacy review is in progress', 
         ->assertJsonPath('state', 'draft');
 });
 
+test('a revision request cannot be sent until every selected PDF has a highlighted comment', function () {
+    $this->actingAs($this->head)
+        ->from(route('topics.show', $this->topic))
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'redirect_to' => 'topic',
+            'comment' => 'Please revise the work plan.',
+            'revision_file_ids' => [$this->file->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHasErrors('revision_file_ids');
+
+    expect($this->topic->fresh()->status)->toBe('pending')
+        ->and($this->topic->reviews()->count())->toBe(0)
+        ->and($this->faculty->notifications()->count())->toBe(0);
+});
+
+test('a non PDF revision requires exact file specific instructions', function () {
+    Storage::disk('local')->put('proposal-packages/expenses.xlsx', 'spreadsheet');
+    $spreadsheet = $this->version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'file_path' => 'proposal-packages/expenses.xlsx',
+        'original_filename' => 'expenses.xlsx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'file_size' => 1024,
+        'checksum' => str_repeat('c', 64),
+        'is_carried_forward' => false,
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Exact revision instructions')
+        ->assertSee('This file cannot be highlighted in the PDF viewer');
+
+    $this->actingAs($this->head)
+        ->from(route('topics.show', $this->topic))
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'redirect_to' => 'topic',
+            'comment' => 'Please correct the expense breakdown.',
+            'revision_file_ids' => [$spreadsheet->id],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHasErrors('revision_file_notes.'.$spreadsheet->id);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'redirect_to' => 'topic',
+            'comment' => 'Please correct the expense breakdown.',
+            'revision_file_ids' => [$spreadsheet->id],
+            'revision_file_notes' => [
+                $spreadsheet->id => 'In Sheet 2, correct cells D12 through D18 using the approved travel rates.',
+            ],
+            'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $this->topic));
+
+    $fileRevision = $this->topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole();
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and($fileRevision->proposal_version_file_id)->toBe($spreadsheet->id)
+        ->and($fileRevision->revision_note)->toContain('cells D12 through D18')
+        ->and($this->faculty->notifications()->sole()->data['url'])
+        ->toBe(route('topics.show', $this->topic).'#submit-revision');
+});
+
 test('sending a revision request publishes highlights for the faculty', function () {
     $annotation = $this->file->annotations()->create([
         'reviewer_id' => $this->head->id,
@@ -179,15 +249,22 @@ test('sending a revision request publishes highlights for the faculty', function
         ->assertOk()
         ->assertSee('Read-only annotations')
         ->assertSee('Replace this table with the corrected quarterly schedule.')
-        ->assertSee('Edit in proposal workspace')
-        ->assertSee(route('faculty.proposal-drafts.revision', $this->topic), false);
+        ->assertSee('Revise Attachment A: Work Plan')
+        ->assertSee(route('faculty.proposal-drafts.revision', [
+            'topic' => $this->topic,
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        ]), false);
+
+    $response = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.revision', [
+            'topic' => $this->topic,
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        ]));
+    $revisionDraft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+    $response->assertRedirect(route('faculty.proposal-drafts.work-plan.edit', $revisionDraft));
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.revision', $this->topic))
-        ->assertRedirect(route('faculty.proposal-drafts.show', ProposalDraft::query()->where('topic_id', $this->topic->id)->sole()).'#required-pdf-attachments');
-
-    $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.show', ProposalDraft::query()->where('topic_id', $this->topic->id)->sole()))
+        ->get(route('faculty.proposal-drafts.show', $revisionDraft))
         ->assertOk()
         ->assertSee('Required PDF attachments');
 });

@@ -108,6 +108,12 @@
     outline: none;
 }
 
+.pdf-annotation-mark-selected {
+    z-index: 1;
+    background: rgb(220 38 38 / 0.5);
+    box-shadow: 0 0 0 4px rgb(254 202 202 / 0.95), 0 0 0 6px rgb(185 28 28 / 0.8);
+}
+
 .pdf-annotation-mark-requested {
     border-color: rgb(153 27 27 / 0.8);
     background: rgb(220 38 38 / 0.3);

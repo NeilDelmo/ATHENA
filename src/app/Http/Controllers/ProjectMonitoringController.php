@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProjectProgressReportRequest;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringToolDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectMonitoringController extends Controller
 {
@@ -22,33 +27,41 @@ class ProjectMonitoringController extends Controller
         $allowedAttention = ['needs_attention', 'pending_reports'];
 
         $summary = [
-            'ongoing' => TopicProposal::where('status', 'approved')->where(fn ($query) => $query->where('project_status', 'ongoing')->orWhereNull('project_status'))->count(),
-            'delayed' => TopicProposal::where('status', 'approved')->where('project_status', 'delayed')->count(),
-            'completed' => TopicProposal::where('status', 'approved')->where('project_status', 'completed')->count(),
+            'ongoing' => TopicProposal::monitoringAvailable()->where('project_status', 'ongoing')->count(),
+            'delayed' => TopicProposal::monitoringAvailable()->where('project_status', 'delayed')->count(),
+            'completed' => TopicProposal::monitoringAvailable()->where('project_status', 'completed')->count(),
             'pending_reports' => ProjectProgressReport::where('review_status', 'pending')
-                ->whereHas('topic', fn ($query) => $query->where('status', 'approved'))
-                ->count(),
+                ->whereHas('topic', fn ($query) => $query->monitoringAvailable())
+                ->count()
+                + ProjectNarrativeReport::where('review_status', ProjectNarrativeReport::STATUS_PENDING)
+                    ->whereHas('topic', fn ($query) => $query->monitoringAvailable())
+                    ->count(),
         ];
 
-        $projects = TopicProposal::query()
-            ->where('status', 'approved')
-            ->with(['user', 'researchCall', 'category', 'latestProgressReport'])
+        $projects = TopicProposal::monitoringAvailable()
+            ->with(['user', 'researchCall', 'category', 'latestProgressReport', 'latestNarrativeReport'])
             ->withCount([
                 'progressReports',
                 'progressReports as pending_reports_count' => fn ($query) => $query->where('review_status', 'pending'),
+                'narrativeReports',
+                'narrativeReports as pending_narrative_reports_count' => fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
             ])
             ->when(in_array($status, $allowedStatuses, true), function ($query) use ($status) {
                 $status === 'ongoing'
-                    ? $query->where(fn ($query) => $query->where('project_status', 'ongoing')->orWhereNull('project_status'))
+                    ? $query->where('project_status', 'ongoing')
                     : $query->where('project_status', $status);
             })
             ->when(in_array($attention, $allowedAttention, true), function ($query) use ($attention) {
                 if ($attention === 'pending_reports') {
-                    $query->whereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'));
+                    $query->where(function ($query) {
+                        $query->whereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
+                    });
                 } else {
                     $query->where(function ($query) {
                         $query->where('project_status', 'delayed')
-                            ->orWhereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'));
+                            ->orWhereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'))
+                            ->orWhereHas('narrativeReports', fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
                 }
             })
@@ -66,39 +79,43 @@ class ProjectMonitoringController extends Controller
         return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
     }
 
-    public function store(Request $request, TopicProposal $topic): RedirectResponse
+    public function store(StoreProjectProgressReportRequest $request, TopicProposal $topic): RedirectResponse
     {
-        abort_unless($topic->status === 'approved' && $topic->user_id === $request->user()->id, 403);
-
-        $validated = $request->validate([
-            'reporting_date' => ['required', 'date', 'before_or_equal:today'],
-            'progress_percentage' => ['required', 'integer', 'between:0,100'],
-            'accomplishments' => ['required', 'string', 'max:5000'],
-            'issues' => ['nullable', 'string', 'max:5000'],
-            'attachment' => ['nullable', 'file', 'mimes:pdf,doc,docx,xls,xlsx,jpg,jpeg,png', 'max:25600'],
-        ]);
+        $validated = $request->validated();
+        $workPlan = collect($validated['work_plan']);
 
         $validated['topic_id'] = $topic->id;
         $validated['submitted_by'] = $request->user()->id;
+        $validated['progress_percentage'] = (int) round($workPlan->sum(
+            fn (array $entry): float => (float) $entry['accomplished_percentage'],
+        ));
+        $validated['accomplishments'] = $workPlan
+            ->pluck('actual_accomplishment')
+            ->filter()
+            ->implode("\n");
+        $validated['issues'] = $workPlan
+            ->pluck('findings')
+            ->filter()
+            ->implode("\n") ?: null;
         $validated['attachment_path'] = $request->file('attachment')?->store('progress-reports/'.$topic->id, 'local');
         unset($validated['attachment']);
 
         $report = ProjectProgressReport::create($validated);
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            'Project progress report submitted',
-            $request->user()->name.' submitted a progress report for “'.$topic->title.'”.',
+            'Monitoring tool submitted',
+            $request->user()->name.' submitted a monitoring tool for “'.$topic->title.'”.',
             route('topics.show', $topic).'#project-monitoring',
             'info',
             $topic->id,
         ));
 
-        return back()->with('success', 'Progress report submitted for Research Head review.');
+        return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
     }
 
     public function review(Request $request, ProjectProgressReport $report): RedirectResponse
     {
-        abort_unless($report->topic()->where('status', 'approved')->exists(), 404);
+        abort_unless($report->topic()->monitoringAvailable()->exists(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in(['reviewed', 'revision_requested'])],
@@ -113,19 +130,19 @@ class ProjectMonitoringController extends Controller
 
         $report->load('topic.user');
         $report->topic->user->notify(new ProposalActivityNotification(
-            $validated['review_status'] === 'reviewed' ? 'Progress report reviewed' : 'Progress report needs revision',
-            'The Research Head reviewed your progress report for “'.$report->topic->title.'”.',
+            $validated['review_status'] === 'reviewed' ? 'Monitoring tool reviewed' : 'Monitoring tool needs revision',
+            'The Research Head reviewed your monitoring tool for “'.$report->topic->title.'”.',
             route('topics.show', $report->topic).'#project-monitoring',
             $validated['review_status'] === 'reviewed' ? 'success' : 'warning',
             $report->topic_id,
         ));
 
-        return back()->with('success', 'Progress report review saved.');
+        return back()->with('success', 'Monitoring tool review saved.');
     }
 
     public function updateProjectStatus(Request $request, TopicProposal $topic): RedirectResponse
     {
-        abort_unless($topic->status === 'approved', 404);
+        abort_unless($topic->isMonitoringAvailable(), 404);
 
         $validated = $request->validate([
             'project_status' => ['required', Rule::in(['ongoing', 'delayed', 'completed'])],
@@ -154,5 +171,26 @@ class ProjectMonitoringController extends Controller
         abort_unless($report->attachment_path && Storage::disk('local')->exists($report->attachment_path), 404);
 
         return Storage::disk('local')->download($report->attachment_path);
+    }
+
+    public function downloadMonitoringTool(
+        Request $request,
+        ProjectProgressReport $report,
+        MonitoringToolDocumentService $documentService,
+    ): StreamedResponse {
+        $report->loadMissing(['topic.user', 'submitter', 'reviewer']);
+        abort_unless(
+            $request->user()->isUsingWorkspace('research_head') || $report->topic->user_id === $request->user()->id,
+            403,
+        );
+        abort_unless(is_array($report->work_plan) && is_array($report->budget_utilization), 404);
+
+        $filename = Str::slug($report->topic->title).'-monitoring-tool.docx';
+
+        return response()->streamDownload(
+            static fn () => print $documentService->generate($report),
+            $filename,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        );
     }
 }

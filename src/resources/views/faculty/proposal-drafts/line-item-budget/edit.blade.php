@@ -102,7 +102,7 @@
                 <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
-                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Call budget ceiling</dt><dd class="mt-1 text-sm font-semibold text-gray-900">Php {{ number_format((float) $proposalDraft->researchCall->maximum_budget, 2) }}</dd></div>
+                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt><dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($proposalDraft->researchCall->budgetCeiling(), 2) }}</dd></div>
             </dl>
         </section>
 

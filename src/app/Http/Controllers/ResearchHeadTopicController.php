@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
 use Throwable;
 
 class ResearchHeadTopicController extends Controller
@@ -34,7 +33,8 @@ class ResearchHeadTopicController extends Controller
             'awaiting_review' => TopicProposal::whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision'])->count(),
             'revision_requested' => TopicProposal::where('status', 'revision_requested')->count(),
             'ready_for_signature' => TopicProposal::where('status', TopicProposal::STATUS_READY_FOR_SIGNATURE)->count(),
-            'approved' => TopicProposal::where('status', 'approved')->count(),
+            'awaiting_notice' => TopicProposal::where('status', 'approved')->whereNull('notice_to_proceed_issued_at')->count(),
+            'approved' => TopicProposal::monitoringAvailable()->count(),
             'rejected' => TopicProposal::where('status', 'rejected')->count(),
             'drafts' => ProposalDraft::query()
                 ->where('status', ProposalDraft::STATUS_DRAFT)
@@ -87,7 +87,13 @@ class ResearchHeadTopicController extends Controller
             $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
             $selectedRevisionFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
 
-            if ($latestFacultyFiles->isNotEmpty() && $selectedIds->isEmpty()) {
+            if ($latestFacultyFiles->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'revision_file_ids' => 'A submitted proposal file is required before a highlighted revision can be requested.',
+                ]);
+            }
+
+            if ($selectedIds->isEmpty()) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Select at least one proposal file that requires revision.',
                 ]);
@@ -97,6 +103,35 @@ class ResearchHeadTopicController extends Controller
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Every selected file must belong to the latest proposal version.',
                 ]);
+            }
+
+            $annotatableRevisionFiles = $selectedRevisionFiles
+                ->filter(fn (ProposalVersionFile $file): bool => $this->canAnnotateRevisionFile($file));
+            $highlightedFileIds = ProposalFileAnnotation::query()
+                ->whereIn('proposal_version_file_id', $annotatableRevisionFiles->pluck('id'))
+                ->whereNull('topic_review_file_revision_id')
+                ->distinct()
+                ->pluck('proposal_version_file_id');
+            $filesMissingHighlights = $annotatableRevisionFiles
+                ->whereNotIn('id', $highlightedFileIds)
+                ->values();
+
+            if ($filesMissingHighlights->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'revision_file_ids' => 'Add and save at least one highlighted comment to each selected PDF before requesting revision: '.$filesMissingHighlights->map->label()->join(', ').'.',
+                ]);
+            }
+
+            $filesMissingInstructions = $selectedRevisionFiles
+                ->reject(fn (ProposalVersionFile $file): bool => $this->canAnnotateRevisionFile($file))
+                ->filter(fn (ProposalVersionFile $file): bool => blank($validated['revision_file_notes'][$file->id] ?? null));
+
+            if ($filesMissingInstructions->isNotEmpty()) {
+                throw ValidationException::withMessages(
+                    $filesMissingInstructions->mapWithKeys(fn (ProposalVersionFile $file): array => [
+                        'revision_file_notes.'.$file->id => 'Give exact revision instructions for '.$file->label().' because this file cannot be highlighted in the PDF viewer.',
+                    ])->all(),
+                );
             }
         }
 
@@ -199,10 +234,6 @@ class ResearchHeadTopicController extends Controller
                     }
                 }
 
-                if ($validated['status'] === 'approved') {
-                    $reviewedTopic->update(['project_status' => 'ongoing']);
-                    $this->grantFacultyResearcherAccess($reviewedTopic);
-                }
             });
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($evaluationAttributes['file_path']);
@@ -211,7 +242,7 @@ class ResearchHeadTopicController extends Controller
         }
 
         $notificationDetails = match ($validated['status']) {
-            'approved' => ['Proposal approved', 'Your proposal “'.$topic->title.'” was approved. The evaluation document is available in the proposal review.', 'success'],
+            'approved' => ['Proposal papers approved', 'Your proposal papers for “'.$topic->title.'” were approved. Wait for the Notice to Proceed before beginning project monitoring.', 'success'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
                 'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
@@ -238,7 +269,7 @@ class ResearchHeadTopicController extends Controller
         ));
 
         $message = match ($validated['status']) {
-            'approved' => 'Proposal approved and the evaluation document was shared with the faculty member.',
+            'approved' => 'Proposal papers approved. The faculty member is now waiting for a Notice to Proceed.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
             'revision_requested' => 'Revision requested; your comments and evaluation document were shared with the faculty member.',
             'rejected' => 'Proposal rejected; your comments and evaluation document were shared with the faculty member.',
@@ -291,19 +322,18 @@ class ResearchHeadTopicController extends Controller
             $this->ensureResearchWorkloadAvailable($reviewedTopic);
             $reviewedTopic->update([
                 'status' => 'approved',
-                'project_status' => 'ongoing',
+                'project_status' => null,
             ]);
             $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => 'approved',
                 'comment' => 'All required signed final copies were uploaded and the proposal was released as approved.',
             ]);
-            $this->grantFacultyResearcherAccess($reviewedTopic);
         });
 
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
-            'Proposal approved',
-            'All required signed final copies for “'.$topic->title.'” are available in the proposal review.',
+            'Proposal papers approved',
+            'All required signed final copies for “'.$topic->title.'” are available. Wait for the Notice to Proceed before beginning project monitoring.',
             route('topics.show', $topic),
             'success',
             $topic->id,
@@ -315,7 +345,7 @@ class ResearchHeadTopicController extends Controller
 
         return redirect()
             ->to(route('topics.show', $topic).'#proposal-review')
-            ->with('success', 'Proposal approved. The signed final copies are now available to the faculty member.');
+            ->with('success', 'Proposal approved. The signed final copies are available; monitoring will open after the Notice to Proceed is issued.');
     }
 
     private function ensureResearchWorkloadAvailable(TopicProposal $topic): void
@@ -334,22 +364,6 @@ class ResearchHeadTopicController extends Controller
                 'status' => "This faculty researcher already has the maximum of {$researchCall->max_active_research_per_faculty} approved research projects for academic year {$researchCall->academic_year}. Applications remain unlimited, but another project cannot be approved for that year.",
             ]);
         }
-    }
-
-    /**
-     * Auto-grant the topic owner the `faculty` + `faculty_researcher` roles
-     * once their proposal is approved. The `college` and `contact_number`
-     * columns on the User row are intentionally NOT touched here: they are the
-     * person's single personal identity, shared by every role they hold, so
-     * promoting them to faculty_researcher must not duplicate or shift those
-     * values into a different column.
-     */
-    private function grantFacultyResearcherAccess(TopicProposal $topic): void
-    {
-        $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
-        $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
-
-        $topic->user()->firstOrFail()->assignRole([$facultyRole, $facultyResearcherRole]);
     }
 
     /**
@@ -383,5 +397,12 @@ class ResearchHeadTopicController extends Controller
         return route('topics.versions.files.annotations.index', [$topic, $latestVersion, $annotation->file])
             .'?annotation='.$annotation->id
             .'#proposal-review';
+    }
+
+    private function canAnnotateRevisionFile(ProposalVersionFile $file): bool
+    {
+        return Storage::disk('local')->exists($file->file_path)
+            && ($file->mime_type === 'application/pdf'
+                || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf');
     }
 }

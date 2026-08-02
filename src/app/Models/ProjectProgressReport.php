@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProjectProgressReport extends Model
 {
     protected $fillable = [
-        'topic_id', 'submitted_by', 'reporting_date', 'progress_percentage',
-        'accomplishments', 'issues', 'attachment_path', 'review_status',
+        'topic_id', 'submitted_by', 'reporting_date', 'tracking_number',
+        'progress_percentage', 'accomplishments', 'issues', 'work_plan',
+        'budget_utilization', 'prepared_by_date_signed', 'attachment_path', 'review_status',
         'research_head_remarks', 'reviewed_by', 'reviewed_at',
     ];
 
@@ -17,8 +18,11 @@ class ProjectProgressReport extends Model
     {
         return [
             'reporting_date' => 'date',
+            'prepared_by_date_signed' => 'date',
             'reviewed_at' => 'datetime',
             'progress_percentage' => 'integer',
+            'work_plan' => 'array',
+            'budget_utilization' => 'array',
         ];
     }
 

@@ -17,6 +17,10 @@
             'expert_review', 'for_final_decision' => 'Awaiting Research Head',
             default => 'Awaiting Research Head',
         };
+        if ($topic->status === 'approved' && ! $topic->isMonitoringAvailable()) {
+            $statusClass = 'bg-amber-100 text-amber-800';
+            $statusLabel = 'Approved - awaiting notice';
+        }
         $backRoute = Auth::user()->isUsingWorkspace('research_head')
             ? route('research_head.dashboard')
             : route('faculty.dashboard');
@@ -26,7 +30,8 @@
         $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && $isFacultyWorkspace;
         $resubmissionErrors = $errors->getBag('resubmission');
         $reviewTabHash = 'proposal-review';
-        $initialTopicTab = $resubmissionErrors->any() || $errors->has('evaluation_document') || $errors->has('status')
+        $initialTopicTab = $resubmissionErrors->any()
+            || $errors->hasAny(['evaluation_document', 'status', 'revision_file_ids', 'revision_file_notes.*', 'notice_to_proceed'])
             ? 'review'
             : (in_array(session('topic_tab'), ['details', 'review', 'history'], true) ? session('topic_tab') : null);
     @endphp
@@ -61,7 +66,7 @@
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
-                ['#proposal-review', '#submit-revision'].includes(window.location.hash)
+                ['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)
                     ? 'review'
                     : window.location.hash === '#version-history'
                         ? 'history'
@@ -72,7 +77,7 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                this.activeTopicTab = ['#proposal-review', '#submit-revision'].includes(window.location.hash)
+                this.activeTopicTab = ['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)
                     ? 'review'
                     : window.location.hash === '#version-history'
                         ? 'history'
@@ -200,8 +205,10 @@
                         Review the faculty package, receive the completed evaluation outside ATHENA, then upload that document here with your decision. ATHENA shares both the decision and its proof with the faculty member.
                     @elseif ($topic->status === 'revision_requested')
                         The Research Head requested changes. Read the decision, download the evaluation document, and replace only the files marked for revision.
+                    @elseif ($topic->status === 'approved' && ! $topic->isMonitoringAvailable())
+                        Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
                     @elseif ($topic->status === 'approved')
-                        This proposal is approved. The Research Head's evaluation document is available below.
+                        Your Notice to Proceed has been issued. The proposal is now an active research project and monitoring is open.
                     @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
                         The review is complete. Only the papers with official signature blocks are waiting for their signed final PDFs.
                     @elseif ($topic->status === 'rejected')
@@ -333,6 +340,10 @@
                 </div>
             </details>
 
+            @if ($topic->status === 'approved')
+                @include('topics.partials.notice-to-proceed')
+            @endif
+
             @if ($canDecide)
                 <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open>
                     <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
@@ -427,10 +438,11 @@
                                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
                                         <h4 id="file-review-checklist-heading" class="text-lg font-black text-gray-900">File review checklist</h4>
-                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Mark only the files that need revision. For PDFs, use <span class="font-black text-red-700 dark:text-red-400">Highlight PDF</span> to attach comments to the exact passage.</p>
+                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Mark only the files that need revision. Every selected PDF requires at least one saved highlight and comment. For a file that cannot be highlighted, exact file-specific instructions are required.</p>
                                     </div>
                                 </div>
                                 @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
+                                @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                                 <p class="mt-4 rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border dark:border-gray-800">If any file is marked for revision, choose <span class="font-black">Request revision</span> as the decision.</p>
                             </section>
 
@@ -558,7 +570,7 @@
 
             @include('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])
 
-            @if ($topic->status === 'approved' && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
+            @if ($topic->isMonitoringAvailable() && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
                 @include('topics.partials.project-monitoring')
             @endif
         </section>

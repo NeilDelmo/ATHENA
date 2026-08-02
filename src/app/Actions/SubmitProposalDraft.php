@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftMember;
+use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
@@ -358,7 +359,7 @@ class SubmitProposalDraft
             LineItemBudgetRules::attributes(),
         );
         $validator->after(LineItemBudgetRules::afterCallbacks(
-            (float) ($draft->researchCall?->maximum_budget ?? 0),
+            $draft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET,
         ));
         $validated = $validator->validate();
         $lineItemBudget = LineItemBudgetData::fromValidated($validated);

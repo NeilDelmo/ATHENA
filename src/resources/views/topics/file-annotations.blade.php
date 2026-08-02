@@ -2,7 +2,10 @@
     @php
         $proposalWorkspaceUrl = $isResearchHead
             ? route('topics.show', $topic).'#proposal-review'
-            : route('faculty.proposal-drafts.revision', $topic);
+            : route('faculty.proposal-drafts.revision', [
+                'topic' => $topic,
+                'document_type' => $file->document_type,
+            ]);
     @endphp
 
     <x-slot name="header">
@@ -16,7 +19,7 @@
                 @if ($isResearchHead)
                     <a href="{{ $proposalWorkspaceUrl }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Return to review</a>
                 @elseif (! $canAnnotate && $topic->user_id === Auth::id() && $topic->status === 'revision_requested')
-                    <a href="{{ route('faculty.proposal-drafts.revision', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit in proposal workspace</a>
+                    <a href="{{ $proposalWorkspaceUrl }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Revise {{ $file->label() }}</a>
                 @endif
                 <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-sm font-black {{ $canAnnotate ? 'bg-red-700 text-white' : 'bg-gray-100 text-gray-700' }}">{{ $canAnnotate ? 'Annotation mode' : 'Read-only annotations' }}</span>
             </div>
@@ -40,7 +43,7 @@
             </div>
         @else
             <div class="rounded-2xl border border-gray-300 bg-gray-100 p-4 text-sm leading-6 text-gray-800">
-                These comments are read-only. The submitted faculty PDF remains unchanged; the highlights are stored as ATHENA revision records. Use <span class="font-black">Edit in proposal workspace</span> after reviewing the comments to prepare the replacement files.
+                These comments are read-only. The submitted faculty PDF remains unchanged; the highlights are stored as ATHENA revision records. After reviewing them, open the matching paper editor to make the required changes.
             </div>
         @endif
 

@@ -5,9 +5,11 @@ use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\LiteratureSearchController;
+use App\Http\Controllers\NoticeToProceedController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectMonitoringController;
+use App\Http\Controllers\ProjectNarrativeReportController;
 use App\Http\Controllers\ProposalDraftController;
 use App\Http\Controllers\ProposalDraftCurriculumVitaeController;
 use App\Http\Controllers\ProposalDraftDetailedProposalController;
@@ -183,6 +185,9 @@ Route::get('/topics/{topic}/draft-history/{documentVersion}/download', [Proposal
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
     ->name('topics.approval');
+Route::get('/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'download'])
+    ->middleware('auth')
+    ->name('topics.notice-to-proceed.download');
 Route::get('/topics/{topic}', [TopicController::class, 'show'])
     ->middleware('auth')
     ->name('topics.show');
@@ -221,11 +226,22 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
+    Route::post('/research/{topic}/narrative-progress-reports', [ProjectNarrativeReportController::class, 'store'])->name('project-narrative-reports.store');
 });
 
 Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController::class, 'download'])
     ->middleware('auth')
     ->name('project-progress.download');
+Route::get('/progress-reports/{report}/monitoring-tool', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
+    ->middleware('auth')
+    ->name('project-progress.monitoring-tool');
+Route::get('/narrative-progress-reports/{report}/document', [ProjectNarrativeReportController::class, 'download'])
+    ->middleware('auth')
+    ->name('project-narrative-reports.download');
+Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}', [ProjectNarrativeReportController::class, 'downloadPhoto'])
+    ->middleware('auth')
+    ->whereNumber('photoIndex')
+    ->name('project-narrative-reports.photos.download');
 
 Route::middleware('auth')->group(function () {
     Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
@@ -261,8 +277,10 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
+    Route::post('/research-head/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'store'])->name('research_head.topics.notice-to-proceed.store');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
+    Route::patch('/research-head/narrative-progress-reports/{report}', [ProjectNarrativeReportController::class, 'review'])->name('research_head.narrative-progress-reports.review');
     Route::post('/research-calls/extract-image', [ResearchCallController::class, 'extractImage'])->name('research-calls.extract-image');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::put('/research-calls/{researchCall}', [ResearchCallController::class, 'update'])->name('research-calls.update');

@@ -484,6 +484,11 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                             const mark = document.createElement('button');
                             mark.type = 'button';
                             mark.className = `pdf-annotation-mark pdf-annotation-mark-${annotation.state}`;
+                            mark.dataset.annotationId = String(annotation.id);
+                            mark.classList.toggle(
+                                'pdf-annotation-mark-selected',
+                                Number(this.selectedAnnotationId) === Number(annotation.id),
+                            );
                             mark.style.left = `${rectangle.x * 100}%`;
                             mark.style.top = `${rectangle.y * 100}%`;
                             mark.style.width = `${rectangle.width * 100}%`;
@@ -497,15 +502,28 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             selectAnnotation(annotation) {
+                const previouslySelected = this.annotations.find(
+                    (item) => Number(item.id) === Number(this.selectedAnnotationId),
+                );
                 this.selectedAnnotationId = annotation.id;
+                if (previouslySelected && Number(previouslySelected.pageNumber) !== Number(annotation.pageNumber)) {
+                    this.renderAnnotationsForPage(previouslySelected.pageNumber);
+                }
+                this.renderAnnotationsForPage(annotation.pageNumber);
             },
 
             jumpToAnnotation(annotation) {
                 this.selectAnnotation(annotation);
-                pageElements.get(Number(annotation.pageNumber))?.scrollIntoView({
+                const pageElement = pageElements.get(Number(annotation.pageNumber));
+                const mark = pageElement?.querySelector(`[data-annotation-id="${Number(annotation.id)}"]`);
+                const target = mark || pageElement;
+
+                target?.scrollIntoView({
                     behavior: 'smooth',
-                    block: 'start',
+                    block: mark ? 'center' : 'start',
+                    inline: 'center',
                 });
+                mark?.focus({ preventScroll: true });
             },
 
             annotationStateLabel(annotation) {

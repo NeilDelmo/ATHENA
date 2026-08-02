@@ -49,6 +49,7 @@ class ResearchCallController extends Controller
 
         $call = ResearchCall::create([
             ...collect($validated)->except(['categories', 'reference_image'])->all(),
+            'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
             'reference_image_path' => $imagePath,
             'created_by' => $request->user()->id,
         ]);
@@ -68,6 +69,7 @@ class ResearchCallController extends Controller
         $oldImagePath = $researchCall->reference_image_path;
         $newImagePath = $request->file('reference_image')?->store('research-calls', 'local');
         $attributes = collect($validated)->except(['categories', 'reference_image'])->all();
+        $attributes['maximum_budget'] = ResearchCall::MAXIMUM_BUDGET;
         $attributes['reference_image_path'] = $newImagePath ?? $oldImagePath;
         $categoryChanges = [];
 

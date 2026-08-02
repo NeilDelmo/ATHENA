@@ -66,7 +66,7 @@ class DatabaseSeeder extends Seeder
             });
 
         TopicProposal::with('user')
-            ->where('status', 'approved')
+            ->monitoringAvailable()
             ->get()
             ->each(function (TopicProposal $topic) use ($facultyRole, $facultyResearcherRole) {
                 $topic->user?->assignRole([$facultyRole, $facultyResearcherRole]);

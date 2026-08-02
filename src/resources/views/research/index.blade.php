@@ -55,7 +55,7 @@
                         @forelse ($topics as $topic)
                             @php
                                 $statusClass = match ($topic->status) {
-                                    'approved' => 'bg-green-50 text-green-700',
+                                    'approved' => $topic->isMonitoringAvailable() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700',
                                     'ready_for_signature' => 'bg-red-50 text-red-800',
                                     'rejected' => 'bg-red-50 text-red-700',
                                     'revision_requested' => 'bg-blue-50 text-blue-700',
@@ -72,14 +72,14 @@
                                     </a>
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4">
-                                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusClass }}">{{ str_replace('_', ' ', $topic->status) }}</span>
+                                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusClass }}">{{ $topic->status === 'approved' && ! $topic->isMonitoringAvailable() ? 'approved - awaiting notice' : str_replace('_', ' ', $topic->status) }}</span>
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-right text-xs font-bold text-gray-700">
                                     {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4 text-xs text-gray-500">{{ $topic->updated_at->format('M d, Y') }}</td>
                                 <td class="whitespace-nowrap px-5 py-4 text-right">
-                                    <a href="{{ route('topics.show', $topic) }}{{ $topic->status === 'approved' ? '#project-monitoring' : '' }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">{{ $topic->status === 'approved' ? 'Monitor project' : 'View details' }}</a>
+                                    <a href="{{ route('topics.show', $topic) }}{{ $topic->isMonitoringAvailable() ? '#project-monitoring' : ($topic->status === 'approved' ? '#notice-to-proceed' : '') }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">{{ $topic->isMonitoringAvailable() ? 'Monitor project' : 'View details' }}</a>
                                 </td>
                             </tr>
                         @empty

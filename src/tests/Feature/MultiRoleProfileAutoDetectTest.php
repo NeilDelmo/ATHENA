@@ -103,7 +103,7 @@ test('a research coordinator who is also a faculty member keeps one locked colle
         ->and($user->college)->toBe(User::COLLEGES['CICS']);
 });
 
-test('promoting a faculty to faculty_researcher via grantFacultyResearcherAccess does not duplicate the college or contact number', function () {
+test('issuing a Notice to Proceed promotes a faculty researcher without duplicating identity data', function () {
     $category = ResearchCategory::create(['name' => 'Environment']);
     $call = ResearchCall::create([
         'title' => 'Test Research Call',
@@ -157,6 +157,14 @@ test('promoting a faculty to faculty_researcher via grantFacultyResearcherAccess
             'evaluation_document' => UploadedFile::fake()->create('evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertRedirect();
+
+    expect($owner->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+
+    $this->actingAs($head)
+        ->post(route('research_head.topics.notice-to-proceed.store', $topic), [
+            'notice_to_proceed' => UploadedFile::fake()->create('notice-to-proceed.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
 
     $owner->refresh();
 

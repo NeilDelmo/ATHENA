@@ -14,18 +14,23 @@ use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProposalDraftController extends Controller
 {
+    private const DUPLICATE_CREATION_WINDOW_SECONDS = 30;
+
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', ProposalDraft::class);
@@ -58,11 +63,47 @@ class ProposalDraftController extends Controller
     {
         Gate::authorize('create', ProposalDraft::class);
 
-        $proposalDraft = $request->user()->proposalDrafts()->create($request->validated());
+        $validated = $request->validated();
+        $validated['project_title'] = trim($validated['project_title']);
+        $lockKey = 'proposal-draft-create:'.hash('sha256', implode('|', [
+            $request->user()->id,
+            $validated['research_call_id'],
+            Str::lower($validated['project_title']),
+        ]));
+
+        try {
+            /** @var array{draft: ProposalDraft, created: bool} $result */
+            $result = Cache::lock($lockKey, 10)->block(3, function () use ($request, $validated): array {
+                $existingDraft = $request->user()->proposalDrafts()
+                    ->where('research_call_id', $validated['research_call_id'])
+                    ->where('project_title', $validated['project_title'])
+                    ->where('status', ProposalDraft::STATUS_DRAFT)
+                    ->where('created_at', '>=', now()->subSeconds(self::DUPLICATE_CREATION_WINDOW_SECONDS))
+                    ->latest('id')
+                    ->first();
+
+                if ($existingDraft instanceof ProposalDraft) {
+                    return ['draft' => $existingDraft, 'created' => false];
+                }
+
+                return [
+                    'draft' => $request->user()->proposalDrafts()->create($validated),
+                    'created' => true,
+                ];
+            });
+        } catch (LockTimeoutException) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'project_title' => 'This draft is already being created. Wait a moment, then open it from your saved drafts.',
+                ]);
+        }
 
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
-            ->with('success', 'Proposal draft created. Complete the project details in the workspace.');
+            ->route('faculty.proposal-drafts.show', $result['draft'])
+            ->with('success', $result['created']
+                ? 'Proposal draft created. Complete the project details in the workspace.'
+                : 'That draft was already created, so ATHENA opened the existing copy instead.');
     }
 
     public function show(
@@ -123,6 +164,7 @@ class ProposalDraftController extends Controller
         Request $request,
         TopicProposal $topic,
         CreateProposalRevisionDraft $createProposalRevisionDraft,
+        ProposalPaperCatalog $catalog,
     ): RedirectResponse {
         abort_unless(
             $topic->user_id === $request->user()->id
@@ -132,10 +174,9 @@ class ProposalDraftController extends Controller
         );
 
         $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        $paper = $catalog->forDocumentType($request->string('document_type')->toString());
 
-        return redirect()->to(
-            route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments',
-        );
+        return redirect()->to($this->revisionWorkspaceUrl($proposalDraft, $paper));
     }
 
     public function storeRevisionFile(
@@ -207,6 +248,27 @@ class ProposalDraftController extends Controller
             'filename' => $savedDocument->original_filename,
             'redirect_url' => route('topics.show', $proposalDraft->topic_id).'#review-and-submit',
         ]);
+    }
+
+    /** @param array<string, mixed>|null $paper */
+    private function revisionWorkspaceUrl(ProposalDraft $proposalDraft, ?array $paper): string
+    {
+        if (! is_array($paper)) {
+            return route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments';
+        }
+
+        return match ($paper['slug']) {
+            'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft),
+            'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
+            'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
+            'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft),
+            'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
+            'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft),
+            'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
+            default => ($paper['mode'] ?? null) === 'upload'
+                ? route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
+                : route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments',
+        };
     }
 
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse

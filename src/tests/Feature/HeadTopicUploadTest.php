@@ -314,11 +314,11 @@ test('approval stays locked until every required signed PDF is uploaded', functi
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
         ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Proposal approved. The signed final copies are now available to the faculty member.');
+        ->assertSessionHas('success', 'Proposal approved. The signed final copies are available; monitoring will open after the Notice to Proceed is issued.');
 
     expect($this->topic->fresh()->status)->toBe('approved')
-        ->and($this->topic->fresh()->project_status)->toBe('ongoing')
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($this->topic->fresh()->project_status)->toBeNull()
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 
     $facultyResponse = $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,

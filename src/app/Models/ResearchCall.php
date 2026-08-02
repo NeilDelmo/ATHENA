@@ -13,6 +13,10 @@ class ResearchCall extends Model
 {
     public const MAXIMUM_BUDGET = 150000;
 
+    protected $attributes = [
+        'maximum_budget' => self::MAXIMUM_BUDGET,
+    ];
+
     protected $fillable = [
         'title', 'academic_year', 'term', 'description', 'opens_at', 'closes_at',
         'reference_image_path',
@@ -97,10 +101,6 @@ class ResearchCall extends Model
 
     public function budgetCeiling(): float
     {
-        $configuredBudget = $this->maximum_budget === null
-            ? self::MAXIMUM_BUDGET
-            : (float) $this->maximum_budget;
-
-        return min($configuredBudget, self::MAXIMUM_BUDGET);
+        return self::MAXIMUM_BUDGET;
     }
 }

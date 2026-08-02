@@ -8,11 +8,12 @@
         @foreach ($revisionFiles as $file)
             @php
                 $draftAnnotationCount = $file->annotations->whereNull('topic_review_file_revision_id')->count();
-                $isSelected = is_array($oldRevisionFileIds)
-                    ? in_array($file->id, $oldRevisionFileIds)
-                    : $draftAnnotationCount > 0;
                 $fileAvailable = $availableSubmittedFileIds->contains($file->id);
                 $fileViewable = $viewableSubmittedFileIds->contains($file->id);
+                $canSelectHighlightedPdf = ! $fileViewable || $draftAnnotationCount > 0;
+                $isSelected = is_array($oldRevisionFileIds)
+                    ? in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf
+                    : $draftAnnotationCount > 0;
             @endphp
 
             <article
@@ -34,17 +35,21 @@
                         <p class="mt-1 break-all text-sm text-gray-600">{{ $file->original_filename }}</p>
                     </div>
 
-                    <label class="inline-flex cursor-pointer items-center gap-2 self-start rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-black text-gray-700 shadow-sm">
-                        <input
-                            type="checkbox"
-                            name="revision_file_ids[]"
-                            value="{{ $file->id }}"
-                            x-model="needsRevision"
-                            @checked($isSelected)
-                            class="rounded border-gray-300 text-red-700 focus:ring-red-700"
-                        >
-                        Mark for revision
-                    </label>
+                    @if ($fileViewable && $draftAnnotationCount === 0)
+                        <span class="inline-flex items-center gap-2 self-start rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-black text-red-700 shadow-sm">Highlight required</span>
+                    @else
+                        <label class="inline-flex cursor-pointer items-center gap-2 self-start rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-black text-gray-700 shadow-sm">
+                            <input
+                                type="checkbox"
+                                name="revision_file_ids[]"
+                                value="{{ $file->id }}"
+                                x-model="needsRevision"
+                                @checked($isSelected)
+                                class="rounded border-gray-300 text-red-700 focus:ring-red-700"
+                            >
+                            Mark for revision
+                        </label>
+                    @endif
                 </div>
 
                 <div class="mt-4 flex flex-wrap gap-2">
@@ -56,6 +61,22 @@
                         <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $file]) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-900 px-3 py-2 text-sm font-bold text-white hover:bg-gray-800">Download</a>
                     @endif
                 </div>
+
+                @if (! $fileViewable)
+                    <label x-show="needsRevision" x-cloak class="mt-4 block text-sm font-bold text-gray-700">
+                        Exact revision instructions <span class="text-red-600">Required</span>
+                        <textarea
+                            name="revision_file_notes[{{ $file->id }}]"
+                            rows="3"
+                            maxlength="2000"
+                            :required="needsRevision"
+                            class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 focus:border-red-600 focus:ring-red-600"
+                            placeholder="Name the sheet, cell range, section, or other exact part that must change."
+                        >{{ old('revision_file_notes.'.$file->id) }}</textarea>
+                        <span class="mt-2 block text-xs font-normal leading-5 text-gray-500">This file cannot be highlighted in the PDF viewer, so give the faculty member a precise location and required change.</span>
+                        @error('revision_file_notes.'.$file->id)<span class="mt-2 block text-xs font-semibold text-red-600">{{ $message }}</span>@enderror
+                    </label>
+                @endif
             </article>
         @endforeach
     </div>

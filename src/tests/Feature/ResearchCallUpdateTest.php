@@ -72,7 +72,7 @@ test('Research Head can edit a research call and replace its poster', function (
         ->and($this->call->academic_year)->toBe('2027-2028')
         ->and($this->call->description)->toBe('Updated guidelines.')
         ->and($this->call->max_active_research_per_faculty)->toBe(3)
-        ->and((float) $this->call->maximum_budget)->toBe(125000.0)
+        ->and((float) $this->call->maximum_budget)->toBe(150000.0)
         ->and($this->call->categories()->pluck('name')->all())->toEqual(['Environment', 'Technology'])
         ->and($this->call->reference_image_path)->not->toBe('research-calls/original.jpg');
 

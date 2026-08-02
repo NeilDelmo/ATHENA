@@ -219,7 +219,10 @@ test('faculty can create and resume multiple proposal drafts through the compati
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee($this->call->title);
+        ->assertSee($this->call->title)
+        ->assertSee('submitting: false', false)
+        ->assertSee(':disabled="submitting"', false)
+        ->assertSee('Creating draft...', false);
 
     foreach (['First Coastal Study', 'Second Coastal Study'] as $projectTitle) {
         $response = $this->actingAs($this->faculty)
@@ -250,6 +253,62 @@ test('faculty can create and resume multiple proposal drafts through the compati
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('First Coastal Study');
+});
+
+test('the new proposal page presents open research calls as visual selectable cards', function () {
+    Storage::disk('local')->put('research-calls/institutional-call.jpg', 'poster');
+    $this->call->update([
+        'description' => 'Support community-centered institutional research.',
+        'reference_image_path' => 'research-calls/institutional-call.jpg',
+    ]);
+
+    ResearchCall::create([
+        'title' => 'Open Call Without a Poster',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addWeeks(2),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 75000,
+        'status' => 'open',
+        'created_by' => $this->head->id,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]))
+        ->assertOk()
+        ->assertSee('data-research-call-picker', false)
+        ->assertSee('role="dialog"', false)
+        ->assertSee('researchCallPickerOpen', false)
+        ->assertSee('@change="researchCallPickerOpen = false;', false)
+        ->assertSee('Change')
+        ->assertSee(route('research-calls.reference-image', $this->call), false)
+        ->assertSee('Open Call Without a Poster')
+        ->assertSee('No poster uploaded')
+        ->assertSee('value="'.$this->call->id.'"', false)
+        ->assertSee('checked', false)
+        ->assertDontSee('Support community-centered institutional research.');
+});
+
+test('rapid repeated create requests reuse the first matching proposal draft', function () {
+    $payload = [
+        'research_call_id' => $this->call->id,
+        'project_title' => 'Duplicate Click Study',
+    ];
+
+    $firstResponse = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), $payload);
+    $proposalDraft = $this->faculty->proposalDrafts()->sole();
+
+    $firstResponse
+        ->assertRedirect(route('faculty.proposal-drafts.show', $proposalDraft))
+        ->assertSessionHas('success', 'Proposal draft created. Complete the project details in the workspace.');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), $payload)
+        ->assertRedirect(route('faculty.proposal-drafts.show', $proposalDraft))
+        ->assertSessionHas('success', 'That draft was already created, so ATHENA opened the existing copy instead.');
+
+    expect($this->faculty->proposalDrafts()->count())->toBe(1);
 });
 
 test('deleting a draft removes its records and private staged directory', function () {

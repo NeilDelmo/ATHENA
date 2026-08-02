@@ -16,22 +16,23 @@
         </form>
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">Approved projects</h3><p class="mt-1 text-xs text-gray-400">Delayed projects and projects with pending reports appear first.</p></div>
+            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">Projects with a Notice to Proceed</h3><p class="mt-1 text-xs text-gray-400">Only projects whose notice has been issued enter monitoring. Delayed projects and projects with pending reports appear first.</p></div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-100">
                     <thead class="bg-gray-50"><tr><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Project</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Status</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Latest progress</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Reports</th><th class="px-5 py-3"><span class="sr-only">Open</span></th></tr></thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse ($projects as $project)
-                            @php($projectStatus = $project->project_status ?: 'ongoing')
-                            <tr class="{{ $projectStatus === 'delayed' || $project->pending_reports_count > 0 ? 'bg-amber-50/30' : '' }}">
+                                @php($projectStatus = $project->project_status)
+                            @php $pendingReportCount = $project->pending_reports_count + $project->pending_narrative_reports_count; @endphp
+                            <tr class="{{ $projectStatus === 'delayed' || $pendingReportCount > 0 ? 'bg-amber-50/30' : '' }}">
                                 <td class="px-5 py-4"><p class="text-sm font-black text-gray-900">{{ $project->title }}</p><p class="mt-1 text-xs text-gray-500">{{ $project->user->name }} &middot; {{ $project->researchCall->title }}</p></td>
                                 <td class="px-5 py-4"><span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase {{ $projectStatus === 'completed' ? 'bg-green-50 text-green-700' : ($projectStatus === 'delayed' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700') }}">{{ $projectStatus }}</span></td>
-                                <td class="px-5 py-4">@if ($project->latestProgressReport)<p class="text-sm font-black text-gray-800">{{ $project->latestProgressReport->progress_percentage }}%</p><p class="mt-1 text-[11px] text-gray-400">{{ $project->latestProgressReport->reporting_date->format('M d, Y') }}</p>@else<span class="text-xs text-gray-400">No report yet</span>@endif</td>
-                                <td class="px-5 py-4"><p class="text-xs font-bold text-gray-700">{{ $project->progress_reports_count }} total</p><p class="mt-1 text-[11px] {{ $project->pending_reports_count ? 'font-bold text-amber-700' : 'text-gray-400' }}">{{ $project->pending_reports_count }} awaiting review</p></td>
+                                <td class="px-5 py-4">@if ($project->latestProgressReport)<p class="text-sm font-black text-gray-800">{{ $project->latestProgressReport->progress_percentage }}%</p><p class="mt-1 text-[11px] text-gray-400">Tool · {{ $project->latestProgressReport->reporting_date->format('M d, Y') }}</p>@elseif ($project->latestNarrativeReport)<p class="text-xs font-black text-gray-800">Progress report</p><p class="mt-1 text-[11px] text-gray-400">{{ $project->latestNarrativeReport->submission_date->format('M d, Y') }}</p>@else<span class="text-xs text-gray-400">No report yet</span>@endif</td>
+                                <td class="px-5 py-4"><p class="text-xs font-bold text-gray-700">{{ $project->progress_reports_count + $project->narrative_reports_count }} total</p><p class="mt-1 text-[11px] {{ $pendingReportCount ? 'font-bold text-amber-700' : 'text-gray-400' }}">{{ $pendingReportCount }} awaiting review</p></td>
                                 <td class="px-5 py-4 text-right"><a href="{{ route('topics.show', $project) }}#project-monitoring" class="inline-flex rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white">Open monitoring</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Approved research projects will appear here.</p></td></tr>
+                            <tr><td colspan="5" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Projects appear here after their Notice to Proceed is issued.</p></td></tr>
                         @endforelse
                     </tbody>
                 </table>
