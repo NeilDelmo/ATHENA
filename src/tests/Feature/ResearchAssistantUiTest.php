@@ -61,7 +61,7 @@ test('faculty and faculty researchers can open the research help facility', func
     $researcher = User::factory()->create();
     $researcher->assignRole($role);
 
-    $this->actingAs($researcher)
+    $response = $this->actingAs($researcher)
         ->get(route('research-support.index'))
         ->assertOk()
         ->assertSee('Research Support')
@@ -71,16 +71,21 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('role="tab"', false)
         ->assertSee('activeResearchTool', false)
         ->assertSee("x-show=\"activeResearchTool === 'rrl'\"", false)
-        ->assertSee("x-show=\"activeResearchTool === 'conference'\"", false)
-        ->assertSee('Search related literature')
-        ->assertSee('Semantic Scholar + Crossref + OpenAlex')
-        ->assertSee('From year')
-        ->assertSee('Open access only')
-        ->assertSee('Build a literature comparison table')
+        ->assertDontSee('Academic metadata')
+        ->assertDontSee('Live metadata sources')
+        ->assertSee('Search filters')
+        ->assertSee('Published from')
+        ->assertSee('Open-access papers only')
+        ->assertSee('Your first action is to search')
+        ->assertSee('Find new papers')
+        ->assertSee('Saved library')
         ->assertSee('Search papers')
-        ->assertSee('Abstract summary')
+        ->assertSee('Abstract excerpt')
         ->assertSee('Paper details')
-        ->assertSee('Relevance order')
+        ->assertSee('Add to a Detailed Proposal')
+        ->assertDontSee('No scrolling required')
+        ->assertSee('Evidence-ranked')
+        ->assertSee('Add research context for more precise results')
         ->assertSee('data-rrl-workspace', false)
         ->assertSee('data-rrl-results-table', false)
         ->assertSee('data-rrl-paper-details', false)
@@ -90,15 +95,6 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Sources')
         ->assertSee('<details x-show="Array.isArray(message.sources)', false)
         ->assertDontSee('Grounded with ATHENA knowledge')
-        ->assertSee('Conference Finder')
-        ->assertSee('HTML scraping')
-        ->assertSee('Relevance ranked')
-        ->assertSee('Find conferences for publication')
-        ->assertSee('local and international venues')
-        ->assertSee('Scraped source: WikiCFP')
-        ->assertSee('Connecting to the conference source')
-        ->assertSee('Reading public listings')
-        ->assertSee('This can take a few seconds')
         ->assertSee('Ask Athena')
         ->assertSee('Ask ATHENA')
         ->assertSee('Expand to full workspace')
@@ -117,6 +113,19 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('openWorkspace()', false)
         ->assertSee('collapseWorkspace()', false)
         ->assertSee('workspaceOpen', false);
+
+    if ($role === 'faculty_researcher') {
+        $response
+            ->assertSee("x-show=\"activeResearchTool === 'conference'\"", false)
+            ->assertSee('Conference Finder')
+            ->assertSee('HTML scraping')
+            ->assertSee('Find conferences for publication')
+            ->assertSee('Scraped source: WikiCFP');
+    } else {
+        $response
+            ->assertDontSee("x-show=\"activeResearchTool === 'conference'\"", false)
+            ->assertDontSee('Conference Finder');
+    }
 })->with(['faculty', 'faculty_researcher']);
 
 test('all authenticated roles can open the assistant workspace', function (string $role) {
@@ -606,26 +615,170 @@ test('faculty can search related literature from academic metadata providers', f
         ->assertJsonPath('results.0.doi', '10.1234/mangrove')
         ->assertJsonPath('results.0.source', 'Semantic Scholar')
         ->assertJsonPath('results.0.citation_count', 12)
-        ->assertJsonPath('results.1.title', 'Participatory Coastal Resource Monitoring')
-        ->assertJsonPath('results.1.description', 'Local communities can improve coastal resource monitoring when protocols are simple and repeatable.')
-        ->assertJsonPath('results.1.authors', 'Ana Reyes, Mark Dela Cruz')
-        ->assertJsonPath('results.1.year', 2022)
-        ->assertJsonPath('results.1.venue', 'Journal of Coastal Research')
-        ->assertJsonPath('results.1.doi', '10.5678/coastal')
-        ->assertJsonPath('results.1.source', 'Crossref')
-        ->assertJsonPath('results.1.citation_count', 7)
-        ->assertJsonPath('results.2.title', 'OpenAlex Records for Community Monitoring')
-        ->assertJsonPath('results.2.description', 'OpenAlex indexes community monitoring studies')
-        ->assertJsonPath('results.2.authors', 'Joanna Lee, Rafael Torres')
-        ->assertJsonPath('results.2.year', 2023)
-        ->assertJsonPath('results.2.venue', 'Open Research Index')
-        ->assertJsonPath('results.2.doi', '10.2468/openalex')
-        ->assertJsonPath('results.2.source', 'OpenAlex')
-        ->assertJsonPath('results.2.citation_count', 25)
-        ->assertJsonPath('results.2.is_open_access', true)
-        ->assertJsonPath('results.2.type', 'article');
+        ->assertJsonPath('results.0.relevance_label', 'Strong match')
+        ->assertJsonPath('results.0.matched_terms.0', 'community')
+        ->assertJsonPath('results.1.title', 'OpenAlex Records for Community Monitoring')
+        ->assertJsonPath('results.1.description', 'OpenAlex indexes community monitoring studies')
+        ->assertJsonPath('results.1.authors', 'Joanna Lee, Rafael Torres')
+        ->assertJsonPath('results.1.year', 2023)
+        ->assertJsonPath('results.1.venue', 'Open Research Index')
+        ->assertJsonPath('results.1.doi', '10.2468/openalex')
+        ->assertJsonPath('results.1.source', 'OpenAlex')
+        ->assertJsonPath('results.1.citation_count', 25)
+        ->assertJsonPath('results.1.is_open_access', true)
+        ->assertJsonPath('results.1.type', 'article')
+        ->assertJsonPath('results.2.title', 'Participatory Coastal Resource Monitoring')
+        ->assertJsonPath('results.2.description', 'Local communities can improve coastal resource monitoring when protocols are simple and repeatable.')
+        ->assertJsonPath('results.2.authors', 'Ana Reyes, Mark Dela Cruz')
+        ->assertJsonPath('results.2.year', 2022)
+        ->assertJsonPath('results.2.venue', 'Journal of Coastal Research')
+        ->assertJsonPath('results.2.doi', '10.5678/coastal')
+        ->assertJsonPath('results.2.source', 'Crossref')
+        ->assertJsonPath('results.2.citation_count', 7)
+        ->assertJson(fn ($json) => $json
+            ->whereType('results.0.relevance_score', 'integer')
+            ->whereType('results.1.relevance_score', 'integer')
+            ->whereType('results.2.relevance_score', 'integer')
+            ->etc());
 
     Http::assertSentCount(3);
+});
+
+test('literature search requests wider provider pools and returns up to fifty useful records', function () {
+    config()->set('services.semantic_scholar.key', 'semantic-scholar-test-key');
+
+    $papers = collect(range(1, 60))
+        ->map(fn (int $number): array => [
+            'title' => "Community monitoring evidence study {$number}",
+            'abstract' => 'Community monitoring evidence for local environmental programs.',
+            'authors' => [['name' => "Researcher {$number}"]],
+            'year' => 2024,
+            'venue' => 'Community Research Journal',
+            'url' => "https://www.semanticscholar.org/paper/{$number}",
+            'externalIds' => ['DOI' => "10.1000/community.{$number}"],
+            'citationCount' => $number,
+        ])
+        ->all();
+
+    Http::fake([
+        'api.semanticscholar.org/graph/v1/paper/search*' => Http::response(['data' => $papers]),
+        'api.crossref.org/works*' => Http::response(['message' => ['items' => []]]),
+        'api.openalex.org/works*' => Http::response(['results' => []]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.literature-search'), [
+            'query' => 'community monitoring evidence',
+        ])
+        ->assertOk()
+        ->assertJsonCount(50, 'results');
+
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.semanticscholar.org/graph/v1/paper/search')
+        && str_contains($request->url(), 'limit=60')
+        && $request->hasHeader('x-api-key', 'semantic-scholar-test-key'));
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.crossref.org/works')
+        && str_contains($request->url(), 'rows=60'));
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.openalex.org/works')
+        && str_contains($request->url(), 'per_page=60'));
+});
+
+test('literature search recognizes related word forms instead of dropping relevant records', function () {
+    Http::fake([
+        'api.semanticscholar.org/graph/v1/paper/search*' => Http::response([
+            'data' => [[
+                'title' => 'Participatory Mangrove Monitoring in Coastal Communities',
+                'abstract' => 'Local participation supports long-term community monitoring.',
+                'authors' => [['name' => 'Maria Santos']],
+                'year' => 2024,
+                'venue' => 'Coastal Research Journal',
+                'url' => 'https://www.semanticscholar.org/paper/word-family',
+                'externalIds' => ['DOI' => '10.1000/word-family'],
+                'citationCount' => 8,
+            ]],
+        ]),
+        'api.crossref.org/works*' => Http::response(['message' => ['items' => []]]),
+        'api.openalex.org/works*' => Http::response(['results' => []]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.literature-search'), [
+            'query' => 'participation mangrove monitor',
+        ])
+        ->assertOk()
+        ->assertJsonCount(1, 'results')
+        ->assertJsonPath('results.0.title', 'Participatory Mangrove Monitoring in Coastal Communities')
+        ->assertJsonPath('results.0.matched_terms.0', 'participation')
+        ->assertJsonPath('results.0.matched_terms.2', 'monitor');
+});
+
+test('literature search merges duplicate provider metadata into the strongest record', function () {
+    $indexedAbstract = str_repeat('Community mangrove monitoring evidence supports sustained local observation. ', 18);
+
+    Http::fake([
+        'api.semanticscholar.org/graph/v1/paper/search*' => Http::response([
+            'data' => [[
+                'title' => 'Community Mangrove Monitoring',
+                'abstract' => $indexedAbstract,
+                'authors' => [['name' => 'Maria Santos']],
+                'year' => 2024,
+                'venue' => '',
+                'url' => 'https://www.semanticscholar.org/paper/merged',
+                'externalIds' => ['DOI' => '10.1000/merged'],
+                'citationCount' => 5,
+            ]],
+        ]),
+        'api.crossref.org/works*' => Http::response([
+            'message' => ['items' => [[
+                'title' => ['Community Mangrove Monitoring'],
+                'author' => [['given' => 'Maria', 'family' => 'Santos']],
+                'published-online' => ['date-parts' => [[2024]]],
+                'container-title' => ['Coastal Research Journal'],
+                'DOI' => '10.1000/merged',
+                'URL' => 'https://doi.org/10.1000/merged',
+                'is-referenced-by-count' => 24,
+            ]]],
+        ]),
+        'api.openalex.org/works*' => Http::response(['results' => []]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $response = $this->actingAs($faculty)
+        ->postJson(route('research-support.literature-search'), [
+            'query' => 'community mangrove monitoring',
+        ])
+        ->assertOk()
+        ->assertJsonCount(1, 'results')
+        ->assertJsonPath('results.0.description', trim($indexedAbstract))
+        ->assertJsonPath('results.0.venue', 'Coastal Research Journal')
+        ->assertJsonPath('results.0.citation_count', 24);
+
+    expect(strlen($response->json('results.0.description')))->toBeGreaterThan(700);
+});
+
+test('literature search stops broad one-word queries before returning misleading matches', function () {
+    Http::fake();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $response = $this->actingAs($faculty)
+        ->postJson(route('research-support.literature-search'), ['query' => 'athena'])
+        ->assertOk()
+        ->assertJsonCount(0, 'results')
+        ->assertJsonPath('query_guidance.is_broad', true)
+        ->assertJsonPath('query_guidance.term_count', 1);
+
+    expect($response->json('query_guidance.message'))->toContain('too broad');
+
+    Http::assertNothingSent();
 });
 
 test('literature search applies filters to normalized provider results', function () {
@@ -714,6 +867,9 @@ test('literature search applies filters to normalized provider results', functio
         && str_contains(urldecode($request->url()), 'publication_year:2020-2024')
         && str_contains(urldecode($request->url()), 'cited_by_count:>4')
         && str_contains(urldecode($request->url()), 'is_oa:true'));
+    Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.semanticscholar.org/graph/v1/paper/search')
+        && str_contains(urldecode($request->url()), 'year=2020-2024')
+        && str_contains(urldecode($request->url()), 'openAccessPdf=true'));
     Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://api.crossref.org/works')
         && str_contains(urldecode($request->url()), 'from-pub-date:2020-01-01')
         && str_contains(urldecode($request->url()), 'until-pub-date:2024-12-31'));
@@ -740,7 +896,7 @@ test('literature search rejects an invalid year range', function () {
 
 test('literature search returns available results when one provider fails', function () {
     Http::fake([
-        'api.semanticscholar.org/graph/v1/paper/search*' => Http::response([], 500),
+        'api.semanticscholar.org/graph/v1/paper/search*' => Http::response([], 429),
         'api.crossref.org/works*' => Http::response([
             'message' => [
                 'items' => [[
@@ -768,7 +924,8 @@ test('literature search returns available results when one provider fails', func
         ->assertJsonCount(1, 'results')
         ->assertJsonPath('results.0.title', 'Faculty research mentoring practices')
         ->assertJsonPath('results.0.description', 'No description available from source.')
-        ->assertJsonPath('failed_sources.0', 'Semantic Scholar');
+        ->assertJsonPath('failed_sources.0', 'Semantic Scholar')
+        ->assertJsonPath('provider_notice', 'Showing 1 result from Crossref and OpenAlex. Semantic Scholar temporarily rate-limited this search.');
 });
 
 test('literature search reports unavailable when every provider fails', function () {
@@ -808,11 +965,26 @@ test('unauthorized roles cannot scrape conference listings', function () {
     Http::assertNothingSent();
 });
 
-test('conference scraper query must be specific enough', function () {
+test('regular faculty cannot scrape conference listings before becoming faculty researchers', function () {
     Http::fake();
 
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.conference-search'), [
+            'query' => 'educational technology',
+        ])
+        ->assertForbidden();
+
+    Http::assertNothingSent();
+});
+
+test('conference scraper query must be specific enough', function () {
+    Http::fake();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty_researcher');
 
     $response = $this->actingAs($faculty)
         ->postJson(route('research-support.conference-search'), [
@@ -825,7 +997,7 @@ test('conference scraper query must be specific enough', function () {
     Http::assertNothingSent();
 });
 
-test('faculty can scrape conference listings for publication venues', function () {
+test('faculty researchers can scrape conference listings for publication venues', function () {
     Http::fake([
         'www.wikicfp.com/cfp/servlet/tool.search*' => Http::response(<<<'HTML'
             <html>
@@ -850,7 +1022,7 @@ test('faculty can scrape conference listings for publication venues', function (
     ]);
 
     $faculty = User::factory()->create();
-    $faculty->assignRole('faculty');
+    $faculty->assignRole('faculty_researcher');
 
     $this->actingAs($faculty)
         ->postJson(route('research-support.conference-search'), [
@@ -892,7 +1064,7 @@ test('conference scraper reports unavailable when the source fails', function ()
     ]);
 
     $faculty = User::factory()->create();
-    $faculty->assignRole('faculty');
+    $faculty->assignRole('faculty_researcher');
 
     $this->actingAs($faculty)
         ->postJson(route('research-support.conference-search'), [

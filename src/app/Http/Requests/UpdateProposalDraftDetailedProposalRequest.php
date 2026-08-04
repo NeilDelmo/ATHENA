@@ -80,10 +80,13 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         // `contact_number`, so this single assignment keeps the leader contact
         // in sync across every workspace that user can act in.
 
+        $merged['project_leader'] = Str::of((string) ($merged['project_leader'] ?? $draft->project_leader))
+            ->squish()
+            ->toString();
+
         $this->replace([
             ...$merged,
             'project_title' => $draft->project_title,
-            'project_leader' => $draft->project_leader,
         ]);
     }
 
@@ -93,6 +96,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         return [
             ...DetailedProposalRules::rules($this->allowsDraftValidation()),
             'document_version' => [$this->isMethod('PUT') ? 'required' : 'nullable', 'integer', 'min:0'],
+            'draft_version' => ['nullable', 'integer', 'min:0'],
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
             'methodology_images_present' => ['sometimes', 'boolean'],

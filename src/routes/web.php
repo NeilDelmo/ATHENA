@@ -4,7 +4,10 @@ use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\FacultyDirectoryController;
+use App\Http\Controllers\LiteratureCollectionController;
 use App\Http\Controllers\LiteratureSearchController;
+use App\Http\Controllers\LiteratureSourceController;
+use App\Http\Controllers\LiteratureSynthesisController;
 use App\Http\Controllers\NoticeToProceedController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -20,6 +23,7 @@ use App\Http\Controllers\ProposalDraftExpenseBreakdownController;
 use App\Http\Controllers\ProposalDraftGADChecklistController;
 use App\Http\Controllers\ProposalDraftInitialScreeningFormController;
 use App\Http\Controllers\ProposalDraftLineItemBudgetController;
+use App\Http\Controllers\ProposalDraftLiteratureSourceController;
 use App\Http\Controllers\ProposalDraftMemberController;
 use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
@@ -32,6 +36,7 @@ use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
+use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\TopicCommentResponseFormController;
 use App\Http\Controllers\TopicController;
@@ -244,7 +249,7 @@ Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}', [ProjectN
     ->name('project-narrative-reports.photos.download');
 
 Route::middleware('auth')->group(function () {
-    Route::view('/research-support', 'faculty.research_support.index')->name('research-support.index');
+    Route::get('/research-support', [ResearchSupportController::class, 'index'])->name('research-support.index');
     Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])
         ->middleware('throttle:60,1')
         ->name('research-support.history');
@@ -263,6 +268,21 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
     Route::post('/research-support/literature-search', LiteratureSearchController::class)
         ->middleware('throttle:20,1')
         ->name('research-support.literature-search');
+    Route::post('/research-support/literature-synthesis', LiteratureSynthesisController::class)
+        ->middleware('throttle:12,1')
+        ->name('research-support.literature-synthesis');
+    Route::post('/research-support/literature-library', [LiteratureSourceController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('research-support.literature-library.store');
+    Route::post('/research-support/literature-collections', [LiteratureCollectionController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('research-support.literature-collections.store');
+    Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{literatureSource}', [ProposalDraftLiteratureSourceController::class, 'store'])
+        ->middleware('throttle:30,1')
+        ->name('faculty.proposal-drafts.literature-sources.store');
+});
+
+Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::post('/research-support/conference-search', ConferenceSearchController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.conference-search');

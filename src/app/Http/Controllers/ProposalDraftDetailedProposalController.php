@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SaveProposalDraftDetails;
 use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\UpdateProposalDraftDetailedProposalRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftLiteratureSource;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\DetailedProposalMethodologyImageService;
 use App\Support\DetailedProposalData;
@@ -16,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -75,6 +78,19 @@ class ProposalDraftDetailedProposalController extends Controller
             $sourceData['leader_contact'] = (string) ($proposalDraft->owner?->contact_number ?? $request->user()?->contact_number ?? '');
         }
         $budgetTotals = $this->budgetTotals($proposalDraft);
+        $literatureSources = $proposalDraft->literatureSources()
+            ->with(['literatureSource.addedBy:id,name', 'literatureSource.collections:id,name,slug'])
+            ->get()
+            ->map(fn (ProposalDraftLiteratureSource $source): array => $source->toLibraryArray())
+            ->values();
+        $initialLiteratureSourceId = $request->integer('literature_source') ?: null;
+        $initialLiteratureAction = $request->string('apply_to')->toString();
+
+        if (! in_array($initialLiteratureAction, ['rrl', 'reference', 'both'], true)
+            || ! $literatureSources->contains(fn (array $source): bool => $source['id'] === $initialLiteratureSourceId)) {
+            $initialLiteratureSourceId = null;
+            $initialLiteratureAction = null;
+        }
 
         return view('faculty.proposal-drafts.detailed-proposal.edit', compact(
             'proposalDraft',
@@ -83,6 +99,9 @@ class ProposalDraftDetailedProposalController extends Controller
             'sourceData',
             'workspacePeople',
             'budgetTotals',
+            'literatureSources',
+            'initialLiteratureSourceId',
+            'initialLiteratureAction',
         ));
     }
 
@@ -91,11 +110,14 @@ class ProposalDraftDetailedProposalController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         SaveProposalDraftDocument $saveProposalDraftDocument,
+        SaveProposalDraftDetails $saveProposalDraftDetails,
         DetailedProposalMethodologyImageService $methodologyImageService,
     ): RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('detailed-proposal');
-        $sourceData = Arr::only($request->validated(), self::SOURCE_FIELDS);
+        $validated = $request->validated();
+        $sourceData = Arr::only($validated, self::SOURCE_FIELDS);
+        $projectLeader = Str::of((string) $validated['project_leader'])->squish()->toString();
         [$sourceData['methodology_images'], $storedImagePaths] = $this->storeMethodologyImages(
             $proposalDraft,
             $sourceData['methodology_images'] ?? [],
@@ -103,23 +125,33 @@ class ProposalDraftDetailedProposalController extends Controller
         );
 
         try {
-            $saveProposalDraftDocument->handle(
-                $proposalDraft,
-                $request->user(),
-                $paper['document_type'],
-                0,
-                $request->integer('document_version'),
-                [
-                    'source_data' => $sourceData,
-                    'file_path' => null,
-                    'original_filename' => null,
-                    'mime_type' => null,
-                    'file_size' => null,
-                    'checksum' => null,
-                    'completed_at' => $request->boolean('save_as_draft') ? null : now(),
-                ],
-                changeNote: $request->string('change_note')->toString(),
-            );
+            DB::transaction(function () use ($proposalDraft, $request, $paper, $sourceData, $projectLeader, $saveProposalDraftDetails, $saveProposalDraftDocument): void {
+                if ($projectLeader !== $proposalDraft->project_leader) {
+                    $saveProposalDraftDetails->handle(
+                        $proposalDraft,
+                        $request->integer('draft_version'),
+                        ['project_leader' => $projectLeader],
+                    );
+                }
+
+                $saveProposalDraftDocument->handle(
+                    $proposalDraft,
+                    $request->user(),
+                    $paper['document_type'],
+                    0,
+                    $request->integer('document_version'),
+                    [
+                        'source_data' => $sourceData,
+                        'file_path' => null,
+                        'original_filename' => null,
+                        'mime_type' => null,
+                        'file_size' => null,
+                        'checksum' => null,
+                        'completed_at' => $request->boolean('save_as_draft') ? null : now(),
+                    ],
+                    changeNote: $request->string('change_note')->toString(),
+                );
+            }, 3);
         } catch (\Throwable $exception) {
             Storage::disk('local')->delete($storedImagePaths);
 

@@ -2,8 +2,11 @@
 
 use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Contracts\DocumentPdfConverter;
+use App\Models\LiteratureSource;
+use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocumentVersion;
+use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -395,6 +398,8 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('Required PDF attachments')
         ->assertSee('Proposal collaborators')
         ->assertSee('Update Project Details')
+        ->assertSee('Workspace overview')
+        ->assertSee('data-workspace-palette="red-black-white"', false)
         ->assertSee('proposal-review', false)
         ->assertSee('open-modal', false)
         ->assertSee('close-modal', false)
@@ -1269,4 +1274,241 @@ test('final submission creates one immutable package then rejects a duplicate re
     expect(TopicProposal::query()->count())->toBe(1)
         ->and($topic->versions()->count())->toBe(1);
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
+});
+
+test('an rrl backed proposal completes submission revision approval notice and monitoring', function () {
+    Notification::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)([
+        'project_title' => 'Community Mangrove Monitoring Lifecycle',
+    ]));
+    $reviewedRrlParagraph = 'Santos and Cruz (2024) examined community participation in mangrove monitoring and found that sustained local involvement supported more consistent environmental observation. Their findings indicate that community participation may strengthen monitoring continuity and local stewardship.';
+
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            'title' => 'Community Participation in Mangrove Monitoring',
+            'description' => 'This study examined how community participation influenced the continuity of mangrove monitoring activities and local stewardship.',
+            'authors' => 'Maria Santos, Luis Cruz',
+            'year' => 2024,
+            'venue' => 'Journal of Coastal Research',
+            'doi' => '10.1234/mangrove.lifecycle',
+            'url' => 'https://doi.org/10.1234/mangrove.lifecycle',
+            'source' => 'OpenAlex',
+            'citation_count' => 18,
+            'is_open_access' => false,
+            'type' => 'article',
+        ])
+        ->assertCreated()
+        ->json('source.id');
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+    $proposalSourceId = $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$draft, $source]), [
+            'rrl_note' => $reviewedRrlParagraph,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('source.rrl_note', $reviewedRrlParagraph)
+        ->json('source.id');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', [
+            'proposalDraft' => $draft,
+            'literature_source' => $proposalSourceId,
+            'apply_to' => 'both',
+        ]))
+        ->assertOk()
+        ->assertViewHas('initialLiteratureSourceId', $proposalSourceId)
+        ->assertViewHas('initialLiteratureAction', 'both');
+
+    $detailedProposalDocument = $draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+    $reference = $draft->literatureSources()->findOrFail($proposalSourceId)->referenceDraft();
+    $detailedProposalPayload = [
+        ...$detailedProposalDocument->source_data,
+        'project_leader' => $draft->project_leader,
+        'document_version' => $detailedProposalDocument->lock_version,
+        'draft_version' => $draft->lock_version,
+        'related_literature' => $detailedProposalDocument->source_data['related_literature']."\n\n".$reviewedRrlParagraph,
+        'references' => $detailedProposalDocument->source_data['references']."\n".$reference,
+        'change_note' => 'Added a reviewed source from the shared literature library.',
+    ];
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $draft), $detailedProposalPayload)
+        ->assertRedirect(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect(route('faculty.dashboard'));
+
+    $topic = TopicProposal::query()->sole();
+    $initialVersion = $topic->versions()->with('files')->sole();
+    $submittedDetailedProposal = $initialVersion->files
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+
+    expect($topic->status)->toBe('pending')
+        ->and($submittedDetailedProposal->source_data['related_literature'])->toContain($reviewedRrlParagraph)
+        ->and($submittedDetailedProposal->source_data['references'])->toContain('10.1234/mangrove.lifecycle');
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'New proposal submitted',
+    );
+
+    $annotation = $submittedDetailedProposal->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.15, 'y' => 0.25, 'width' => 0.45, 'height' => 0.08]],
+        'comment' => 'Clarify how the reviewed literature supports the monitoring method.',
+    ]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => 'revision_requested',
+            'comment' => 'Clarify the connection between the RRL and the proposed monitoring method.',
+            'revision_file_ids' => [$submittedDetailedProposal->id],
+            'revision_file_notes' => [
+                $submittedDetailedProposal->id => 'Revise the detailed proposal while retaining the verified source.',
+            ],
+            'evaluation_document' => UploadedFile::fake()->create('initial-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    expect($topic->fresh()->status)->toBe('revision_requested')
+        ->and($annotation->fresh()->topic_review_file_revision_id)->not->toBeNull();
+    Notification::assertSentTo(
+        $this->faculty,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Revision requested',
+    );
+
+    $this->actingAs($this->faculty)
+        ->patch(route('faculty.topics.resubmit', $topic), [
+            'title' => $topic->title,
+            'description' => 'Revised to connect the reviewed literature to the monitoring methodology.',
+            'estimated_budget' => $topic->estimated_budget ?: 3600,
+            'estimated_duration_months' => $topic->estimated_duration_months,
+            'change_summary' => 'Clarified the RRL-to-methodology connection while retaining the verified source.',
+            'detailed_proposal' => UploadedFile::fake()->create('detailed-proposal-v2.pdf', 120, 'application/pdf'),
+        ])
+        ->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($topic->versions()->count())->toBe(2)
+        ->and($topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole()->resolved_at)->not->toBeNull();
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal revision submitted',
+    );
+
+    $revisedVersion = $topic->latestVersion()->with('files')->firstOrFail();
+    $revisedDetailedProposal = $revisedVersion->files
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$revisedDetailedProposal->id],
+            'evaluation_document' => UploadedFile::fake()->create('final-evaluation.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $revisedDetailedProposal->id,
+            'review_file' => UploadedFile::fake()->create('signed-detailed-proposal.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertRedirect(route('topics.show', $topic).'#proposal-review')
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.finalizeApproval', $topic))
+        ->assertRedirect(route('topics.show', $topic).'#proposal-review')
+        ->assertSessionHasNoErrors();
+
+    expect($topic->fresh()->status)->toBe('approved')
+        ->and($topic->fresh()->isMonitoringAvailable())->toBeFalse()
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+    Notification::assertSentTo(
+        $this->faculty,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal papers approved',
+    );
+
+    $this->actingAs($this->head)
+        ->post(route('research_head.topics.notice-to-proceed.store', $topic), [
+            'notice_to_proceed' => UploadedFile::fake()->create('notice-to-proceed.pdf', 100, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
+        ->assertSessionHasNoErrors();
+
+    $topic->refresh();
+    $this->faculty->refresh();
+
+    expect($topic->isMonitoringAvailable())->toBeTrue()
+        ->and($topic->project_status)->toBe('ongoing')
+        ->and($this->faculty->hasRole('faculty_researcher'))->toBeTrue();
+    Notification::assertSentTo(
+        $this->faculty,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Notice to Proceed issued',
+    );
+
+    $monitoringPayload = [
+        'reporting_date' => now()->toDateString(),
+        'tracking_number' => 'LIFECYCLE-2026-001',
+        'work_plan' => [[
+            'activity' => 'Conduct community mangrove monitoring',
+            'percent_weight' => 100,
+            'physical_target' => 'Complete the first monitoring cycle',
+            'target_completion_date' => now()->addMonth()->toDateString(),
+            'actual_accomplishment' => 'Completed the baseline monitoring cycle',
+            'accomplished_percentage' => 25,
+            'findings' => 'Community monitors completed the planned observations.',
+        ]],
+        'budget_utilization' => [
+            ['type' => 'Purchase Request', 'details' => 'Monitoring supplies', 'amount_requested' => 1000, 'actual_amount' => 900, 'remarks' => 'Delivered'],
+            ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+            ['type' => 'Request of Payment', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+        ],
+        'prepared_by_date_signed' => now()->toDateString(),
+    ];
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($this->faculty)
+        ->get(route('research.show', $topic))
+        ->assertOk()
+        ->assertSee('Project monitoring');
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($this->faculty)
+        ->post(route('project-progress.store', $topic), $monitoringPayload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::query()->sole();
+
+    expect($report->topic_id)->toBe($topic->id)
+        ->and($report->review_status)->toBe('pending')
+        ->and($report->progress_percentage)->toBe(25);
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Monitoring tool submitted',
+    );
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.projects.index'))
+        ->assertOk()
+        ->assertSee($topic->title)
+        ->assertSee('25%')
+        ->assertSee('1 awaiting review');
 });

@@ -408,6 +408,7 @@
                         <span>RRL Finder</span>
                     </a>
 
+                    @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
                     <a
                         href="{{ route('research-support.index') }}#conference-finder"
                         @click="
@@ -422,6 +423,7 @@
                         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
                         <span>Conference Finder</span>
                     </a>
+                    @endif
                 </div>
             </div>
         @endif

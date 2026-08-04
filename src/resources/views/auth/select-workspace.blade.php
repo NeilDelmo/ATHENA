@@ -20,7 +20,7 @@
                 <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <div class="flex items-center gap-3">
-                            <img src="{{ asset('images/logo_athena_gray-transparent.png') }}" alt="ATHENA" class="h-12 w-12 rounded-xl bg-white/90 object-contain p-1">
+                            <img src="{{ asset('images/athenalogo-transparent.png') }}" alt="ATHENA" class="h-12 w-12 rounded-xl bg-white/90 object-contain p-1">
                             <div>
                                 <p class="text-[11px] font-black uppercase tracking-[0.2em] text-red-100">ATHENA access</p>
                                 <h1 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">Choose your workspace</h1>

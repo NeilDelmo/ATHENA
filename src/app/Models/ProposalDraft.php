@@ -68,6 +68,12 @@ class ProposalDraft extends Model
             ->latest();
     }
 
+    public function literatureSources(): HasMany
+    {
+        return $this->hasMany(ProposalDraftLiteratureSource::class)
+            ->latest();
+    }
+
     public function currentDocumentVersion(
         string $documentType,
         int $position,

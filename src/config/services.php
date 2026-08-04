@@ -61,4 +61,8 @@ return [
         'key' => env('OPENALEX_API_KEY'),
     ],
 
+    'semantic_scholar' => [
+        'key' => env('SEMANTIC_SCHOLAR_API_KEY'),
+    ],
+
 ];

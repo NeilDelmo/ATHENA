@@ -31,6 +31,9 @@
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
         x-data="proposalDraftDetailedProposal({
             initialData: @js($initialData),
+            literatureSources: @js($literatureSources),
+            initialLiteratureSourceId: @js($initialLiteratureSourceId),
+            initialLiteratureAction: @js($initialLiteratureAction),
             workspacePeople: @js($workspacePeople),
             projectLeader: @js($proposalDraft->project_leader),
             expectedOutputKeys: @js(array_keys($expectedOutputs)),
@@ -96,6 +99,7 @@
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">
+            <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
             <input type="hidden" name="staff" value="">
 
@@ -144,16 +148,24 @@
                         </div>
                     </div>
                 </div>
-                <div class="mt-5 grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_12rem]">
-                    <div class="flex min-w-0 flex-col"><label for="leader-title" class="flex h-5 items-center gap-1 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-gray-500">Title <span class="font-normal normal-case tracking-normal text-gray-400">(optional)</span></label><input id="leader-title" name="leader_title" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="leaderTitle" placeholder="e.g. Asst Prof." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    <div class="flex min-w-0 flex-col"><label for="leader-name" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</label><input id="leader-name" type="text" value="{{ $proposalDraft->project_leader }}" readonly aria-readonly="true" class="mt-1.5 block h-11 w-full cursor-default rounded-xl border-gray-200 bg-white text-sm font-bold uppercase text-gray-900 shadow-sm focus:border-gray-300 focus:ring-0"></div>
+                <div class="mt-5 grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)_12rem]">
+                    <div class="flex min-w-0 flex-col">
+                        <label for="leader-title" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>Professional title</span><span class="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Optional</span></label>
+                        <input id="leader-title" name="leader_title" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="leaderTitle" placeholder="e.g. Asst Prof." aria-describedby="leader-title-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                        <p id="leader-title-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Leave blank when no professional title applies.</p>
+                    </div>
+                    <div class="flex min-w-0 flex-col">
+                        <label for="leader-name" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>Project Leader</span><span class="text-[9px] text-red-600">Required</span></label>
+                        <input id="leader-name" name="project_leader" type="text" required maxlength="120" list="detailed-proposal-member-names" x-model="projectLeader" x-on:change="syncProjectLeader()" placeholder="Type or choose a workspace member" aria-describedby="leader-name-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                        <p id="leader-name-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Changes also update Project Details and the prepared-by name.</p>
+                    </div>
                     <div class="flex min-w-0 flex-col"><label for="leader-email" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500">Email Address</label><input id="leader-email" name="leader_email" type="email" required maxlength="255" x-model="leaderEmail" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div class="flex min-w-0 flex-col"><label for="leader-contact" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500">Contact Number</label><input id="leader-contact" name="leader_contact" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="leaderContact" x-on:input="leaderContact = normalizeContactNumber($event.target.value); $event.target.value = leaderContact" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
                 <div class="mt-4 space-y-3">
                     <template x-for="(member, index) in staff" :key="member.id">
                         <div class="grid gap-3 rounded-xl border border-gray-200 p-4 md:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_12rem_auto] lg:items-end">
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center gap-1 whitespace-nowrap text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-title-${member.id}`">Title <span class="font-normal normal-case tracking-normal text-gray-400">(optional)</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Project Staff</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-email-${member.id}`">Email Address</label><input :id="`staff-email-${member.id}`" :name="`staff[${index}][email]`" type="email" required maxlength="255" x-model="member.email" placeholder="name@example.com" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-contact-${member.id}`">Contact Number</label><input :id="`staff-contact-${member.id}`" :name="`staff[${index}][contact]`" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="member.contact" x-on:input="member.contact = normalizeContactNumber($event.target.value); $event.target.value = member.contact" placeholder="09XXXXXXXXX" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
@@ -202,6 +214,50 @@
                 </div>
             </section>
 
+            <section class="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/80 via-white to-amber-50/60 p-5 shadow-sm sm:p-6">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <h3 class="text-base font-black text-gray-900">Literature linked to this proposal</h3>
+                            <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black text-red-700"><span x-text="literatureSources.length"></span> linked</span>
+                        </div>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">These are separate links from the shared faculty library to this draft. Insert a source note into Section XI, a reference into Section XVI, or both.</p>
+                    </div>
+                    <a href="{{ route('research-support.index') }}#rrl-finder" class="inline-flex shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-black text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Find more literature</a>
+                </div>
+
+                <p x-show="literatureSourceNotice" x-cloak class="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs font-semibold text-green-800" x-text="literatureSourceNotice" role="status"></p>
+
+                <div x-show="literatureSources.length === 0" class="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/80 px-4 py-6 text-center">
+                    <p class="text-sm font-black text-gray-800">No shared literature linked to this proposal yet</p>
+                    <p class="mt-1 text-xs text-gray-500">Open the RRL Finder, browse the shared library, and link the papers this draft needs.</p>
+                </div>
+
+                <div x-show="literatureSources.length" x-cloak class="mt-5 grid gap-3 lg:grid-cols-2">
+                    <template x-for="source in literatureSources" :key="source.id">
+                        <article class="flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="text-sm font-black leading-5 text-gray-900" x-text="source.title"></p>
+                                    <p class="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-500" x-text="source.authors || 'Authors not listed'"></p>
+                                </div>
+                                <span class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[9px] font-black text-gray-600" x-text="source.year || 'n.d.'"></span>
+                            </div>
+                            <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-gray-500">
+                                <span class="rounded bg-red-50 px-2 py-1 text-red-700" x-text="source.source"></span>
+                                <span x-show="source.venue" class="max-w-56 truncate rounded bg-gray-50 px-2 py-1" x-text="source.venue"></span>
+                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="rounded px-2 py-1 font-black text-red-700 hover:bg-red-50">Verify source</a>
+                            </div>
+                            <div class="mt-auto grid gap-2 pt-4 sm:grid-cols-3">
+                                <button type="button" @click="addLiteratureSourceToRrl(source)" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">Use in RRL</button>
+                                <button type="button" @click="addLiteratureSourceToReferences(source)" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">Add reference</button>
+                                <button type="button" @click="addLiteratureSourceToBoth(source)" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black text-white transition hover:bg-red-700">Use both</button>
+                            </div>
+                        </article>
+                    </template>
+                </div>
+            </section>
+
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">XI. Introduction and Related Studies and Literature</h3>
                 <div class="mt-5 grid gap-5">
@@ -212,7 +268,7 @@
                     <div>
                         <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
                         <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources.</p>
-                        <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                        <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                 </div>
             </section>
@@ -313,7 +369,7 @@
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <label for="references" class="block text-base font-black text-gray-900">XVI. References</label>
                 <p class="mt-1 text-xs text-gray-500">Enter one reference per line or separate entries with blank lines.</p>
-                <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" class="mt-4 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" class="mt-4 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
             </section>
 
             <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">

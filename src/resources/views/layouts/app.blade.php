@@ -34,7 +34,7 @@
             @endif
         @endauth
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-literature-search-url="{{ route('research-support.literature-search') }}" @endif
-        @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif
+        @if (Auth::user()?->isUsingWorkspace('faculty_researcher')) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif
         class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
         @auth

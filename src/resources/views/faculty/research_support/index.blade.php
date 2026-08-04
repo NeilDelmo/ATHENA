@@ -1,4 +1,6 @@
 <x-app-layout>
+    @php($canUseConferenceFinder = Auth::user()->isUsingWorkspace('faculty_researcher'))
+
     <x-slot name="header">
         <div class="athena-readable">
             <div>
@@ -6,7 +8,7 @@
                     <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">Research support</span>
                 </div>
                 <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Research Support</h2>
-                <p class="mt-1 text-xs text-gray-500">Find literature and publication venues for your research.</p>
+                <p class="mt-1 text-xs text-gray-500">{{ $canUseConferenceFinder ? 'Find literature and publication venues for your research.' : 'Find and save literature while preparing your research proposal.' }}</p>
             </div>
         </div>
     </x-slot>
@@ -14,9 +16,9 @@
     @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
     <div
         x-data="{
-            activeResearchTool: window.location.hash === '#conference-finder' ? 'conference' : 'rrl',
+            activeResearchTool: @js($canUseConferenceFinder) && window.location.hash === '#conference-finder' ? 'conference' : 'rrl',
         }"
-        @hashchange.window="activeResearchTool = window.location.hash === '#conference-finder' ? 'conference' : 'rrl'"
+        @hashchange.window="activeResearchTool = @js($canUseConferenceFinder) && window.location.hash === '#conference-finder' ? 'conference' : 'rrl'"
     >
         <div class="athena-readable mb-3 mt-8">
         <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Research discovery tools</p>
@@ -36,6 +38,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                     RRL Finder
                 </button>
+                @if ($canUseConferenceFinder)
                 <button
                     type="button"
                     role="tab"
@@ -48,13 +51,19 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 0 1 6 5.25h12a2.25 2.25 0 0 1 2.25 2.25v11.25M3.75 18.75A2.25 2.25 0 0 0 6 21h12a2.25 2.25 0 0 0 2.25-2.25M3.75 18.75v-7.5h16.5v7.5" /></svg>
                     Conference Finder
                 </button>
+                @endif
             </nav>
         </div>
 
         <div x-show="activeResearchTool === 'rrl'" x-cloak>
-            <x-rrl-finder />
+            <x-rrl-finder
+                :proposal-drafts="$proposalDrafts"
+                :literature-collections="$literatureCollections"
+                :shared-literature-sources="$sharedLiteratureSources"
+            />
         </div>
 
+        @if ($canUseConferenceFinder)
         <div x-show="activeResearchTool === 'conference'" x-cloak>
 
     <section id="conference-finder" class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">
@@ -171,6 +180,7 @@
     </section>
 
         </div>
+        @endif
     </div>
     @endif
 

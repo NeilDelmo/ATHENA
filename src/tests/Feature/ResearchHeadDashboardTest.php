@@ -1,11 +1,11 @@
 <?php
 
 use App\Models\ProjectProgressReport;
-use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -71,7 +71,7 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertSee('data-dashboard-palette="red-black-white"', false)
         ->assertSee('Proposal pipeline')
         ->assertSee('Inbox controls')
-        ->assertSee('Apply filters');
+        ->assertSee('Received proposal inbox');
 });
 
 test('proposal dashboard shows received files and opens the submitted package', function () {
@@ -125,17 +125,16 @@ test('proposal dashboard shows received files and opens the submitted package', 
         ->assertSee(route('topics.show', $topic).'#proposal-review', false);
 });
 
-test('proposal dashboard paginates and preserves filters', function () {
+test('proposal dashboard paginates and preserves search', function () {
     foreach (range(1, 16) as $number) {
         createDashboardTopic($this->researcher, $this->call, ['title' => "Filtered Proposal {$number}"]);
     }
 
     $this->actingAs($this->head)
-        ->get(route('research_head.dashboard', ['search' => 'Filtered', 'status' => 'pending']))
+        ->get(route('research_head.dashboard', ['search' => 'Filtered']))
         ->assertOk()
         ->assertSee('page=2', false)
-        ->assertSee('search=Filtered', false)
-        ->assertSee('status=pending', false);
+        ->assertSee('search=Filtered', false);
 });
 
 test('monitoring page shows approved projects only with latest progress and counts', function () {
@@ -217,61 +216,40 @@ test('both Research Head pages have useful empty states', function () {
     $this->actingAs($this->head)->get(route('research_head.projects.index'))->assertSee('No projects found');
 });
 
-test('the proposal dashboard counts only in-progress drafts tied to open research calls', function () {
-    $faculty = User::factory()->create();
-    $faculty->assignRole('faculty');
-
-    $closedCall = ResearchCall::create([
-        'title' => 'Closed Research Call',
-        'academic_year' => '2025-2026',
-        'opens_at' => now()->subYear(),
-        'closes_at' => now()->subMonth(),
-        'status' => 'open',
-    ]);
-    $scheduledCall = ResearchCall::create([
-        'title' => 'Scheduled Research Call',
-        'academic_year' => '2026-2027',
-        'opens_at' => now()->addDay(),
-        'closes_at' => now()->addMonth(),
-        'status' => 'open',
-    ]);
-
-    ProposalDraft::create([
-        'user_id' => $faculty->id,
-        'research_call_id' => $this->call->id,
-        'project_title' => 'Active draft on the open call',
-        'status' => ProposalDraft::STATUS_DRAFT,
-    ]);
-
-    ProposalDraft::create([
-        'user_id' => $faculty->id,
-        'research_call_id' => $closedCall->id,
-        'project_title' => 'Stale draft on a closed call',
-        'status' => ProposalDraft::STATUS_DRAFT,
-    ]);
-
-    ProposalDraft::create([
-        'user_id' => $faculty->id,
-        'research_call_id' => $scheduledCall->id,
-        'project_title' => 'Draft on a call that has not opened yet',
-        'status' => ProposalDraft::STATUS_DRAFT,
-    ]);
-
-    ProposalDraft::create([
-        'user_id' => $faculty->id,
-        'research_call_id' => $this->call->id,
-        'project_title' => 'Already being submitted',
-        'status' => ProposalDraft::STATUS_SUBMITTING,
-    ]);
-
-    $response = $this->actingAs($this->head)
+test('the proposal pipeline shows the four actionable counts', function () {
+    $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))
         ->assertOk()
-        ->assertSee('In-progress drafts');
+        ->assertSee('Awaiting your review')
+        ->assertSee('Needs signed copies')
+        ->assertSee('Issue notice to proceed')
+        ->assertSee('Active projects')
+        ->assertDontSee('In-progress drafts')
+        ->assertDontSee('Live workload');
+});
 
-    $matches = [];
-    preg_match('/In-progress drafts<\/p>\s*<p[^>]*>\s*(\d+)\s*<\/p>/', $response->getContent(), $matches);
+test('the proposal pipeline can be filtered by stage without a page refresh', function () {
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Mangrove Restoration', 'status' => 'pending']);
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Solar Irrigation', 'status' => 'rejected']);
 
-    expect($matches)->toHaveCount(2)
-        ->and((int) $matches[1])->toBe(1);
+    Livewire::actingAs($this->head)
+        ->test(\App\Livewire\ResearchHeadDashboard::class)
+        ->assertSet('pipeline', '')
+        ->call('setPipeline', 'awaiting_review')
+        ->assertSet('pipeline', 'awaiting_review')
+        ->assertSee('Mangrove Restoration')
+        ->assertDontSee('Solar Irrigation')
+        ->call('clearPipeline')
+        ->assertSet('pipeline', '');
+});
+
+test('the dashboard search box filters proposals via Livewire', function () {
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Mangrove Restoration', 'status' => 'pending']);
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Solar Irrigation', 'status' => 'pending']);
+
+    Livewire::actingAs($this->head)
+        ->test(\App\Livewire\ResearchHeadDashboard::class)
+        ->set('search', 'Mangrove')
+        ->assertSee('Mangrove Restoration')
+        ->assertDontSee('Solar Irrigation');
 });

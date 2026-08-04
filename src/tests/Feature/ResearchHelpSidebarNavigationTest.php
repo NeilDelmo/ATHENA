@@ -3,7 +3,7 @@
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 
-test('faculty sidebar expands into the research discovery features', function () {
+test('faculty sidebar exposes the rrl finder without conference discovery', function () {
     Role::firstOrCreate(['name' => 'faculty']);
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
@@ -20,15 +20,26 @@ test('faculty sidebar expands into the research discovery features', function ()
         ->assertSee('window.livewireScriptConfig', false)
         ->assertSee('data-research-help-menu', false)
         ->assertSee('aria-controls="research-help-feature-links"', false)
-        ->assertSeeInOrder([
-            'Research Help Facility',
-            'RRL Finder',
-            'Conference Finder',
-        ])
+        ->assertSeeInOrder(['Research Help Facility', 'RRL Finder'])
         ->assertDontSee('AI Research Assistant')
         ->assertDontSee('href="'.$researchHelpUrl.'#ai-research-assistant"', false)
         ->assertSee('href="'.$researchHelpUrl.'#rrl-finder"', false)
-        ->assertSee('href="'.$researchHelpUrl.'#conference-finder"', false)
+        ->assertDontSee('href="'.$researchHelpUrl.'#conference-finder"', false)
         ->assertSee('id="rrl-finder"', false)
+        ->assertDontSee('id="conference-finder"', false);
+});
+
+test('faculty researcher sidebar includes conference discovery', function () {
+    Role::firstOrCreate(['name' => 'faculty_researcher']);
+    $researcher = User::factory()->create();
+    $researcher->assignRole('faculty_researcher');
+
+    $researchHelpUrl = route('research-support.index');
+
+    $this->actingAs($researcher)
+        ->get($researchHelpUrl)
+        ->assertOk()
+        ->assertSeeInOrder(['Research Help Facility', 'RRL Finder', 'Conference Finder'])
+        ->assertSee('href="'.$researchHelpUrl.'#conference-finder"', false)
         ->assertSee('id="conference-finder"', false);
 });

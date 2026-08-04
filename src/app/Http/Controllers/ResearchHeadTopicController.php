@@ -25,43 +25,7 @@ class ResearchHeadTopicController extends Controller
 {
     public function index(Request $request)
     {
-        $status = $request->string('status')->toString();
-        $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'];
-
-        $summary = [
-            'awaiting_review' => TopicProposal::whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision'])->count(),
-            'revision_requested' => TopicProposal::where('status', 'revision_requested')->count(),
-            'ready_for_signature' => TopicProposal::where('status', TopicProposal::STATUS_READY_FOR_SIGNATURE)->count(),
-            'awaiting_notice' => TopicProposal::where('status', 'approved')->whereNull('notice_to_proceed_issued_at')->count(),
-            'approved' => TopicProposal::monitoringAvailable()->count(),
-            'rejected' => TopicProposal::where('status', 'rejected')->count(),
-            'drafts' => ProposalDraft::query()
-                ->where('status', ProposalDraft::STATUS_DRAFT)
-                ->whereHas('researchCall', function ($query): void {
-                    $query->where('status', 'open')
-                        ->where('opens_at', '<=', now())
-                        ->where('closes_at', '>=', now());
-                })
-                ->count(),
-        ];
-
-        $topics = TopicProposal::with([
-            'user', 'researchCall', 'category', 'versions.submitter', 'versions.files', 'reviews.reviewer', 'progressReports:id,topic_id,review_status',
-        ])
-            ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhereHas('user', fn ($query) => $query->where('name', 'like', "%{$search}%"));
-                });
-            })
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        return view('research_head.dashboard', compact('topics', 'summary', 'status', 'search'));
+        return view('research_head.dashboard');
     }
 
     public function updateStatus(

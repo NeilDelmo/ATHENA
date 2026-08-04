@@ -22,8 +22,10 @@
                     <thead class="bg-gray-50"><tr><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Project</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Status</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Latest progress</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Reports</th><th class="px-5 py-3"><span class="sr-only">Open</span></th></tr></thead>
                     <tbody class="divide-y divide-gray-100">
                         @forelse ($projects as $project)
-                                @php($projectStatus = $project->project_status)
-                            @php $pendingReportCount = $project->pending_reports_count + $project->pending_narrative_reports_count; @endphp
+                            @php
+                                $projectStatus = $project->project_status;
+                                $pendingReportCount = $project->pending_reports_count + $project->pending_narrative_reports_count;
+                            @endphp
                             <tr class="{{ $projectStatus === 'delayed' || $pendingReportCount > 0 ? 'bg-amber-50/30' : '' }}">
                                 <td class="px-5 py-4"><p class="text-sm font-black text-gray-900">{{ $project->title }}</p><p class="mt-1 text-xs text-gray-500">{{ $project->user->name }} &middot; {{ $project->researchCall->title }}</p></td>
                                 <td class="px-5 py-4"><span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase {{ $projectStatus === 'completed' ? 'bg-green-50 text-green-700' : ($projectStatus === 'delayed' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700') }}">{{ $projectStatus }}</span></td>

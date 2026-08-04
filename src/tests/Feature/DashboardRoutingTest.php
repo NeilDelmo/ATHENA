@@ -40,6 +40,8 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
         ->assertOk()
         ->assertSee('Research Proposal Workspace')
         ->assertSee('Submit and track your research proposals.')
+        ->assertSee('data-dashboard-palette="red-black-white"', false)
+        ->assertSee('Proposal overview')
         ->assertDontSee('Faculty Researcher Workspace')
         ->assertDontSee('Manage and track your institutional research submissions.');
 

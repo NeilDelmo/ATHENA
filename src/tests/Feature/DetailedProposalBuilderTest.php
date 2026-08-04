@@ -112,6 +112,8 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Search workspace members')
         ->assertSee('No available workspace member matches your search.')
         ->assertSee('Names follow the official uppercase format.')
+        ->assertSee('Leave blank when no professional title applies.')
+        ->assertSee('Changes also update Project Details and the prepared-by name.')
         ->assertSee('Asst Prof.')
         ->assertSee('Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.', false)
         ->assertSee('Approval Signatory Names')
@@ -127,7 +129,9 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->toContain('id="recommending-approval-name" name="recommending_approval_name" type="text" maxlength="255"')
         ->toContain('id="approved-by-name" name="approved_by_name" type="text" maxlength="255"')
         ->toContain('id="leader-title" name="leader_title" type="text" maxlength="50"')
-        ->toContain('id="leader-name" type="text" value="Faculty Project Leader" readonly aria-readonly="true"')
+        ->toContain('id="leader-name" name="project_leader" type="text" required maxlength="120"')
+        ->toContain('x-model="projectLeader" x-on:change="syncProjectLeader()"')
+        ->not->toContain('id="leader-name" type="text" value="Faculty Project Leader" readonly')
         ->toContain('block h-11 w-full')
         ->toContain(':name="`staff[${index}][title]`"')
         ->toContain('method="POST" enctype="multipart/form-data"')
@@ -313,6 +317,27 @@ test('structured detailed proposal data saves, resumes, and observes optimistic 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $stalePayload)
         ->assertSessionHasErrors('document_version');
+});
+
+test('the project leader can be edited from the detailed proposal and stays in shared project details', function () {
+    $payload = ($this->payload)([
+        'draft_version' => 0,
+        'project_leader' => 'Updated Project Leader',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertSessionHas('success', 'Detailed Research Proposal saved.');
+
+    $this->draft->refresh();
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+
+    expect($this->draft->project_leader)->toBe('Updated Project Leader')
+        ->and($this->draft->lock_version)->toBe(1)
+        ->and($document->source_data)->not->toHaveKey('project_leader');
 });
 
 test('methodology visuals can be saved, positioned, previewed, and included in the Word document', function () {
