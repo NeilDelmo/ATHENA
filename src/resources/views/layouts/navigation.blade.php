@@ -433,7 +433,7 @@
             </div>
         @endif
 
-        @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
+        @if (Auth::user()->isUsingWorkspace('faculty'))
             <a
                 wire:navigate
                 href="{{ route('research.index') }}"
