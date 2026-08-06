@@ -2,6 +2,7 @@
 
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -106,6 +107,71 @@ test('the faculty dashboard shows recent accessible proposal drafts', function (
         ->assertDontSee('Private Draft That Must Stay Hidden');
 });
 
+test('the faculty researcher dashboard hides proposal drafts and only lists approved projects', function () {
+    $this->withoutVite();
+
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $researcher = User::factory()->create(['name' => 'Approved Researcher']);
+    $researcher->assignRole('faculty_researcher');
+
+    $researchCall = ResearchCall::create([
+        'title' => 'Researcher Dashboard Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 100000,
+        'status' => 'open',
+        'created_by' => $head->id,
+    ]);
+
+    TopicProposal::create([
+        'user_id' => $researcher->id,
+        'research_call_id' => $researchCall->id,
+        'title' => 'Approved Community Research',
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 12,
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+        'notice_to_proceed_issued_by' => $head->id,
+        'notice_to_proceed_issued_at' => now(),
+    ]);
+    $pendingTopic = TopicProposal::create([
+        'user_id' => $researcher->id,
+        'research_call_id' => $researchCall->id,
+        'title' => 'Pending Research Proposal',
+        'estimated_budget' => 30000,
+        'estimated_duration_months' => 9,
+        'status' => 'pending',
+    ]);
+    ProposalDraft::create([
+        'user_id' => $researcher->id,
+        'research_call_id' => $researchCall->id,
+        'project_title' => 'Hidden Researcher Draft',
+    ]);
+
+    $this->actingAs($researcher)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('Faculty Researcher Workspace')
+        ->assertSee('Faculty Researcher Dashboard')
+        ->assertSee('Project overview')
+        ->assertSee('Approved projects')
+        ->assertSee('Approved Community Research')
+        ->assertSee('Ongoing')
+        ->assertDontSee('Research Proposal Workspace')
+        ->assertDontSee('Faculty Dashboard')
+        ->assertDontSee('Proposal Workspace')
+        ->assertDontSee('Proposal overview')
+        ->assertDontSee('Recent proposal drafts')
+        ->assertDontSee('View all drafts')
+        ->assertDontSee('New proposal')
+        ->assertDontSee('Create first proposal')
+        ->assertDontSee(route('topics.show', $pendingTopic))
+        ->assertDontSee('Hidden Researcher Draft');
+});
+
 test('the faculty dashboard shows uploaded research call posters in a carousel', function () {
     $this->withoutVite();
     Storage::fake('local');
@@ -208,7 +274,9 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
     $this->actingAs($faculty)
         ->get(route('faculty.proposal-drafts.create', ['research_call_id' => $firstCall->id]))
         ->assertOk()
-        ->assertSee('<option value="'.$firstCall->id.'" selected', false);
+        ->assertSee('name="research_call_id"', false)
+        ->assertSee('value="'.$firstCall->id.'"', false)
+        ->assertSee('checked', false);
 });
 
 test('the forbidden response uses the friendly error page', function () {

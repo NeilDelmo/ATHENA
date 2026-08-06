@@ -41,8 +41,10 @@ class TopicController extends Controller
     public function index(ProposalDraftReadiness $readiness): View
     {
         $user = Auth::user();
+        $isFacultyResearcher = $user->isUsingWorkspace('faculty_researcher');
 
         $topics = $user->proposals()
+            ->when($isFacultyResearcher, fn ($query) => $query->where('status', 'approved'))
             ->with([
                 'researchCall', 'category',
                 'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
@@ -79,7 +81,7 @@ class TopicController extends Controller
                 'alt' => $researchCall->title,
                 'isResearchCall' => true,
                 'researchCallId' => $researchCall->id,
-                'canSubmitProposal' => $researchCall->isAcceptingSubmissions(),
+                'canSubmitProposal' => ! $isFacultyResearcher && $researchCall->isAcceptingSubmissions(),
             ])
             ->concat($announcementImages->map(fn (AnnouncementImage $announcementImage): array => [
                 'url' => route('announcement-images.show', $announcementImage),
@@ -90,25 +92,31 @@ class TopicController extends Controller
             ]))
             ->values();
 
-        $proposalDraftQuery = ProposalDraft::query()->accessibleTo($user);
-        $proposalDraftCount = (clone $proposalDraftQuery)->count();
-        $recentProposalDrafts = $proposalDraftQuery
-            ->with(['researchCall', 'documents', 'owner:id,name'])
-            ->latest('updated_at')
-            ->limit(4)
-            ->get();
+        $proposalDraftCount = 0;
+        $recentProposalDrafts = collect();
+        $proposalDraftProgress = collect();
 
-        $proposalDraftProgress = $recentProposalDrafts->mapWithKeys(function (ProposalDraft $draft) use ($readiness): array {
-            $checklist = $readiness->checklist($draft);
-            $completed = $checklist->where('complete', true)->count();
-            $total = $checklist->count();
+        if (! $isFacultyResearcher) {
+            $proposalDraftQuery = ProposalDraft::query()->accessibleTo($user);
+            $proposalDraftCount = (clone $proposalDraftQuery)->count();
+            $recentProposalDrafts = $proposalDraftQuery
+                ->with(['researchCall', 'documents', 'owner:id,name'])
+                ->latest('updated_at')
+                ->limit(4)
+                ->get();
 
-            return [$draft->getKey() => [
-                'completed' => $completed,
-                'total' => $total,
-                'percentage' => $total === 0 ? 0 : (int) round(($completed / $total) * 100),
-            ]];
-        });
+            $proposalDraftProgress = $recentProposalDrafts->mapWithKeys(function (ProposalDraft $draft) use ($readiness): array {
+                $checklist = $readiness->checklist($draft);
+                $completed = $checklist->where('complete', true)->count();
+                $total = $checklist->count();
+
+                return [$draft->getKey() => [
+                    'completed' => $completed,
+                    'total' => $total,
+                    'percentage' => $total === 0 ? 0 : (int) round(($completed / $total) * 100),
+                ]];
+            });
+        }
 
         return view('faculty.dashboard', compact(
             'topics',
@@ -116,6 +124,7 @@ class TopicController extends Controller
             'proposalDraftCount',
             'recentProposalDrafts',
             'proposalDraftProgress',
+            'isFacultyResearcher',
         ));
     }
 
