@@ -68,7 +68,7 @@
             activeTopicTab: @js($initialTopicTab) || (
                 ['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)
                     ? 'review'
-                    : window.location.hash === '#version-history'
+                    : ['#version-history', '#project-monitoring'].includes(window.location.hash)
                         ? 'history'
                         : 'details'
             ),
@@ -77,11 +77,30 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                this.activeTopicTab = ['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)
-                    ? 'review'
-                    : window.location.hash === '#version-history'
-                        ? 'history'
-                        : 'details';
+                if (['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)) {
+                    this.activeTopicTab = 'review';
+                } else if (['#version-history', '#project-monitoring'].includes(window.location.hash)) {
+                    this.activeTopicTab = 'history';
+                } else {
+                    this.activeTopicTab = 'details';
+                }
+                this.scrollToProjectMonitoring();
+            },
+            init() {
+                this.scrollToProjectMonitoring();
+            },
+            scrollToProjectMonitoring() {
+                if (window.location.hash !== '#project-monitoring') {
+                    return;
+                }
+                this.$nextTick(() => {
+                    const section = document.getElementById('project-monitoring');
+                    if (!section) {
+                        return;
+                    }
+                    const top = section.getBoundingClientRect().top + window.scrollY - 130;
+                    window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+                });
             },
         }"
         @hashchange.window="syncTopicTab()"
