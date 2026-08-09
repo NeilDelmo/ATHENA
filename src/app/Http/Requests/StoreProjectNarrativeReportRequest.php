@@ -19,7 +19,8 @@ class StoreProjectNarrativeReportRequest extends FormRequest
 
         return $topic instanceof TopicProposal
             && $topic->isMonitoringAvailable()
-            && $topic->user_id === $this->user()?->id;
+            && $this->user() !== null
+            && $topic->isAccessibleTo($this->user());
     }
 
     protected function prepareForValidation(): void

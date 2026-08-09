@@ -7,7 +7,6 @@ use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
 use App\Models\ProposalDraft;
-use App\Models\ProposalTemplate;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -239,7 +238,6 @@ class TopicController extends Controller
         $stagedRevisionFiles = ($topic->revisionDraft?->documents ?? collect())
             ->filter(fn ($document): bool => filled($document->file_path))
             ->keyBy('document_type');
-        $screeningTemplates = $this->availableTemplatesFor(ProposalTemplate::STAGE_INITIAL_SCREENING);
         $draftHistoryCount = $topic->documentHistory()->count();
         $headUploadWorkspace = $request->user()->isUsingWorkspace('research_head')
             ? $this->headUploadWorkspaceData($topic, $latestVersion)
@@ -256,7 +254,6 @@ class TopicController extends Controller
             'comparisonRows',
             'pendingFileRevisions',
             'stagedRevisionFiles',
-            'screeningTemplates',
             'draftHistoryCount',
             'submittedFiles',
             'availableSubmittedFileIds',
@@ -395,7 +392,7 @@ class TopicController extends Controller
             'document' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
             'work_plan' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
             'line_item_budget' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
-            'expense_breakdown' => 'nullable|file|mimes:xls,xlsx|max:25600',
+            'expense_breakdown' => 'nullable|file|mimes:pdf|max:25600',
             'curricula_vitae' => 'nullable|array|min:1|max:10',
             'curricula_vitae.*' => 'required|file|mimes:pdf,doc,docx|max:25600',
             'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
@@ -877,7 +874,8 @@ class TopicController extends Controller
 
     private function researchWorkspace(User $user, string $search = ''): View
     {
-        $projects = $user->proposals()
+        $projects = TopicProposal::query()
+            ->accessibleTo($user)
             ->with(['researchCall', 'category', 'latestVersion'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
@@ -974,15 +972,5 @@ class TopicController extends Controller
             'estimated_budget' => $validated['estimated_budget'] ?? null,
             'estimated_duration_months' => $validated['estimated_duration_months'] ?? null,
         ];
-    }
-
-    private function availableTemplatesFor(string $stage)
-    {
-        return ProposalTemplate::active()
-            ->where('workflow_stage', $stage)
-            ->orderBy('name')
-            ->get()
-            ->filter(fn (ProposalTemplate $template) => Storage::disk('local')->exists($template->file_path))
-            ->values();
     }
 }

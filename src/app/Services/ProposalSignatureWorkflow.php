@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Models\TopicReview;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
@@ -15,14 +16,25 @@ class ProposalSignatureWorkflow
     {
         $version->loadMissing('files');
 
-        $selectionRecord = $version->files
-            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['decision'] ?? null) === TopicProposal::STATUS_READY_FOR_SIGNATURE)
-            ->sortByDesc('id')
+        $selectionRecord = TopicReview::query()
+            ->where('topic_id', $version->topic_id)
+            ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+            ->latest('id')
             ->first();
-        $selectedFileIds = collect($selectionRecord?->source_data['required_signature_file_ids'] ?? [])
+        $selectedFileIds = collect($selectionRecord?->required_signature_file_ids ?? [])
             ->map(fn (mixed $fileId): int => (int) $fileId)
             ->unique();
+
+        if ($selectedFileIds->isEmpty()) {
+            $legacySelectionRecord = $version->files
+                ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['decision'] ?? null) === TopicProposal::STATUS_READY_FOR_SIGNATURE)
+                ->sortByDesc('id')
+                ->first();
+            $selectedFileIds = collect($legacySelectionRecord?->source_data['required_signature_file_ids'] ?? [])
+                ->map(fn (mixed $fileId): int => (int) $fileId)
+                ->unique();
+        }
 
         return $version->files
             ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)

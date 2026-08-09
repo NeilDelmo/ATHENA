@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,7 +25,7 @@ class SaveProposalDraftDetails
                 ]);
             }
 
-            $lockedDraft->update([
+            $lockedDraft->fill([
                 ...Arr::only($attributes, [
                     'project_title',
                     'duration_months',
@@ -34,6 +35,27 @@ class SaveProposalDraftDetails
                 ]),
                 'lock_version' => $lockedDraft->lock_version + 1,
             ]);
+            $detailsChanged = $lockedDraft->isDirty([
+                'project_title',
+                'duration_months',
+                'planned_start',
+                'planned_end',
+                'project_leader',
+            ]);
+            $lockedDraft->save();
+
+            if ($detailsChanged) {
+                ProposalDraftDocument::query()
+                    ->where('proposal_draft_id', $lockedDraft->id)
+                    ->whereNotNull('source_data')
+                    ->update([
+                        'file_path' => null,
+                        'original_filename' => null,
+                        'mime_type' => null,
+                        'file_size' => null,
+                        'checksum' => null,
+                    ]);
+            }
 
             return $lockedDraft->refresh();
         }, 3);

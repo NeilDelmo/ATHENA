@@ -3,6 +3,39 @@
         $projectStatus = $topic->project_status ?: 'ongoing';
         $projectStatusClass = match ($projectStatus) { 'completed' => 'bg-green-50 text-green-700', 'delayed' => 'bg-red-50 text-red-700', default => 'bg-blue-50 text-blue-700' };
     @endphp
+    @if ($topic->hasIssuedNoticeToProceed())
+        <article class="border-b border-green-200 bg-green-50 px-6 py-5" aria-labelledby="official-notice-to-proceed-heading">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded-full bg-green-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Official project record</span>
+                        <span class="text-[11px] font-bold uppercase tracking-wider text-green-800">Notice to Proceed</span>
+                    </div>
+                    <h3 id="official-notice-to-proceed-heading" class="mt-2 text-lg font-black text-green-950">Notice to Proceed issued</h3>
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-green-900">This is the authorization document for the active project. Keep it with the project record for future monitoring and reporting.</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap gap-2">
+                    <a href="{{ route('topics.notice-to-proceed.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-green-700 px-4 py-2.5 text-xs font-black text-white transition hover:bg-green-800">Download PDF</a>
+                    <a href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="inline-flex items-center justify-center rounded-xl border border-green-300 bg-white px-4 py-2.5 text-xs font-black text-green-800 transition hover:bg-green-100">View notice details</a>
+                </div>
+            </div>
+            <dl class="mt-4 grid gap-3 border-t border-green-200 pt-4 text-xs sm:grid-cols-3">
+                <div>
+                    <dt class="font-black uppercase tracking-wider text-green-700">Issued</dt>
+                    <dd class="mt-1 font-bold text-green-950">{{ $topic->notice_to_proceed_issued_at?->format('M j, Y g:i A') ?: 'Not recorded' }}</dd>
+                    @if ($topic->noticeIssuer)<dd class="mt-0.5 text-green-800">by {{ $topic->noticeIssuer->name }}</dd>@endif
+                </div>
+                <div>
+                    <dt class="font-black uppercase tracking-wider text-green-700">Approved period</dt>
+                    <dd class="mt-1 font-bold text-green-950">{{ data_get($topic->notice_to_proceed_data, 'approved_start_date', 'Not recorded') }} to {{ data_get($topic->notice_to_proceed_data, 'approved_end_date', 'Not recorded') }}</dd>
+                </div>
+                <div>
+                    <dt class="font-black uppercase tracking-wider text-green-700">Approved budget</dt>
+                    <dd class="mt-1 font-bold text-green-950">PHP {{ number_format((float) data_get($topic->notice_to_proceed_data, 'approved_budget', 0), 2) }}</dd>
+                </div>
+            </dl>
+        </article>
+    @endif
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
         <div><h3 class="text-sm font-black text-gray-900">Project monitoring</h3><p class="mt-1 text-xs text-gray-500">Official monitoring tools and Research Head feedback.</p></div>
         <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase {{ $projectStatusClass }}">{{ $projectStatus }}</span>
@@ -18,7 +51,7 @@
                 <button class="rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white">Update status</button>
             </form>
         @else
-            @if ($topic->user_id === Auth::id() && $projectStatus !== 'completed')
+            @if ($topic->isAccessibleTo(Auth::user()) && $projectStatus !== 'completed')
                 <div class="space-y-3">
                     <x-monitoring-tool-form :topic="$topic" />
                     <x-progress-report-form :topic="$topic" />

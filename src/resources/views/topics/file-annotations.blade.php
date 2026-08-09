@@ -113,7 +113,7 @@
                         @if ($canAnnotate)
                             <section x-show="revisionCandidates.length > 0" x-cloak class="rounded-2xl border border-red-200 bg-red-50 p-4">
                                 <h3 class="text-base font-black text-red-950">Highlights saved</h3>
-                                <p class="mt-1 text-sm leading-6 text-red-900"><span x-text="revisionCandidates.length"></span> paper(s) are now marked for revision. Return to the checklist, upload the evaluation proof, and send the decision.</p>
+                                <p class="mt-1 text-sm leading-6 text-red-900"><span x-text="revisionCandidates.length"></span> paper(s) are now marked for revision. Return to the checklist and send the decision.</p>
                                 <div class="mt-3 space-y-2">
                                     <template x-for="candidate in revisionCandidates" :key="candidate.fileId">
                                         <div class="rounded-xl bg-white px-3 py-2 text-xs text-gray-700"><span class="font-black" x-text="candidate.label"></span><span class="ml-1 text-gray-500">· <span x-text="candidate.annotationCount"></span> comment(s)</span></div>

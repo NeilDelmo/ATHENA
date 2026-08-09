@@ -12,7 +12,15 @@ class TopicReview extends Model
         'reviewer_id',
         'decision',
         'comment',
+        'required_signature_file_ids',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'required_signature_file_ids' => 'array',
+        ];
+    }
 
     public function topic(): BelongsTo
     {

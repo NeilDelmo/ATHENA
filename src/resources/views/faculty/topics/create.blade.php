@@ -3,7 +3,7 @@
         $packageInputs = [
             ['name' => 'detailed_proposal', 'label' => 'Detailed Research Proposal', 'help' => 'The complete proposal manuscript.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'detailed-proposal'],
             ['name' => 'line_item_budget', 'label' => 'Attachment B - Line-Item Budget', 'help' => 'The detailed project budget document.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'line-item-budget'],
-            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'help' => 'Upload the completed spreadsheet.', 'accept' => '.xls,.xlsx', 'multiple' => false, 'sample' => 'expense-breakdown'],
+            ['name' => 'expense_breakdown', 'label' => 'Estimated Expense Breakdown', 'help' => 'Upload the completed PDF.', 'accept' => '.pdf', 'multiple' => false, 'sample' => 'expense-breakdown'],
             ['name' => 'curricula_vitae', 'label' => 'Attachment C - Curriculum Vitae', 'help' => 'You may select multiple files for the project team.', 'accept' => '.doc,.docx,.pdf', 'multiple' => true, 'sample' => 'curriculum-vitae'],
             ['name' => 'gad_checklist', 'label' => 'GAD Generic Checklist', 'help' => 'Complete the gender-responsiveness checklist.', 'accept' => '.doc,.docx,.pdf', 'multiple' => false, 'sample' => 'gad-checklist'],
         ];

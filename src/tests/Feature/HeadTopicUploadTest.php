@@ -436,7 +436,7 @@ test('the proposal review shows files shared by the Research Head', function () 
 
     $response->assertOk()
         ->assertSee('Review & decision')
-        ->assertSee('Evaluation and decision documents')
+        ->assertSee('Research Head documents')
         ->assertSee('reviewed-work-plan.pdf')
         ->assertSee('Work Plan (for revision)');
 });

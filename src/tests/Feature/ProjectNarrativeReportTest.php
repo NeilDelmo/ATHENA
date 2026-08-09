@@ -1,9 +1,11 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -12,6 +14,23 @@ use Spatie\Permission\Models\Role;
 beforeEach(function () {
     Notification::fake();
     Storage::fake('local');
+    $this->pdfConverter = new class implements DocumentPdfConverter
+    {
+        public string $sourceDocument = '';
+
+        public function convertDocx(string $contents): string
+        {
+            $this->sourceDocument = $contents;
+
+            return "%PDF-1.7\nGenerated progress report PDF";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\nGenerated spreadsheet PDF";
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
     foreach (['faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
@@ -76,6 +95,11 @@ test('only the project owner with a Notice to Proceed can submit the official pr
         ->and($report->photos)->toHaveCount(1)
         ->and($report->review_status)->toBe(ProjectNarrativeReport::STATUS_PENDING);
     Storage::disk('local')->assertExists($report->photos[0]['path']);
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Progress report submitted',
+    );
 
     $this->topic->update(['notice_to_proceed_issued_at' => null]);
     $this->actingAs($this->researcher)
@@ -103,11 +127,26 @@ test('the progress report requires structured accomplishments and a captioned fi
     expect(ProjectNarrativeReport::count())->toBe(0);
 });
 
+test('completed projects cannot preview or submit progress reports', function () {
+    $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.preview', $this->topic), ($this->progressReportPayload)())
+        ->assertForbidden();
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
+        ->assertForbidden();
+
+    expect(ProjectNarrativeReport::count())->toBe(0);
+});
+
 test('the faculty monitoring page shows the separate progress report form', function () {
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
         ->assertOk()
         ->assertSee('Submit progress report')
+        ->assertSee('Preview progress report')
+        ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('VI. Summary of Accomplishment for the Monitoring Period')
         ->assertSee('Target accomplishment')
         ->assertSee('VIII. Rationale')
@@ -115,7 +154,20 @@ test('the faculty monitoring page shows the separate progress report form', func
         ->assertSee('Figures and photo documentation required');
 });
 
-test('the owner and Research Head can download the official report and its photo', function () {
+test('a researcher can preview the filled progress report without submitting it', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.preview', $this->topic), ($this->progressReportPayload)())
+        ->assertOk()
+        ->assertSee('PROGRESS REPORT')
+        ->assertSee('Coastal Community Research')
+        ->assertSee('Completed the first coastal survey')
+        ->assertSee('Figure 1. The research team conducting the first coastal survey.')
+        ->assertSee('data-preview-file-input="photo_1"', false);
+
+    expect(ProjectNarrativeReport::count())->toBe(0);
+});
+
+test('the owner and Research Head can download the official report as a PDF and its photo', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertSessionHasNoErrors();
@@ -124,7 +176,10 @@ test('the owner and Research Head can download the official report and its photo
     $documentResponse = $this->actingAs($this->researcher)
         ->get(route('project-narrative-reports.download', $report))
         ->assertOk()
-        ->assertDownload('coastal-community-research-progress-report.docx');
+        ->assertDownload('coastal-community-research-progress-report.pdf');
+    expect($documentResponse->streamedContent())->toStartWith('%PDF-');
+    $sourceDocument = $this->pdfConverter->sourceDocument;
+
     $this->actingAs($this->head)
         ->get(route('project-narrative-reports.download', $report))
         ->assertOk();
@@ -135,7 +190,7 @@ test('the owner and Research Head can download the official report and its photo
 
     $generatedPath = tempnam(sys_get_temp_dir(), 'progress-report-test-');
     expect($generatedPath)->not->toBeFalse();
-    file_put_contents($generatedPath, $documentResponse->streamedContent());
+    file_put_contents($generatedPath, $sourceDocument);
 
     $template = new ZipArchive;
     $generated = new ZipArchive;

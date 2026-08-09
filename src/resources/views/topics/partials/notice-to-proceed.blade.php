@@ -64,7 +64,13 @@
     @endif
 
     @if ($isResearchHead && $noticeToProceedForm && ! $topic->isCompletedProject())
-        <div class="p-5 sm:p-7">
+        <div
+            class="p-5 sm:p-7"
+            x-data="noticeToProceedForm({
+                previewUrl: @js(route('research_head.topics.notice-to-proceed.preview', $topic)),
+                csrfToken: @js(csrf_token()),
+            })"
+        >
             @if ($topic->hasIssuedNoticeToProceed())
                 <details @if ($noticeToProceedErrors) open @endif>
                     <summary class="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-black text-gray-900 transition hover:border-red-300 hover:bg-red-50">
@@ -73,7 +79,7 @@
                     </summary>
             @endif
 
-            <form method="POST" action="{{ route('research_head.topics.notice-to-proceed.store', $topic) }}" class="{{ $topic->hasIssuedNoticeToProceed() ? 'mt-5' : '' }} space-y-6">
+            <form x-ref="form" method="POST" action="{{ route('research_head.topics.notice-to-proceed.store', $topic) }}" class="{{ $topic->hasIssuedNoticeToProceed() ? 'mt-5' : '' }} space-y-6" @submit="submitting = true">
                 @csrf
 
                 @error('notice_to_proceed')
@@ -219,13 +225,36 @@
 
                 <div class="flex flex-col gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm font-black text-gray-950">The PDF will be generated automatically.</p>
-                        <p class="mt-1 text-xs leading-5 text-gray-600">Issuing it grants Faculty Researcher access and opens project monitoring. No PDF upload is needed.</p>
+                        <p class="text-sm font-black text-gray-950">Preview the official PDF before issuing it.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-600">Previewing does not save, issue, or open monitoring. Issuing grants Faculty Researcher access and opens project monitoring.</p>
                     </div>
-                    <button type="submit" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2">
-                        {{ $topic->hasIssuedNoticeToProceed() ? 'Regenerate and reissue PDF' : 'Generate notice and open monitoring' }}
-                    </button>
+                    <div class="flex shrink-0 flex-wrap gap-2">
+                        <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="inline-flex items-center justify-center rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-black text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+                            <span x-show="!previewLoading">Preview notice</span>
+                            <span x-show="previewLoading" x-cloak>Generating preview...</span>
+                        </button>
+                        <button type="submit" :disabled="submitting || previewLoading" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+                            <span x-show="!submitting">{{ $topic->hasIssuedNoticeToProceed() ? 'Regenerate and reissue PDF' : 'Generate notice and open monitoring' }}</span>
+                            <span x-show="submitting" x-cloak>Issuing notice...</span>
+                        </button>
+                    </div>
                 </div>
+
+                <p x-show="previewError" x-cloak x-text="previewError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"></p>
+
+                <section x-show="previewDocumentUrl" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p class="text-sm font-black text-gray-900">Notice to Proceed preview</p>
+                            <p class="text-xs text-gray-500">This is the official PDF generated from the current form values. It has not been issued.</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <a :href="previewDocumentUrl" target="_blank" rel="noopener" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Open preview</a>
+                            <button type="button" @click="printPreview" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Print preview</button>
+                        </div>
+                    </div>
+                    <iframe x-ref="previewFrame" :src="previewDocumentUrl" title="Notice to Proceed PDF preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
+                </section>
             </form>
 
             @if ($topic->hasIssuedNoticeToProceed())

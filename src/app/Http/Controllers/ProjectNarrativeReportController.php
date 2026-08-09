@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreProjectNarrativeReportRequest;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -20,7 +22,45 @@ class ProjectNarrativeReportController extends Controller
 {
     public function __construct(
         private readonly ProgressReportDocumentService $documentService,
+        private readonly DocumentPdfConverter $pdfConverter,
     ) {}
+
+    public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
+    {
+        $validated = $request->validated();
+        $figureIndexes = range(1, (int) config('progress_report.max_figures'));
+        $photoFields = collect($figureIndexes)
+            ->flatMap(fn (int $index): array => [
+                'photo_'.$index,
+                'photo_caption_'.$index,
+                'photo_section_'.$index,
+            ])
+            ->all();
+        $photos = collect($figureIndexes)
+            ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
+            ->map(fn (int $index): array => [
+                'preview_file_input' => "photo_{$index}",
+                'caption' => $validated["photo_caption_{$index}"],
+                'section' => $validated["photo_section_{$index}"],
+            ])
+            ->values()
+            ->all();
+
+        $report = new ProjectNarrativeReport([
+            ...collect($validated)->except($photoFields)->all(),
+            'topic_id' => $topic->id,
+            'submitted_by' => $request->user()->id,
+            'budget' => $topic->estimated_budget,
+            'accomplishment_summary' => collect($validated['accomplishments'])
+                ->pluck('actual')
+                ->implode("\n"),
+            'photos' => $photos,
+        ]);
+        $report->setRelation('topic', $topic->loadMissing('user'));
+        $report->setRelation('submitter', $request->user());
+
+        return view('faculty.progress-reports.preview', compact('report'));
+    }
 
     public function store(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): RedirectResponse
     {
@@ -120,12 +160,13 @@ class ProjectNarrativeReportController extends Controller
     {
         $this->authorizeViewer($request, $report);
         $report->loadMissing(['topic.user', 'submitter']);
-        $filename = Str::slug($report->topic->title).'-progress-report.docx';
+        $filename = Str::slug($report->topic->title).'-progress-report.pdf';
+        $pdf = $this->pdfConverter->convertDocx($this->documentService->generate($report));
 
         return response()->streamDownload(
-            fn () => print $this->documentService->generate($report),
+            static fn () => print $pdf,
             $filename,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
         );
     }
 
@@ -142,7 +183,7 @@ class ProjectNarrativeReportController extends Controller
     {
         abort_unless(
             $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
-                || $report->topic->user_id === $request->user()->id,
+                || $report->topic->isAccessibleTo($request->user()),
             403,
         );
     }

@@ -61,7 +61,7 @@ test('the proposal workflow generates and stores Attachment A with the submitted
         'prepared_by' => $this->faculty->name,
         'detailed_proposal' => UploadedFile::fake()->create($projectTitle.'-proposal.pdf', 100, 'application/pdf'),
         'line_item_budget' => UploadedFile::fake()->create($projectTitle.'-budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        'expense_breakdown' => UploadedFile::fake()->create($projectTitle.'-expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'expense_breakdown' => UploadedFile::fake()->create($projectTitle.'-expenses.pdf', 50, 'application/pdf'),
         'curricula_vitae' => [UploadedFile::fake()->create($projectTitle.'-cv.pdf', 50, 'application/pdf')],
         'gad_checklist' => UploadedFile::fake()->create($projectTitle.'-gad.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ];
@@ -571,7 +571,7 @@ test('a revision snapshots the package and carries forward unchanged files', fun
         'detailed_proposal' => UploadedFile::fake()->create('proposal.pdf', 100, 'application/pdf'),
         'work_plan' => UploadedFile::fake()->create('work-plan.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
         'line_item_budget' => UploadedFile::fake()->create('budget.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        'expense_breakdown' => UploadedFile::fake()->create('expenses.xlsx', 50, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+        'expense_breakdown' => UploadedFile::fake()->create('expenses.pdf', 50, 'application/pdf'),
         'curricula_vitae' => [UploadedFile::fake()->create('leader-cv.pdf', 50, 'application/pdf')],
         'gad_checklist' => UploadedFile::fake()->create('gad-checklist.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
     ])->assertRedirect(route('faculty.dashboard'));
@@ -659,7 +659,7 @@ test('faculty can securely download configured proposal templates', function () 
         ->assertRedirect(route('login'));
 });
 
-test('research head records the final decision with external evaluation proof', function () {
+test('research head records the final decision without an evaluation upload', function () {
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'research_call_id' => $this->call->id,
@@ -688,21 +688,11 @@ test('research head records the final decision with external evaluation proof', 
 
     $this->actingAs($this->head)->patch("/research-head/topics/{$topic->id}/status", [
         'status' => 'approved',
-        'comment' => 'Approved based on the completed external evaluation.',
-        'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
     ])->assertRedirect(route('research_head.dashboard'));
 
-    $evaluationDocument = $version->files()
-        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-        ->sole();
     $topic->refresh();
     expect($topic->status)->toBe('approved')
-        ->and($evaluationDocument->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
+        ->and($version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0)
         ->and($topic->project_status)->toBeNull()
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
-    Storage::disk('local')->assertExists($evaluationDocument->file_path);
-
-    $this->actingAs($this->faculty)
-        ->get(route('topics.versions.files.download', [$topic, $version, $evaluationDocument]))
-        ->assertDownload('completed-evaluation.pdf');
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });

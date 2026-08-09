@@ -63,6 +63,21 @@ class SaveProposalDraftDocument
                 'position',
                 'lock_version',
             ]);
+            $sourceChanged = array_key_exists('source_data', $safeAttributes)
+                && ($document === null || ! $this->diff->isEquivalent($document, [
+                    'source_data' => $safeAttributes['source_data'],
+                ]));
+
+            if ($sourceChanged && ! array_key_exists('file_path', $safeAttributes)) {
+                $safeAttributes = [
+                    ...$safeAttributes,
+                    'file_path' => null,
+                    'original_filename' => null,
+                    'mime_type' => null,
+                    'file_size' => null,
+                    'checksum' => null,
+                ];
+            }
 
             if ($document && $this->diff->isEquivalent($document, $safeAttributes)) {
                 if ($document->lock_version !== $currentVersion) {
@@ -79,6 +94,11 @@ class SaveProposalDraftDocument
                 ]);
 
                 $savedDocument = $document->refresh();
+
+                if ($sourceChanged) {
+                    $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
+                }
+
                 $this->recordDocumentVersion->handle(
                     $savedDocument,
                     $actor,
@@ -97,6 +117,10 @@ class SaveProposalDraftDocument
                 'lock_version' => $currentVersion + 1,
             ]);
 
+            if ($sourceChanged) {
+                $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
+            }
+
             $this->recordDocumentVersion->handle(
                 $savedDocument,
                 $actor,
@@ -107,5 +131,22 @@ class SaveProposalDraftDocument
 
             return $savedDocument;
         }, 3);
+    }
+
+    private function invalidateOtherPreparedFiles(
+        ProposalDraft $draft,
+        ProposalDraftDocument $savedDocument,
+    ): void {
+        ProposalDraftDocument::query()
+            ->where('proposal_draft_id', $draft->id)
+            ->whereKeyNot($savedDocument->id)
+            ->whereNotNull('source_data')
+            ->update([
+                'file_path' => null,
+                'original_filename' => null,
+                'mime_type' => null,
+                'file_size' => null,
+                'checksum' => null,
+            ]);
     }
 }

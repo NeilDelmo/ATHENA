@@ -142,6 +142,9 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
         Route::delete('/{proposalDraft}/papers/{paper}/{document}', [ProposalDraftPaperController::class, 'remove'])->name('papers.remove');
         Route::get('/{proposalDraft}/review', [ProposalDraftSubmissionController::class, 'show'])->name('review');
+        Route::post('/{proposalDraft}/submission-files/prepare', [ProposalDraftSubmissionController::class, 'prepare'])->name('submission-files.prepare');
+        Route::get('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'download'])->name('submission-files.download');
+        Route::put('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'replace'])->name('submission-files.replace');
         Route::post('/{proposalDraft}/submit', [ProposalDraftSubmissionController::class, 'store'])->name('submit');
         Route::get('/{proposalDraft}', [ProposalDraftController::class, 'show'])->name('show');
         Route::delete('/{proposalDraft}', [ProposalDraftController::class, 'destroy'])->name('destroy');
@@ -236,7 +239,9 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
+    Route::post('/research/{topic}/progress-reports/preview', [ProjectMonitoringController::class, 'preview'])->name('project-progress.preview');
     Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
+    Route::post('/research/{topic}/narrative-progress-reports/preview', [ProjectNarrativeReportController::class, 'preview'])->name('project-narrative-reports.preview');
     Route::post('/research/{topic}/narrative-progress-reports', [ProjectNarrativeReportController::class, 'store'])->name('project-narrative-reports.store');
 });
 
@@ -304,6 +309,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
+    Route::post('/research-head/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('research_head.topics.notice-to-proceed.preview');
     Route::post('/research-head/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'store'])->name('research_head.topics.notice-to-proceed.store');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');

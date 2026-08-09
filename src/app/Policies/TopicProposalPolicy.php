@@ -18,7 +18,7 @@ class TopicProposalPolicy
             return true;
         }
 
-        if ($topicProposal->user_id !== $user->id) {
+        if (! $topicProposal->isAccessibleTo($user)) {
             return false;
         }
 

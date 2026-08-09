@@ -3030,6 +3030,241 @@ Alpine.data('fileDropzone', (config = {}) => ({
     },
 }));
 
+const documentPreviewForm = (config = {}) => ({
+    submitting: false,
+    previewHtml: '',
+    previewError: '',
+    previewLoading: false,
+    previewReady: false,
+    previewObjectUrls: [],
+
+    clearPreviewObjectUrls() {
+        this.previewObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        this.previewObjectUrls = [];
+    },
+
+    async hydratePreview() {
+        this.previewReady = false;
+        this.clearPreviewObjectUrls();
+
+        const previewDocument = this.$refs.previewFrame?.contentDocument;
+        const form = this.$refs.form;
+
+        if (!previewDocument || !form) {
+            this.previewReady = true;
+
+            return;
+        }
+
+        const inputs = new Map(
+            Array.from(form.querySelectorAll('input[type="file"][name]'))
+                .map((input) => [input.name, input]),
+        );
+        const imageLoads = Array.from(previewDocument.querySelectorAll('[data-preview-file-input]'))
+            .map((image) => {
+                const input = inputs.get(image.dataset.previewFileInput);
+                const file = input instanceof HTMLInputElement ? input.files?.[0] : null;
+
+                if (!file || !(image instanceof HTMLImageElement)) {
+                    image.closest('figure')?.remove();
+
+                    return null;
+                }
+
+                const url = URL.createObjectURL(file);
+                this.previewObjectUrls.push(url);
+                image.closest('figure')?.removeAttribute('hidden');
+
+                return new Promise((resolve) => {
+                    image.addEventListener('load', resolve, { once: true });
+                    image.addEventListener('error', resolve, { once: true });
+                    image.src = url;
+                });
+            })
+            .filter(Boolean);
+
+        await Promise.all(imageLoads);
+        this.previewReady = true;
+    },
+
+    async generatePreview() {
+        if (!this.$refs.form.reportValidity()) return;
+
+        this.previewError = '';
+        this.previewLoading = true;
+        this.previewReady = false;
+
+        try {
+            const formData = new FormData(this.$refs.form);
+            (config.omitPreviewFields || []).forEach((field) => formData.delete(field));
+
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: formData,
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.clearPreviewObjectUrls();
+                this.previewHtml = '';
+                this.previewError = Object.values(payload.errors || {}).flat().join(' ')
+                    || config.validationMessage
+                    || 'Please review the form information.';
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(config.failureMessage || 'The document preview could not be generated. Please try again.');
+            }
+
+            this.previewHtml = await response.text();
+            this.$nextTick(() => {
+                const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+                this.$refs.previewSection?.scrollIntoView({ behavior, block: 'start' });
+            });
+        } catch (error) {
+            this.clearPreviewObjectUrls();
+            this.previewHtml = '';
+            this.previewError = error instanceof Error
+                ? error.message
+                : (config.failureMessage || 'The document preview could not be generated. Please try again.');
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+
+    destroy() {
+        this.clearPreviewObjectUrls();
+    },
+});
+
+Alpine.data('monitoringToolForm', (config = {}) => ({
+    ...documentPreviewForm({
+        ...config,
+        omitPreviewFields: ['attachment'],
+        validationMessage: 'Please review the monitoring information.',
+        failureMessage: 'The monitoring preview could not be generated. Please try again.',
+    }),
+    entries: Array.isArray(config.entries) && config.entries.length > 0
+        ? config.entries
+        : [{
+            activity: '',
+            percent_weight: '',
+            physical_target: '',
+            target_completion_date: '',
+            actual_accomplishment: '',
+            accomplished_percentage: '',
+            findings: '',
+        }],
+
+    addEntry() {
+        if (this.entries.length >= 11) return;
+
+        this.entries.push({
+            activity: '',
+            percent_weight: '',
+            physical_target: '',
+            target_completion_date: '',
+            actual_accomplishment: '',
+            accomplished_percentage: '',
+            findings: '',
+        });
+    },
+
+    removeEntry(index) {
+        if (this.entries.length > 1) this.entries.splice(index, 1);
+    },
+}));
+
+Alpine.data('narrativeProgressReportForm', (config = {}) => documentPreviewForm({
+    ...config,
+    validationMessage: 'Please review the progress-report information.',
+    failureMessage: 'The progress-report preview could not be generated. Please try again.',
+}));
+
+Alpine.data('noticeToProceedForm', (config = {}) => ({
+    submitting: false,
+    previewDocumentUrl: '',
+    previewError: '',
+    previewLoading: false,
+
+    clearPreview() {
+        if (this.previewDocumentUrl) URL.revokeObjectURL(this.previewDocumentUrl);
+
+        this.previewDocumentUrl = '';
+    },
+
+    async generatePreview() {
+        if (!this.$refs.form.reportValidity()) return;
+
+        this.previewError = '';
+        this.previewLoading = true;
+        this.clearPreview();
+
+        try {
+            const response = await fetch(config.previewUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/pdf, application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                },
+                body: new FormData(this.$refs.form),
+            });
+
+            if (response.status === 422) {
+                const payload = await response.json();
+                this.previewError = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Notice to Proceed details.';
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('The Notice to Proceed preview could not be generated. Please try again.');
+            }
+
+            const preview = await response.blob();
+
+            if (preview.type !== 'application/pdf') {
+                throw new Error('The Notice to Proceed preview could not be generated. Please try again.');
+            }
+
+            this.previewDocumentUrl = URL.createObjectURL(preview);
+            this.$nextTick(() => {
+                const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+                this.$refs.previewSection?.scrollIntoView({ behavior, block: 'start' });
+            });
+        } catch (error) {
+            this.clearPreview();
+            this.previewError = error instanceof Error
+                ? error.message
+                : 'The Notice to Proceed preview could not be generated. Please try again.';
+        } finally {
+            this.previewLoading = false;
+        }
+    },
+
+    printPreview() {
+        this.$refs.previewFrame?.contentWindow?.print();
+    },
+
+    destroy() {
+        this.clearPreview();
+    },
+}));
+
 Alpine.data('workPlanWizard', (config = {}) => ({
     step: 1,
     nextEntryId: 0,

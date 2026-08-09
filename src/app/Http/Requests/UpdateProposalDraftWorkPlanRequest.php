@@ -72,7 +72,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
 
     private function allowsDraftValidation(): bool
     {
-        return $this->routeIs('faculty.proposal-drafts.work-plan.preview')
-            || ($this->routeIs('faculty.proposal-drafts.work-plan.update') && $this->boolean('save_as_draft'));
+        return $this->routeIs('faculty.proposal-drafts.work-plan.update')
+            && $this->boolean('save_as_draft');
     }
 }

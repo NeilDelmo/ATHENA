@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreProjectProgressReportRequest;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectMonitoringController extends Controller
@@ -113,6 +115,29 @@ class ProjectMonitoringController extends Controller
         return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
     }
 
+    public function preview(StoreProjectProgressReportRequest $request, TopicProposal $topic): View
+    {
+        $validated = $request->validated();
+        $workPlan = collect($validated['work_plan']);
+
+        $report = new ProjectProgressReport([
+            'topic_id' => $topic->id,
+            'submitted_by' => $request->user()->id,
+            'reporting_date' => $validated['reporting_date'],
+            'tracking_number' => $validated['tracking_number'] ?? null,
+            'progress_percentage' => (int) round($workPlan->sum(
+                fn (array $entry): float => (float) $entry['accomplished_percentage'],
+            )),
+            'work_plan' => $validated['work_plan'],
+            'budget_utilization' => $validated['budget_utilization'],
+            'prepared_by_date_signed' => $validated['prepared_by_date_signed'] ?? null,
+        ]);
+        $report->setRelation('topic', $topic->loadMissing('user'));
+        $report->setRelation('submitter', $request->user());
+
+        return view('faculty.monitoring-tools.preview', compact('report'));
+    }
+
     public function review(Request $request, ProjectProgressReport $report): RedirectResponse
     {
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
@@ -169,7 +194,7 @@ class ProjectMonitoringController extends Controller
     {
         $topic = $report->topic;
         abort_unless(
-            $request->user()->isUsingWorkspace('research_head') || $topic->user_id === $request->user()->id,
+            $request->user()->isUsingWorkspace('research_head') || $topic->isAccessibleTo($request->user()),
             403,
         );
         abort_unless($report->attachment_path && Storage::disk('local')->exists($report->attachment_path), 404);
@@ -181,20 +206,22 @@ class ProjectMonitoringController extends Controller
         Request $request,
         ProjectProgressReport $report,
         MonitoringToolDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         $report->loadMissing(['topic.user', 'submitter', 'reviewer']);
         abort_unless(
-            $request->user()->isUsingWorkspace('research_head') || $report->topic->user_id === $request->user()->id,
+            $request->user()->isUsingWorkspace('research_head') || $report->topic->isAccessibleTo($request->user()),
             403,
         );
         abort_unless(is_array($report->work_plan) && is_array($report->budget_utilization), 404);
 
-        $filename = Str::slug($report->topic->title).'-monitoring-tool.docx';
+        $filename = Str::slug($report->topic->title).'-monitoring-tool.pdf';
+        $pdf = $pdfConverter->convertDocx($documentService->generate($report));
 
         return response()->streamDownload(
-            static fn () => print $documentService->generate($report),
+            static fn () => print $pdf,
             $filename,
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
         );
     }
 }

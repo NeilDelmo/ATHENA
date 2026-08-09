@@ -223,7 +223,7 @@
                         };
                         $paperAction = $paper['workspace_button_label'] ?? 'Open '.$paper['label'];
                         $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
-                        $submissionFormat = $submissionExtension === 'XLSX' ? 'Excel workbook' : 'PDF';
+                        $submissionFormat = 'PDF';
                     @endphp
                     <article class="grid gap-4 border-b border-gray-200 p-5 last:border-b-0 dark:border-slate-800 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">
                         <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-xs font-black text-white dark:bg-white dark:text-gray-950" aria-label="Paper {{ $paper['order'] }}">{{ str_pad((string) $paper['order'], 2, '0', STR_PAD_LEFT) }}</div>
@@ -264,7 +264,7 @@
             </div>
 
             <div class="mt-5 flex flex-col gap-3 rounded-xl border-l-4 border-red-600 bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div><p class="font-black text-white">Ready to turn in the proposal?</p><p class="mt-1 text-xs text-gray-300">Review the six PDFs and Excel Expense Breakdown before sending the immutable package.</p></div>
+                <div><p class="font-black text-white">Ready to prepare the proposal package?</p><p class="mt-1 text-xs text-gray-300">Generate and review all seven PDFs before sending the immutable package.</p></div>
                 <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-bold text-gray-950 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
             </div>
         </section>

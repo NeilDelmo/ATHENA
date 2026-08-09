@@ -17,9 +17,9 @@
                     </svg>
                 </span>
 
-                <h2 class="mt-5 text-xl font-black tracking-tight text-gray-900">Finalizing proposal package</h2>
-                <p class="mt-2 text-sm font-semibold leading-6 text-gray-600">ATHENA is generating six PDFs, preparing the Excel Expense Breakdown, and sending the package to the Research Head.</p>
-                <p class="mt-3 text-xs font-bold text-red-700">This may take up to a minute. Please keep this page open.</p>
+                <h2 class="mt-5 text-xl font-black tracking-tight text-gray-900">Turning in prepared package</h2>
+                <p class="mt-2 text-sm font-semibold leading-6 text-gray-600">ATHENA is sending the seven PDFs you reviewed to the Research Head.</p>
+                <p class="mt-3 text-xs font-bold text-red-700">Please keep this page open until the submission is confirmed.</p>
 
                 <div class="mt-6 w-full overflow-hidden rounded-full bg-red-100" aria-hidden="true">
                     <div class="h-2 w-2/3 animate-pulse rounded-full bg-red-600"></div>

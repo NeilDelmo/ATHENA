@@ -60,7 +60,7 @@ return [
         'workspace_button_label' => 'Open Expense Breakdown',
         'description' => 'Accounts, sub-accounts, expense details, quantities, unit costs, automatic subtotals, and the final estimated total.',
         'filename_suffix' => 'estimated-expense-breakdown',
-        'submission_extension' => 'xlsx',
+        'submission_extension' => 'pdf',
         'order' => 3,
         'mode' => 'generated',
         'template_slug' => null,

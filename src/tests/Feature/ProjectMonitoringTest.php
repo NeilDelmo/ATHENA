@@ -1,9 +1,11 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectProgressReport;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +13,24 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     Notification::fake();
+    $this->pdfConverter = new class implements DocumentPdfConverter
+    {
+        public string $sourceDocument = '';
+
+        public function convertDocx(string $contents): string
+        {
+            $this->sourceDocument = $contents;
+
+            return "%PDF-1.7\nGenerated monitoring tool PDF";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\nGenerated spreadsheet PDF";
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
+
     foreach (['faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
@@ -81,6 +101,11 @@ test('a researcher with a Notice to Proceed can submit progress without an attac
         'progress_percentage' => 25,
         'attachment_path' => null,
     ]);
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Monitoring tool submitted',
+    );
 });
 
 test('the faculty project page shows the official monitoring tool fields', function () {
@@ -88,11 +113,38 @@ test('the faculty project page shows the official monitoring tool fields', funct
         ->get(route('research.show', $this->topic))
         ->assertOk()
         ->assertSee('Submit monitoring tool')
+        ->assertSee('Preview monitoring tool')
+        ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('A. Work Plan')
         ->assertSee('Add up to eleven activities')
         ->assertSee('B. Budget Utilization')
         ->assertSee('Purchase Request')
         ->assertSee('Request of Payment');
+});
+
+test('a researcher can preview the filled monitoring tool without submitting it', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.preview', $this->topic), ($this->monitoringPayload)())
+        ->assertOk()
+        ->assertSee('MONITORING TOOL')
+        ->assertSee('Approved Community Research')
+        ->assertSee('Conduct field interviews')
+        ->assertSee('25%')
+        ->assertSee('PHP 15,000.00');
+
+    expect(ProjectProgressReport::count())->toBe(0);
+});
+
+test('the Research Head topic page shows monitoring in its own tab', function () {
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('id="version-history-tab-button"', false)
+        ->assertSee('id="project-monitoring-tab-button"', false)
+        ->assertSee('@click="setTopicTab(\'monitoring\', \'project-monitoring\')"', false)
+        ->assertSee('id="project-monitoring-tab"', false)
+        ->assertSee('x-show="activeTopicTab === \'monitoring\'"', false)
+        ->assertSee("window.location.hash === '#project-monitoring'", false);
 });
 
 test('monitoring tools validate reporting totals and required activities', function () {
@@ -178,6 +230,50 @@ test('progress cannot be submitted for a proposal that is not approved', functio
     $this->actingAs($this->researcher)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertForbidden();
+});
+
+test('completed projects cannot preview or submit monitoring tools', function () {
+    $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.preview', $this->topic), ($this->monitoringPayload)())
+        ->assertForbidden();
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
+        ->assertForbidden();
+
+    expect(ProjectProgressReport::count())->toBe(0);
+});
+
+test('an accepted collaborator can access the same active project monitoring workflow', function () {
+    $collaborator = User::factory()->create();
+    $collaborator->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create([
+        'user_id' => $collaborator->id,
+        'name' => $collaborator->name,
+        'email' => $collaborator->email,
+        'accepted_at' => now(),
+    ]);
+
+    $this->actingAs($collaborator)
+        ->get(route('research.index'))
+        ->assertOk()
+        ->assertSee('Approved Community Research');
+    $this->actingAs($collaborator)
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Submit monitoring tool');
+    $this->actingAs($collaborator)
+        ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::sole();
+    expect($report->submitted_by)->toBe($collaborator->id)
+        ->and(TopicProposal::count())->toBe(1);
+    $this->actingAs($collaborator)
+        ->get(route('project-progress.monitoring-tool', $report))
+        ->assertOk();
 });
 
 test('a research head can review a report and update project status', function () {
@@ -270,7 +366,7 @@ test('an unrelated user cannot download a progress attachment', function () {
         ->assertForbidden();
 });
 
-test('the owner and Research Head can download the filled official monitoring tool', function () {
+test('the owner and Research Head can download the filled official monitoring tool as a PDF', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertSessionHasNoErrors();
@@ -279,14 +375,17 @@ test('the owner and Research Head can download the filled official monitoring to
     $ownerResponse = $this->actingAs($this->researcher)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk()
-        ->assertDownload('approved-community-research-monitoring-tool.docx');
+        ->assertDownload('approved-community-research-monitoring-tool.pdf');
+    expect($ownerResponse->streamedContent())->toStartWith('%PDF-');
+    $sourceDocument = $this->pdfConverter->sourceDocument;
+
     $this->actingAs($this->head)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk();
 
     $generatedPath = tempnam(sys_get_temp_dir(), 'monitoring-test-');
     expect($generatedPath)->not->toBeFalse();
-    file_put_contents($generatedPath, $ownerResponse->streamedContent());
+    file_put_contents($generatedPath, $sourceDocument);
 
     $template = new ZipArchive;
     $generated = new ZipArchive;

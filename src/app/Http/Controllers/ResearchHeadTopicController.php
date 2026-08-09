@@ -11,7 +11,6 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\FacultyProjectCapacityService;
-use App\Services\ProposalPackageService;
 use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,7 +18,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Throwable;
 
 class ResearchHeadTopicController extends Controller
 {
@@ -31,7 +29,6 @@ class ResearchHeadTopicController extends Controller
     public function updateStatus(
         UpdateResearchHeadTopicStatusRequest $request,
         TopicProposal $topic,
-        ProposalPackageService $packageService,
         FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
         $validated = $request->validated();
@@ -39,7 +36,7 @@ class ResearchHeadTopicController extends Controller
 
         if (! $latestVersion instanceof ProposalVersion) {
             throw ValidationException::withMessages([
-                'evaluation_document' => 'A submitted proposal version is required before a decision can be recorded.',
+                'status' => 'A submitted proposal version is required before a decision can be recorded.',
             ]);
         }
 
@@ -111,105 +108,66 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
-        $screeningForm = $latestFacultyFiles
-            ->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
-        $evidenceDirectory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/review-evidence/'.Str::uuid();
-        $evaluationAttributes = $packageService->storeHeadUpload(
-            $request->file('evaluation_document'),
-            $evidenceDirectory,
-            [
-                'source_version_file_id' => $screeningForm?->id,
-                'target_document_type' => $screeningForm?->document_type,
-                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
-                'document_title' => $validated['evaluation_title'] ?? 'External evaluation document',
-                'note' => $validated['comment'] ?? null,
-                'decision' => $validated['status'],
-                'required_signature_file_ids' => $selectedSignatureFiles->pluck('id')->all(),
-            ],
-        );
+        DB::transaction(function () use (
+            $request,
+            $topic,
+            $validated,
+            $selectedRevisionFiles,
+            $selectedSignatureFiles,
+            $capacityService,
+        ): void {
+            $reviewedTopic = TopicProposal::query()
+                ->whereKey($topic->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        try {
-            DB::transaction(function () use (
-                $request,
-                $topic,
-                $validated,
-                $latestVersion,
-                $evaluationAttributes,
-                $selectedRevisionFiles,
-                $capacityService,
-            ): void {
-                $reviewedTopic = TopicProposal::query()
-                    ->whereKey($topic->getKey())
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if (! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
-                    throw ValidationException::withMessages([
-                        'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
-                    ]);
-                }
-
-                if ($validated['status'] === 'approved') {
-                    $capacityService->ensureAvailableFor($reviewedTopic);
-                }
-
-                $lockedVersion = ProposalVersion::query()
-                    ->whereKey($latestVersion->id)
-                    ->where('topic_id', $reviewedTopic->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-                $position = ((int) $lockedVersion->files()
-                    ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-                    ->max('position')) + 1;
-                $lockedVersion->files()->create([
-                    ...$evaluationAttributes,
-                    'position' => $position,
-                    'uploaded_by' => $request->user()->id,
+            if (! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
+                throw ValidationException::withMessages([
+                    'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
                 ]);
+            }
 
-                $reviewedTopic->update(['status' => $validated['status']]);
+            if ($validated['status'] === 'approved') {
+                $capacityService->ensureAvailableFor($reviewedTopic);
+            }
 
-                if ($validated['status'] === 'approved') {
-                    $reviewedTopic->user()->firstOrFail()->assignRole(User::WORKSPACE_FACULTY_RESEARCHER);
-                }
+            $reviewedTopic->update(['status' => $validated['status']]);
+
+            $reviewedTopic->expertAssignments()
+                ->where('status', 'pending')
+                ->update(['status' => 'cancelled']);
+
+            if ($validated['status'] === 'revision_requested') {
                 $reviewedTopic->expertAssignments()
-                    ->where('status', 'pending')
-                    ->update(['status' => 'cancelled']);
+                    ->where('status', 'completed')
+                    ->update(['status' => 'superseded']);
+            }
 
-                if ($validated['status'] === 'revision_requested') {
-                    $reviewedTopic->expertAssignments()
-                        ->where('status', 'completed')
-                        ->update(['status' => 'superseded']);
+            $review = $reviewedTopic->reviews()->create([
+                'reviewer_id' => $request->user()->id,
+                'decision' => $validated['status'],
+                'required_signature_file_ids' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
+                    ? $selectedSignatureFiles->pluck('id')->all()
+                    : [],
+            ]);
+
+            if ($validated['status'] === 'revision_requested') {
+                $fileRevisions = $review->fileRevisions()->createMany($selectedRevisionFiles->map(fn ($file) => [
+                    'proposal_version_file_id' => $file->id,
+                    'document_type' => $file->document_type,
+                    'original_filename' => $file->original_filename,
+                    'revision_note' => $validated['revision_file_notes'][$file->id] ?? null,
+                ])->all());
+
+                foreach ($fileRevisions as $fileRevision) {
+                    ProposalFileAnnotation::query()
+                        ->where('proposal_version_file_id', $fileRevision->proposal_version_file_id)
+                        ->whereNull('topic_review_file_revision_id')
+                        ->update(['topic_review_file_revision_id' => $fileRevision->id]);
                 }
+            }
 
-                $review = $reviewedTopic->reviews()->create([
-                    'reviewer_id' => $request->user()->id,
-                    'decision' => $validated['status'],
-                    'comment' => $validated['comment'] ?? null,
-                ]);
-
-                if ($validated['status'] === 'revision_requested') {
-                    $fileRevisions = $review->fileRevisions()->createMany($selectedRevisionFiles->map(fn ($file) => [
-                        'proposal_version_file_id' => $file->id,
-                        'document_type' => $file->document_type,
-                        'original_filename' => $file->original_filename,
-                        'revision_note' => $validated['revision_file_notes'][$file->id] ?? null,
-                    ])->all());
-
-                    foreach ($fileRevisions as $fileRevision) {
-                        ProposalFileAnnotation::query()
-                            ->where('proposal_version_file_id', $fileRevision->proposal_version_file_id)
-                            ->whereNull('topic_review_file_revision_id')
-                            ->update(['topic_review_file_revision_id' => $fileRevision->id]);
-                    }
-                }
-
-            });
-        } catch (Throwable $exception) {
-            Storage::disk('local')->delete($evaluationAttributes['file_path']);
-
-            throw $exception;
-        }
+        });
 
         $notificationDetails = match ($validated['status']) {
             'approved' => ['Proposal papers approved', 'Your proposal papers for “'.$topic->title.'” were approved. Wait for the Notice to Proceed before beginning project monitoring.', 'success'],
@@ -226,6 +184,17 @@ class ResearchHeadTopicController extends Controller
             'rejected' => ['Proposal rejected', 'Your proposal “'.$topic->title.'” was not approved. Review the decision comments and evaluation document.', 'danger'],
         };
 
+        if ($validated['status'] === 'revision_requested') {
+            $notificationDetails[1] = ($selectedRevisionFiles->isNotEmpty()
+                ? $selectedRevisionFiles->count().' proposal file(s) require changes in '
+                : 'Changes were requested for ')
+                .'“'.$topic->title.'”. Review the highlighted comments and file-specific instructions, then submit a new version.';
+        }
+
+        if ($validated['status'] === 'rejected') {
+            $notificationDetails[1] = 'Your proposal “'.$topic->title.'” was not approved.';
+        }
+
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
             $notificationDetails[0],
             $notificationDetails[1],
@@ -241,8 +210,8 @@ class ResearchHeadTopicController extends Controller
         $message = match ($validated['status']) {
             'approved' => 'Proposal papers approved. The faculty member is now waiting for a Notice to Proceed.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
-            'revision_requested' => 'Revision requested; your comments and evaluation document were shared with the faculty member.',
-            'rejected' => 'Proposal rejected; your comments and evaluation document were shared with the faculty member.',
+            'revision_requested' => 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.',
+            'rejected' => 'Proposal rejected.',
         };
 
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
@@ -295,7 +264,6 @@ class ResearchHeadTopicController extends Controller
                 'status' => 'approved',
                 'project_status' => null,
             ]);
-            $reviewedTopic->user()->firstOrFail()->assignRole(User::WORKSPACE_FACULTY_RESEARCHER);
             $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => 'approved',

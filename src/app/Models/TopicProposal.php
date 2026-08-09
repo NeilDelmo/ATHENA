@@ -123,6 +123,16 @@ class TopicProposal extends Model
             });
     }
 
+    /** @param Builder<TopicProposal> $query */
+    public function scopeAccessibleTo(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $accessible) use ($user): void {
+            $accessible
+                ->where('user_id', $user->getKey())
+                ->orWhereHas('collaborators', fn (Builder $collaborators): Builder => $collaborators->forUser($user));
+        });
+    }
+
     public function isMonitoringAvailable(): bool
     {
         return $this->status === 'approved'
@@ -131,6 +141,12 @@ class TopicProposal extends Model
                 self::PROJECT_STATUS_ONGOING,
                 self::PROJECT_STATUS_DELAYED,
             ], true);
+    }
+
+    public function isAccessibleTo(User $user): bool
+    {
+        return $this->user_id === $user->getKey()
+            || $this->collaborators()->forUser($user)->exists();
     }
 
     public function hasIssuedNoticeToProceed(): bool

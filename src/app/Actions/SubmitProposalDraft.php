@@ -55,6 +55,106 @@ class SubmitProposalDraft
         private readonly SyncTopicCollaborators $syncTopicCollaborators,
     ) {}
 
+    public function prepare(ProposalDraft $draft, User $user): void
+    {
+        $draft->load(['researchCall', 'documents']);
+
+        if ($draft->user_id !== $user->id || $draft->status !== ProposalDraft::STATUS_DRAFT) {
+            abort(403);
+        }
+
+        $errors = $this->readiness->errors($draft);
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $draftVersion = $draft->lock_version;
+        $documentVersions = $draft->documents->mapWithKeys(
+            fn (ProposalDraftDocument $document): array => [$document->document_type => $document->lock_version],
+        );
+        $preparedDirectory = $draft->storageDirectory().'/prepared/'.Str::uuid();
+        $preparedFiles = [];
+
+        try {
+            foreach ($this->catalog->all() as $paper) {
+                if ($paper['mode'] === 'upload') {
+                    continue;
+                }
+
+                $document = $draft->documents->firstWhere('document_type', $paper['document_type']);
+
+                $preparedFiles[] = match ($paper['slug']) {
+                    'detailed-proposal' => $this->generateDetailedProposal($draft, $document, $preparedDirectory),
+                    'work-plan' => $this->generateWorkPlan($draft, $document, $preparedDirectory),
+                    'line-item-budget' => $this->generateLineItemBudget($draft, $document, $preparedDirectory),
+                    'expense-breakdown' => $this->generateExpenseBreakdown($draft, $document, $preparedDirectory),
+                    'curriculum-vitae' => $this->generateCurriculumVitae($draft, $document, $preparedDirectory),
+                    'gad-checklist' => $this->generateGADChecklist($draft, $preparedDirectory),
+                    'initial-screening-form' => $this->generateInitialScreeningForm($draft, $preparedDirectory),
+                    default => throw ValidationException::withMessages([
+                        'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
+                    ]),
+                };
+            }
+
+            DB::transaction(function () use ($draft, $draftVersion, $documentVersions, $preparedFiles): void {
+                $lockedDraft = ProposalDraft::query()
+                    ->whereKey($draft->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($lockedDraft->status !== ProposalDraft::STATUS_DRAFT
+                    || $lockedDraft->lock_version !== $draftVersion) {
+                    throw ValidationException::withMessages([
+                        'preparation' => 'Project details changed while the PDFs were being prepared. Review the changes and prepare the files again.',
+                    ]);
+                }
+
+                foreach ($preparedFiles as $preparedFile) {
+                    $document = ProposalDraftDocument::query()
+                        ->where('proposal_draft_id', $lockedDraft->id)
+                        ->where('document_type', $preparedFile['document_type'])
+                        ->where('position', 0)
+                        ->lockForUpdate()
+                        ->first();
+                    $expectedVersion = (int) $documentVersions->get($preparedFile['document_type'], 0);
+
+                    if (($document?->lock_version ?? 0) !== $expectedVersion) {
+                        throw ValidationException::withMessages([
+                            'preparation' => 'A proposal paper changed while the PDFs were being prepared. Review the latest version and prepare the files again.',
+                        ]);
+                    }
+
+                    $attributes = [
+                        'file_path' => $preparedFile['file_path'],
+                        'original_filename' => $preparedFile['original_filename'],
+                        'mime_type' => 'application/pdf',
+                        'file_size' => $preparedFile['file_size'],
+                        'checksum' => $preparedFile['checksum'],
+                        'source_data' => $preparedFile['source_data'] ?? $document?->source_data,
+                        'completed_at' => $document?->completed_at ?? now(),
+                        'lock_version' => $expectedVersion + 1,
+                    ];
+
+                    if ($document) {
+                        $document->update($attributes);
+                    } else {
+                        $lockedDraft->documents()->create([
+                            ...$attributes,
+                            'document_type' => $preparedFile['document_type'],
+                            'position' => 0,
+                        ]);
+                    }
+                }
+            }, 3);
+        } catch (Throwable $exception) {
+            $this->packageService->deleteStored($preparedFiles);
+
+            throw $exception;
+        }
+    }
+
     public function handle(ProposalDraft $draft, User $user): TopicProposal
     {
         $permanentDirectory = 'proposal-packages/'.$user->id.'/'.Str::uuid();
@@ -103,6 +203,10 @@ class SubmitProposalDraft
 
                 $errors = $this->readiness->errors($lockedDraft);
 
+                if (! $this->readiness->submissionFilesArePrepared($lockedDraft)) {
+                    $errors['submission_files'] = 'Prepare all seven PDF attachments before turning in this proposal.';
+                }
+
                 if ($errors !== []) {
                     throw ValidationException::withMessages($errors);
                 }
@@ -114,34 +218,6 @@ class SubmitProposalDraft
                         ->where('document_type', $paper['document_type'])
                         ->sortBy('position')
                         ->values();
-
-                    if ($paper['mode'] === 'automatic') {
-                        $permanentFiles[] = match ($paper['slug']) {
-                            'gad-checklist' => $this->generateGADChecklist($lockedDraft, $permanentDirectory),
-                            'initial-screening-form' => $this->generateInitialScreeningForm($lockedDraft, $permanentDirectory),
-                            default => throw ValidationException::withMessages([
-                                'papers.'.$paper['slug'] => $paper['label'].' does not have an automatic document generator.',
-                            ]),
-                        };
-
-                        continue;
-                    }
-
-                    if ($paper['mode'] === 'generated') {
-                        $document = $paperDocuments->firstOrFail();
-                        $permanentFiles[] = match ($paper['slug']) {
-                            'detailed-proposal' => $this->generateDetailedProposal($lockedDraft, $document, $permanentDirectory),
-                            'work-plan' => $this->generateWorkPlan($lockedDraft, $document, $permanentDirectory),
-                            'line-item-budget' => $this->generateLineItemBudget($lockedDraft, $document, $permanentDirectory),
-                            'expense-breakdown' => $this->generateExpenseBreakdown($lockedDraft, $document, $permanentDirectory),
-                            'curriculum-vitae' => $this->generateCurriculumVitae($lockedDraft, $document, $permanentDirectory),
-                            default => throw ValidationException::withMessages([
-                                'papers.'.$paper['slug'] => $paper['label'].' does not have a document generator.',
-                            ]),
-                        };
-
-                        continue;
-                    }
 
                     foreach ($paperDocuments as $document) {
                         $permanentFiles[] = $this->copyStagedDocument(
@@ -247,7 +323,7 @@ class SubmitProposalDraft
             'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
             'file_size' => Storage::disk('local')->size($path),
             'checksum' => hash_file('sha256', $absolutePath) ?: null,
-            'source_data' => null,
+            'source_data' => $document->source_data,
             'is_carried_forward' => false,
         ];
     }

@@ -92,7 +92,7 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertSee('Total estimated budget')
         ->assertSee('border-red-200 bg-red-50', false)
         ->assertSee('Preview paper')
-        ->assertSee('Download Excel file')
+        ->assertSee('Download PDF')
         ->assertDontSee('Choose completed PDF');
 
     $this->actingAs($this->faculty)
@@ -222,7 +222,8 @@ test('the generated Excel file preserves the supplied workbook layout styles and
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.expense-breakdown.download', $this->draft), $this->payload)
-        ->assertDownload('online-research-journal-estimated-expense-breakdown.xlsx');
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload('online-research-journal-estimated-expense-breakdown.pdf');
 });
 
 test('contingency uses the official single-amount workbook row', function () {

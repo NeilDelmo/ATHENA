@@ -30,6 +30,11 @@
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
+          $hasProjectAccess = $isResearchHead || $topic->isAccessibleTo(Auth::user());
+          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed())
+              && $hasProjectAccess;
+          $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
+              && $hasProjectAccess;
         $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
         $resubmissionErrors = $errors->getBag('resubmission');
         $noticeToProceedErrors = $errors->hasAny([
@@ -54,10 +59,11 @@
         ]);
         $reviewTabHash = 'proposal-review';
         $initialTopicTab = $resubmissionErrors->any()
-            || $errors->hasAny(['evaluation_document', 'status', 'revision_file_ids', 'revision_file_notes.*'])
-            || $noticeToProceedErrors
+            || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*'])
             ? 'review'
-            : (in_array(session('topic_tab'), ['details', 'review', 'history'], true) ? session('topic_tab') : null);
+            : ($noticeToProceedErrors
+                ? 'notice'
+                : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
     @endphp
 
     <x-slot name="header">
@@ -90,9 +96,13 @@
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
-                ['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)
+                ['#proposal-review', '#submit-revision'].includes(window.location.hash)
                     ? 'review'
-                    : ['#version-history', '#project-monitoring'].includes(window.location.hash)
+                    : window.location.hash === '#notice-to-proceed'
+                        ? 'notice'
+                    : window.location.hash === '#project-monitoring'
+                        ? 'monitoring'
+                        : window.location.hash === '#version-history'
                         ? 'history'
                         : 'details'
             ),
@@ -101,9 +111,13 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                if (['#proposal-review', '#submit-revision', '#notice-to-proceed'].includes(window.location.hash)) {
+                if (['#proposal-review', '#submit-revision'].includes(window.location.hash)) {
                     this.activeTopicTab = 'review';
-                } else if (['#version-history', '#project-monitoring'].includes(window.location.hash)) {
+                } else if (window.location.hash === '#notice-to-proceed') {
+                    this.activeTopicTab = 'notice';
+                } else if (window.location.hash === '#project-monitoring') {
+                    this.activeTopicTab = 'monitoring';
+                } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
                 } else {
                     this.activeTopicTab = 'details';
@@ -149,10 +163,22 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5A2.25 2.25 0 0 1 19.5 6v14.25H4.5V6a2.25 2.25 0 0 1 2.25-2.25Z" /><path stroke-linecap="round" d="M8.25 9.5h7.5M8.25 13h5.25" /></svg>
                     {{ $isResearchHead ? 'Review & decision' : 'Review status' }}
                 </button>
+                @if ($canViewNoticeToProceed)
+                    <button id="notice-to-proceed-tab-button" type="button" role="tab" aria-controls="notice-to-proceed-tab" :aria-selected="activeTopicTab === 'notice'" @click="setTopicTab('notice', 'notice-to-proceed')" :class="activeTopicTab === 'notice' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /><path stroke-linecap="round" d="M9 13.5l2 2 4-4" /></svg>
+                        Notice to Proceed
+                    </button>
+                @endif
                 <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     Versions
                 </button>
+                @if ($canViewMonitoring)
+                    <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V10m5.25 9.5V4.5m5.25 15v-7m5.25 7V7" /></svg>
+                        Monitoring
+                    </button>
+                @endif
             </nav>
         </div>
 
@@ -245,9 +271,9 @@
                 <h3 class="text-lg font-black text-gray-900">{{ $isResearchHead ? 'One clear review process' : 'What happens next' }}</h3>
                 <p class="mt-2 max-w-4xl text-sm leading-6 text-gray-700">
                     @if ($isResearchHead)
-                        Review the faculty package, receive the completed evaluation outside ATHENA, then upload that document here with your decision. ATHENA shares both the decision and its proof with the faculty member.
+                        Review the faculty package and record the decision. For revision requests, use highlighted comments and file-specific instructions to identify what must change.
                     @elseif ($topic->status === 'revision_requested')
-                        The Research Head requested changes. Read the decision, download the evaluation document, and replace only the files marked for revision.
+                        The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                     @elseif ($topic->isAwaitingNoticeToProceed())
                         Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
                     @elseif ($topic->isCompletedProject())
@@ -257,7 +283,7 @@
                     @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
                         The review is complete. Only the papers with official signature blocks are waiting for their signed final PDFs.
                     @elseif ($topic->status === 'rejected')
-                        This proposal received a final rejection. The decision and evaluation document are available below.
+                        This proposal received a final rejection.
                     @else
                         The proposal is with the Research Head. You will be notified when a decision or revision request is shared.
                     @endif
@@ -275,12 +301,12 @@
                     <div class="flex items-center gap-4">
                         <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
                         <div>
-                            <h3 class="text-base font-black text-gray-900">Evaluation and decision documents</h3>
+                            <h3 class="text-base font-black text-gray-900">Research Head documents</h3>
                             <p class="mt-0.5 text-sm text-gray-600">
                                 @if ($reviewDocuments->isNotEmpty())
                                     {{ $reviewDocuments->count() }} document(s) shared by the Research Head.
                                 @else
-                                    No evaluation documents shared yet.
+                                    No Research Head documents shared yet.
                                 @endif
                             </p>
                         </div>
@@ -321,8 +347,8 @@
                             </article>
                         @empty
                             <div class="px-6 py-8 text-center">
-                                <p class="text-base font-bold text-gray-700">No evaluation document has been shared yet.</p>
-                                <p class="mt-1 text-sm text-gray-500">{{ $isResearchHead ? 'Upload one when recording the decision below.' : 'It will appear here when the Research Head records a decision.' }}</p>
+                                <p class="text-base font-bold text-gray-700">No Research Head documents have been shared yet.</p>
+                                <p class="mt-1 text-sm text-gray-500">Signed final copies and other documents shared by the Research Head will appear here.</p>
                             </div>
                         @endforelse
                     </div>
@@ -385,10 +411,6 @@
                 </div>
             </details>
 
-            @if ($topic->status === 'approved')
-                @include('topics.partials.notice-to-proceed')
-            @endif
-
             @if ($canDecide)
                 <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open>
                     <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
@@ -406,37 +428,12 @@
                             id="research-head-decision-form"
                             action="{{ route('research_head.topics.updateStatus', $topic) }}"
                             method="POST"
-                            enctype="multipart/form-data"
                             x-data="{ decision: @js(old('status', '')) }"
                             class="space-y-5 p-5 sm:p-6"
                         >
                             @csrf @method('PATCH')
                             <input type="hidden" name="redirect_to" value="topic">
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                    <p class="text-sm leading-6 text-gray-600">The uploaded evaluation and your decision will immediately be shared with the faculty member.</p>
-                                </div>
-                                @if ($screeningTemplates->isNotEmpty())
-                                    <div class="flex flex-wrap gap-2">
-                                        @foreach ($screeningTemplates as $template)
-                                            <a href="{{ route('proposal-templates.download', $template) }}" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100">Download blank form</a>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </div>
-
-                            <div class="grid gap-4 lg:grid-cols-2">
-                                <label class="block text-sm font-bold text-gray-700">
-                                    Completed evaluation document <span class="text-red-600">Required</span>
-                                    <input name="evaluation_document" type="file" accept=".pdf,.doc,.docx" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-bold file:text-gray-700 hover:file:bg-gray-200">
-                                    <span class="mt-2 block text-xs font-normal leading-5 text-gray-500">Upload the completed Initial Screening or external evaluation received by the Research Head.</span>
-                                </label>
-                                <label class="block text-sm font-bold text-gray-700">
-                                    Document title
-                                    <input name="evaluation_title" type="text" maxlength="255" value="{{ old('evaluation_title', 'External evaluation document') }}" class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="External evaluation document">
-                                    <span class="mt-2 block text-xs font-normal leading-5 text-gray-500">This title is what the faculty member will see.</span>
-                                </label>
-                            </div>
+                            <p class="text-sm leading-6 text-gray-600">Choose the decision below. Revision requests use the file checklist and highlighted comments to tell the faculty member exactly what to change.</p>
 
                             <label class="block text-sm font-bold text-gray-700 dark:text-gray-200">
                                 Decision <span class="text-red-600">Required</span>
@@ -491,12 +488,6 @@
                                 <p class="mt-4 rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border dark:border-gray-800">If any file is marked for revision, choose <span class="font-black">Request revision</span> as the decision.</p>
                             </section>
 
-                            <label class="block text-sm font-bold text-gray-700">
-                                Decision notes <span class="text-red-600" x-show="decision === 'revision_requested' || decision === 'rejected'">Required</span>
-                                <textarea name="comment" rows="5" maxlength="5000" placeholder="Required when requesting a revision or rejecting the proposal. Give the faculty member clear next steps." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6">{{ old('comment') }}</textarea>
-                                <span class="mt-2 block text-xs font-normal leading-5 text-gray-500" x-show="decision === 'revision_requested' || decision === 'rejected'">Explain what the faculty member needs to change or why the proposal was rejected.</span>
-                            </label>
-
                             <button class="w-full rounded-xl bg-red-600 px-5 py-3.5 text-base font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save decision and share with faculty</button>
                         </form>
                     </div>
@@ -548,7 +539,7 @@
                             </div>
 
                             <div class="grid gap-3 md:grid-cols-2">
-                                @foreach ([['detailed_proposal', 'Detailed proposal', '.doc,.docx,.pdf'], ['work_plan', 'Work plan', '.doc,.docx,.pdf'], ['line_item_budget', 'Line-item budget', '.doc,.docx,.pdf'], ['expense_breakdown', 'Expense breakdown', '.xls,.xlsx'], ['gad_checklist', 'GAD checklist', '.doc,.docx,.pdf']] as [$name, $label, $accept])
+                                @foreach ([['detailed_proposal', 'Detailed proposal', '.doc,.docx,.pdf'], ['work_plan', 'Work plan', '.doc,.docx,.pdf'], ['line_item_budget', 'Line-item budget', '.doc,.docx,.pdf'], ['expense_breakdown', 'Expense breakdown', '.pdf'], ['gad_checklist', 'GAD checklist', '.doc,.docx,.pdf']] as [$name, $label, $accept])
                                     @php($stagedFile = $stagedRevisionFiles->get($name))
                                     <x-file-dropzone
                                         id="revision_{{ $name }}"
@@ -584,6 +575,12 @@
             @endif
         </section>
 
+        @if ($canViewNoticeToProceed)
+            <section id="notice-to-proceed-tab" x-show="activeTopicTab === 'notice'" x-cloak role="tabpanel" aria-labelledby="notice-to-proceed-tab-button">
+                @include('topics.partials.notice-to-proceed')
+            </section>
+        @endif
+
         <section id="version-history-tab" x-show="activeTopicTab === 'history'" x-cloak role="tabpanel" aria-labelledby="version-history-tab-button" class="space-y-5">
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                 <div class="border-b border-gray-100 px-6 py-4"><h3 class="text-lg font-black text-gray-900">Version comparison</h3><p class="mt-1 text-sm text-gray-600">What changed between the two latest submissions.</p></div>
@@ -614,11 +611,13 @@
             </section>
 
             @include('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])
-
-            @if (($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject()) && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
-                @include('topics.partials.project-monitoring')
-            @endif
         </section>
+
+        @if ($canViewMonitoring)
+            <section id="project-monitoring-tab" x-show="activeTopicTab === 'monitoring'" x-cloak role="tabpanel" aria-labelledby="project-monitoring-tab-button">
+                @include('topics.partials.project-monitoring')
+            </section>
+        @endif
 
         @if ($topic->signed_approval_path)
             <a href="{{ route('topics.approval', $topic) }}" class="flex justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download previous signed approval</a>

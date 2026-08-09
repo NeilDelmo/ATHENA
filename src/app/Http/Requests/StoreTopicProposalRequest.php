@@ -34,7 +34,7 @@ class StoreTopicProposalRequest extends FormRequest
             'document' => ['nullable', 'required_without:detailed_proposal', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
             'work_plan' => ['nullable', 'required_without:entries', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
             'line_item_budget' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
-            'expense_breakdown' => ['required', 'file', 'mimes:xls,xlsx', 'max:25600'],
+            'expense_breakdown' => ['required', 'file', 'mimes:pdf', 'max:25600'],
             'curricula_vitae' => ['required', 'array', 'min:1', 'max:10'],
             'curricula_vitae.*' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
             'gad_checklist' => ['required', 'file', 'mimes:pdf,doc,docx', 'max:25600'],

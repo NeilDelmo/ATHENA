@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\RecordProposalDraftDocumentVersion;
+use App\Actions\SaveProposalDraftDocument;
+use App\Actions\SubmitProposalDraft;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\LiteratureSource;
 use App\Models\ProjectProgressReport;
@@ -207,6 +209,9 @@ beforeEach(function () {
             ]);
         }
 
+        $draft = $draft->fresh(['documents', 'researchCall']);
+        app(SubmitProposalDraft::class)->prepare($draft, $this->faculty);
+
         return $draft->fresh(['documents', 'researchCall']);
     };
 });
@@ -374,6 +379,12 @@ test('every draft paper and submission endpoint is protected from another owner'
         fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.preview', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.initial-screening-form.download', $draft)),
         fn () => $this->get(route('faculty.proposal-drafts.review', $draft)),
+        fn () => $this->post(route('faculty.proposal-drafts.submission-files.prepare', $draft)),
+        fn () => $this->get(route('faculty.proposal-drafts.submission-files.download', [$draft, 'detailed-proposal'])),
+        fn () => $this->put(route('faculty.proposal-drafts.submission-files.replace', [$draft, 'detailed-proposal']), [
+            'document_version' => $document->lock_version,
+            'file' => UploadedFile::fake()->create('corrected.pdf', 10, 'application/pdf'),
+        ]),
         fn () => $this->post(route('faculty.proposal-drafts.submit', $draft)),
         fn () => $this->delete(route('faculty.proposal-drafts.destroy', $draft)),
     ];
@@ -514,7 +525,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
         ->assertSee('Proposal collaborators')
-        ->assertSee('six immutable PDF attachments and one Excel workbook')
+        ->assertSee('seven reviewed PDFs are ready')
         ->assertSee('Turn in proposal');
 
     expect($reviewResponse->getContent())
@@ -1081,7 +1092,7 @@ test('incomplete and closed-call drafts remain available and cannot be submitted
 
     expect(ProposalDraft::find($completeDraft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
-    expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->toBeEmpty();
+    expect(Storage::disk('local')->allFiles($completeDraft->storageDirectory()))->toHaveCount(7);
 });
 
 test('budget mismatches are identified in the interface and prevent final submission', function () {
@@ -1166,8 +1177,15 @@ test('budget mismatches are identified in the interface and prevent final submis
         ->assertDontSee('Needs attention');
 });
 
-test('a PDF conversion failure keeps the complete draft available for another Turn in attempt', function () {
+test('a PDF conversion failure keeps the complete draft available for another preparation attempt', function () {
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->update([
+        'file_path' => null,
+        'original_filename' => null,
+        'mime_type' => null,
+        'file_size' => null,
+        'checksum' => null,
+    ]);
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
     {
         public function convertDocx(string $contents): string
@@ -1182,13 +1200,110 @@ test('a PDF conversion failure keeps the complete draft available for another Tu
     });
 
     $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
         ->assertRedirect()
-        ->assertSessionHasErrors('submission');
+        ->assertSessionHasErrors('preparation');
 
     expect(ProposalDraft::find($draft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
-    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->toBeEmpty();
+    expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
+});
+
+test('Turn in is blocked until the complete proposal has a prepared PDF package', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->update([
+        'file_path' => null,
+        'original_filename' => null,
+        'mime_type' => null,
+        'file_size' => null,
+        'checksum' => null,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect()
+        ->assertSessionHasErrors('submission_files');
+
+    expect(ProposalDraft::find($draft->id))->not->toBeNull()
+        ->and(TopicProposal::query()->count())->toBe(0);
+});
+
+test('faculty prepares reviews replaces and refreshes the seven submission PDFs before Turn in', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+
+    expect($draft->documents)->toHaveCount(7)
+        ->and($draft->documents->every(fn ($document): bool => $document->mime_type === 'application/pdf'))
+        ->toBeTrue()
+        ->and(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeTrue();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('Prepared PDF ready')
+        ->assertSee('Download prepared PDF')
+        ->assertSee('Choose replacement PDF')
+        ->assertSee('The seven reviewed PDFs are ready');
+
+    $workspace = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft));
+
+    expect(substr_count($workspace->getContent(), 'Choose replacement PDF'))->toBe(7);
+
+    $expenseBreakdown = $draft->documents
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.submission-files.download', [$draft, 'expense-breakdown']))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload($expenseBreakdown->original_filename);
+
+    $detailedProposal = $draft->documents
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $replacement = UploadedFile::fake()->createWithContent(
+        'faculty-corrected-proposal.pdf',
+        "%PDF-1.7\nfaculty corrected contents",
+    );
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.submission-files.replace', [$draft, 'detailed-proposal']), [
+            'document_version' => $detailedProposal->lock_version,
+            'file' => $replacement,
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+        ->assertSessionHasNoErrors();
+
+    $detailedProposal->refresh();
+
+    expect($detailedProposal->original_filename)->toBe('faculty-corrected-proposal.pdf')
+        ->and($detailedProposal->mime_type)->toBe('application/pdf')
+        ->and(Storage::disk('local')->get($detailedProposal->file_path))->toContain('faculty corrected contents')
+        ->and(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
+
+    $updatedSource = $expenseBreakdown->source_data;
+    $updatedSource['items'][0]['purpose'] = 'Updated purpose after reviewing the prepared PDF.';
+    app(SaveProposalDraftDocument::class)->handle(
+        $draft,
+        $this->faculty,
+        ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        0,
+        $expenseBreakdown->lock_version,
+        [
+            'source_data' => $updatedSource,
+            'completed_at' => now(),
+        ],
+    );
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeFalse()
+        ->and($draft->documents()->whereNotNull('file_path')->count())->toBe(0);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Seven PDF attachments prepared. Review or replace them before turning in.');
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
 });
 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
@@ -1237,8 +1352,8 @@ test('final submission creates one immutable package then rejects a duplicate re
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
             ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
         ])->sort()->values()->all())
-        ->and($version->files->where('document_type', '!=', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->every(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'))->toBeTrue()
-        ->and($version->files->where('document_type', '!=', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->every(fn (ProposalVersionFile $file): bool => str_ends_with($file->original_filename, '.pdf')))->toBeTrue()
+        ->and($version->files->every(fn (ProposalVersionFile $file): bool => $file->mime_type === 'application/pdf'))->toBeTrue()
+        ->and($version->files->every(fn (ProposalVersionFile $file): bool => str_ends_with($file->original_filename, '.pdf')))->toBeTrue()
         ->and($version->files->every(fn (ProposalVersionFile $file): bool => strlen((string) $file->checksum) === 64))->toBeTrue()
         ->and($workPlan->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($workPlan->source_data['total_duration_months'])->toBe(12)
@@ -1248,8 +1363,8 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($lineItemBudget->source_data['project_total'])->toBe(3600)
         ->and($expenseBreakdown->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($expenseBreakdown->source_data['items'][0]['account'])->toBe('Communication Expenses')
-        ->and($expenseBreakdown->mime_type)->toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        ->and($expenseBreakdown->original_filename)->toBe('coastal-habitat-restoration-estimated-expense-breakdown.xlsx')
+        ->and($expenseBreakdown->mime_type)->toBe('application/pdf')
+        ->and($expenseBreakdown->original_filename)->toBe('coastal-habitat-restoration-estimated-expense-breakdown.pdf')
         ->and($gadChecklist->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner')
         ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
@@ -1260,9 +1375,7 @@ test('final submission creates one immutable package then rejects a duplicate re
     $version->files->each(function (ProposalVersionFile $file): void {
         Storage::disk('local')->assertExists($file->file_path);
 
-        expect(Storage::disk('local')->get($file->file_path))->toStartWith(
-            $file->document_type === ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN ? 'PK' : '%PDF-',
-        );
+        expect(Storage::disk('local')->get($file->file_path))->toStartWith('%PDF-');
     });
     $stagedPaths->each(
         fn (string $path) => Storage::disk('local')->assertMissing($path),
@@ -1279,16 +1392,16 @@ test('final submission creates one immutable package then rejects a duplicate re
         fn (ProposalDraftDocumentVersion $history): bool => $history->hasStoredFile(),
     );
 
-    expect($archivedHistory)->toHaveCount(5)
+    expect($archivedHistory)->toHaveCount(7)
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_document_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->is_current === false))->toBeTrue()
-        ->and($archivedFileVersion)->toBeNull();
+        ->and($archivedFileVersion)->not->toBeNull();
 
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Draft history (5)');
+        ->assertSee('Draft history (7)');
     $this->actingAs($this->faculty)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk()
@@ -1378,6 +1491,8 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->put(route('faculty.proposal-drafts.detailed-proposal.update', $draft), $detailedProposalPayload)
         ->assertRedirect(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))
         ->assertSessionHasNoErrors();
+
+    app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty);
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submit', $draft))
@@ -1476,7 +1591,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
 
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->fresh()->isMonitoringAvailable())->toBeFalse()
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
     Notification::assertSentTo(
         $this->faculty,
         ProposalActivityNotification::class,

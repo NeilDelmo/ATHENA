@@ -31,14 +31,15 @@
 <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
 
 <section aria-labelledby="review-papers-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required package attachments</h3><p class="mt-1 text-xs text-gray-500">Turn in creates six fixed PDFs and preserves the generated Expense Breakdown as an Excel workbook.</p></div>
+    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required package attachments</h3><p class="mt-1 text-xs text-gray-500">Prepare seven PDFs first, review the exact files below, and optionally replace a generated PDF before Turn in.</p></div>
 
     <div class="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200">
         @foreach ($checklist as $item)
             @php
                 $paper = $item['paper'];
                 $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
-                $submissionFormat = $submissionExtension === 'XLSX' ? 'Excel workbook' : 'PDF';
+                $submissionFormat = 'PDF';
+                $preparedDocument = $item['documents']->first(fn ($document) => filled($document->file_path) && $document->mime_type === 'application/pdf');
             @endphp
             <article class="p-4 sm:p-5">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -51,12 +52,15 @@
                             </div>
                             <p class="mt-2 break-all text-xs font-bold text-gray-800">{{ $item['submission_filename'] }}</p>
                             <div class="mt-2 text-xs leading-5 text-gray-500">
-                                @if ($paper['mode'] === 'automatic')
-                                    <p>ATHENA will generate this PDF from the shared Project Title and Project Leader. Evaluator fields remain blank.</p>
+                                @if ($preparedDocument)
+                                    <p class="font-semibold text-green-700">Prepared PDF ready: {{ $preparedDocument->original_filename }}</p>
+                                    <p class="mt-1">This exact file will be sent to the Research Head.</p>
+                                @elseif ($paper['mode'] === 'automatic')
+                                    <p>ATHENA will prepare this PDF from the shared Project Title and Project Leader. Evaluator fields remain blank.</p>
                                 @elseif ($item['documents']->isEmpty())
                                     <p>No {{ $submissionFormat }} attachment is ready.</p>
                                 @elseif ($paper['mode'] === 'generated')
-                                    <p>Saved form data will be rendered into the official template and attached as {{ $submissionExtension === 'XLSX' ? 'an Excel workbook' : 'a PDF' }}.</p>
+                                    <p>Saved form data is complete, but its final PDF has not been prepared yet.</p>
                                 @else
                                     <p>Faculty-uploaded PDF attached {{ $item['documents']->first()->updated_at->diffForHumans() }}.</p>
                                 @endif
@@ -109,6 +113,23 @@
                         <a href="{{ route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview GAD Checklist</a>
                     </div>
                 @endif
+
+                @if ($preparedDocument)
+                    <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
+                        <a href="{{ route('faculty.proposal-drafts.submission-files.download', [$proposalDraft, $paper['slug']]) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Download prepared PDF</a>
+                        @if ($paper['mode'] !== 'upload')
+                            <form action="{{ route('faculty.proposal-drafts.submission-files.replace', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                                @csrf
+                                @method('PUT')
+                                <input type="hidden" name="document_version" value="{{ $preparedDocument->lock_version }}">
+                                <label class="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">
+                                    <span>Choose replacement PDF</span>
+                                    <input type="file" name="file" accept="application/pdf,.pdf" required class="sr-only" onchange="this.form.requestSubmit()">
+                                </label>
+                            </form>
+                        @endif
+                    </div>
+                @endif
             </article>
         @endforeach
     </div>
@@ -139,18 +160,25 @@
     </div>
 </section>
 
-<section class="rounded-2xl border {{ $readyToSubmit ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50' }} p-5 sm:p-6">
+<section class="rounded-2xl border {{ $readyToSubmit ? 'border-green-200 bg-green-50' : ($readyToPrepare ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50') }} p-5 sm:p-6">
     <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">Turn in proposal</h3>
-            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Turn in creates six immutable PDF attachments and one Excel workbook, then sends version 1 to the Research Head.' : 'Complete Project Details and every required paper to enable Turn in.' }}</p>
+            <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">{{ $submissionFilesPrepared ? 'Turn in proposal' : 'Prepare submission PDFs' }}</h3>
+            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'The seven reviewed PDFs are ready. Turn in now only finalizes and sends these staged files.' : ($readyToPrepare ? 'Generate the seven final PDFs now. You can download and replace generated PDFs before Turn in.' : 'Complete Project Details and every required paper before preparing the submission files.') }}</p>
         </div>
         @can('submit', $proposalDraft)
-            <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-confirm-title="Turn in proposal package?" data-confirm-text="This creates six immutable PDF attachments and one Excel workbook, then sends version 1 to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
-                @csrf
-                <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
-                <x-proposal-submission-loading-screen />
-            </form>
+            @if ($submissionFilesPrepared)
+                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-confirm-title="Turn in proposal package?" data-confirm-text="This sends the seven PDFs shown above to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+                    @csrf
+                    <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
+                    <x-proposal-submission-loading-screen />
+                </form>
+            @else
+                <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" x-data="{ preparing: false }" x-on:submit="preparing = true">
+                    @csrf
+                    <button type="submit" :disabled="preparing" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto"><span x-show="!preparing">Prepare seven PDFs</span><span x-show="preparing" x-cloak>Generating PDFs&hellip;</span></button>
+                </form>
+            @endif
         @else
             <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only {{ $proposalDraft->owner->name }} can submit this shared workspace.</p>
         @endcan

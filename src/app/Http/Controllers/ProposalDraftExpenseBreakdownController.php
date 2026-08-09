@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftExpenseBreakdownRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -92,18 +93,21 @@ class ProposalDraftExpenseBreakdownController extends Controller
         UpdateProposalDraftExpenseBreakdownRequest $request,
         ProposalDraft $proposalDraft,
         ExpenseBreakdownDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
         $expenseBreakdown = ExpenseBreakdownData::fromValidated($request->validated());
-        $contents = $documentService->generate($expenseBreakdown);
+        $contents = $pdfConverter->convertXlsx(
+            $documentService->generate($expenseBreakdown),
+        );
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-estimated-expense-breakdown.xlsx',
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+            $filenameBase.'-estimated-expense-breakdown.pdf',
+            ['Content-Type' => 'application/pdf'],
         );
     }
 

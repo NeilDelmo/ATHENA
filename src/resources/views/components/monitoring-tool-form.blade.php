@@ -28,17 +28,11 @@
 <details
     class="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50"
     @if ($errors->any()) open @endif
-    x-data="{
+    x-data="monitoringToolForm({
         entries: @js($workPlanRows),
-        submitting: false,
-        addEntry() {
-            if (this.entries.length >= 11) return;
-            this.entries.push({ activity: '', percent_weight: '', physical_target: '', target_completion_date: '', actual_accomplishment: '', accomplished_percentage: '', findings: '' });
-        },
-        removeEntry(index) {
-            if (this.entries.length > 1) this.entries.splice(index, 1);
-        }
-    }"
+        previewUrl: @js(route('project-progress.preview', $topic)),
+        csrfToken: @js(csrf_token()),
+    })"
 >
     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-black text-blue-900">
         <span>
@@ -49,6 +43,7 @@
     </summary>
 
     <form
+        x-ref="form"
         method="POST"
         action="{{ route('project-progress.store', $topic) }}"
         enctype="multipart/form-data"
@@ -181,11 +176,30 @@
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-5">
-            <p class="text-xs text-gray-500">The system will generate the official Revision 03 Word form after submission.</p>
-            <button type="submit" :disabled="submitting" class="rounded-xl bg-blue-700 px-5 py-3 text-xs font-bold text-white shadow-sm disabled:cursor-wait disabled:opacity-60">
-                <span x-show="!submitting">Submit monitoring tool</span>
-                <span x-show="submitting" x-cloak>Submitting…</span>
-            </button>
+            <p class="text-xs text-gray-500">The system will generate the official Revision 03 PDF after submission.</p>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-blue-200 bg-white px-5 py-3 text-xs font-bold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60">
+                    <span x-show="!previewLoading">Preview monitoring tool</span>
+                    <span x-show="previewLoading" x-cloak>Generating preview...</span>
+                </button>
+                <button type="submit" :disabled="submitting || previewLoading" class="rounded-xl bg-blue-700 px-5 py-3 text-xs font-bold text-white shadow-sm disabled:cursor-wait disabled:opacity-60">
+                    <span x-show="!submitting">Submit monitoring tool</span>
+                    <span x-show="submitting" x-cloak>Submitting…</span>
+                </button>
+            </div>
         </div>
+
+        <p x-show="previewError" x-cloak x-text="previewError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"></p>
+
+        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-black text-gray-900">Monitoring form preview</p>
+                    <p class="text-xs text-gray-500">This preview is generated from the current form values and has not been submitted.</p>
+                </div>
+                <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm disabled:opacity-50">Print preview</button>
+            </div>
+            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Monitoring tool document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
+        </section>
     </form>
 </details>

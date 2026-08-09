@@ -125,7 +125,9 @@ class ProposalDraftController extends Controller
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);
-        $readyToSubmit = $readinessErrors === [];
+        $submissionFilesPrepared = $readiness->submissionFilesArePrepared($proposalDraft);
+        $readyToPrepare = $readinessErrors === [];
+        $readyToSubmit = $readyToPrepare && $submissionFilesPrepared;
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
         $minimumProjectDate = now()->toDateString();
@@ -147,6 +149,8 @@ class ProposalDraftController extends Controller
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
+            'readyToPrepare',
+            'submissionFilesPrepared',
             'readyToSubmit',
             'budgetConsistency',
             'workspacePeople',
@@ -200,7 +204,7 @@ class ProposalDraftController extends Controller
             ]);
         }
 
-        $extensions = $paper['slug'] === 'expense-breakdown' ? 'xls,xlsx' : 'doc,docx,pdf';
+        $extensions = 'doc,docx,pdf';
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:'.$extensions, 'max:25600'],
         ]);

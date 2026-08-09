@@ -18,7 +18,14 @@
     $maxFigures = (int) config('progress_report.max_figures');
 @endphp
 
-<details class="overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50/50" @if ($errors->narrativeProgress->any()) open @endif>
+<details
+    class="overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50/50"
+    @if ($errors->narrativeProgress->any()) open @endif
+    x-data="narrativeProgressReportForm({
+        previewUrl: @js(route('project-narrative-reports.preview', $topic)),
+        csrfToken: @js(csrf_token()),
+    })"
+>
     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-black text-emerald-900">
         <span>
             Submit progress report
@@ -27,7 +34,7 @@
         <span class="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-emerald-700 shadow-sm">Open form</span>
     </summary>
 
-    <form method="POST" action="{{ route('project-narrative-reports.store', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5">
+    <form x-ref="form" method="POST" action="{{ route('project-narrative-reports.store', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5" @submit="submitting = true">
         @csrf
 
         @if ($errors->narrativeProgress->any())
@@ -163,7 +170,29 @@
                 <label for="progress_prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
                 <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed')" :max="now()->toDateString()" class="mt-1" />
             </div>
-            <button type="submit" class="rounded-xl bg-emerald-700 px-5 py-3 text-xs font-bold text-white shadow-sm">Submit progress report</button>
+            <div class="flex flex-wrap justify-end gap-2">
+                <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-xs font-bold text-emerald-700 shadow-sm hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60">
+                    <span x-show="!previewLoading">Preview progress report</span>
+                    <span x-show="previewLoading" x-cloak>Generating preview...</span>
+                </button>
+                <button type="submit" :disabled="submitting || previewLoading" class="rounded-xl bg-emerald-700 px-5 py-3 text-xs font-bold text-white shadow-sm disabled:cursor-wait disabled:opacity-60">
+                    <span x-show="!submitting">Submit progress report</span>
+                    <span x-show="submitting" x-cloak>Submitting…</span>
+                </button>
+            </div>
         </div>
+
+        <p x-show="previewError" x-cloak x-text="previewError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"></p>
+
+        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-black text-gray-900">Progress report preview</p>
+                    <p class="text-xs text-gray-500">This preview is generated from the current form values and has not been submitted.</p>
+                </div>
+                <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm disabled:opacity-50">Print preview</button>
+            </div>
+            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Progress report document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
+        </section>
     </form>
 </details>

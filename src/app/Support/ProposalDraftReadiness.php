@@ -79,7 +79,30 @@ class ProposalDraftReadiness
         return $this->projectDetailsAreComplete($draft)
             && $this->allPapersAreComplete($draft)
             && $this->proposalBudgetConsistency->compare($draft)['consistent']
+            && $this->submissionFilesArePrepared($draft)
             && $draft->researchCall?->isAcceptingSubmissions();
+    }
+
+    public function submissionFilesArePrepared(ProposalDraft $draft): bool
+    {
+        $draft->loadMissing('documents');
+
+        return $this->catalog->all()->every(function (array $paper) use ($draft): bool {
+            $documents = $draft->documents
+                ->where('document_type', $paper['document_type'])
+                ->sortBy('position')
+                ->values();
+            $minimumFiles = $paper['mode'] === 'upload' ? (int) $paper['min_files'] : 1;
+            $maximumFiles = $paper['mode'] === 'upload' ? (int) $paper['max_files'] : 1;
+
+            if ($documents->count() < $minimumFiles || $documents->count() > $maximumFiles) {
+                return false;
+            }
+
+            return $documents->every(fn (ProposalDraftDocument $document): bool => filled($document->file_path)
+                && $document->mime_type === 'application/pdf'
+                && Storage::disk('local')->exists($document->file_path));
+        });
     }
 
     /** @return array<string, string> */

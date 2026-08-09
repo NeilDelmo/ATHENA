@@ -413,7 +413,7 @@
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_expenses_{{ $topic->id }}" class="text-xs font-bold text-gray-600 dark:text-gray-300">Expense breakdown</label>
-                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".xls,.xlsx" @required($requiredRevisionTypes->contains('expense_breakdown')) class="block w-full rounded-xl border border-gray-300 bg-white p-2 text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-950 file:px-3 file:py-1.5 file:font-bold file:text-white dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:file:bg-white dark:file:text-gray-950">
+                                    <input id="revision_expenses_{{ $topic->id }}" name="expense_breakdown" type="file" accept=".pdf" @required($requiredRevisionTypes->contains('expense_breakdown')) class="block w-full rounded-xl border border-gray-300 bg-white p-2 text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-950 file:px-3 file:py-1.5 file:font-bold file:text-white dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:file:bg-white dark:file:text-gray-950">
                                 </div>
                                 <div class="space-y-1 sm:col-span-2">
                                     <label for="revision_cv_{{ $topic->id }}" class="text-xs font-bold text-gray-600 dark:text-gray-300">Curriculum vitae files</label>

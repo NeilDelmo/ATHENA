@@ -259,12 +259,11 @@ class ProposalPackageService
     ): array {
         $filenameBase = Str::slug($projectTitle) ?: 'research-project';
 
-        return $this->storeGeneratedFile(
+        return $this->storeGeneratedPdf(
             $contents,
             $directory.'/expense-breakdown',
-            $filenameBase.'-estimated-expense-breakdown.xlsx',
+            $filenameBase.'-estimated-expense-breakdown.pdf',
             ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             $sourceData,
             'xlsx',
         );

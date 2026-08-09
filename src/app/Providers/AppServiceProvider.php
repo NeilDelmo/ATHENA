@@ -81,7 +81,8 @@ class AppServiceProvider extends ServiceProvider
                 return;
             }
 
-            $contexts = $user->proposals()
+            $contexts = TopicProposal::query()
+                ->accessibleTo($user)
                 ->when(
                     $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER),
                     fn ($query) => $query->visibleInResearcherWorkspace(),

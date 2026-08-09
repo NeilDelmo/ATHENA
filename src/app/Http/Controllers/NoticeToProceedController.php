@@ -11,6 +11,7 @@ use App\Services\NoticeToProceedDataService;
 use App\Services\NoticeToProceedDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -31,19 +32,12 @@ class NoticeToProceedController extends Controller
 
     public function store(IssueNoticeToProceedRequest $request, TopicProposal $topic): RedirectResponse
     {
-        if ($topic->status !== 'approved') {
-            throw ValidationException::withMessages([
-                'notice_to_proceed' => 'The proposal papers must be approved before a Notice to Proceed can be issued.',
-            ]);
-        }
+        $this->ensureProposalIsApproved($topic);
 
         $noticeData = $this->dataService->snapshot($request->validated());
 
         try {
-            $document = $this->documentService->generate(
-                $this->dataService->documentValues($noticeData),
-            );
-            $pdf = $this->pdfConverter->convertDocx($document);
+            $pdf = $this->generatePdf($noticeData);
         } catch (Throwable $exception) {
             report($exception);
 
@@ -121,7 +115,7 @@ class NoticeToProceedController extends Controller
             $firstIssuance
                 ? 'Your Notice to Proceed for "'.$topic->title.'" is ready. Project monitoring is now open.'
                 : 'The Research Head replaced the Notice to Proceed for "'.$topic->title.'".',
-            route('topics.show', $topic).'#notice-to-proceed',
+            route('topics.show', $topic).'#project-monitoring',
             'success',
             $topic->id,
             workspace: [
@@ -135,6 +129,29 @@ class NoticeToProceedController extends Controller
             ->with('success', $firstIssuance
                 ? 'Notice to Proceed generated and issued. Faculty Researcher access and project monitoring are now open.'
                 : 'Notice to Proceed regenerated successfully.');
+    }
+
+    public function preview(IssueNoticeToProceedRequest $request, TopicProposal $topic): Response
+    {
+        $this->ensureProposalIsApproved($topic);
+
+        $noticeData = $this->dataService->snapshot($request->validated());
+
+        try {
+            $pdf = $this->generatePdf($noticeData);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'notice_to_proceed' => 'The Notice to Proceed preview could not be generated. Please verify the notice details and try again.',
+            ]);
+        }
+
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="notice-to-proceed-preview.pdf"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function download(Request $request, TopicProposal $topic): StreamedResponse
@@ -152,5 +169,24 @@ class NoticeToProceedController extends Controller
                 'X-Content-Type-Options' => 'nosniff',
             ],
         );
+    }
+
+    /** @param array<string, mixed> $noticeData */
+    private function generatePdf(array $noticeData): string
+    {
+        $document = $this->documentService->generate(
+            $this->dataService->documentValues($noticeData),
+        );
+
+        return $this->pdfConverter->convertDocx($document);
+    }
+
+    private function ensureProposalIsApproved(TopicProposal $topic): void
+    {
+        if ($topic->status !== 'approved') {
+            throw ValidationException::withMessages([
+                'notice_to_proceed' => 'The proposal papers must be approved before a Notice to Proceed can be issued.',
+            ]);
+        }
     }
 }

@@ -73,10 +73,12 @@ test('issuing the Notice to Proceed promotes the faculty member and opens monito
     ])->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
+        ->assertSee('Preview notice')
+        ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('Generate notice and open monitoring')
         ->assertSee('Faculty Owner')
         ->assertSee('75,000.00')
-        ->assertSee('No PDF upload is needed.');
+        ->assertSee('Previewing does not save, issue, or open monitoring.');
 
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';
@@ -99,7 +101,8 @@ test('issuing the Notice to Proceed promotes the faculty member and opens monito
         ->and($this->topic->project_status)->toBe('ongoing')
         ->and($this->topic->isMonitoringAvailable())->toBeTrue()
         ->and($this->faculty->hasRole('faculty_researcher'))->toBeTrue()
-        ->and($this->faculty->notifications()->firstOrFail()->data['title'])->toBe('Notice to Proceed issued');
+        ->and($this->faculty->notifications()->firstOrFail()->data['title'])->toBe('Notice to Proceed issued')
+        ->and($this->faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $this->topic).'#project-monitoring');
 
     Storage::disk('local')->assertExists($this->topic->notice_to_proceed_path);
 
@@ -114,7 +117,27 @@ test('issuing the Notice to Proceed promotes the faculty member and opens monito
     ])->actingAs($this->faculty)
         ->get(route('research.show', $this->topic))
         ->assertOk()
+        ->assertSee('Official project record')
+        ->assertSee('Download PDF')
+        ->assertSee('View notice details')
         ->assertSee('Project monitoring');
+});
+
+test('a Research Head can preview a Notice to Proceed without issuing it', function () {
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->post(route('research_head.topics.notice-to-proceed.preview', $this->topic), $payload)
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('content-disposition', 'inline; filename="notice-to-proceed-preview.pdf"');
+
+    expect($this->topic->fresh()->notice_to_proceed_issued_at)->toBeNull()
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse()
+        ->and(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
 });
 
 test('an approved paper remains outside monitoring until its notice is issued', function () {
