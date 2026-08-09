@@ -5,6 +5,8 @@
     $workPlanSource = $workPlanDocument?->source_data;
     $lineItemBudgetDocument = $checklist->get('line-item-budget')['documents']->first();
     $lineItemBudgetSource = $lineItemBudgetDocument?->source_data;
+    $expenseBreakdownDocument = $checklist->get('expense-breakdown')['documents']->first();
+    $expenseBreakdownSource = $expenseBreakdownDocument?->source_data;
     $curriculumVitaeDocument = $checklist->get('curriculum-vitae')['documents']->first();
     $curriculumVitaeSource = $curriculumVitaeDocument?->source_data;
 @endphp
@@ -95,6 +97,13 @@
                         <form action="{{ route('faculty.proposal-drafts.line-item-budget.preview', $proposalDraft) }}" method="POST" target="_blank" class="w-full sm:w-auto">
                             @csrf
                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Line-Item Budget</button>
+                        </form>
+                    </div>
+                @elseif ($paper['slug'] === 'expense-breakdown' && is_array($expenseBreakdownSource))
+                    <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
+                        <form action="{{ route('faculty.proposal-drafts.expense-breakdown.preview', $proposalDraft) }}" method="POST" target="_blank" class="w-full sm:w-auto">
+                            @csrf
+                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Estimated Expense Breakdown</button>
                         </form>
                     </div>
                 @elseif ($paper['slug'] === 'curriculum-vitae' && is_array($curriculumVitaeSource))

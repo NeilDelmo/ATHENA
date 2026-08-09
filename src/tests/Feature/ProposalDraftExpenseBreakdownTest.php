@@ -144,6 +144,11 @@ test('expense items are validated saved resumed and marked ready', function () {
         ->assertSee(':selected="subAccount.label === item.sub_account"', false)
         ->assertSee(':value="item.account"', false)
         ->assertSee(':value="item.sub_account"', false);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Preview Estimated Expense Breakdown');
 });
 
 test('the preview follows the supplied official table and calculates grouped totals', function () {

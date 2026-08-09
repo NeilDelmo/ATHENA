@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftLineItemBudgetRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -135,18 +136,21 @@ class ProposalDraftLineItemBudgetController extends Controller
         UpdateProposalDraftLineItemBudgetRequest $request,
         ProposalDraft $proposalDraft,
         LineItemBudgetDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
         $lineItemBudget = LineItemBudgetData::fromValidated($request->validated());
-        $contents = $documentService->generate($lineItemBudget);
+        $contents = $pdfConverter->convertDocx(
+            $documentService->generate($lineItemBudget),
+        );
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-line-item-budget.docx',
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            $filenameBase.'-line-item-budget.pdf',
+            ['Content-Type' => 'application/pdf'],
         );
     }
 

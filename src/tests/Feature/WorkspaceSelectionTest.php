@@ -19,12 +19,28 @@ test('a research head can choose research head or faculty workspaces', function 
         ->get(route('workspace.select'))
         ->assertOk()
         ->assertSee('Choose your workspace')
-        ->assertSee('grid gap-4 md:grid-cols-2')
-        ->assertDontSee('lg:grid-cols-3')
+        ->assertSee('max-w-4xl')
+        ->assertSee('grid grid-cols-1 gap-4 sm:grid-cols-2')
+        ->assertDontSee('md:grid-cols-3')
         ->assertSee('Continue as Research Head')
         ->assertSee('Continue as Faculty')
         ->assertDontSee('Continue as Faculty Researcher')
         ->assertDontSee('Continue as Expert Evaluator');
+});
+
+test('three workspaces use compact cards without shrinking the two-workspace layout', function () {
+    $user = User::factory()->create();
+    $user->assignRole(['research_head', 'faculty_researcher']);
+
+    $this->actingAs($user)
+        ->get(route('workspace.select'))
+        ->assertOk()
+        ->assertSee('max-w-5xl')
+        ->assertSee('grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3')
+        ->assertSee('p-4')
+        ->assertSee('Continue as Research Head')
+        ->assertSee('Continue as Faculty Researcher')
+        ->assertSee('Continue as Faculty');
 });
 
 test('a faculty researcher can also enter the regular faculty workspace', function () {

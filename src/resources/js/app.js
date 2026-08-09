@@ -4435,7 +4435,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: 'application/pdf',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -4449,10 +4449,10 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
                 return;
             }
 
-            if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
+            if (!response.ok) throw new Error('The PDF could not be generated. Please try again.');
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-            const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.docx';
+            const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.pdf';
             const blob = await response.blob();
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
@@ -4464,7 +4464,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             await offerRevisionUpload(blob, filename, config);
             URL.revokeObjectURL(downloadUrl);
         } catch (error) {
-            this.downloadError = error instanceof Error ? error.message : 'The Word file could not be generated.';
+            this.downloadError = error instanceof Error ? error.message : 'The PDF could not be generated.';
         } finally {
             this.downloadLoading = false;
         }

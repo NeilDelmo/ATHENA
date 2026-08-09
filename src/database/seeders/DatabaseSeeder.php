@@ -2,9 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\ResearchCall;
-use App\Models\ResearchCategory;
-use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -21,55 +18,12 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $researchHeadRole = Role::firstOrCreate(['name' => 'research_head']);
-        $facultyRole = Role::firstOrCreate(['name' => 'faculty']);
-        $facultyResearcherRole = Role::firstOrCreate(['name' => 'faculty_researcher']);
-        Role::firstOrCreate(['name' => 'research_coordinator']);
 
-        $researchHeadEmail = '23-78498@g.batstate-u.edu.ph';
-
-        $head = User::firstOrCreate(['email' => $researchHeadEmail], [
+        $head = User::updateOrCreate(['email' => '23-78498@g.batstate-u.edu.ph'], [
             'name' => 'Research Head',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
         $head->syncRoles([$researchHeadRole]);
-
-        $faculty = User::firstOrCreate(['email' => 'faculty@example.com'], [
-            'name' => 'Demo Faculty',
-            'password' => Hash::make('password'),
-            'email_verified_at' => now(),
-        ]);
-        $faculty->syncRoles([$facultyRole]);
-
-        $categories = collect(['Environment', 'Education', 'Technology', 'Health'])
-            ->map(fn (string $name) => ResearchCategory::firstOrCreate(['name' => $name]));
-
-        $call = ResearchCall::firstOrCreate(['title' => 'Institutional Research Call 2026'], [
-            'academic_year' => '2026-2027',
-            'term' => 'First Semester',
-            'description' => 'Prototype institutional call for faculty research proposals.',
-            'opens_at' => now()->subWeek(),
-            'closes_at' => now()->addMonths(2),
-            'max_active_research_per_faculty' => 2,
-            'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
-            'status' => 'open',
-            'created_by' => $head->id,
-        ]);
-        $call->categories()->sync($categories->pluck('id'));
-
-        User::where('email', '!=', $researchHeadEmail)
-            ->get()
-            ->each(function (User $user) use ($facultyRole) {
-                if (! $user->roles()->exists()) {
-                    $user->assignRole($facultyRole);
-                }
-            });
-
-        TopicProposal::with('user')
-            ->monitoringAvailable()
-            ->get()
-            ->each(function (TopicProposal $topic) use ($facultyRole, $facultyResearcherRole) {
-                $topic->user?->assignRole([$facultyRole, $facultyResearcherRole]);
-            });
     }
 }

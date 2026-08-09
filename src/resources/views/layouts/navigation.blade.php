@@ -433,25 +433,6 @@
             </div>
         @endif
 
-        @if (Auth::user()->isUsingWorkspace('faculty'))
-            <a
-                wire:navigate
-                href="{{ route('research.index') }}"
-                aria-label="Research"
-                title="Research"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Research</span>
-            </a>
-        @endif
-
         <a
             wire:navigate
             href="{{ route('research-calls.index') }}"

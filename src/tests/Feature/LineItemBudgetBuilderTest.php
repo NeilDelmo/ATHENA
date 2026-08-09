@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -211,17 +212,34 @@ test('the line-item preview remains available when shared project details are in
         ->assertSessionHasErrors();
 });
 
-test('the generated Word file preserves the official structure and fills dynamic rows', function () {
+test('the generated Line-Item Budget preserves the official structure and fills dynamic rows', function () {
     $this->draft->update(['project_leader' => 'SHEENA LEI DELMO']);
+    $pdfConverter = new class implements DocumentPdfConverter
+    {
+        public string $sourceDocument = '';
+
+        public function convertDocx(string $contents): string
+        {
+            $this->sourceDocument = $contents;
+
+            return "%PDF-1.7\nGenerated Line-Item Budget";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\nGenerated spreadsheet PDF";
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $pdfConverter);
 
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.line-item-budget.download', $this->draft), ($this->payload)())
         ->assertOk()
-        ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        ->assertDownload('community-coastal-research-line-item-budget.docx');
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload('community-coastal-research-line-item-budget.pdf');
 
     $temporaryPath = tempnam(sys_get_temp_dir(), 'line-budget-test-');
-    file_put_contents($temporaryPath, $response->streamedContent());
+    file_put_contents($temporaryPath, $pdfConverter->sourceDocument);
     $archive = new ZipArchive;
 
     try {
