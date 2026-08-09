@@ -36,7 +36,6 @@ beforeEach(function () {
         'status' => 'open',
         'created_by' => $this->head->id,
     ]);
-    $this->call->categories()->attach($this->category);
     Storage::fake('local');
 });
 
@@ -162,7 +161,6 @@ test('only faculty workspace recipients are notified when an open research call 
             'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
             'max_active_research_per_faculty' => 2,
             'maximum_budget' => 150000,
-            'categories' => 'Environment',
             'status' => 'open',
         ])
         ->assertRedirect(route('research-calls.index'));
@@ -244,7 +242,6 @@ test('research calls always use the PHP 150000 institutional limit', function ()
         'opens_at' => now()->addDay()->format('Y-m-d H:i:s'),
         'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
         'max_active_research_per_faculty' => 2,
-        'categories' => 'Technology',
         'status' => 'draft',
     ];
 
@@ -257,7 +254,7 @@ test('research calls always use the PHP 150000 institutional limit', function ()
     $this->actingAs($this->head)
         ->get(route('research-calls.index'))
         ->assertOk()
-        ->assertSee('Fixed institutional limit for every research call.')
+        ->assertSee('PHP 150,000.00')
         ->assertDontSee('name="maximum_budget"', false);
 });
 
@@ -280,7 +277,6 @@ test('research heads can read a research-call poster into blank form fields', fu
                         'opens_at' => '2026-02-05T00:00',
                         'closes_at' => '2026-03-02T23:59',
                         'maximum_budget' => 150000,
-                        'categories' => ['Cross-disciplinary', 'Product Development'],
                         'initial_evaluation_start_date' => '2026-03-03',
                         'initial_evaluation_end_date' => '2026-03-10',
                         'paper_revisions_start_date' => '2026-03-11',
@@ -301,7 +297,7 @@ test('research heads can read a research-call poster into blank form fields', fu
         ])
         ->assertOk();
 
-    $response->assertJsonPath('fields.title', 'Call for Proposals for August 2026 Implementation')
+    $response->assertJsonPath('fields.title', 'Call for Proposals — August 2026 Implementation')
         ->assertJsonPath('fields.description', "The research proposals must be:\n- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary")
         ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
         ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
@@ -351,7 +347,7 @@ POSTER,
         ])
         ->assertOk();
 
-    $response->assertJsonPath('fields.title', 'CALL FOR PROPOSALS FOR AUGUST 2026 IMPLEMENTATION')
+    $response->assertJsonPath('fields.title', 'Call for Proposals — August 2026 Implementation')
         ->assertJsonPath('fields.maximum_budget', 150000)
         ->assertJsonPath('fields.opens_at', '2026-02-05T00:00')
         ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
@@ -361,7 +357,7 @@ POSTER,
         ->assertJsonPath('fields.paper_revisions_end_date', '2026-03-20')
         ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
         ->assertJsonPath('fields.implementation_start_date', '2026-08-01')
-        ->assertJsonPath('fields.description', 'THE RESEARCH PROPOSALS MUST BE: Aligned with the BatStateU The NEU research agenda With Budget Requirement of lower that Php 150,000.00 Cross disciplinary or interdisciplinary research projects');
+        ->assertJsonPath('fields.description', "Aligned with the BatStateU The NEU research agenda\nWith Budget Requirement of lower that Php 150,000.00\nCross disciplinary or interdisciplinary research projects");
 });
 
 test('research-call extraction strips leaked JSON markup and literal escapes from truncating poster text', function () {
@@ -397,7 +393,7 @@ POSTER,
         ->assertOk();
 
     $response
-        ->assertJsonPath('fields.title', 'CALL FOR PROPOSALS FOR AUGUST 2026 IMPLEMENTATION')
+        ->assertJsonPath('fields.title', 'Call for Proposals — August 2026 Implementation')
         ->assertJsonPath('fields.opens_at', '2026-02-05T00:00')
         ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
         ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
@@ -408,10 +404,7 @@ POSTER,
     $description = $response->json('fields.description');
 
     expect($description)
-        ->toStartWith('THE RESEARCH PROPOSALS MUST BE:')
-        ->and($description)->toContain('- Aligned with BatStateU The NEU research agenda')
-        ->and($description)->toContain('Collaborative research focusing on product development and patent')
-        ->and($description)->not->toContain('\n')
+        ->toBe("- Aligned with BatStateU The NEU research agenda\n- With Budget Requirement of lower that Php 150,000.00\n- Collaborative research focusing on product development and patent")
         ->and($description)->not->toContain('opens_at')
         ->and($description)->not->toContain('closes_at')
         ->and($description)->not->toContain('"');
@@ -437,7 +430,6 @@ test('research heads can save workflow dates and a reference poster with a resea
             'implementation_start_date' => '2026-08-01',
             'max_active_research_per_faculty' => 2,
             'maximum_budget' => 150000,
-            'categories' => 'Cross-disciplinary, Product Development',
             'status' => 'draft',
         ])
         ->assertRedirect(route('research-calls.index'));
@@ -455,10 +447,14 @@ test('research heads can save workflow dates and a reference poster with a resea
 
     Storage::disk('local')->assertExists($call->reference_image_path);
 
-    $this->actingAs($this->faculty)
+    $this->actingAs($this->head)
         ->get(route('research-calls.reference-image', $call))
         ->assertOk()
         ->assertHeader('Content-Type', 'image/jpeg');
+
+    $this->actingAs($this->faculty)
+        ->get(route('research-calls.reference-image', $call))
+        ->assertNotFound();
 });
 
 test('faculty research workload is limited to two concurrent approved projects across calls and academic years', function () {
@@ -520,7 +516,6 @@ test('faculty research workload is limited to two concurrent approved projects a
         'status' => 'open',
         'created_by' => $this->head->id,
     ]);
-    $nextYearCall->categories()->attach($this->category);
     $nextYearProposal = $createProposal($nextYearCall, 'Project for the next academic year', 'pending');
 
     $this->actingAs($this->head)
@@ -555,7 +550,6 @@ test('research call configuration cannot raise the institutional project limit a
             'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
             'max_active_research_per_faculty' => 20,
             'maximum_budget' => 150000,
-            'categories' => 'Technology',
             'status' => 'draft',
         ])
         ->assertSessionHasErrors('max_active_research_per_faculty');

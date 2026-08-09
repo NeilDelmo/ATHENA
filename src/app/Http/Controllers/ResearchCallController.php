@@ -2,20 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ProcessResearchCallOpeningNotifications;
 use App\Exceptions\ResearchCallImageExtractionException;
 use App\Http\Requests\ExtractResearchCallImageRequest;
 use App\Http\Requests\StoreResearchCallRequest;
 use App\Http\Requests\UpdateResearchCallRequest;
 use App\Models\ResearchCall;
-use App\Models\ResearchCategory;
 use App\Models\User;
-use App\Notifications\ResearchCallPublishedNotification;
 use App\Notifications\ResearchCallUpdatedNotification;
 use App\Services\ResearchCallImageParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -25,13 +23,20 @@ use Throwable;
 
 class ResearchCallController extends Controller
 {
-    public function __construct(private ResearchCallImageParser $imageParser) {}
+    public function __construct(
+        private ResearchCallImageParser $imageParser,
+        private ProcessResearchCallOpeningNotifications $openingNotifications,
+    ) {}
 
     public function index(Request $request)
     {
-        $calls = ResearchCall::with(['categories', 'creator'])
+        $calls = ResearchCall::with('creator')
             ->withCount('topics')
             ->orderByDesc('opens_at')
+            ->when(
+                ! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD),
+                fn ($query) => $query->visibleToFaculty(),
+            )
             ->get();
 
         return view('research_calls.index', [
@@ -48,16 +53,14 @@ class ResearchCallController extends Controller
         $imagePath = $request->file('reference_image')?->store('research-calls', 'local');
 
         $call = ResearchCall::create([
-            ...collect($validated)->except(['categories', 'reference_image'])->all(),
+            ...collect($validated)->except('reference_image')->all(),
             'maximum_budget' => ResearchCall::MAXIMUM_BUDGET,
             'reference_image_path' => $imagePath,
             'created_by' => $request->user()->id,
         ]);
 
-        $call->categories()->sync($this->categoryIds($validated['categories']));
-
         if ($call->isAcceptingSubmissions()) {
-            $this->notifyFacultyOfPublishedCall($call);
+            $this->openingNotifications->process($call, includeReminder: false);
         }
 
         return redirect()->route('research-calls.index')->with('success', 'Research call created successfully.');
@@ -68,18 +71,21 @@ class ResearchCallController extends Controller
         $validated = $request->validated();
         $oldImagePath = $researchCall->reference_image_path;
         $newImagePath = $request->file('reference_image')?->store('research-calls', 'local');
-        $attributes = collect($validated)->except(['categories', 'reference_image'])->all();
+        $attributes = collect($validated)->except('reference_image')->all();
         $attributes['maximum_budget'] = ResearchCall::MAXIMUM_BUDGET;
         $attributes['reference_image_path'] = $newImagePath ?? $oldImagePath;
-        $categoryChanges = [];
 
         $researchCall->fill($attributes);
 
         try {
-            DB::transaction(function () use ($researchCall, $validated, &$categoryChanges): void {
-                $researchCall->save();
-                $categoryChanges = $researchCall->categories()->sync($this->categoryIds($validated['categories']));
-            });
+            if ($researchCall->isDirty('opens_at')) {
+                $researchCall->fill([
+                    'opening_reminder_sent_at' => null,
+                    'faculty_open_notification_sent_at' => null,
+                ]);
+            }
+
+            $researchCall->save();
         } catch (Throwable $exception) {
             if ($newImagePath) {
                 Storage::disk('local')->delete($newImagePath);
@@ -92,10 +98,13 @@ class ResearchCallController extends Controller
             Storage::disk('local')->delete($oldImagePath);
         }
 
-        $hasChanges = $researchCall->wasChanged()
-            || collect($categoryChanges)->contains(fn (array $changes): bool => $changes !== []);
+        $hasChanges = $researchCall->wasChanged();
 
-        if ($hasChanges) {
+        if ($researchCall->isAcceptingSubmissions()) {
+            $this->openingNotifications->process($researchCall, includeReminder: false);
+        }
+
+        if ($hasChanges && $researchCall->status !== 'draft') {
             Notification::sendNow(
                 User::role(User::WORKSPACE_FACULTY)->get(),
                 new ResearchCallUpdatedNotification(
@@ -112,8 +121,35 @@ class ResearchCallController extends Controller
     public function extractImage(ExtractResearchCallImageRequest $request): JsonResponse
     {
         try {
+            $fields = $this->imageParser->extract($request->file('reference_image'));
+            $detectedBudget = $fields['maximum_budget'];
+
+            $warnings = [];
+
+            if ($detectedBudget !== null && abs($detectedBudget - ResearchCall::MAXIMUM_BUDGET) > 0.005) {
+                $warnings[] = 'The poster states a budget of PHP '.number_format($detectedBudget, 2).'. ATHENA will keep the institutional maximum of PHP '.number_format(ResearchCall::MAXIMUM_BUDGET, 2).'.';
+            }
+
+            if ($fields['opens_at'] === null || $fields['closes_at'] === null) {
+                $warnings[] = 'The full submission window could not be confidently detected. Review the opening and closing dates before saving.';
+            }
+
+            if (blank($fields['description'])) {
+                $warnings[] = 'The poster requirements could not be confidently detected. Review the description before saving.';
+            }
+
+            if (collect([
+                $fields['initial_evaluation_start_date'],
+                $fields['paper_revisions_start_date'],
+                $fields['lrec_start_date'],
+                $fields['implementation_start_date'],
+            ])->filter()->isEmpty()) {
+                $warnings[] = 'No workflow milestones were confidently detected. Add them manually if the poster includes important dates.';
+            }
+
             return response()->json([
-                'fields' => $this->imageParser->extract($request->file('reference_image')),
+                'fields' => $fields,
+                'warnings' => $warnings,
             ]);
         } catch (ResearchCallImageExtractionException $exception) {
             Log::warning('Research call image extraction failed.', [
@@ -125,8 +161,13 @@ class ResearchCallController extends Controller
         }
     }
 
-    public function sourceImage(ResearchCall $researchCall): StreamedResponse
+    public function sourceImage(Request $request, ResearchCall $researchCall): StreamedResponse
     {
+        abort_unless(
+            $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+                || $researchCall->status !== 'draft',
+            404,
+        );
         abort_unless($researchCall->reference_image_path, 404);
         abort_unless(Storage::disk('local')->exists($researchCall->reference_image_path), 404);
 
@@ -146,7 +187,7 @@ class ResearchCallController extends Controller
         $validated = $request->validate([
             'status' => ['required', Rule::in(['draft', 'open', 'closed'])],
         ]);
-        $wasAcceptingSubmissions = $researchCall->isAcceptingSubmissions();
+        $wasPublished = $researchCall->status === 'open';
 
         if ($validated['status'] === 'open' && $researchCall->closes_at->isPast()) {
             return back()->withErrors([
@@ -154,10 +195,17 @@ class ResearchCallController extends Controller
             ]);
         }
 
-        $researchCall->update(['status' => $validated['status']]);
+        $attributes = ['status' => $validated['status']];
 
-        if (! $wasAcceptingSubmissions && $researchCall->isAcceptingSubmissions()) {
-            $this->notifyFacultyOfPublishedCall($researchCall);
+        if ($validated['status'] === 'open' && ! $wasPublished) {
+            $attributes['opening_reminder_sent_at'] = null;
+            $attributes['faculty_open_notification_sent_at'] = null;
+        }
+
+        $researchCall->update($attributes);
+
+        if ($researchCall->isAcceptingSubmissions()) {
+            $this->openingNotifications->process($researchCall, includeReminder: false);
         }
 
         $message = match ($validated['status']) {
@@ -167,29 +215,5 @@ class ResearchCallController extends Controller
         };
 
         return back()->with('success', $message);
-    }
-
-    private function notifyFacultyOfPublishedCall(ResearchCall $researchCall): void
-    {
-        Notification::sendNow(
-            User::role(User::WORKSPACE_FACULTY)->get(),
-            new ResearchCallPublishedNotification(
-                $researchCall->id,
-                $researchCall->title,
-                route('faculty.dashboard'),
-            ),
-        );
-    }
-
-    /** @return list<int> */
-    private function categoryIds(string $categories): array
-    {
-        return collect(explode(',', $categories))
-            ->map(fn (string $name): string => trim($name))
-            ->filter()
-            ->unique(fn (string $name): string => strtolower($name))
-            ->map(fn (string $name): int => ResearchCategory::firstOrCreate(['name' => $name])->id)
-            ->values()
-            ->all();
     }
 }

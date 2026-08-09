@@ -14,7 +14,6 @@
 
         return (string) ($value ?? '');
     };
-    $categoriesValue = old('categories', $researchCall?->categories?->pluck('name')->implode(', ') ?? '');
     $inputClass = 'mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500';
     $labelClass = 'text-sm font-black text-gray-800 dark:text-slate-100';
     $hintClass = 'mt-1.5 text-xs leading-5 text-gray-500 dark:text-slate-400';
@@ -44,13 +43,12 @@
         <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
             <div>
                 <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Call details</p>
-                <h3 class="mt-1 text-lg font-black tracking-tight text-gray-950 dark:text-white">Name and classify the call</h3>
+                <h3 class="mt-1 text-lg font-black tracking-tight text-gray-950 dark:text-white">Name the call</h3>
             </div>
             <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <label class="block md:col-span-2"><span class="{{ $labelClass }}">Call title</span><input name="title" value="{{ $fieldValue('title') }}" required placeholder="e.g. August 2026 Research Call" class="{{ $inputClass }}"></label>
+                <label class="block md:col-span-2"><span class="{{ $labelClass }}">Call name</span><input name="title" value="{{ $fieldValue('title') }}" required placeholder="e.g. Call for Proposals — August 2026 Implementation" class="{{ $inputClass }}"><span class="{{ $hintClass }} block">This identifies the call. Faculty enter their separate project title when they create a proposal.</span></label>
                 <label class="block"><span class="{{ $labelClass }}">Academic year</span><input name="academic_year" value="{{ $fieldValue('academic_year') }}" placeholder="2026–2027" required class="{{ $inputClass }}"></label>
                 <label class="block"><span class="{{ $labelClass }}">Term / semester <span class="font-medium text-gray-400">Optional</span></span><input name="term" value="{{ $fieldValue('term') }}" placeholder="1st semester" class="{{ $inputClass }}"></label>
-                <label class="block md:col-span-2"><span class="{{ $labelClass }}">Research categories</span><input name="categories" value="{{ $categoriesValue }}" placeholder="Environment, Education, Technology" required class="{{ $inputClass }}"><span class="{{ $hintClass }} block">Separate category names with commas.</span></label>
             </div>
         </section>
 
@@ -68,7 +66,7 @@
         <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
             <div class="grid gap-5 md:grid-cols-2">
                 <label class="block"><span class="{{ $labelClass }}">Active research limit per faculty</span><input type="number" name="max_active_research_per_faculty" value="{{ $fieldValue('max_active_research_per_faculty', 2) }}" min="1" max="2" required class="{{ $inputClass }}"><span class="{{ $hintClass }} block">The institutional hard limit is two concurrent approved projects across all calls and academic years.</span></label>
-                <div><span class="{{ $labelClass }} block">Maximum budget</span><div class="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-gray-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white"><span class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">PHP</span><span class="text-base font-black">{{ number_format($institutionalBudgetCeiling, 2) }}</span></div><p class="{{ $hintClass }}">Fixed institutional limit for every research call.</p></div>
+                <div><span class="{{ $labelClass }} block">Maximum allowed budget</span><div class="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-3 text-gray-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white"><span class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">PHP</span><span class="text-base font-black">{{ number_format($institutionalBudgetCeiling, 2) }}</span></div><p class="{{ $hintClass }}">Proposals may request up to PHP {{ number_format($institutionalBudgetCeiling, 2) }}.</p></div>
             </div>
         </section>
 
@@ -111,7 +109,7 @@
                 <img data-research-call-image-preview src="{{ $currentImageUrl ?? '' }}" alt="{{ $isEditing ? 'Current research call poster preview' : 'Selected research call poster preview' }}" class="{{ $currentImageUrl ? '' : 'hidden' }} max-h-[34rem] w-full rounded-lg object-contain">
             </label>
             <div class="mt-3 flex items-center justify-between gap-3"><p data-research-call-image-name class="min-w-0 truncate text-xs font-bold text-gray-600 dark:text-slate-300">{{ $currentImageUrl ? 'Current poster saved. Choose a new image to replace it.' : '' }}</p><button type="button" data-research-call-extract class="shrink-0 rounded-xl bg-red-700 px-3 py-2.5 text-xs font-black text-white transition hover:bg-red-800 disabled:cursor-wait disabled:opacity-60">Read image</button></div>
-            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">The image reader can copy the title, requirements, budget, categories, and dates into the form. Review everything before saving.</p>
+            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">The image reader can suggest a call name and copy the poster's requirements and dates into the form. Review everything before saving.</p>
             <p data-research-call-image-status role="status" class="mt-2 hidden text-xs font-semibold text-red-700 dark:text-red-300"></p>
         </div>
     </aside>

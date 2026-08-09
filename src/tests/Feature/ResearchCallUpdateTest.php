@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\ResearchCall;
-use App\Models\ResearchCategory;
 use App\Models\User;
 use App\Notifications\ResearchCallUpdatedNotification;
 use Illuminate\Http\UploadedFile;
@@ -18,7 +17,6 @@ beforeEach(function () {
     $this->faculty = User::factory()->create();
     $this->faculty->assignRole('faculty');
     $this->otherUser = User::factory()->create();
-    $this->category = ResearchCategory::create(['name' => 'Environment']);
     $this->call = ResearchCall::create([
         'title' => 'Original Research Call',
         'academic_year' => '2026-2027',
@@ -32,7 +30,6 @@ beforeEach(function () {
         'created_by' => $this->head->id,
         'reference_image_path' => 'research-calls/original.jpg',
     ]);
-    $this->call->categories()->attach($this->category);
     Storage::fake('local');
     Storage::disk('local')->put('research-calls/original.jpg', 'original poster');
 });
@@ -62,7 +59,6 @@ test('Research Head can edit a research call and replace its poster', function (
             'implementation_end_date' => '2028-01-31',
             'max_active_research_per_faculty' => 2,
             'maximum_budget' => 125000,
-            'categories' => 'Technology, Environment',
         ])
         ->assertRedirect(route('research-calls.index'));
 
@@ -73,7 +69,6 @@ test('Research Head can edit a research call and replace its poster', function (
         ->and($this->call->description)->toBe('Updated guidelines.')
         ->and($this->call->max_active_research_per_faculty)->toBe(2)
         ->and((float) $this->call->maximum_budget)->toBe(150000.0)
-        ->and($this->call->categories()->pluck('name')->all())->toEqual(['Environment', 'Technology'])
         ->and($this->call->reference_image_path)->not->toBe('research-calls/original.jpg');
 
     Storage::disk('local')->assertExists($this->call->reference_image_path);

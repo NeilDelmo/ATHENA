@@ -159,7 +159,6 @@
                                      @if ($call->reference_image_path)
                                          <img src="{{ route('research-calls.reference-image', $call) }}" alt="Reference poster for {{ $call->title }}" class="mt-4 max-h-72 w-auto rounded-xl border border-gray-100 object-contain shadow-sm">
                                      @endif
-                                    <div class="mt-3 flex flex-wrap gap-2">@foreach ($call->categories as $category)<span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700">{{ $category->name }}</span>@endforeach</div>
                                 </div>
                                 <dl class="grid min-w-72 grid-cols-2 gap-3 text-xs">
                                     <div><dt class="font-bold text-gray-400">Submission starts</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->opens_at->format('M d, Y') }} &middot; {{ $call->opens_at->format('h:i A') }}</dd></div>

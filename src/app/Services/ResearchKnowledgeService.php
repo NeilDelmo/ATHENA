@@ -169,8 +169,7 @@ PROMPT;
     private function researchCallCandidates(): array
     {
         return ResearchCall::query()
-            ->with('categories:id,name')
-            ->where('status', '!=', 'draft')
+            ->visibleToFaculty()
             ->latest('opens_at')
             ->limit(20)
             ->get()
@@ -191,7 +190,6 @@ PROMPT;
                     $call->paper_revisions_start_date ? 'Paper Revisions based on Initial Screening: '.$call->paper_revisions_start_date->format('F j, Y').($call->paper_revisions_end_date ? ' to '.$call->paper_revisions_end_date->format('F j, Y') : '') : null,
                     $call->lrec_start_date ? 'Tentative Local Research Evaluation (LREC): '.$call->lrec_start_date->format('F j, Y').($call->lrec_end_date ? ' to '.$call->lrec_end_date->format('F j, Y') : '') : null,
                     $call->implementation_start_date ? 'Implementation: '.$call->implementation_start_date->format('F j, Y').($call->implementation_end_date ? ' to '.$call->implementation_end_date->format('F j, Y') : '') : null,
-                    $call->categories->isNotEmpty() ? 'Categories: '.$call->categories->pluck('name')->join(', ') : null,
                 ])->filter()->join("\n"),
                 'url' => route('research-calls.index'),
             ])

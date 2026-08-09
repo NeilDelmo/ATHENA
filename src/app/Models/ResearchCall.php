@@ -25,6 +25,7 @@ class ResearchCall extends Model
         'lrec_start_date', 'lrec_end_date',
         'implementation_start_date', 'implementation_end_date',
         'max_active_research_per_faculty', 'maximum_budget', 'status', 'created_by',
+        'opening_reminder_sent_at', 'faculty_open_notification_sent_at',
     ];
 
     protected function casts(): array
@@ -41,6 +42,8 @@ class ResearchCall extends Model
             'implementation_start_date' => 'date',
             'implementation_end_date' => 'date',
             'maximum_budget' => 'decimal:2',
+            'opening_reminder_sent_at' => 'datetime',
+            'faculty_open_notification_sent_at' => 'datetime',
         ];
     }
 
@@ -67,6 +70,11 @@ class ResearchCall extends Model
             ->where('status', 'open')
             ->where('opens_at', '<=', $at)
             ->where('closes_at', '>=', $at);
+    }
+
+    public function scopeVisibleToFaculty(Builder $query): Builder
+    {
+        return $query->where('status', '!=', 'draft');
     }
 
     public function isAcceptingSubmissions(): bool

@@ -1,12 +1,17 @@
-function displayExtractionStatus(statusElement, message, isError = false) {
+function displayExtractionStatus(statusElement, message, state = 'success') {
     if (! (statusElement instanceof HTMLElement)) return;
+
+    const isError = state === true || state === 'error';
+    const isWarning = state === 'warning';
 
     statusElement.textContent = message;
     statusElement.classList.toggle('hidden', message === '');
     statusElement.classList.toggle('text-red-700', isError);
     statusElement.classList.toggle('dark:text-red-300', isError);
-    statusElement.classList.toggle('text-green-700', !isError);
-    statusElement.classList.toggle('dark:text-green-300', !isError);
+    statusElement.classList.toggle('text-amber-700', isWarning);
+    statusElement.classList.toggle('dark:text-amber-300', isWarning);
+    statusElement.classList.toggle('text-green-700', !isError && !isWarning);
+    statusElement.classList.toggle('dark:text-green-300', !isError && !isWarning);
 }
 
 function setEmptyField(form, name, value) {
@@ -117,19 +122,21 @@ function initializeResearchCallImageExtractors() {
                     throw new Error(validationMessage || payload.message || 'The poster could not be read.');
                 }
 
-                const fields = payload.fields || {};
-                const values = {
-                    ...fields,
-                    categories: Array.isArray(fields.categories) ? fields.categories.join(', ') : fields.categories,
-                };
+                const { maximum_budget: detectedBudget, ...values } = payload.fields || {};
                 const filledCount = Object.entries(values)
                     .filter(([name, value]) => setEmptyField(form, name, value)).length;
+                const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+                const budgetNotice = detectedBudget === null || detectedBudget === undefined
+                    ? ''
+                    : ` Poster budget detected: PHP ${Number(detectedBudget).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`;
+                const warningNotice = warnings.length > 0 ? ` ${warnings.join(' ')}` : '';
 
                 displayExtractionStatus(
                     statusElement,
                     filledCount > 0
-                        ? `${filledCount} field${filledCount === 1 ? '' : 's'} filled from the poster. Review them before saving.`
-                        : 'No blank fields were detected. Review the poster and complete the form manually.',
+                        ? `${filledCount} field${filledCount === 1 ? '' : 's'} filled from the poster. Review them before saving.${budgetNotice}${warningNotice}`
+                        : `No blank fields were detected. Review the poster and complete the form manually.${budgetNotice}${warningNotice}`,
+                    warnings.length > 0 ? 'warning' : 'success',
                 );
             } catch (error) {
                 displayExtractionStatus(
