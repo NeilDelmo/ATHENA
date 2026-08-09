@@ -8,6 +8,7 @@ use App\Models\AnnouncementImage;
 use App\Models\ResearchCall;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -16,7 +17,8 @@ class AnnouncementImageController extends Controller
     public function index(): View
     {
         return view('announcement_images.index', [
-            'announcementImages' => AnnouncementImage::query()->with('researchCall')->latest()->get(),
+            'announcementImages' => AnnouncementImage::query()->active()->with('researchCall')->latest()->get(),
+            'archivedAnnouncementImages' => AnnouncementImage::query()->archived()->with('researchCall')->latest('archived_at')->get(),
             'researchCalls' => ResearchCall::query()->latest('opens_at')->get(),
         ]);
     }
@@ -42,8 +44,12 @@ class AnnouncementImageController extends Controller
             ->with('success', 'Announcement visibility updated.');
     }
 
-    public function show(AnnouncementImage $announcementImage): StreamedResponse
+    public function show(Request $request, AnnouncementImage $announcementImage): StreamedResponse
     {
+        abort_unless(
+            $request->user()->isUsingWorkspace('research_head') || $announcementImage->isVisibleToFaculty(),
+            404,
+        );
         abort_unless(Storage::disk('local')->exists($announcementImage->image_path), 404);
 
         return Storage::disk('local')->response(
@@ -57,11 +63,17 @@ class AnnouncementImageController extends Controller
         );
     }
 
-    public function destroy(AnnouncementImage $announcementImage): RedirectResponse
+    public function archive(AnnouncementImage $announcementImage): RedirectResponse
     {
-        Storage::disk('local')->delete($announcementImage->image_path);
-        $announcementImage->delete();
+        $announcementImage->update(['archived_at' => now()]);
 
-        return redirect()->route('announcement-images.index')->with('success', 'Announcement image removed.');
+        return redirect()->route('announcement-images.index')->with('success', 'Announcement archived. Faculty can no longer see it.');
+    }
+
+    public function restore(AnnouncementImage $announcementImage): RedirectResponse
+    {
+        $announcementImage->update(['archived_at' => null]);
+
+        return redirect()->route('announcement-images.index')->with('success', 'Announcement restored.');
     }
 }

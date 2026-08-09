@@ -56,7 +56,12 @@
                         @endforelse
                     </div>
 
+                    <form method="POST" action="{{ route('profile.details.update') }}" class="mt-4" data-profile-details>
+                        @csrf
+                        @method('PATCH')
+
                     @if ($user->hasRole('research_coordinator'))
+                        <input type="hidden" name="college" value="{{ $user->college }}">
                         <div class="mt-4" data-college-locked>
                             <label for="college-locked" class="sr-only">College</label>
                             <div class="flex items-center gap-2">
@@ -73,9 +78,6 @@
                             @enderror
                         </div>
                     @else
-                        <form method="POST" action="{{ route('profile.college.update') }}" class="mt-4">
-                            @csrf
-                            @method('PATCH')
                             <label for="college" class="sr-only">College</label>
                             <div class="flex items-center gap-2">
                                 <select id="college" name="college" required class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 pl-3 pr-8 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500">
@@ -84,36 +86,30 @@
                                         <option value="{{ $college }}" @selected(old('college', $user->college) === $college)>{{ $college }}</option>
                                     @endforeach
                                 </select>
-                                <button type="submit" aria-label="Save college" title="Save college" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.75 10 17.75 19 6.75"/></svg>
-                                </button>
                             </div>
                             @error('college')
                                 <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
                             @enderror
-                            @if (session('status') === 'college-updated')
-                                <p class="mt-2 text-xs font-semibold text-green-700">College saved.</p>
-                            @endif
-                        </form>
                     @endif
 
-                    <form method="POST" action="{{ route('profile.contact-number.update') }}" class="mt-4" data-profile-contact-number>
-                        @csrf
-                        @method('PATCH')
+                    <div class="mt-4" data-profile-contact-number>
                         <label for="contact_number" class="sr-only">Contact number</label>
                         <div class="flex items-center gap-2">
                             <input id="contact_number" name="contact_number" type="tel" inputmode="numeric" pattern="[0-9]{11}" maxlength="11" value="{{ old('contact_number', $user->contact_number) }}" placeholder="09171234567" class="min-w-0 flex-1 rounded-xl border-gray-200 py-2 px-3 text-xs font-semibold text-gray-700 shadow-sm focus:border-red-500 focus:ring-red-500" autocomplete="tel">
-                            <button type="submit" aria-label="Save contact number" title="Save contact number" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12.75 10 17.75 19 6.75"/></svg>
-                            </button>
                         </div>
                         <p class="mt-2 text-[11px] font-semibold leading-5 text-gray-500">Used as the default contact number on the detailed research proposal and curriculum vitae. Leave blank to type one per proposal.</p>
                         @error('contact_number')
                             <p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>
                         @enderror
-                        @if (session('status') === 'contact-number-updated')
-                            <p class="mt-2 text-xs font-semibold text-green-700">Contact number saved.</p>
-                        @endif
+                    </div>
+
+                    <div class="mt-5 space-y-3 border-t border-gray-100 pt-4">
+                        <p class="text-[11px] font-semibold leading-5 text-gray-500">Save your college and contact number together.</p>
+                        <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-xs font-black text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2">Save profile details</button>
+                    </div>
+                    @if (session('status') === 'profile-details-updated')
+                        <p class="mt-2 text-xs font-semibold text-green-700">Profile details saved.</p>
+                    @endif
                     </form>
 
                     <dl class="mt-6 space-y-4 border-t border-gray-100 pt-5">

@@ -20,18 +20,18 @@
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>
         @endif
 
-        <section class="relative isolate overflow-hidden rounded-3xl bg-gray-950 px-6 py-7 text-white shadow-xl shadow-gray-950/10 sm:px-8" aria-label="Research call overview">
-            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[44px] border-white/[0.04]" aria-hidden="true"></div>
+        <section class="relative isolate overflow-hidden rounded-3xl bg-white px-6 py-7 text-gray-950 shadow-xl shadow-gray-950/10 dark:bg-gray-950 dark:text-white sm:px-8" aria-label="Research call overview">
+            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[44px] border-red-900/[0.04] dark:border-white/[0.04]" aria-hidden="true"></div>
             <div class="pointer-events-none absolute bottom-0 right-1/3 h-24 w-64 bg-red-700/25 blur-3xl" aria-hidden="true"></div>
             <div class="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                 <div class="max-w-2xl">
-                    <span class="inline-flex rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Call lifecycle</span>
+                    <span class="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:border-red-400/20 dark:bg-red-500/10 dark:text-red-200">Call lifecycle</span>
                     <h3 class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">From announcement to archived call.</h3>
-                    <p class="mt-3 text-sm leading-6 text-gray-300">Only calls inside an open submission window appear to faculty and allow new proposal drafts. Closing a call removes linked posters automatically.</p>
+                    <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">Only calls inside an open submission window appear to faculty and allow new proposal drafts. Closing a call removes linked posters automatically.</p>
                 </div>
-                <dl class="grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-white/10 text-center">
-                    @foreach ([['Open', $activeCalls->count(), 'text-red-300'], ['Upcoming', $upcomingCalls->count(), 'text-white'], ['Previous', $previousCalls->count(), 'text-gray-300']] as [$label, $count, $color])
-                        <div class="min-w-24 bg-white/[0.04] px-4 py-4 sm:min-w-28">
+                <dl class="grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-gray-200 text-center dark:bg-white/10">
+                    @foreach ([['Open', $activeCalls->count(), 'text-red-700 dark:text-red-300'], ['Upcoming', $upcomingCalls->count(), 'text-gray-950 dark:text-white'], ['Previous', $previousCalls->count(), 'text-gray-600 dark:text-gray-300']] as [$label, $count, $color])
+                        <div class="min-w-24 bg-gray-50 px-4 py-4 sm:min-w-28 dark:bg-white/[0.04]">
                             <dt class="text-[9px] font-black uppercase tracking-wider text-gray-400">{{ $label }}</dt>
                             <dd class="mt-1 text-2xl font-black {{ $color }}">{{ $count }}</dd>
                         </div>
@@ -47,6 +47,8 @@
                     <span class="text-xs font-bold text-gray-400 group-open:hidden">Open form</span>
                     <span class="hidden text-xs font-bold text-red-700 group-open:inline dark:text-red-300">Close form</span>
                 </summary>
+                @include('research_calls.partials.form', ['researchCall' => null])
+                @if (false)
                 <form method="POST" action="{{ route('research-calls.store') }}" enctype="multipart/form-data" class="grid gap-6 border-t border-gray-100 px-5 pb-6 pt-5 dark:border-slate-800 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]" data-research-call-form data-extract-url="{{ route('research-calls.extract-image') }}">
                     @csrf
                     <div class="space-y-4">
@@ -111,12 +113,38 @@
                         </div>
                     </aside>
                 </form>
+                @endif
             </details>
         @endif
 
-        @foreach ([['Active calls', $activeCalls], ['Upcoming calls', $upcomingCalls], ['Previous calls', $previousCalls]] as [$heading, $calls])
-            <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-sm font-black text-gray-900">{{ $heading }}</h3><p class="mt-0.5 text-xs text-gray-400">{{ $calls->count() }} {{ Str::plural('call', $calls->count()) }}</p></div>
+        @php
+            $callTabs = [
+                'active' => ['label' => 'Active calls', 'calls' => $activeCalls],
+                'upcoming' => ['label' => 'Upcoming calls', 'calls' => $upcomingCalls],
+                'previous' => ['label' => 'Previous calls', 'calls' => $previousCalls],
+            ];
+        @endphp
+
+        <div x-data="{ activeTab: 'active' }" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="border-b border-gray-200 bg-gray-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/50 sm:p-5">
+                <div class="grid grid-cols-3 gap-2" role="tablist" aria-label="Research call status">
+                    @foreach ($callTabs as $tabKey => $tab)
+                        <button type="button" role="tab" x-on:click="activeTab = '{{ $tabKey }}'" x-bind:aria-selected="activeTab === '{{ $tabKey }}'" x-bind:class="activeTab === '{{ $tabKey }}' ? 'border-red-600 bg-red-600 text-white shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300'" class="flex min-w-0 items-center justify-center gap-2 rounded-xl border px-3 py-3 text-[11px] font-black transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-950">
+                            <span class="truncate">{{ $tab['label'] }}</span>
+                            <span class="rounded-full bg-black/10 px-2 py-0.5 text-[10px] font-black text-current">{{ $tab['calls']->count() }}</span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <div class="p-4 sm:p-6">
+                @foreach ($callTabs as $tabKey => $tab)
+                    @php
+                        $heading = $tab['label'];
+                        $calls = $tab['calls'];
+                    @endphp
+                    <section x-show="activeTab === '{{ $tabKey }}'" x-cloak role="tabpanel" aria-label="{{ $heading }}" class="overflow-hidden rounded-2xl border border-gray-200 dark:border-slate-800">
+                <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800"><h3 class="text-sm font-black text-gray-900 dark:text-white">{{ $heading }}</h3><p class="mt-0.5 text-xs text-gray-400">{{ $calls->count() }} {{ Str::plural('call', $calls->count()) }}</p></div>
                 <div class="divide-y divide-gray-100">
                     @forelse ($calls as $call)
                         @php
@@ -182,7 +210,9 @@
                         <div class="p-8 text-center text-xs text-gray-400">No {{ strtolower($heading) }} yet.</div>
                     @endforelse
                 </div>
-            </section>
-        @endforeach
+                    </section>
+                @endforeach
+            </div>
+        </div>
     </div>
 </x-app-layout>

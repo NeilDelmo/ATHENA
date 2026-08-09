@@ -18,23 +18,23 @@
             </div>
         @endif
 
-        <section class="relative isolate overflow-hidden rounded-3xl bg-gray-950 px-6 py-7 text-white shadow-xl shadow-gray-950/10 sm:px-8 sm:py-9" aria-labelledby="announcement-overview-heading">
-            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[44px] border-white/[0.04]" aria-hidden="true"></div>
+        <section class="relative isolate overflow-hidden rounded-3xl border border-gray-200 bg-white px-6 py-7 text-gray-950 shadow-xl shadow-gray-950/10 dark:border-slate-800 dark:bg-gray-950 dark:text-white sm:px-8 sm:py-9" aria-labelledby="announcement-overview-heading">
+            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[44px] border-red-900/[0.04] dark:border-white/[0.04]" aria-hidden="true"></div>
             <div class="pointer-events-none absolute bottom-0 right-1/4 h-28 w-72 bg-red-700/25 blur-3xl" aria-hidden="true"></div>
             <div class="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                 <div class="max-w-2xl">
-                    <span class="inline-flex rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Visibility control</span>
-                    <h3 id="announcement-overview-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">No content guessing required.</h3>
-                    <p class="mt-3 text-sm leading-6 text-gray-300">Link a call-for-proposals poster to its research call and ATHENA hides it automatically when submissions close. Keep general notices unlinked so they remain visible until removed.</p>
+                    <span class="inline-flex rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:border-red-400/20 dark:bg-red-500/10 dark:text-red-200">Announcement visibility</span>
+                    <h3 id="announcement-overview-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">Publish with the right audience.</h3>
+                    <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">Linked posters show only while submissions are open. General notices stay visible until archived.</p>
                 </div>
-                <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-white/10 text-center">
-                    <div class="min-w-28 bg-white/[0.04] px-5 py-4">
+                <dl class="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-gray-200 text-center dark:bg-white/10">
+                    <div class="min-w-28 bg-gray-50 px-5 py-4 dark:bg-white/[0.04]">
                         <dt class="text-[10px] font-black uppercase tracking-wider text-gray-400">Announcements</dt>
                         <dd class="mt-1 text-2xl font-black">{{ $announcementImages->count() }}</dd>
                     </div>
-                    <div class="min-w-28 bg-white/[0.04] px-5 py-4">
+                    <div class="min-w-28 bg-gray-50 px-5 py-4 dark:bg-white/[0.04]">
                         <dt class="text-[10px] font-black uppercase tracking-wider text-gray-400">Open calls</dt>
-                        <dd class="mt-1 text-2xl font-black text-red-300">{{ $researchCalls->filter->isAcceptingSubmissions()->count() }}</dd>
+                        <dd class="mt-1 text-2xl font-black text-red-700 dark:text-red-300">{{ $researchCalls->filter->isAcceptingSubmissions()->count() }}</dd>
                     </div>
                 </dl>
             </div>
@@ -64,26 +64,26 @@
                     <img data-announcement-image-preview src="" alt="Selected announcement preview" class="hidden max-h-96 w-full rounded-xl object-contain">
                 </label>
 
-                <div class="flex flex-col gap-4 rounded-2xl bg-gray-950 p-5 text-white">
+                <div class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-5 text-gray-950 shadow-sm dark:border-slate-800 dark:bg-gray-950 dark:text-white">
                     <div>
-                        <label for="announcement-research-call" class="text-xs font-black uppercase tracking-wider text-gray-300">Visibility rule</label>
-                        <select id="announcement-research-call" name="research_call_id" class="mt-2 block w-full rounded-xl border-gray-700 bg-gray-900 text-sm text-white focus:border-red-500 focus:ring-red-500">
-                            <option value="">General announcement &mdash; show until removed</option>
+                        <label for="announcement-research-call" class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-gray-300">Visibility rule</label>
+                        <select id="announcement-research-call" name="research_call_id" class="mt-2 block w-full rounded-xl border-gray-300 bg-white text-sm font-semibold text-gray-900 focus:border-red-500 focus:ring-red-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                            <option value="">General announcement &mdash; show until archived</option>
                             @foreach ($researchCalls as $researchCall)
                                 <option value="{{ $researchCall->id }}" @selected((string) old('research_call_id') === (string) $researchCall->id)>
                                     {{ $researchCall->title }} ({{ ucfirst($researchCall->lifecycleStatus()) }})
                                 </option>
                             @endforeach
                         </select>
-                        <p class="mt-2 text-[11px] leading-5 text-gray-400">Choose a research call for call-for-proposals artwork. It will only appear while that call accepts submissions.</p>
+                        <p class="mt-2 text-[11px] leading-5 text-gray-500 dark:text-gray-400">Choose a research call for call-for-proposals artwork. It will only appear while that call accepts submissions.</p>
                     </div>
 
-                    <div class="mt-auto border-t border-white/10 pt-4">
-                        <p data-announcement-image-name class="min-h-5 truncate text-xs font-bold text-gray-300"></p>
-                        <button type="submit" class="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950 disabled:cursor-not-allowed disabled:opacity-60">Publish announcement</button>
-                        <p data-announcement-image-status role="status" class="mt-3 hidden text-xs font-semibold text-green-300"></p>
+                    <div class="mt-auto border-t border-gray-200 pt-4 dark:border-white/10">
+                        <p data-announcement-image-name class="min-h-5 truncate text-xs font-bold text-gray-600 dark:text-gray-300"></p>
+                        <button type="submit" class="mt-3 inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-xs font-black text-white shadow-sm transition hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 disabled:cursor-not-allowed disabled:opacity-60">Publish announcement</button>
+                        <p data-announcement-image-status role="status" class="mt-3 hidden text-xs font-semibold text-green-700 dark:text-green-300"></p>
                         @if ($errors->any())
-                            <p class="mt-3 rounded-xl bg-red-950 p-3 text-xs font-semibold text-red-200">{{ $errors->first() }}</p>
+                            <p class="mt-3 rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-800 dark:bg-red-950 dark:text-red-200">{{ $errors->first() }}</p>
                         @endif
                     </div>
                 </div>
@@ -93,7 +93,7 @@
         <section aria-labelledby="uploaded-announcements-heading">
             <div class="mb-4 flex items-end justify-between gap-4">
                 <div>
-                    <h3 id="uploaded-announcements-heading" class="text-lg font-black text-gray-950 dark:text-white">Published artwork</h3>
+                    <h3 id="uploaded-announcements-heading" class="text-lg font-black text-gray-950 dark:text-white">Active announcements</h3>
                     <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Update an existing poster’s visibility rule at any time.</p>
                 </div>
                 <span class="rounded-full bg-gray-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-gray-950">{{ $announcementImages->count() }}</span>
@@ -133,10 +133,10 @@
                                 </div>
                             </form>
 
-                            <form method="POST" action="{{ route('announcement-images.destroy', $announcementImage) }}" class="border-t border-gray-100 pt-3 dark:border-slate-800">
+                            <form method="POST" action="{{ route('announcement-images.archive', $announcementImage) }}" class="border-t border-gray-100 pt-3 dark:border-slate-800">
                                 @csrf
-                                @method('DELETE')
-                                <button type="submit" class="text-[11px] font-black text-red-700 transition hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">Remove announcement</button>
+                                @method('PATCH')
+                                <button type="submit" class="text-[11px] font-black text-red-700 transition hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300">Archive announcement</button>
                             </form>
                         </div>
                     </article>
@@ -149,5 +149,38 @@
                 @endforelse
             </div>
         </section>
+
+        @if ($archivedAnnouncementImages->isNotEmpty())
+            <section aria-labelledby="archived-announcements-heading" class="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-[11px] font-black uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">History</p>
+                        <h3 id="archived-announcements-heading" class="mt-1 text-lg font-black text-gray-950 dark:text-white">Archived announcements</h3>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Hidden from faculty. Restore one whenever it needs to be published again.</p>
+                    </div>
+                    <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $archivedAnnouncementImages->count() }}</span>
+                </div>
+                <div class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    @foreach ($archivedAnnouncementImages as $announcementImage)
+                        <article class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 dark:border-slate-800 dark:bg-slate-950/45">
+                            <div class="flex h-44 items-center justify-center bg-gray-100 p-3 dark:bg-slate-950">
+                                <img src="{{ route('announcement-images.show', $announcementImage) }}" alt="Archived announcement image" class="h-full w-full object-contain opacity-70" loading="lazy" decoding="async">
+                            </div>
+                            <div class="space-y-3 p-4">
+                                <div>
+                                    <p class="truncate text-xs font-black text-gray-900 dark:text-white">{{ basename($announcementImage->image_path) }}</p>
+                                    <p class="mt-1 text-[11px] text-gray-500 dark:text-slate-400">Archived {{ $announcementImage->archived_at?->format('M d, Y') }}</p>
+                                </div>
+                                <form method="POST" action="{{ route('announcement-images.restore', $announcementImage) }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-black text-gray-800 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/40 dark:hover:text-red-300">Restore announcement</button>
+                                </form>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
     </div>
 </x-app-layout>

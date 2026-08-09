@@ -633,6 +633,9 @@ const defaultAssistantContextId = assistantContexts.some((context) => Number(con
 const assistantHistory = Array.isArray(window.athenaResearchAssistantHistory)
     ? window.athenaResearchAssistantHistory
     : [];
+const assistantPageActions = Array.isArray(window.athenaResearchAssistantPageActions)
+    ? window.athenaResearchAssistantPageActions
+    : [];
 const assistantPaperContext = document.body?.dataset.researchAssistantPaperSlug
     ? {
         paperSlug: document.body.dataset.researchAssistantPaperSlug,
@@ -750,14 +753,17 @@ function assistantSectionLabel(control) {
     ) || null;
 }
 
-const researchAssistantQuickPrompts = [
-    'Refine my research question',
-    'Turn my topic into SMART objectives',
-    'Recommend a methodology',
-    'Improve my abstract',
-    'Outline my proposal',
-    'Summarize reviewer comments into a revision plan',
-];
+function assistantPageScope() {
+    if (['#proposal-review', '#submit-revision'].includes(window.location.hash)) {
+        return 'review';
+    }
+
+    if (window.location.hash === '#project-monitoring') {
+        return 'monitoring';
+    }
+
+    return 'details';
+}
 
 function escapeAssistantRegExp(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -808,7 +814,8 @@ Alpine.store('researchAssistant', {
     paperContext: assistantPaperContext,
     proposalDraftId: assistantProposalDraftId,
     activePaperField: null,
-    quickPrompts: researchAssistantQuickPrompts,
+    pageActions: assistantPageActions,
+    pageScope: assistantPageScope(),
     history: assistantHistory,
     currentConversationId: null,
     historySearchOpen: false,
@@ -832,6 +839,9 @@ Alpine.store('researchAssistant', {
         });
         document.addEventListener('focusin', (event) => {
             this.capturePaperField(event.target);
+        });
+        window.addEventListener('hashchange', () => {
+            this.pageScope = assistantPageScope();
         });
     },
 
@@ -903,51 +913,41 @@ Alpine.store('researchAssistant', {
 
     starterPrompts() {
         const formContext = this.formContext();
-        const paperPrompts = [];
+        const focusedFieldAction = this.paperContext && this.activePaperField
+            ? [{
+                label: formContext?.validation?.length ? 'Fix focused field' : 'Review focused field',
+                description: formContext?.validation?.length
+                    ? `Explain the validation issue in ${this.activePaperField.label}.`
+                    : `Review the current ${this.activePaperField.label} value without changing it.`,
+                evidence: 'Includes a limited current form snapshot',
+                prompt: formContext?.validation?.length
+                    ? `Explain why the current ${this.activePaperField.label} field is failing validation and how to fix it using the current form snapshot. Do not change the value for me.`
+                    : `Review the current ${this.activePaperField.label} field using the current form snapshot. Point out missing, inconsistent, or unclear values without changing them.`,
+            }]
+            : [];
 
-        if (this.paperContext) {
-            paperPrompts.push({
-                label: this.activePaperField ? 'Focused field' : 'Current paper',
-                prompt: this.activePaperField
-                    ? `What should I enter in the ${this.activePaperField.label} field based on the current form context?`
-                    : `Explain the fields I need to complete in ${this.paperContext.paperLabel}.`,
-            });
+        return [
+            ...focusedFieldAction,
+            ...this.pageActions.filter((action) => !action.scope || action.scope === this.currentPageScope()),
+        ].slice(0, 6);
+    },
 
-            if (formContext?.validation?.length) {
-                paperPrompts.push({
-                    label: 'Validation help',
-                    prompt: `Why is the current ${this.activePaperField?.label || 'field'} failing validation, and how should I fix it?`,
-                });
-            }
+    currentPageScope() {
+        return this.pageScope;
+    },
 
-            if (formContext?.row) {
-                paperPrompts.push({
-                    label: 'Current row',
-                    prompt: `Review the current ${formContext.row} and point out missing, inconsistent, or unclear values without changing them.`,
-                });
-            }
+    hasStarterPrompts() {
+        return this.starterPrompts().length > 0;
+    },
 
-            paperPrompts.push({
-                label: 'Value source',
-                prompt: this.activePaperField
-                    ? `Where does the ${this.activePaperField.label} value come from, and which other proposal papers should agree with it?`
-                    : `How does ${this.paperContext.paperLabel} relate to the other proposal papers in ATHENA?`,
-            });
+    starterPromptHeading() {
+        return this.hasStarterPrompts() ? 'Work with this record' : 'Start a focused conversation';
+    },
 
-            if (formContext?.row) {
-                paperPrompts.push({
-                    label: 'Calculation',
-                    prompt: 'Explain any calculation that uses the values in my current row.',
-                });
-            }
-        }
-
-        const generalPrompts = this.quickPrompts.map((prompt) => ({
-            label: 'Suggested prompt',
-            prompt,
-        }));
-
-        return [...paperPrompts, ...generalPrompts].slice(0, 6);
+    starterPromptDescription() {
+        return this.hasStarterPrompts()
+            ? 'Choose an action that states exactly which saved ATHENA records it will use.'
+            : 'Ask a specific question, or open a proposal, paper, literature result, reviewer feedback, or monitoring record for context-aware actions.';
     },
 
     capturePaperField(target) {
@@ -2881,10 +2881,185 @@ Alpine.data('datePicker', (config = {}) => ({
     },
 }));
 
+Alpine.data('dateTimePicker', (config = {}) => ({
+    value: normalizeIsoDateTime(config.initialValue),
+    required: Boolean(config.required),
+    isOpen: false,
+    suppressFocusOpen: false,
+    viewMonth: new Date().getMonth(),
+    viewYear: new Date().getFullYear(),
+    hour: '09',
+    minute: '00',
+    panelId: `athena-date-time-picker-${Math.random().toString(36).slice(2, 10)}`,
+    weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    hourOptions: Array.from({ length: 24 }, (_, hour) => ({
+        value: String(hour).padStart(2, '0'),
+        label: new Intl.DateTimeFormat(undefined, { hour: 'numeric' }).format(new Date(2026, 0, 1, hour)),
+    })),
+
+    init() {
+        this.syncTimeFromValue();
+    },
+
+    get selectedDate() {
+        return this.value.slice(0, 10);
+    },
+
+    get formattedValue() {
+        const date = localDateFromIso(this.selectedDate);
+
+        if (!date) return '';
+
+        const [hour, minute] = this.value.slice(11).split(':').map(Number);
+        date.setHours(hour, minute, 0, 0);
+
+        return new Intl.DateTimeFormat(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+        }).format(date);
+    },
+
+    get calendarDays() {
+        const safeYear = this.boundedViewYear();
+        const safeMonth = Number.isInteger(Number(this.viewMonth)) ? Number(this.viewMonth) : new Date().getMonth();
+        const firstDay = new Date(safeYear, safeMonth, 1);
+        const calendarStart = new Date(safeYear, safeMonth, 1 - firstDay.getDay());
+        const today = isoDateFromLocal(new Date());
+
+        return Array.from({ length: 42 }, (_, index) => {
+            const date = new Date(calendarStart);
+            date.setDate(calendarStart.getDate() + index);
+            const iso = isoDateFromLocal(date);
+
+            return {
+                iso,
+                dayNumber: date.getDate(),
+                label: new Intl.DateTimeFormat(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric',
+                }).format(date),
+                isCurrentMonth: date.getMonth() === safeMonth,
+                isToday: iso === today,
+                isSelected: iso === this.selectedDate,
+            };
+        });
+    },
+
+    open() {
+        const preferredDate = localDateFromIso(this.selectedDate) ?? new Date();
+
+        this.viewMonth = preferredDate.getMonth();
+        this.viewYear = preferredDate.getFullYear();
+        this.syncTimeFromValue();
+        this.isOpen = true;
+    },
+
+    handleFocus() {
+        if (this.suppressFocusOpen) {
+            this.suppressFocusOpen = false;
+            return;
+        }
+
+        this.open();
+    },
+
+    close() {
+        this.isOpen = false;
+    },
+
+    closeAndFocus() {
+        this.close();
+        this.suppressFocusOpen = true;
+        this.$nextTick(() => {
+            this.$refs.display?.focus({ preventScroll: true });
+            this.$nextTick(() => {
+                this.suppressFocusOpen = false;
+            });
+        });
+    },
+
+    toggle() {
+        if (this.isOpen) {
+            this.closeAndFocus();
+            return;
+        }
+
+        this.open();
+    },
+
+    selectDate(iso) {
+        this.value = `${iso}T${this.hour}:${this.minute}`;
+    },
+
+    setTime() {
+        const date = this.selectedDate || isoDateFromLocal(new Date());
+        this.value = `${date}T${this.hour}:${this.minute}`;
+    },
+
+    selectNow() {
+        const now = new Date();
+        this.hour = String(now.getHours()).padStart(2, '0');
+        this.minute = String(Math.floor(now.getMinutes() / 15) * 15).padStart(2, '0');
+        this.value = `${isoDateFromLocal(now)}T${this.hour}:${this.minute}`;
+        this.closeAndFocus();
+    },
+
+    clear() {
+        if (this.required) return;
+
+        this.value = '';
+        this.closeAndFocus();
+    },
+
+    changeMonth(offset) {
+        const nextMonth = new Date(this.boundedViewYear(), Number(this.viewMonth) + offset, 1);
+        this.viewMonth = nextMonth.getMonth();
+        this.viewYear = nextMonth.getFullYear();
+    },
+
+    clampViewYear() {
+        const fallbackYear = localDateFromIso(this.selectedDate)?.getFullYear() ?? new Date().getFullYear();
+        const requestedYear = Number(this.viewYear);
+
+        this.viewYear = Number.isInteger(requestedYear) ? Math.min(2100, Math.max(1900, requestedYear)) : fallbackYear;
+    },
+
+    boundedViewYear() {
+        const requestedYear = Number(this.viewYear);
+
+        return Number.isInteger(requestedYear) ? Math.min(2100, Math.max(1900, requestedYear)) : new Date().getFullYear();
+    },
+
+    syncTimeFromValue() {
+        if (!this.value) return;
+
+        [this.hour, this.minute] = this.value.slice(11).split(':');
+    },
+}));
+
 function normalizeIsoDate(value) {
     if (typeof value !== 'string') return '';
 
     return localDateFromIso(value) ? value : '';
+}
+
+function normalizeIsoDateTime(value) {
+    if (typeof value !== 'string') return '';
+
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+
+    if (!match || !localDateFromIso(match[1])) return '';
+
+    const [, date, hour, minute] = match;
+
+    if (Number(hour) > 23 || Number(minute) > 59) return '';
+
+    return `${date}T${hour}:${minute}`;
 }
 
 function localDateFromIso(value) {

@@ -84,10 +84,7 @@ class TopicController extends Controller
 
         $announcementImages = AnnouncementImage::query()
             ->with('researchCall:id,status,opens_at,closes_at')
-            ->where(function ($query): void {
-                $query->whereNull('research_call_id')
-                    ->orWhereHas('researchCall', fn ($researchCallQuery) => $researchCallQuery->acceptingSubmissions());
-            })
+            ->visibleToFaculty()
             ->latest()
             ->get(['id', 'image_path', 'research_call_id']);
 

@@ -42,7 +42,10 @@ test('research heads can manage announcement images and announcements appear in 
         ->get(route('announcement-images.index'))
         ->assertOk()
         ->assertSee('Drop or paste your announcement')
-        ->assertSee('No content guessing required.')
+        ->assertSee('Publish with the right audience.')
+        ->assertSee('General announcement &mdash; show until archived', false)
+        ->assertSee('rounded-3xl border border-gray-200 bg-white px-6 py-7', false)
+        ->assertSee('rounded-2xl border border-gray-200 bg-white p-5 text-gray-950', false)
         ->assertSee($researchCall->title)
         ->assertSee('data-announcement-image-form', false);
 
@@ -62,7 +65,7 @@ test('research heads can manage announcement images and announcements appear in 
     $this->actingAs($head)
         ->get(route('announcement-images.index'))
         ->assertOk()
-        ->assertSee('Published artwork')
+        ->assertSee('Active announcements')
         ->assertSee(route('announcement-images.show', $announcementImage), false);
 
     $this->actingAs($faculty)
@@ -92,11 +95,39 @@ test('research heads can manage announcement images and announcements appear in 
         ->assertSee(route('announcement-images.show', $announcementImage), false);
 
     $this->actingAs($head)
-        ->delete(route('announcement-images.destroy', $announcementImage))
-        ->assertRedirect(route('announcement-images.index'));
+        ->patch(route('announcement-images.archive', $announcementImage))
+        ->assertRedirect(route('announcement-images.index'))
+        ->assertSessionHas('success', 'Announcement archived. Faculty can no longer see it.');
 
-    expect(AnnouncementImage::query()->count())->toBe(0);
-    Storage::disk('local')->assertMissing($announcementImage->image_path);
+    expect($announcementImage->fresh()->archived_at)->not->toBeNull();
+    Storage::disk('local')->assertExists($announcementImage->image_path);
+
+    $this->actingAs($head)
+        ->get(route('announcement-images.index'))
+        ->assertOk()
+        ->assertSee('Archived announcements')
+        ->assertSee('Restore announcement');
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertDontSee(route('announcement-images.show', $announcementImage), false);
+
+    $this->actingAs($faculty)
+        ->get(route('announcement-images.show', $announcementImage))
+        ->assertNotFound();
+
+    $this->actingAs($head)
+        ->patch(route('announcement-images.restore', $announcementImage))
+        ->assertRedirect(route('announcement-images.index'))
+        ->assertSessionHas('success', 'Announcement restored.');
+
+    expect($announcementImage->fresh()->archived_at)->toBeNull();
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee(route('announcement-images.show', $announcementImage), false);
 });
 
 test('faculty cannot access announcement image management', function () {

@@ -74,6 +74,23 @@ test('users can save their contact number from their profile', function () {
         ->assertSee('value="'.$contactNumber.'"', false);
 });
 
+test('users can save their college and contact number together from their profile', function () {
+    $user = User::factory()->create(['college' => null, 'contact_number' => null]);
+    $college = 'College of Informatics and Computing Sciences';
+    $contactNumber = '09788978768';
+
+    $this->actingAs($user)
+        ->patch(route('profile.details.update'), [
+            'college' => $college,
+            'contact_number' => $contactNumber,
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('status', 'profile-details-updated');
+
+    expect($user->refresh()->college)->toBe($college)
+        ->and($user->contact_number)->toBe($contactNumber);
+});
+
 test('contact number must contain exactly 11 digits when provided', function () {
     $user = User::factory()->create(['contact_number' => null]);
 

@@ -222,7 +222,8 @@ Route::middleware(['auth', 'workspace:research_head'])->prefix('announcement-ima
     Route::get('/', [AnnouncementImageController::class, 'index'])->name('index');
     Route::post('/', [AnnouncementImageController::class, 'store'])->name('store');
     Route::patch('/{announcementImage}', [AnnouncementImageController::class, 'update'])->name('update');
-    Route::delete('/{announcementImage}', [AnnouncementImageController::class, 'destroy'])->name('destroy');
+    Route::patch('/{announcementImage}/archive', [AnnouncementImageController::class, 'archive'])->name('archive');
+    Route::patch('/{announcementImage}/restore', [AnnouncementImageController::class, 'restore'])->name('restore');
 });
 Route::get('/announcement-images/{announcementImage}/source', [AnnouncementImageController::class, 'show'])
     ->middleware('auth')
@@ -355,6 +356,7 @@ Route::get('/research-coordinator/faculty-members', [ResearchCoordinatorControll
 // PROFILE ROUTES
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile/details', [ProfileController::class, 'updateDetails'])->name('profile.details.update');
     Route::patch('/profile/college', [ProfileController::class, 'updateCollege'])->name('profile.college.update');
     Route::patch('/profile/contact-number', [ProfileController::class, 'updateContactNumber'])->name('profile.contact-number.update');
 });

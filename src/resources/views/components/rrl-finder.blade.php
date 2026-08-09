@@ -314,7 +314,7 @@
             <div class="flex flex-wrap gap-2">
                 <button type="button" @click="saveOptionsOpen = true; $nextTick(() => document.getElementById('literature-save-options')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))" class="rounded-lg border border-gray-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-gray-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-slate-700 dark:text-slate-300 dark:hover:border-red-900 dark:hover:bg-red-950/30">Proposal &amp; collection</button>
                 <button type="button" @click="$store.literatureSearch.clear()" class="rounded-lg border border-gray-200 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-gray-500 transition hover:bg-gray-50 hover:text-red-600 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-red-300">Clear</button>
-                <button type="button" @click="$store.literatureSearch.askAthena()" :disabled="$store.researchAssistant.isLoading" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">Ask Athena about results</button>
+                <button type="button" @click="$store.literatureSearch.askAthena()" :disabled="$store.researchAssistant.isLoading" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">Analyze results</button>
             </div>
         </div>
 

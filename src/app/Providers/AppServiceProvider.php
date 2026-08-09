@@ -70,6 +70,7 @@ class AppServiceProvider extends ServiceProvider
                     : null;
 
             $view->with('researchAssistantProposalDraftId', $activeProposalDraftId);
+            $routeTopic = request()->route('topic');
 
             if (! $user || ! $user->isUsingWorkspace([
                 User::WORKSPACE_FACULTY,
@@ -77,9 +78,15 @@ class AppServiceProvider extends ServiceProvider
             ])) {
                 $view->with('researchAssistantContexts', collect());
                 $view->with('activeResearchAssistantContextId', null);
+                $view->with('researchAssistantPageActions', collect());
 
                 return;
             }
+
+            $view->with(
+                'researchAssistantPageActions',
+                $this->assistantPageActions($user, $activeProposalDraftId, $paperSlug, $routeTopic),
+            );
 
             $contexts = TopicProposal::query()
                 ->accessibleTo($user)
@@ -102,7 +109,6 @@ class AppServiceProvider extends ServiceProvider
                     ])->filter()->join(' · '),
                 ]);
 
-            $routeTopic = request()->route('topic');
             $activeContextId = match (true) {
                 $routeTopic instanceof TopicProposal && $user->can('view', $routeTopic) => $routeTopic->id,
                 $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
@@ -114,5 +120,79 @@ class AppServiceProvider extends ServiceProvider
             $view->with('researchAssistantContexts', $contexts);
             $view->with('activeResearchAssistantContextId', $activeContextId);
         });
+    }
+
+    /**
+     * @return list<array{label: string, description: string, evidence: string, prompt: string, scope?: string}>
+     */
+    private function assistantPageActions(
+        User $user,
+        ?int $proposalDraftId,
+        ?string $paperSlug,
+        mixed $routeTopic,
+    ): array {
+        if ($proposalDraftId && is_string($paperSlug)) {
+            $paperLabel = (string) data_get(
+                config('proposal_field_guidance.papers.'.$paperSlug),
+                'label',
+                Str::headline($paperSlug),
+            );
+
+            $actions = [
+                [
+                    'label' => 'Review saved paper',
+                    'description' => 'Check this paper for incomplete, conflicting, or unclear information.',
+                    'evidence' => 'Uses saved proposal data and current-paper rules',
+                    'prompt' => "Review the saved proposal and the current {$paperLabel}. Identify incomplete, conflicting, or unclear information. Give a short prioritized checklist and do not invent missing facts.",
+                ],
+                [
+                    'label' => 'Check linked values',
+                    'description' => 'Find saved values that should agree across the proposal papers.',
+                    'evidence' => 'Uses saved proposal values and official paper relationships',
+                    'prompt' => "Check the saved {$paperLabel} against its linked proposal papers. Identify values that should agree, any saved mismatch that is available, and the correct paper to update. Do not change anything automatically.",
+                ],
+            ];
+
+            if ($paperSlug === 'detailed-proposal') {
+                $actions[] = [
+                    'label' => 'Check methods and evidence',
+                    'description' => 'Identify what factual method or evidence information still needs to be supplied.',
+                    'evidence' => 'Uses saved detailed-proposal values and paper relationships',
+                    'prompt' => 'Assess the saved methodology and evidence sections in this detailed proposal. Point out only gaps supported by the saved record, then tell me what factual information I need to supply. Do not invent research details or citations.',
+                ];
+            }
+
+            return $actions;
+        }
+
+        if (! request()->routeIs('topics.show')
+            || ! $routeTopic instanceof TopicProposal
+            || $routeTopic->user_id !== $user->id) {
+            return [];
+        }
+
+        return [
+            [
+                'scope' => 'details',
+                'label' => 'Check proposal next steps',
+                'description' => 'Summarize the proposal status and the next concrete action.',
+                'evidence' => 'Uses the saved proposal status and submission record',
+                'prompt' => 'Review this saved proposal record. State its current status, the next concrete action, and any saved information that still needs attention. Do not infer an approval decision or missing institutional rule.',
+            ],
+            [
+                'scope' => 'review',
+                'label' => 'Make a revision plan',
+                'description' => 'Turn reviewer feedback into a clear, prioritized checklist.',
+                'evidence' => 'Uses saved reviewer comments for this proposal',
+                'prompt' => 'Turn the saved reviewer comments for this proposal into a precise revision plan. Separate required changes from recommendations, put the work in a sensible order, and do not invent reviewer feedback.',
+            ],
+            [
+                'scope' => 'monitoring',
+                'label' => 'Summarize project progress',
+                'description' => 'Create a status summary from submitted monitoring and narrative reports.',
+                'evidence' => 'Uses saved monitoring tools, progress reports, and remarks',
+                'prompt' => 'Draft a concise project-status summary from the saved monitoring-tool and narrative-report records. State progress, accomplishments, issues or delays, pending review items, and missing information without inventing details.',
+            ],
+        ];
     }
 }

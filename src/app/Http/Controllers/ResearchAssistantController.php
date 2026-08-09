@@ -194,6 +194,8 @@ class ResearchAssistantController extends Controller
                     'researchCall',
                     'latestVersion',
                     'reviews' => fn ($query) => $query->with('reviewer')->latest()->limit(3),
+                    'progressReports' => fn ($query) => $query->latest('reporting_date')->limit(3),
+                    'narrativeReports' => fn ($query) => $query->latest('submission_date')->limit(3),
                 ])
                 ->where('user_id', $request->user()->id)
                 ->find($contextTopicId);
@@ -527,10 +529,33 @@ PROMPT;
             })
             ->filter()
             ->join("\n");
+        $monitoringTools = $topic->progressReports
+            ->take(3)
+            ->map(fn ($report): string => collect([
+                $report->reporting_date?->toDateString(),
+                $report->progress_percentage.'% complete',
+                'Review: '.str_replace('_', ' ', $report->review_status),
+                filled($report->accomplishments) ? 'Accomplishments: '.Str::limit($report->accomplishments, 420) : null,
+                filled($report->issues) ? 'Issues or delays: '.Str::limit($report->issues, 420) : null,
+                filled($report->research_head_remarks) ? 'Research Head remarks: '.Str::limit($report->research_head_remarks, 420) : null,
+            ])->filter()->join(' · '))
+            ->filter()
+            ->join("\n");
+        $narrativeReports = $topic->narrativeReports
+            ->take(3)
+            ->map(fn ($report): string => collect([
+                $report->submission_date?->toDateString(),
+                'Review: '.str_replace('_', ' ', $report->review_status),
+                filled($report->accomplishment_summary) ? 'Accomplishment summary: '.Str::limit($report->accomplishment_summary, 420) : null,
+                filled($report->research_head_remarks) ? 'Research Head remarks: '.Str::limit($report->research_head_remarks, 420) : null,
+            ])->filter()->join(' · '))
+            ->filter()
+            ->join("\n");
 
         $details = collect([
             'Title: '.$topic->title,
             'Status: '.str_replace('_', ' ', $topic->status),
+            $topic->hasIssuedNoticeToProceed() ? 'Project execution status: '.str_replace('_', ' ', $topic->project_status ?: 'ongoing') : null,
             $topic->category ? 'Category: '.$topic->category->name : null,
             $topic->researchCall ? 'Research call: '.$topic->researchCall->title.' ('.$topic->researchCall->academic_year.')' : null,
             $latestVersion ? 'Latest version: '.$latestVersion->version_number.' ('.$latestVersion->submission_type.')' : null,
@@ -538,6 +563,8 @@ PROMPT;
             $latestVersion?->estimated_duration_months ? 'Duration: '.$latestVersion->estimated_duration_months.' months' : null,
             $latestVersion?->description ? 'Description: '.Str::limit($latestVersion->description, 900) : ($topic->description ? 'Description: '.Str::limit($topic->description, 900) : null),
             $reviews !== '' ? "Recent reviewer comments:\n".$reviews : null,
+            $monitoringTools !== '' ? "Recent monitoring tools:\n".$monitoringTools : null,
+            $narrativeReports !== '' ? "Recent narrative progress reports:\n".$narrativeReports : null,
         ])->filter()->join("\n");
 
         return <<<PROMPT

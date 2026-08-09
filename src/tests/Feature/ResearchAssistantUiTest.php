@@ -89,13 +89,12 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('data-rrl-workspace', false)
         ->assertSee('data-rrl-results-table', false)
         ->assertSee('data-rrl-paper-details', false)
-        ->assertSee('Ask Athena about results')
-        ->assertSee('Grounded assistance:')
-        ->assertSee('Matching approved ATHENA knowledge')
+        ->assertSee('Analyze results')
+        ->assertSee('Context-aware assistance:')
+        ->assertSee('A page action states which saved ATHENA record it uses.')
         ->assertSee('Sources')
         ->assertSee('<details x-show="Array.isArray(message.sources)', false)
         ->assertDontSee('Grounded with ATHENA knowledge')
-        ->assertSee('Ask Athena')
         ->assertSee('Ask ATHENA')
         ->assertSee('Expand to full workspace')
         ->assertSee('Back to Research Support')
@@ -108,6 +107,8 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertDontSee('Methods')
         ->assertDontSee('Revision')
         ->assertDontSee('Writing')
+        ->assertDontSee('Refine my research question')
+        ->assertDontSee('Ask about research questions, methodology, writing, or proposal revisions.')
         ->assertSee('data-assistant-full-workspace', false)
         ->assertSee('data-assistant-workspace', false)
         ->assertSee('openWorkspace()', false)
@@ -157,6 +158,10 @@ test('proposal owners can launch athena with the current proposal selected', fun
         ->assertSee('Ask Athena about this proposal')
         ->assertSee('openWithContext('.$topic->id, false)
         ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
+        ->assertSee('Make a revision plan')
+        ->assertSee('Uses saved reviewer comments for this proposal')
+        ->assertSee('Summarize project progress')
+        ->assertSee('Uses saved monitoring tools, progress reports, and remarks')
         ->assertSee('Context-aware freshwater research');
 });
 
@@ -188,7 +193,15 @@ test('proposal draft editors expose the current paper and proposal to athena', f
         ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
         ->assertSee('Paper help')
         ->assertSee('Live context')
+        ->assertSee('Review saved paper')
+        ->assertSee('Uses saved proposal data and current-paper rules')
         ->assertSee('paperContextLabel()', false);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))
+        ->assertOk()
+        ->assertSee('Check methods and evidence')
+        ->assertSee('Uses saved detailed-proposal values and paper relationships');
 });
 
 test('authenticated users can receive a gemini research response', function (string $role) {
@@ -327,6 +340,15 @@ test('users can attach their own proposal context to a chat request', function (
         'decision' => 'revision_requested',
         'comment' => 'Clarify the sampling frame and target respondents.',
     ]);
+    $topic->progressReports()->create([
+        'submitted_by' => $faculty->id,
+        'reporting_date' => now()->toDateString(),
+        'progress_percentage' => 45,
+        'accomplishments' => 'Completed the first round of coastal observations.',
+        'issues' => 'Field visits were delayed by severe weather.',
+        'review_status' => 'revision_requested',
+        'research_head_remarks' => 'Add the revised fieldwork schedule.',
+    ]);
 
     $this->actingAs($faculty)
         ->postJson(route('research-support.chat'), [
@@ -343,6 +365,9 @@ test('users can attach their own proposal context to a chat request', function (
         fn (array $message) => $message['role'] === 'system'
             && str_contains($message['content'], 'Community-based mangrove monitoring')
             && str_contains($message['content'], 'Clarify the sampling frame')
+            && str_contains($message['content'], 'Completed the first round of coastal observations')
+            && str_contains($message['content'], 'Field visits were delayed by severe weather')
+            && str_contains($message['content'], 'Add the revised fieldwork schedule')
     ));
 });
 
@@ -434,6 +459,8 @@ test('athena receives a safe application context packet with live row values and
 
         return str_contains($prompt, 'ATHENA application context packet')
             && str_contains($prompt, 'Context packet budget study')
+            && str_contains($prompt, 'saved_current_paper')
+            && str_contains($prompt, 'Saved paper values are saved data')
             && str_contains($prompt, '"current_section": "Expense items / MOOE"')
             && str_contains($prompt, 'Bond Paper')
             && str_contains($prompt, '"line_item_budget": 4200')

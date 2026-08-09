@@ -42,6 +42,7 @@
                 window.athenaResearchAssistantContexts = {{ Illuminate\Support\Js::from($researchAssistantContexts ?? collect()) }};
                 window.athenaResearchAssistantActiveContextId = {{ Illuminate\Support\Js::from($activeResearchAssistantContextId ?? null) }};
                 window.athenaResearchAssistantHistory = {{ Illuminate\Support\Js::from($researchAssistantHistory ?? collect()) }};
+                window.athenaResearchAssistantPageActions = {{ Illuminate\Support\Js::from($researchAssistantPageActions ?? collect()) }};
             </script>
         @endauth
 

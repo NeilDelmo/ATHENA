@@ -109,13 +109,14 @@
                 <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg dark:bg-white dark:text-slate-900">
                     <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                 </div>
-                <h4 class="mt-5 text-2xl font-black tracking-tight text-gray-900 dark:text-white">How can Athena help?</h4>
-                <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400">Plan a study, improve a proposal, explore methods, or turn reviewer feedback into practical next steps.</p>
-                <div class="mt-8 grid w-full gap-3 sm:grid-cols-2">
+                <h4 class="mt-5 text-2xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h4>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-8 grid w-full gap-3 sm:grid-cols-2">
                     <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
                         <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
                             <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
-                            <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.prompt"></span>
+                            <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
                         </button>
                     </template>
                 </div>

@@ -136,7 +136,7 @@
                         <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
                             <label class="block text-sm font-bold text-gray-800">
                                 Notice date
-                                <input name="notice_date" type="date" value="{{ old('notice_date', $noticeToProceedForm['notice_date']) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                <x-date-picker id="notice-date" name="notice_date" :value="old('notice_date', $noticeToProceedForm['notice_date'])" required class="mt-2" />
                                 @error('notice_date')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                             </label>
 
@@ -168,12 +168,12 @@
                     <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <label class="block text-sm font-bold text-gray-800">
                             Approved start date
-                            <input name="approved_start_date" type="date" value="{{ old('approved_start_date', $noticeToProceedForm['approved_start_date']) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                <x-date-picker id="approved-start-date" name="approved_start_date" :value="old('approved_start_date', $noticeToProceedForm['approved_start_date'])" required class="mt-2" />
                             @error('approved_start_date')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                         </label>
                         <label class="block text-sm font-bold text-gray-800">
                             Approved end date
-                            <input name="approved_end_date" type="date" value="{{ old('approved_end_date', $noticeToProceedForm['approved_end_date']) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                <x-date-picker id="approved-end-date" name="approved_end_date" :value="old('approved_end_date', $noticeToProceedForm['approved_end_date'])" required class="mt-2" />
                             @error('approved_end_date')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                         </label>
                         <label class="block text-sm font-bold text-gray-800">

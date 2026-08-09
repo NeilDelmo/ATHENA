@@ -45,7 +45,7 @@
         </header>
 
         <div class="border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
-            <span class="font-black">Grounded assistance:</span> Matching approved ATHENA knowledge, paper fields, and document relationships are retrieved automatically and disclosed with grounded answers. On proposal forms, the focused field and a limited current row snapshot are included; contact and sensitive profile fields in that snapshot are redacted. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
+            <span class="font-black">Context-aware assistance:</span> A page action states which saved ATHENA record it uses. On proposal forms, a limited focused-field snapshot may also be included; contact and sensitive profile fields are redacted. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
         </div>
 
         <div data-assistant-messages class="flex-1 overflow-y-auto scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
@@ -53,13 +53,14 @@
                 <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white dark:bg-white dark:text-slate-900">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                 </div>
-                <h3 class="mt-4 text-xl font-black tracking-tight text-gray-900 dark:text-white">What are you working on?</h3>
-                <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400">Ask about research questions, methodology, writing, or proposal revisions.</p>
-                <div class="mt-7 grid w-full max-w-lg gap-2 sm:grid-cols-2">
+                <h3 class="mt-4 text-xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h3>
+                <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-7 grid w-full max-w-lg gap-2 sm:grid-cols-2">
                     <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
                         <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="rounded-2xl border border-gray-200 p-3 text-left transition hover:border-gray-300 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800">
                             <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
-                            <span class="mt-1 block text-xs font-semibold leading-5 text-gray-700 dark:text-slate-200" x-text="item.prompt"></span>
+                            <span class="mt-1 block text-xs font-semibold leading-5 text-gray-700 dark:text-slate-200" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
                         </button>
                     </template>
                 </div>

@@ -64,3 +64,23 @@ test('the shared date picker supports dynamic attachment c field bindings', func
         ->toContain('x-bind:id="`cv-${person.id}-birthday`"')
         ->toContain('x-bind:name="`people[${personIndex}][birthday]`"');
 });
+
+test('the shared date and time picker renders the calendar and submission-time controls', function () {
+    $html = Blade::render(<<<'BLADE'
+        <x-date-time-picker
+            id="submission-starts"
+            name="opens_at"
+            value="2026-08-01T09:00"
+            required
+        />
+    BLADE);
+
+    expect($html)
+        ->toContain('x-data="dateTimePicker({')
+        ->toContain('name="opens_at"')
+        ->toContain('id="submission-starts"')
+        ->toContain('aria-label="Choose a date and time"')
+        ->toContain('Submission time')
+        ->toContain('x-on:click="selectDate(day.iso)"')
+        ->toContain('x-on:change="setTime"');
+});
