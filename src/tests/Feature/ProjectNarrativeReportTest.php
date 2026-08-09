@@ -18,8 +18,11 @@ beforeEach(function () {
     {
         public string $sourceDocument = '';
 
+        public int $conversionCount = 0;
+
         public function convertDocx(string $contents): string
         {
+            $this->conversionCount++;
             $this->sourceDocument = $contents;
 
             return "%PDF-1.7\nGenerated progress report PDF";
@@ -83,7 +86,7 @@ beforeEach(function () {
     ], $overrides);
 });
 
-test('only the project owner with a Notice to Proceed can submit the official progress report', function () {
+test('a project owner prepares an official progress-report PDF before submitting it to the Research Head', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertRedirect()
@@ -93,8 +96,20 @@ test('only the project owner with a Notice to Proceed can submit the official pr
     expect($report->topic_id)->toBe($this->topic->id)
         ->and($report->budget)->toBe('150000.00')
         ->and($report->photos)->toHaveCount(1)
-        ->and($report->review_status)->toBe(ProjectNarrativeReport::STATUS_PENDING);
+        ->and($report->review_status)->toBe(ProjectNarrativeReport::STATUS_PENDING)
+        ->and($report->submission_status)->toBe(ProjectNarrativeReport::SUBMISSION_STATUS_PREPARED);
     Storage::disk('local')->assertExists($report->photos[0]['path']);
+    Storage::disk('local')->assertExists($report->official_pdf_path);
+    expect($this->pdfConverter->conversionCount)->toBe(1);
+    Notification::assertNothingSent();
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($report->fresh()->submission_status)->toBe(ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED)
+        ->and($this->pdfConverter->conversionCount)->toBe(1);
     Notification::assertSentTo(
         $this->head,
         ProposalActivityNotification::class,
@@ -145,6 +160,7 @@ test('the faculty monitoring page shows the separate progress report form', func
         ->get(route('research.show', $this->topic))
         ->assertOk()
         ->assertSee('Submit progress report')
+        ->assertSee('Prepare official PDF')
         ->assertSee('Preview progress report')
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('VI. Summary of Accomplishment for the Monitoring Period')
@@ -179,6 +195,15 @@ test('the owner and Research Head can download the official report as a PDF and 
         ->assertDownload('coastal-community-research-progress-report.pdf');
     expect($documentResponse->streamedContent())->toStartWith('%PDF-');
     $sourceDocument = $this->pdfConverter->sourceDocument;
+    expect($this->pdfConverter->conversionCount)->toBe(1);
+    $this->actingAs($this->head)
+        ->get(route('project-narrative-reports.download', $report))
+        ->assertForbidden();
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($this->head)
         ->get(route('project-narrative-reports.download', $report))
@@ -187,6 +212,7 @@ test('the owner and Research Head can download the official report as a PDF and 
         ->get(route('project-narrative-reports.photos.download', [$report, 0]))
         ->assertOk()
         ->assertDownload('coastal-survey.jpg');
+    expect($this->pdfConverter->conversionCount)->toBe(1);
 
     $generatedPath = tempnam(sys_get_temp_dir(), 'progress-report-test-');
     expect($generatedPath)->not->toBeFalse();
@@ -251,12 +277,39 @@ test('an unrelated faculty researcher cannot download progress report files', fu
     $this->actingAs($other)->get(route('project-narrative-reports.photos.download', [$report, 0]))->assertForbidden();
 });
 
+test('a researcher can discard a prepared progress report and its stored files', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectNarrativeReport::firstOrFail();
+    $pdfPath = $report->official_pdf_path;
+    $photoPath = $report->photos[0]['path'];
+    Storage::disk('local')->assertExists([$pdfPath, $photoPath]);
+
+    $this->actingAs($this->researcher)
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Progress Report PDF prepared')
+        ->assertSee('Submit to Research Head');
+    $this->actingAs($this->researcher)
+        ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $this->assertModelMissing($report);
+    Storage::disk('local')->assertMissing([$pdfPath, $photoPath]);
+});
+
 test('the Research Head can request a progress report revision only with remarks', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertSessionHasNoErrors();
 
     $report = ProjectNarrativeReport::firstOrFail();
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
+        ->assertSessionHasNoErrors();
     $this->actingAs($this->head)
         ->patch(route('research_head.narrative-progress-reports.review', $report), [
             'review_status' => ProjectNarrativeReport::STATUS_REVISION_REQUESTED,

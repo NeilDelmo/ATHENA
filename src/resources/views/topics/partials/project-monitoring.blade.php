@@ -53,8 +53,8 @@
         @else
             @if ($topic->isAccessibleTo(Auth::user()) && $projectStatus !== 'completed')
                 <div class="space-y-3">
-                    <x-monitoring-tool-form :topic="$topic" />
-                    <x-progress-report-form :topic="$topic" />
+                    <x-monitoring-tool-form :topic="$topic" :prepared-report="$preparedProgressReport" />
+                    <x-progress-report-form :topic="$topic" :prepared-report="$preparedNarrativeReport" />
                 </div>
             @endif
         @endif

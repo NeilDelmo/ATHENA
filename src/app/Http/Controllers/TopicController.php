@@ -6,6 +6,8 @@ use App\Actions\SyncTopicCollaborators;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
+use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -166,9 +168,29 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'noticeIssuer', 'researchCall', 'category', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'narrativeReports.submitter', 'narrativeReports.reviewer',
+            'user', 'noticeIssuer', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'narrativeReports.submitter', 'narrativeReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
         ]);
+
+        $preparedProgressReport = null;
+        $preparedNarrativeReport = null;
+
+        if (! $request->user()->isUsingWorkspace('research_head')
+            && $topic->isMonitoringAvailable()
+            && $topic->isAccessibleTo($request->user())) {
+            $preparedProgressReport = ProjectProgressReport::query()
+                ->prepared()
+                ->whereBelongsTo($topic, 'topic')
+                ->where('submitted_by', $request->user()->id)
+                ->latest('prepared_at')
+                ->first();
+            $preparedNarrativeReport = ProjectNarrativeReport::query()
+                ->prepared()
+                ->whereBelongsTo($topic, 'topic')
+                ->where('submitted_by', $request->user()->id)
+                ->latest('prepared_at')
+                ->first();
+        }
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
         $previousVersion = $topic->versions
@@ -263,6 +285,8 @@ class TopicController extends Controller
             'viewableReviewDocumentIds',
             'headUploadWorkspace',
             'noticeToProceedForm',
+            'preparedProgressReport',
+            'preparedNarrativeReport',
         ));
     }
 

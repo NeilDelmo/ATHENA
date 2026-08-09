@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\ResearchCall;
+use App\Models\TopicCollaborator;
+use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Contracts\Provider;
@@ -67,6 +70,47 @@ test('a BatStateU Google account is provisioned as faculty and authenticated', f
         ->and($user->email_verified_at)->not->toBeNull()
         ->and($user->hasRole('faculty'))->toBeTrue()
         ->and($user->getRememberToken())->toBeEmpty();
+});
+
+test('a late-signing accepted collaborator is linked and promoted for an active project', function () {
+    Role::firstOrCreate(['name' => 'faculty']);
+    Role::firstOrCreate(['name' => 'faculty_researcher']);
+
+    $owner = User::factory()->create(['email' => 'owner@g.batstate-u.edu.ph']);
+    $owner->assignRole('faculty');
+    $call = ResearchCall::create([
+        'title' => 'Late collaborator call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'status' => 'open',
+        'created_by' => $owner->id,
+    ]);
+    $topic = TopicProposal::create([
+        'user_id' => $owner->id,
+        'research_call_id' => $call->id,
+        'title' => 'Late collaborator project',
+        'status' => 'approved',
+        'notice_to_proceed_issued_at' => now(),
+        'project_status' => 'ongoing',
+    ]);
+    TopicCollaborator::create([
+        'topic_id' => $topic->id,
+        'user_id' => null,
+        'name' => 'Invited Collaborator',
+        'email' => 'late.collaborator@g.batstate-u.edu.ph',
+        'accepted_at' => now(),
+    ]);
+
+    config()->set('services.google.allowed_domains', ['g.batstate-u.edu.ph']);
+    mockGoogleUser('late.collaborator@g.batstate-u.edu.ph');
+
+    $this->get('/auth/google/callback')->assertRedirect(route('workspace.select'));
+
+    $collaborator = User::where('email', 'late.collaborator@g.batstate-u.edu.ph')->firstOrFail();
+
+    expect($collaborator->hasRole('faculty_researcher'))->toBeTrue()
+        ->and($topic->collaborators()->sole()->user_id)->toBe($collaborator->id);
 });
 
 test('Google sign in remembers the user when persistence is enabled', function () {

@@ -123,6 +123,59 @@ test('issuing the Notice to Proceed promotes the faculty member and opens monito
         ->assertSee('Project monitoring');
 });
 
+test('issuing the Notice to Proceed promotes every accepted linked collaborator into the shared researcher workspace', function () {
+    $collaborator = User::factory()->create(['name' => 'Collaborating Researcher']);
+    $collaborator->assignRole('faculty');
+    $this->topic->collaborators()->create([
+        'user_id' => $collaborator->id,
+        'name' => $collaborator->name,
+        'email' => $collaborator->email,
+        'accepted_at' => now(),
+    ]);
+    $emailMatchedCollaborator = User::factory()->create([
+        'name' => 'Email Matched Researcher',
+        'email' => 'email.matched@g.batstate-u.edu.ph',
+    ]);
+    $emailMatchedCollaborator->assignRole('faculty');
+    $this->topic->collaborators()->create([
+        'user_id' => null,
+        'name' => 'Invited Researcher',
+        'email' => $emailMatchedCollaborator->email,
+        'accepted_at' => now(),
+    ]);
+
+    expect($collaborator->hasRole('faculty_researcher'))->toBeFalse();
+    expect($emailMatchedCollaborator->hasRole('faculty_researcher'))->toBeFalse();
+
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->post(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
+        ->assertSessionHasNoErrors();
+
+    $collaborator->refresh();
+    $emailMatchedCollaborator->refresh();
+
+    expect($collaborator->hasRole('faculty_researcher'))->toBeTrue()
+        ->and($emailMatchedCollaborator->hasRole('faculty_researcher'))->toBeTrue()
+        ->and($this->topic->collaborators()->where('email', $emailMatchedCollaborator->email)->sole()->user_id)
+        ->toBe($emailMatchedCollaborator->id);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($collaborator)
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Approved Coastal Research')
+        ->assertSee('Project team')
+        ->assertSee('Collaborating Researcher')
+        ->assertSee('Email Matched Researcher');
+});
+
 test('a Research Head can preview a Notice to Proceed without issuing it', function () {
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\PrepareProjectNarrativeReport;
 use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreProjectNarrativeReportRequest;
+use App\Http\Requests\SubmitPreparedProjectNarrativeReportRequest;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -20,11 +22,6 @@ use Throwable;
 
 class ProjectNarrativeReportController extends Controller
 {
-    public function __construct(
-        private readonly ProgressReportDocumentService $documentService,
-        private readonly DocumentPdfConverter $pdfConverter,
-    ) {}
-
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
         $validated = $request->validated();
@@ -60,6 +57,82 @@ class ProjectNarrativeReportController extends Controller
         $report->setRelation('submitter', $request->user());
 
         return view('faculty.progress-reports.preview', compact('report'));
+    }
+
+    public function prepare(
+        StoreProjectNarrativeReportRequest $request,
+        TopicProposal $topic,
+        PrepareProjectNarrativeReport $prepareProjectNarrativeReport,
+    ): RedirectResponse {
+        $existingPreparedReport = ProjectNarrativeReport::query()
+            ->prepared()
+            ->whereBelongsTo($topic, 'topic')
+            ->where('submitted_by', $request->user()->id)
+            ->exists();
+
+        if ($existingPreparedReport) {
+            return back()->withErrors([
+                'preparation' => 'Discard the prepared Progress Report before preparing another one.',
+            ], 'narrativeProgress');
+        }
+
+        try {
+            $prepareProjectNarrativeReport->handle(
+                $topic,
+                $request->user(),
+                $request->validated(),
+                $request->allFiles(),
+            );
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'preparation' => 'The Progress Report PDF could not be prepared. Your form data was kept, so you can try again.',
+                ], 'narrativeProgress');
+        }
+
+        return back()->with('success', 'Progress Report PDF prepared. Review it, then submit the exact file to the Research Head.');
+    }
+
+    public function submitPrepared(
+        SubmitPreparedProjectNarrativeReportRequest $request,
+        TopicProposal $topic,
+        ProjectNarrativeReport $report,
+    ): RedirectResponse {
+        if (! filled($report->official_pdf_path) || ! Storage::disk('local')->exists($report->official_pdf_path)) {
+            return back()->withErrors([
+                'preparation' => 'The prepared Progress Report PDF is unavailable. Discard it and prepare the form again.',
+            ], 'narrativeProgress');
+        }
+
+        $report->update([
+            'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+            'submitted_at' => now(),
+        ]);
+
+        User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
+            'Progress report submitted',
+            $request->user()->name.' submitted a progress report for '.$topic->title.'.',
+            route('topics.show', $topic).'#project-monitoring',
+            'info',
+            $topic->id,
+            workspace: User::WORKSPACE_RESEARCH_HEAD,
+        ));
+
+        return back()->with('success', 'Official progress report submitted for Research Head review.');
+    }
+
+    public function discardPrepared(
+        SubmitPreparedProjectNarrativeReportRequest $request,
+        TopicProposal $topic,
+        ProjectNarrativeReport $report,
+    ): RedirectResponse {
+        $this->deletePreparedReportFiles($report);
+        $report->delete();
+
+        return back()->with('success', 'Prepared Progress Report discarded. You can now prepare a new PDF.');
     }
 
     public function store(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): RedirectResponse
@@ -127,6 +200,7 @@ class ProjectNarrativeReportController extends Controller
     public function review(Request $request, ProjectNarrativeReport $report): RedirectResponse
     {
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
+        abort_unless($report->isSubmitted(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in([
@@ -156,16 +230,31 @@ class ProjectNarrativeReportController extends Controller
         return back()->with('success', 'Progress report review saved.');
     }
 
-    public function download(Request $request, ProjectNarrativeReport $report): StreamedResponse
-    {
+    public function download(
+        Request $request,
+        ProjectNarrativeReport $report,
+        ProgressReportDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
+    ): StreamedResponse {
         $this->authorizeViewer($request, $report);
+
+        if (filled($report->official_pdf_path)
+            && filled($report->official_pdf_filename)
+            && Storage::disk('local')->exists($report->official_pdf_path)) {
+            return Storage::disk('local')->download(
+                $report->official_pdf_path,
+                $report->official_pdf_filename,
+                ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
+            );
+        }
+
+        abort_unless($report->isSubmitted(), 404);
         $report->loadMissing(['topic.user', 'submitter']);
-        $filename = Str::slug($report->topic->title).'-progress-report.pdf';
-        $pdf = $this->pdfConverter->convertDocx($this->documentService->generate($report));
+        $pdf = $pdfConverter->convertDocx($documentService->generate($report));
 
         return response()->streamDownload(
             static fn () => print $pdf,
-            $filename,
+            Str::slug($report->topic->title).'-progress-report.pdf',
             ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
         );
     }
@@ -181,10 +270,29 @@ class ProjectNarrativeReportController extends Controller
 
     private function authorizeViewer(Request $request, ProjectNarrativeReport $report): void
     {
+        if ($report->isPrepared()) {
+            abort_unless(
+                $request->user()->id === $report->submitted_by
+                    && $report->topic->isAccessibleTo($request->user()),
+                403,
+            );
+
+            return;
+        }
+
         abort_unless(
             $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
                 || $report->topic->isAccessibleTo($request->user()),
             403,
         );
+    }
+
+    private function deletePreparedReportFiles(ProjectNarrativeReport $report): void
+    {
+        collect($report->photos ?? [])
+            ->pluck('path')
+            ->push($report->official_pdf_path)
+            ->filter()
+            ->each(fn (string $path) => Storage::disk('local')->delete($path));
     }
 }

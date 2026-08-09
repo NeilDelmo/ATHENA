@@ -1,4 +1,4 @@
-@props(['topic', 'workspace'])
+@props(['topic', 'workspace', 'showFacultyFiles' => true])
 
 @php
     $latestVersion = $workspace['latestVersion'];
@@ -16,6 +16,7 @@
 @endphp
 
 <div data-research-head-file-workspace {{ $attributes->merge(['class' => 'space-y-5']) }}>
+    @if ($showFacultyFiles || $isSigningStage)
     <section class="rounded-2xl border border-red-200 bg-white p-5 shadow-sm dark:border-red-950 dark:bg-gray-950 sm:p-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-3xl">
@@ -28,6 +29,7 @@
             </span>
         </div>
     </section>
+    @endif
 
     @if ($errors->headUpload->any())
         <div role="alert" class="rounded-2xl border border-red-300 bg-red-50 p-5 text-sm text-red-900 dark:border-red-900 dark:bg-red-950/40 dark:text-red-100">
@@ -98,6 +100,7 @@
         </section>
     @endif
 
+    @if ($showFacultyFiles)
     <section aria-labelledby="head-upload-files-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-6">
         <div>
             <h3 id="head-upload-files-heading" class="text-xl font-black text-gray-950 dark:text-white">Faculty-submitted files</h3>
@@ -188,6 +191,7 @@
             @endforelse
         </div>
     </section>
+    @endif
 
     <details class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
@@ -257,8 +261,10 @@
         </section>
     @endif
 
+    @if ($showFacultyFiles)
     <section class="rounded-2xl bg-gray-950 p-5 text-white dark:border dark:border-gray-800 sm:p-6">
         <p class="font-black">Faculty originals are always preserved.</p>
         <p class="mt-1 text-sm leading-6 text-gray-300">PDF highlights hold the exact revision comments. Upload a reviewed copy only when you have a separate annotated or corrected file to return.</p>
     </section>
+    @endif
 </div>

@@ -13,12 +13,16 @@ use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
     Notification::fake();
+    Storage::fake('local');
     $this->pdfConverter = new class implements DocumentPdfConverter
     {
         public string $sourceDocument = '';
 
+        public int $conversionCount = 0;
+
         public function convertDocx(string $contents): string
         {
+            $this->conversionCount++;
             $this->sourceDocument = $contents;
 
             return "%PDF-1.7\nGenerated monitoring tool PDF";
@@ -90,7 +94,7 @@ beforeEach(function () {
     ], $overrides);
 });
 
-test('a researcher with a Notice to Proceed can submit progress without an attachment', function () {
+test('a researcher prepares an official monitoring PDF before submitting it to the Research Head', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertRedirect()
@@ -100,7 +104,21 @@ test('a researcher with a Notice to Proceed can submit progress without an attac
         'topic_id' => $this->topic->id,
         'progress_percentage' => 25,
         'attachment_path' => null,
+        'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_PREPARED,
     ]);
+    $report = ProjectProgressReport::firstOrFail();
+    Storage::disk('local')->assertExists($report->official_pdf_path);
+    expect($report->official_pdf_filename)->toBe('approved-community-research-monitoring-tool.pdf')
+        ->and($this->pdfConverter->conversionCount)->toBe(1);
+    Notification::assertNothingSent();
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($report->fresh()->submission_status)->toBe(ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED)
+        ->and($this->pdfConverter->conversionCount)->toBe(1);
     Notification::assertSentTo(
         $this->head,
         ProposalActivityNotification::class,
@@ -113,6 +131,7 @@ test('the faculty project page shows the official monitoring tool fields', funct
         ->get(route('research.show', $this->topic))
         ->assertOk()
         ->assertSee('Submit monitoring tool')
+        ->assertSee('Prepare official PDF')
         ->assertSee('Preview monitoring tool')
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('A. Work Plan')
@@ -276,6 +295,29 @@ test('an accepted collaborator can access the same active project monitoring wor
         ->assertOk();
 });
 
+test('a researcher can discard a prepared monitoring tool and its stored PDF', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::firstOrFail();
+    $pdfPath = $report->official_pdf_path;
+    Storage::disk('local')->assertExists($pdfPath);
+
+    $this->actingAs($this->researcher)
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Monitoring Tool PDF prepared')
+        ->assertSee('Submit to Research Head');
+    $this->actingAs($this->researcher)
+        ->delete(route('project-progress.discard-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $this->assertModelMissing($report);
+    Storage::disk('local')->assertMissing($pdfPath);
+});
+
 test('a research head can review a report and update project status', function () {
     $report = ProjectProgressReport::create([
         'topic_id' => $this->topic->id,
@@ -378,10 +420,20 @@ test('the owner and Research Head can download the filled official monitoring to
         ->assertDownload('approved-community-research-monitoring-tool.pdf');
     expect($ownerResponse->streamedContent())->toStartWith('%PDF-');
     $sourceDocument = $this->pdfConverter->sourceDocument;
+    expect($this->pdfConverter->conversionCount)->toBe(1);
+    $this->actingAs($this->head)
+        ->get(route('project-progress.monitoring-tool', $report))
+        ->assertForbidden();
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($this->head)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk();
+    expect($this->pdfConverter->conversionCount)->toBe(1);
 
     $generatedPath = tempnam(sys_get_temp_dir(), 'monitoring-test-');
     expect($generatedPath)->not->toBeFalse();

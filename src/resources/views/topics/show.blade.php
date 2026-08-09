@@ -263,6 +263,33 @@
                     </dl>
                     <p class="mt-4 whitespace-pre-line border-t border-gray-100 pt-4 text-sm leading-6 text-gray-600">{{ $topic->description ?: 'No proposal summary provided.' }}</p>
                 </section>
+
+                @if ($topic->collaborators->isNotEmpty())
+                    <section aria-labelledby="project-team-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                        <p class="text-xs font-black uppercase tracking-wider text-red-600">Shared workspace</p>
+                        <h3 id="project-team-heading" class="mt-1 text-sm font-black text-gray-900">Project team</h3>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">The same team remains attached through review, approval, and project monitoring.</p>
+                        <ul class="mt-4 space-y-3">
+                            <li class="flex items-start gap-3">
+                                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-black text-white">PL</span>
+                                <span class="min-w-0">
+                                    <span class="block truncate text-sm font-bold text-gray-900">{{ $topic->user->name }}</span>
+                                    <span class="block text-xs text-gray-500">Project leader</span>
+                                </span>
+                            </li>
+                            @foreach ($topic->collaborators as $collaborator)
+                                <li class="flex items-start gap-3">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-xs font-black text-red-700">TM</span>
+                                    <span class="min-w-0">
+                                        <span class="block truncate text-sm font-bold text-gray-900">{{ $collaborator->name }}</span>
+                                        <span class="block truncate text-xs text-gray-500">{{ $collaborator->email }}</span>
+                                        <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Accepted collaborator' : 'Invitation pending' }}</span>
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </section>
+                @endif
             </div>
         </section>
 
@@ -290,9 +317,9 @@
                 </p>
             </div>
 
-            @if ($isResearchHead && $headUploadWorkspace)
+            @if ($isResearchHead && $headUploadWorkspace && (! $canDecide || $headUploadWorkspace['supplementalHeadUploads']->isNotEmpty()))
                 <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                    <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
+                    <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" />
                 </div>
             @endif
 

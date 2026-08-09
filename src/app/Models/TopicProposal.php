@@ -234,27 +234,37 @@ class TopicProposal extends Model
 
     public function progressReports(): HasMany
     {
-        return $this->hasMany(ProjectProgressReport::class, 'topic_id')->latest('reporting_date');
+        return $this->hasMany(ProjectProgressReport::class, 'topic_id')
+            ->submitted()
+            ->latest('reporting_date');
     }
 
     public function narrativeReports(): HasMany
     {
-        return $this->hasMany(ProjectNarrativeReport::class, 'topic_id')->latest('submission_date');
+        return $this->hasMany(ProjectNarrativeReport::class, 'topic_id')
+            ->submitted()
+            ->latest('submission_date');
     }
 
     public function latestProgressReport(): HasOne
     {
-        return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany([
-            'reporting_date' => 'max',
-            'id' => 'max',
-        ]);
+        return $this->hasOne(ProjectProgressReport::class, 'topic_id')->ofMany(
+            [
+                'reporting_date' => 'max',
+                'id' => 'max',
+            ],
+            fn (Builder $query): Builder => $query->submitted(),
+        );
     }
 
     public function latestNarrativeReport(): HasOne
     {
-        return $this->hasOne(ProjectNarrativeReport::class, 'topic_id')->ofMany([
-            'submission_date' => 'max',
-            'id' => 'max',
-        ]);
+        return $this->hasOne(ProjectNarrativeReport::class, 'topic_id')->ofMany(
+            [
+                'submission_date' => 'max',
+                'id' => 'max',
+            ],
+            fn (Builder $query): Builder => $query->submitted(),
+        );
     }
 }

@@ -901,6 +901,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertSee('Download')
         ->assertSee('Record the Research Head decision')
         ->assertSee('File review checklist')
+        ->assertDontSee('Review faculty files')
         ->assertSee('No revision')
         ->assertSee('Needs revision')
         ->assertSee('Mark for revision')

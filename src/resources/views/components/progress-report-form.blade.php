@@ -1,4 +1,31 @@
-@props(['topic'])
+@props(['topic', 'preparedReport' => null])
+
+@if ($preparedReport)
+    <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+        @if ($errors->narrativeProgress->has('preparation'))
+            <p class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700">{{ $errors->narrativeProgress->first('preparation') }}</p>
+        @endif
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <p class="text-sm font-black text-emerald-950">Progress Report PDF prepared</p>
+                <p class="mt-1 max-w-2xl text-xs leading-5 text-emerald-800">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
+                <p class="mt-2 text-[11px] font-semibold text-emerald-700">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
+            </div>
+            <div class="flex shrink-0 flex-wrap gap-2">
+                <a href="{{ route('project-narrative-reports.download', $preparedReport) }}" class="inline-flex items-center justify-center rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-xs font-bold text-emerald-800 shadow-sm hover:bg-emerald-100">Download prepared PDF</a>
+                <form method="POST" action="{{ route('project-narrative-reports.submit-prepared', [$topic, $preparedReport]) }}">
+                    @csrf
+                    <button class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-800">Submit to Research Head</button>
+                </form>
+                <form method="POST" action="{{ route('project-narrative-reports.discard-prepared', [$topic, $preparedReport]) }}">
+                    @csrf
+                    @method('DELETE')
+                    <button class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50">Discard</button>
+                </form>
+            </div>
+        </div>
+    </section>
+@else
 
 @php
     $draft = $topic->revisionDraft;
@@ -34,7 +61,7 @@
         <span class="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-emerald-700 shadow-sm">Open form</span>
     </summary>
 
-    <form x-ref="form" method="POST" action="{{ route('project-narrative-reports.store', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5" @submit="submitting = true">
+    <form x-ref="form" method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5" @submit="submitting = true">
         @csrf
 
         @if ($errors->narrativeProgress->any())
@@ -176,8 +203,8 @@
                     <span x-show="previewLoading" x-cloak>Generating preview...</span>
                 </button>
                 <button type="submit" :disabled="submitting || previewLoading" class="rounded-xl bg-emerald-700 px-5 py-3 text-xs font-bold text-white shadow-sm disabled:cursor-wait disabled:opacity-60">
-                    <span x-show="!submitting">Submit progress report</span>
-                    <span x-show="submitting" x-cloak>Submitting…</span>
+                    <span x-show="!submitting">Prepare official PDF</span>
+                    <span x-show="submitting" x-cloak>Preparing PDF…</span>
                 </button>
             </div>
         </div>
@@ -196,3 +223,4 @@
         </section>
     </form>
 </details>
+@endif

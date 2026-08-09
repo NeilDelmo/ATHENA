@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Actions\LinkProposalDraftMemberships;
+use App\Actions\LinkTopicCollaborators;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\InstitutionalEmail;
@@ -30,6 +31,7 @@ class ProviderController extends Controller
     public function handleGoogleCallback(
         Request $request,
         LinkProposalDraftMemberships $linkProposalDraftMemberships,
+        LinkTopicCollaborators $linkTopicCollaborators,
     ): RedirectResponse {
         try {
             try {
@@ -56,6 +58,7 @@ class ProviderController extends Controller
 
             try {
                 $linkProposalDraftMemberships->handle($user);
+                $linkTopicCollaborators->handle($user);
             } catch (\Throwable $exception) {
                 report($exception);
             }

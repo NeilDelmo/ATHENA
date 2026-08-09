@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\PromoteTopicTeam;
 use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\IssueNoticeToProceedRequest;
 use App\Models\TopicProposal;
@@ -18,7 +19,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
-use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -28,6 +28,7 @@ class NoticeToProceedController extends Controller
         private readonly NoticeToProceedDataService $dataService,
         private readonly NoticeToProceedDocumentService $documentService,
         private readonly DocumentPdfConverter $pdfConverter,
+        private readonly PromoteTopicTeam $promoteTopicTeam,
     ) {}
 
     public function store(IssueNoticeToProceedRequest $request, TopicProposal $topic): RedirectResponse
@@ -92,13 +93,7 @@ class NoticeToProceedController extends Controller
                     'project_status' => $approvedTopic->project_status ?? 'ongoing',
                 ]);
 
-                $facultyRole = Role::findOrCreate('faculty', 'web');
-                $facultyResearcherRole = Role::findOrCreate('faculty_researcher', 'web');
-
-                $approvedTopic->user()->firstOrFail()->assignRole([
-                    $facultyRole,
-                    $facultyResearcherRole,
-                ]);
+                $this->promoteTopicTeam->handle($approvedTopic);
             });
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);

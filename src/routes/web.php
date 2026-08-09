@@ -240,9 +240,15 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
     Route::post('/research/{topic}/progress-reports/preview', [ProjectMonitoringController::class, 'preview'])->name('project-progress.preview');
-    Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'store'])->name('project-progress.store');
+    Route::post('/research/{topic}/progress-reports/prepare', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.prepare');
+    Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.store');
+    Route::post('/research/{topic}/progress-reports/{report}/submit', [ProjectMonitoringController::class, 'submitPrepared'])->name('project-progress.submit-prepared');
+    Route::delete('/research/{topic}/progress-reports/{report}/prepared', [ProjectMonitoringController::class, 'discardPrepared'])->name('project-progress.discard-prepared');
     Route::post('/research/{topic}/narrative-progress-reports/preview', [ProjectNarrativeReportController::class, 'preview'])->name('project-narrative-reports.preview');
-    Route::post('/research/{topic}/narrative-progress-reports', [ProjectNarrativeReportController::class, 'store'])->name('project-narrative-reports.store');
+    Route::post('/research/{topic}/narrative-progress-reports/prepare', [ProjectNarrativeReportController::class, 'prepare'])->name('project-narrative-reports.prepare');
+    Route::post('/research/{topic}/narrative-progress-reports', [ProjectNarrativeReportController::class, 'prepare'])->name('project-narrative-reports.store');
+    Route::post('/research/{topic}/narrative-progress-reports/{report}/submit', [ProjectNarrativeReportController::class, 'submitPrepared'])->name('project-narrative-reports.submit-prepared');
+    Route::delete('/research/{topic}/narrative-progress-reports/{report}/prepared', [ProjectNarrativeReportController::class, 'discardPrepared'])->name('project-narrative-reports.discard-prepared');
 });
 
 Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController::class, 'download'])
