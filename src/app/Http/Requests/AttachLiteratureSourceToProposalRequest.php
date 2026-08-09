@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AttachLiteratureSourceToProposalRequest extends FormRequest
 {
@@ -20,6 +21,7 @@ class AttachLiteratureSourceToProposalRequest extends FormRequest
     {
         return [
             'rrl_note' => ['nullable', 'string', 'min:40', 'max:5000'],
+            'rrl_evidence_basis' => ['nullable', Rule::in(['abstract', 'full_text'])],
         ];
     }
 }

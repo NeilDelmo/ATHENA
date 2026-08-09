@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\LiteratureSource;
+use App\Support\LiteratureFullTextToken;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
@@ -31,6 +33,10 @@ class LiteratureSearchService
         'semantic_scholar' => 'Semantic Scholar',
         'crossref' => 'Crossref',
         'openalex' => 'OpenAlex',
+        'europe_pmc' => 'Europe PMC',
+        'eric' => 'ERIC',
+        'doaj' => 'DOAJ',
+        'arxiv' => 'arXiv',
     ];
 
     /**
@@ -69,6 +75,10 @@ class LiteratureSearchService
             ...$this->semanticScholarResults($this->successfulResponse($responses['semantic_scholar'] ?? null, 'semantic_scholar')),
             ...$this->crossrefResults($this->successfulResponse($responses['crossref'] ?? null, 'crossref')),
             ...$this->openAlexResults($this->successfulResponse($responses['openalex'] ?? null, 'openalex')),
+            ...$this->europePmcResults($this->successfulResponse($responses['europe_pmc'] ?? null, 'europe_pmc')),
+            ...$this->ericResults($this->successfulResponse($responses['eric'] ?? null, 'eric')),
+            ...$this->doajResults($this->successfulResponse($responses['doaj'] ?? null, 'doaj')),
+            ...$this->arxivResults($this->successfulResponse($responses['arxiv'] ?? null, 'arxiv')),
         ])
             ->filter(fn (array $result) => filled($result['title'] ?? null))
             ->filter(fn (array $result) => $this->passesFilters($result, $filters)))
@@ -100,6 +110,20 @@ class LiteratureSearchService
                     $result['_has_evidence_metadata'],
                     $result['_trusted_provider_match'],
                 );
+
+                $result['access_status'] = $this->normalizeAccessStatus($result);
+                $result['access_label'] = LiteratureSource::accessLabel($result['access_status']);
+                $result['full_text_provider'] = filled($result['full_text_url'] ?? null)
+                    ? ($result['_full_text_provider'] ?? $result['source'])
+                    : null;
+                $result['full_text_token'] = filled($result['full_text_url'] ?? null)
+                    ? LiteratureFullTextToken::issue([
+                        'url' => (string) $result['full_text_url'],
+                        'provider' => (string) $result['full_text_provider'],
+                        'identifier' => (string) ($result['provider_identifier'] ?? $result['doi'] ?? $result['url'] ?? ''),
+                    ])
+                    : null;
+                unset($result['_full_text_provider']);
 
                 return $result;
             })
@@ -141,7 +165,7 @@ class LiteratureSearchService
         $openAlexParameters = [
             'search' => $query,
             'per_page' => self::PROVIDER_RESULT_LIMIT,
-            'select' => 'display_name,abstract_inverted_index,authorships,publication_year,primary_location,doi,id,cited_by_count,open_access,type',
+            'select' => 'display_name,abstract_inverted_index,authorships,publication_year,publication_date,primary_location,best_oa_location,doi,id,cited_by_count,open_access,type',
         ];
         $openAlexFilters = $this->openAlexFilters($filters);
         $apiKey = (string) config('services.openalex.key');
@@ -157,7 +181,7 @@ class LiteratureSearchService
         $semanticScholarParameters = [
             'query' => str_replace('-', ' ', $query),
             'limit' => self::PROVIDER_RESULT_LIMIT,
-            'fields' => 'title,abstract,authors,year,venue,url,externalIds,citationCount,openAccessPdf,publicationTypes',
+            'fields' => 'paperId,title,abstract,authors,year,venue,url,externalIds,citationCount,openAccessPdf,publicationTypes,publicationDate,journal',
         ];
 
         $semanticScholarYear = $this->semanticScholarYear($filters);
@@ -172,7 +196,7 @@ class LiteratureSearchService
 
         $semanticScholarApiKey = (string) config('services.semantic_scholar.key');
 
-        return Http::pool(function (Pool $pool) use ($crossrefParameters, $openAlexParameters, $semanticScholarApiKey, $semanticScholarParameters): array {
+        return Http::pool(function (Pool $pool) use ($query, $crossrefParameters, $openAlexParameters, $semanticScholarApiKey, $semanticScholarParameters): array {
             $semanticScholarRequest = $pool->as('semantic_scholar')
                 ->acceptJson()
                 ->connectTimeout(6)
@@ -197,6 +221,43 @@ class LiteratureSearchService
                     ->connectTimeout(6)
                     ->timeout(12)
                     ->get('https://api.openalex.org/works', $openAlexParameters),
+                $pool->as('europe_pmc')
+                    ->acceptJson()
+                    ->connectTimeout(6)
+                    ->timeout(12)
+                    ->get('https://www.ebi.ac.uk/europepmc/webservices/rest/search', [
+                        'query' => $query,
+                        'format' => 'json',
+                        'resultType' => 'core',
+                        'pageSize' => self::PROVIDER_RESULT_LIMIT,
+                    ]),
+                $pool->as('eric')
+                    ->acceptJson()
+                    ->connectTimeout(6)
+                    ->timeout(12)
+                    ->get('https://api.ies.ed.gov/eric/', [
+                        'search' => $query,
+                        'format' => 'json',
+                        'rows' => self::PROVIDER_RESULT_LIMIT,
+                    ]),
+                $pool->as('doaj')
+                    ->acceptJson()
+                    ->connectTimeout(6)
+                    ->timeout(12)
+                    ->get('https://doaj.org/api/search/articles/'.rawurlencode($query), [
+                        'pageSize' => self::PROVIDER_RESULT_LIMIT,
+                    ]),
+                $pool->as('arxiv')
+                    ->withHeaders(['User-Agent' => 'Athena Research Support ('.config('mail.from.address', 'hello@example.com').')'])
+                    ->connectTimeout(6)
+                    ->timeout(12)
+                    ->get('https://export.arxiv.org/api/query', [
+                        'search_query' => 'all:"'.$query.'"',
+                        'start' => 0,
+                        'max_results' => self::PROVIDER_RESULT_LIMIT,
+                        'sortBy' => 'relevance',
+                        'sortOrder' => 'descending',
+                    ]),
             ];
         });
     }
@@ -234,12 +295,22 @@ class LiteratureSearchService
                 'description' => $this->description($paper['abstract'] ?? null),
                 'authors' => $this->formatSemanticScholarAuthors($paper['authors'] ?? []),
                 'year' => $paper['year'] ?? null,
+                'publication_date' => $paper['publicationDate'] ?? null,
                 'venue' => $this->cleanText($paper['venue'] ?? null),
+                'volume' => $this->cleanText(data_get($paper, 'journal.volume')) ?: null,
+                'issue' => null,
+                'pages' => $this->cleanText(data_get($paper, 'journal.pages')) ?: null,
+                'publisher' => null,
                 'doi' => $this->normalizeDoi($paper['externalIds']['DOI'] ?? null),
                 'url' => $paper['url'] ?? $this->doiUrl($paper['externalIds']['DOI'] ?? null),
+                'full_text_url' => data_get($paper, 'openAccessPdf.url'),
+                'provider_identifier' => $paper['paperId'] ?? null,
                 'source' => $this->providers['semantic_scholar'],
                 'citation_count' => $paper['citationCount'] ?? null,
                 'is_open_access' => filled($paper['openAccessPdf']['url'] ?? null),
+                'access_status' => filled($paper['openAccessPdf']['url'] ?? null)
+                    ? LiteratureSource::ACCESS_OPEN
+                    : (filled($paper['abstract'] ?? null) ? LiteratureSource::ACCESS_ABSTRACT_ONLY : LiteratureSource::ACCESS_UNKNOWN),
                 'type' => $this->cleanText($paper['publicationTypes'][0] ?? null),
                 '_provider_rank' => $index + 1,
             ])
@@ -258,20 +329,34 @@ class LiteratureSearchService
         }
 
         return collect($response->json('message.items', []))
-            ->map(fn (array $work, int $index) => [
-                'title' => $this->cleanText($work['title'][0] ?? null),
-                'description' => $this->description($work['abstract'] ?? null),
-                'authors' => $this->formatCrossrefAuthors($work['author'] ?? []),
-                'year' => $this->crossrefYear($work),
-                'venue' => $this->cleanText($work['container-title'][0] ?? null),
-                'doi' => $this->normalizeDoi($work['DOI'] ?? null),
-                'url' => $work['URL'] ?? $this->doiUrl($work['DOI'] ?? null),
-                'source' => $this->providers['crossref'],
-                'citation_count' => $work['is-referenced-by-count'] ?? null,
-                'is_open_access' => false,
-                'type' => $this->cleanText($work['type'] ?? null),
-                '_provider_rank' => $index + 1,
-            ])
+            ->map(function (array $work, int $index): array {
+                $fullTextUrl = $this->crossrefOpenAccessUrl($work);
+
+                return [
+                    'title' => $this->cleanText($work['title'][0] ?? null),
+                    'description' => $this->description($work['abstract'] ?? null),
+                    'authors' => $this->formatCrossrefAuthors($work['author'] ?? []),
+                    'year' => $this->crossrefYear($work),
+                    'publication_date' => $this->crossrefDate($work),
+                    'venue' => $this->cleanText($work['container-title'][0] ?? null),
+                    'volume' => $this->cleanText($work['volume'] ?? null) ?: null,
+                    'issue' => $this->cleanText($work['issue'] ?? null) ?: null,
+                    'pages' => $this->cleanText($work['page'] ?? null) ?: null,
+                    'publisher' => $this->cleanText($work['publisher'] ?? null) ?: null,
+                    'doi' => $this->normalizeDoi($work['DOI'] ?? null),
+                    'url' => $work['URL'] ?? $this->doiUrl($work['DOI'] ?? null),
+                    'full_text_url' => $fullTextUrl,
+                    'provider_identifier' => $work['DOI'] ?? null,
+                    'source' => $this->providers['crossref'],
+                    'citation_count' => $work['is-referenced-by-count'] ?? null,
+                    'is_open_access' => filled($fullTextUrl),
+                    'access_status' => filled($fullTextUrl)
+                        ? LiteratureSource::ACCESS_OPEN
+                        : (filled($work['abstract'] ?? null) ? LiteratureSource::ACCESS_ABSTRACT_ONLY : LiteratureSource::ACCESS_UNKNOWN),
+                    'type' => $this->cleanText($work['type'] ?? null),
+                    '_provider_rank' => $index + 1,
+                ];
+            })
             ->filter(fn (array $result) => filled($result['title']))
             ->values()
             ->all();
@@ -292,18 +377,192 @@ class LiteratureSearchService
                 'description' => $this->description($this->openAlexAbstract($work['abstract_inverted_index'] ?? null)),
                 'authors' => $this->formatOpenAlexAuthors($work['authorships'] ?? []),
                 'year' => $work['publication_year'] ?? null,
+                'publication_date' => $work['publication_date'] ?? null,
                 'venue' => $this->cleanText(data_get($work, 'primary_location.source.display_name')),
+                'volume' => null,
+                'issue' => null,
+                'pages' => null,
+                'publisher' => null,
                 'doi' => $this->normalizeDoi($work['doi'] ?? null),
                 'url' => data_get($work, 'primary_location.landing_page_url') ?? $this->doiUrl($work['doi'] ?? null) ?? ($work['id'] ?? null),
+                'full_text_url' => data_get($work, 'best_oa_location.pdf_url') ?? data_get($work, 'primary_location.pdf_url'),
+                'provider_identifier' => $work['id'] ?? null,
                 'source' => $this->providers['openalex'],
                 'citation_count' => $work['cited_by_count'] ?? null,
                 'is_open_access' => (bool) data_get($work, 'open_access.is_oa', false),
+                'access_status' => $this->openAlexAccessStatus($work),
                 'type' => $this->cleanText($work['type'] ?? null),
                 '_provider_rank' => $index + 1,
             ])
             ->filter(fn (array $result) => filled($result['title']))
             ->values()
             ->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function europePmcResults(?Response $response): array
+    {
+        if (! $response) {
+            return [];
+        }
+
+        return collect($response->json('resultList.result', []))
+            ->map(function (array $paper, int $index): array {
+                $identifier = $paper['pmcid'] ?? $paper['id'] ?? null;
+                $isOpen = in_array(Str::lower((string) ($paper['isOpenAccess'] ?? '')), ['true', 'yes', 'y', '1'], true)
+                    && filled($paper['pmcid'] ?? null);
+                $fullTextUrl = $isOpen ? 'https://europepmc.org/articles/'.$paper['pmcid'].'?pdf=render' : null;
+
+                return $this->normalizedResult([
+                    'title' => $paper['title'] ?? null,
+                    'description' => $paper['abstractText'] ?? null,
+                    'authors' => $paper['authorString'] ?? null,
+                    'year' => $paper['pubYear'] ?? null,
+                    'publication_date' => $paper['firstPublicationDate'] ?? null,
+                    'venue' => $paper['journalTitle'] ?? null,
+                    'volume' => $paper['journalVolume'] ?? null,
+                    'issue' => $paper['issue'] ?? null,
+                    'pages' => $paper['pageInfo'] ?? null,
+                    'publisher' => null,
+                    'doi' => $paper['doi'] ?? null,
+                    'url' => $identifier ? 'https://europepmc.org/article/'.($paper['source'] ?? 'MED').'/'.$identifier : null,
+                    'full_text_url' => $fullTextUrl,
+                    'provider_identifier' => $identifier,
+                    'source' => $this->providers['europe_pmc'],
+                    'citation_count' => $paper['citedByCount'] ?? null,
+                    'is_open_access' => $isOpen,
+                    'access_status' => $isOpen ? LiteratureSource::ACCESS_OPEN : null,
+                    'type' => $paper['pubType'] ?? 'journal-article',
+                    '_provider_rank' => $index + 1,
+                ]);
+            })
+            ->filter(fn (array $result) => filled($result['title']))
+            ->values()->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function ericResults(?Response $response): array
+    {
+        if (! $response) {
+            return [];
+        }
+
+        return collect($response->json('response.docs', []))
+            ->map(function (array $paper, int $index): array {
+                $identifier = $paper['id'] ?? null;
+                $isOpen = in_array(Str::lower((string) ($paper['fullTextAvailable'] ?? '')), ['true', 'yes', 'y', '1'], true)
+                    && filled($identifier);
+
+                return $this->normalizedResult([
+                    'title' => $paper['title'] ?? null,
+                    'description' => $paper['description'] ?? null,
+                    'authors' => is_array($paper['author'] ?? null) ? implode(', ', $paper['author']) : ($paper['author'] ?? null),
+                    'year' => $this->yearFromDate($paper['publicationdateyear'] ?? $paper['publicationdate'] ?? null),
+                    'publication_date' => $paper['publicationdate'] ?? null,
+                    'venue' => $paper['source'] ?? null,
+                    'publisher' => $paper['publisher'] ?? null,
+                    'doi' => $paper['doi'] ?? null,
+                    'url' => $paper['url'] ?? ($identifier ? 'https://eric.ed.gov/?id='.$identifier : null),
+                    'full_text_url' => $isOpen ? 'https://files.eric.ed.gov/fulltext/'.$identifier.'.pdf' : null,
+                    'provider_identifier' => $identifier,
+                    'source' => $this->providers['eric'],
+                    'is_open_access' => $isOpen,
+                    'access_status' => $isOpen ? LiteratureSource::ACCESS_OPEN : null,
+                    'type' => $paper['publicationtype'] ?? null,
+                    '_provider_rank' => $index + 1,
+                ]);
+            })
+            ->filter(fn (array $result) => filled($result['title']))
+            ->values()->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function doajResults(?Response $response): array
+    {
+        if (! $response) {
+            return [];
+        }
+
+        return collect($response->json('results', []))
+            ->map(function (array $record, int $index): array {
+                $paper = $record['bibjson'] ?? [];
+                $fullTextUrl = data_get(collect($paper['link'] ?? [])->firstWhere('type', 'fulltext'), 'url');
+                $doi = data_get(collect($paper['identifier'] ?? [])->firstWhere('type', 'doi'), 'id');
+                $journal = $paper['journal'] ?? [];
+
+                return $this->normalizedResult([
+                    'title' => $paper['title'] ?? null,
+                    'description' => $paper['abstract'] ?? null,
+                    'authors' => $this->formatAuthorNames(collect($paper['author'] ?? [])->pluck('name')->filter()->all()),
+                    'year' => $paper['year'] ?? null,
+                    'publication_date' => filled($paper['year'] ?? null) ? $paper['year'].'-01-01' : null,
+                    'venue' => $journal['title'] ?? null,
+                    'volume' => $journal['volume'] ?? null,
+                    'issue' => $journal['number'] ?? null,
+                    'pages' => $this->pageRange($paper['start_page'] ?? null, $paper['end_page'] ?? null),
+                    'publisher' => data_get($paper, 'publisher.name'),
+                    'doi' => $doi,
+                    'url' => $this->doiUrl($doi) ?? $fullTextUrl,
+                    'full_text_url' => $fullTextUrl,
+                    'provider_identifier' => $record['id'] ?? null,
+                    'source' => $this->providers['doaj'],
+                    'is_open_access' => filled($fullTextUrl),
+                    'access_status' => filled($fullTextUrl) ? LiteratureSource::ACCESS_OPEN : null,
+                    'type' => 'journal-article',
+                    '_provider_rank' => $index + 1,
+                ]);
+            })
+            ->filter(fn (array $result) => filled($result['title']))
+            ->values()->all();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function arxivResults(?Response $response): array
+    {
+        if (! $response || trim($response->body()) === '') {
+            return [];
+        }
+
+        $xml = simplexml_load_string($response->body());
+
+        if ($xml === false) {
+            $this->recordFailure('arxiv', 'Invalid XML response');
+
+            return [];
+        }
+
+        return collect($xml->entry)
+            ->map(function (\SimpleXMLElement $entry, int $index): array {
+                $links = collect($entry->link)->map(fn (\SimpleXMLElement $link): array => [
+                    'href' => (string) $link['href'],
+                    'type' => (string) $link['type'],
+                    'title' => (string) $link['title'],
+                ]);
+                $pdfUrl = data_get($links->first(fn (array $link): bool => $link['title'] === 'pdf' || $link['type'] === 'application/pdf'), 'href');
+                $namespaces = $entry->getNameSpaces(true);
+                $arxiv = isset($namespaces['arxiv']) ? $entry->children($namespaces['arxiv']) : null;
+                $identifier = basename((string) $entry->id);
+
+                return $this->normalizedResult([
+                    'title' => (string) $entry->title,
+                    'description' => (string) $entry->summary,
+                    'authors' => $this->formatAuthorNames(collect($entry->author)->map(fn (\SimpleXMLElement $author): string => (string) $author->name)->filter()->all()),
+                    'year' => $this->yearFromDate((string) $entry->published),
+                    'publication_date' => substr((string) $entry->published, 0, 10),
+                    'venue' => ($arxiv ? trim((string) $arxiv->journal_ref) : '') ?: 'arXiv preprint',
+                    'doi' => $arxiv ? (string) $arxiv->doi : null,
+                    'url' => (string) $entry->id,
+                    'full_text_url' => $pdfUrl,
+                    'provider_identifier' => $identifier,
+                    'source' => $this->providers['arxiv'],
+                    'is_open_access' => filled($pdfUrl),
+                    'access_status' => filled($pdfUrl) ? LiteratureSource::ACCESS_OPEN : null,
+                    'type' => 'preprint',
+                    '_provider_rank' => $index + 1,
+                ]);
+            })
+            ->filter(fn (array $result) => filled($result['title']))
+            ->values()->all();
     }
 
     /**
@@ -351,7 +610,14 @@ class LiteratureSearchService
         $merged = $ordered->first();
 
         foreach ($ordered->slice(1) as $duplicate) {
-            foreach (['description', 'authors', 'year', 'venue', 'doi', 'url', 'type'] as $field) {
+            if (blank($merged['full_text_url'] ?? null) && filled($duplicate['full_text_url'] ?? null)) {
+                $merged['_full_text_provider'] = $duplicate['_full_text_provider'] ?? $duplicate['source'];
+            }
+
+            foreach ([
+                'description', 'authors', 'year', 'publication_date', 'venue', 'volume', 'issue',
+                'pages', 'publisher', 'doi', 'url', 'full_text_url', 'provider_identifier', 'type',
+            ] as $field) {
                 if ($this->missingResultValue($field, $merged[$field] ?? null) && ! $this->missingResultValue($field, $duplicate[$field] ?? null)) {
                     $merged[$field] = $duplicate[$field];
                 }
@@ -363,6 +629,10 @@ class LiteratureSearchService
             ) ?: null;
             $merged['is_open_access'] = (bool) ($merged['is_open_access'] ?? false)
                 || (bool) ($duplicate['is_open_access'] ?? false);
+            $merged['access_status'] = $this->preferredAccessStatus(
+                $merged['access_status'] ?? null,
+                $duplicate['access_status'] ?? null,
+            );
             $merged['_provider_rank'] = min(
                 (int) ($merged['_provider_rank'] ?? 999),
                 (int) ($duplicate['_provider_rank'] ?? 999),
@@ -417,7 +687,8 @@ class LiteratureSearchService
             return false;
         }
 
-        if ($filters['open_access'] && ! (bool) ($result['is_open_access'] ?? false)) {
+        if ($filters['open_access'] && ! (bool) ($result['is_open_access'] ?? false)
+            && $this->normalizeAccessStatus($result) !== LiteratureSource::ACCESS_OPEN) {
             return false;
         }
 
@@ -839,6 +1110,172 @@ class LiteratureSearchService
         $year = is_array($dateParts) ? ($dateParts[0] ?? null) : null;
 
         return is_numeric($year) ? (int) $year : null;
+    }
+
+    private function crossrefDate(array $work): ?string
+    {
+        $parts = $work['published-print']['date-parts'][0]
+            ?? $work['published-online']['date-parts'][0]
+            ?? $work['published']['date-parts'][0]
+            ?? null;
+
+        if (! is_array($parts) || ! is_numeric($parts[0] ?? null)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', (int) $parts[0], (int) ($parts[1] ?? 1), (int) ($parts[2] ?? 1));
+    }
+
+    private function crossrefOpenAccessUrl(array $work): ?string
+    {
+        $hasOpenLicense = collect($work['license'] ?? [])->contains(function (array $license): bool {
+            $url = Str::lower((string) ($license['URL'] ?? ''));
+
+            return Str::contains($url, ['creativecommons.org', 'creativecommons.net', 'publicdomain']);
+        });
+
+        if (! $hasOpenLicense) {
+            return null;
+        }
+
+        $link = collect($work['link'] ?? [])->first(function (array $link): bool {
+            $contentType = Str::lower((string) ($link['content-type'] ?? ''));
+
+            return filled($link['URL'] ?? null) && Str::contains($contentType, ['pdf', 'html', 'text/plain']);
+        });
+
+        return is_array($link) ? ($link['URL'] ?? null) : null;
+    }
+
+    private function openAlexAccessStatus(array $work): string
+    {
+        $fullTextUrl = data_get($work, 'best_oa_location.pdf_url') ?? data_get($work, 'primary_location.pdf_url');
+
+        if (filled($fullTextUrl) && data_get($work, 'open_access.is_oa') === true) {
+            return LiteratureSource::ACCESS_OPEN;
+        }
+
+        if (data_get($work, 'open_access.is_oa') === false) {
+            return LiteratureSource::ACCESS_RESTRICTED;
+        }
+
+        return filled($this->openAlexAbstract($work['abstract_inverted_index'] ?? null))
+            ? LiteratureSource::ACCESS_ABSTRACT_ONLY
+            : LiteratureSource::ACCESS_UNKNOWN;
+    }
+
+    /** @param array<string, mixed> $result */
+    private function normalizedResult(array $result): array
+    {
+        $description = $this->description($result['description'] ?? null);
+        $fullTextUrl = filled($result['full_text_url'] ?? null) ? (string) $result['full_text_url'] : null;
+        $accessStatus = $result['access_status'] ?? null;
+
+        if (! in_array($accessStatus, [
+            LiteratureSource::ACCESS_OPEN,
+            LiteratureSource::ACCESS_ABSTRACT_ONLY,
+            LiteratureSource::ACCESS_RESTRICTED,
+            LiteratureSource::ACCESS_UNKNOWN,
+        ], true)) {
+            $accessStatus = $fullTextUrl
+                ? LiteratureSource::ACCESS_OPEN
+                : ($description !== self::DESCRIPTION_FALLBACK ? LiteratureSource::ACCESS_ABSTRACT_ONLY : LiteratureSource::ACCESS_UNKNOWN);
+        }
+
+        return [
+            'title' => $this->cleanText($result['title'] ?? null),
+            'description' => $description,
+            'authors' => $this->cleanText($result['authors'] ?? null) ?: 'Authors not listed',
+            'year' => is_numeric($result['year'] ?? null) ? (int) $result['year'] : null,
+            'publication_date' => $this->normalizePublicationDate($result['publication_date'] ?? null),
+            'venue' => $this->cleanText($result['venue'] ?? null) ?: null,
+            'volume' => $this->cleanText($result['volume'] ?? null) ?: null,
+            'issue' => $this->cleanText($result['issue'] ?? null) ?: null,
+            'pages' => $this->cleanText($result['pages'] ?? null) ?: null,
+            'publisher' => $this->cleanText($result['publisher'] ?? null) ?: null,
+            'doi' => $this->normalizeDoi($result['doi'] ?? null),
+            'url' => filled($result['url'] ?? null) ? (string) $result['url'] : null,
+            'full_text_url' => $fullTextUrl,
+            'provider_identifier' => filled($result['provider_identifier'] ?? null) ? (string) $result['provider_identifier'] : null,
+            'source' => (string) $result['source'],
+            'citation_count' => is_numeric($result['citation_count'] ?? null) ? (int) $result['citation_count'] : null,
+            'is_open_access' => $accessStatus === LiteratureSource::ACCESS_OPEN,
+            'access_status' => $accessStatus,
+            'type' => $this->cleanText($result['type'] ?? null) ?: null,
+            '_provider_rank' => (int) ($result['_provider_rank'] ?? 999),
+        ];
+    }
+
+    /** @param array<string, mixed> $result */
+    private function normalizeAccessStatus(array $result): string
+    {
+        if (filled($result['full_text_url'] ?? null)) {
+            return LiteratureSource::ACCESS_OPEN;
+        }
+
+        $status = $result['access_status'] ?? null;
+
+        if (in_array($status, [LiteratureSource::ACCESS_ABSTRACT_ONLY, LiteratureSource::ACCESS_RESTRICTED, LiteratureSource::ACCESS_UNKNOWN], true)) {
+            return $status;
+        }
+
+        return ($result['description'] ?? null) !== self::DESCRIPTION_FALLBACK
+            ? LiteratureSource::ACCESS_ABSTRACT_ONLY
+            : LiteratureSource::ACCESS_UNKNOWN;
+    }
+
+    private function preferredAccessStatus(mixed $left, mixed $right): string
+    {
+        $weights = [
+            LiteratureSource::ACCESS_OPEN => 4,
+            LiteratureSource::ACCESS_ABSTRACT_ONLY => 3,
+            LiteratureSource::ACCESS_RESTRICTED => 2,
+            LiteratureSource::ACCESS_UNKNOWN => 1,
+        ];
+
+        $left = isset($weights[$left]) ? $left : LiteratureSource::ACCESS_UNKNOWN;
+        $right = isset($weights[$right]) ? $right : LiteratureSource::ACCESS_UNKNOWN;
+
+        return $weights[$left] >= $weights[$right] ? $left : $right;
+    }
+
+    private function yearFromDate(mixed $date): ?int
+    {
+        if (! is_scalar($date) || ! preg_match('/\b(1[5-9]\d{2}|20\d{2})\b/', (string) $date, $matches)) {
+            return null;
+        }
+
+        return (int) $matches[1];
+    }
+
+    private function normalizePublicationDate(mixed $date): ?string
+    {
+        if (! is_scalar($date)) {
+            return null;
+        }
+
+        $date = trim((string) $date);
+
+        if (preg_match('/^(1[5-9]\d{2}|20\d{2})$/', $date) === 1) {
+            return $date.'-01-01';
+        }
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', substr($date, 0, 10)) === 1
+            ? substr($date, 0, 10)
+            : null;
+    }
+
+    private function pageRange(mixed $start, mixed $end): ?string
+    {
+        $start = $this->cleanText($start);
+        $end = $this->cleanText($end);
+
+        return match (true) {
+            $start !== '' && $end !== '' => $start.'-'.$end,
+            $start !== '' => $start,
+            $end !== '' => $end,
+            default => null,
+        };
     }
 
     private function normalizeDoi(mixed $doi): ?string

@@ -1671,8 +1671,19 @@ Alpine.store('literatureSearch', {
     synthesisNotice: '',
     synthesisError: '',
     synthesisBasis: '',
+    synthesisEvidenceText: '',
+    synthesisWordCountFromServer: 0,
     isSynthesizing: false,
     synthesisRequestId: 0,
+    fullTextPreview: '',
+    fullTextSourceUrl: '',
+    fullTextContentType: '',
+    fullTextNotice: '',
+    fullTextError: '',
+    fullTextResultKey: '',
+    isLoadingFullText: false,
+    isSavingDraft: false,
+    isDiscardingDraft: false,
 
     initializeLibrary(workspace) {
         if (!workspace) return;
@@ -1767,6 +1778,7 @@ Alpine.store('literatureSearch', {
         this.queryGuidance = null;
         this.saveNotice = '';
         this.saveError = '';
+        this.resetFullTextPreview();
 
         if (query.length < 3) {
             this.results = [];
@@ -1897,6 +1909,7 @@ Alpine.store('literatureSearch', {
         if (!Number.isInteger(index) || !this.results[index]) return;
 
         this.selectedIndex = index;
+        this.resetFullTextPreview();
     },
 
     selectedResult() {
@@ -1931,9 +1944,91 @@ Alpine.store('literatureSearch', {
     },
 
     hasSynthesisEvidence(source = this.synthesisSource) {
-        const abstract = String(source?.description || '').trim();
+        const evidence = this.synthesisBasis === 'full_text'
+            ? this.synthesisEvidenceText
+            : String(source?.description || '').trim();
 
-        return abstract.length >= 80 && abstract !== 'No description available from source.';
+        return evidence.length >= (this.synthesisBasis === 'full_text' ? 500 : 80)
+            && evidence !== 'No description available from source.';
+    },
+
+    setSynthesisBasis(basis) {
+        if (basis === 'full_text' && (this.fullTextPreview.length < 500 || this.fullTextResultKey !== this.resultKey(this.synthesisSource))) return;
+        if (!['abstract', 'full_text'].includes(basis)) return;
+
+        this.synthesisBasis = basis;
+        this.synthesisEvidenceText = basis === 'full_text'
+            ? this.fullTextPreview
+            : String(this.synthesisSource?.description || '');
+        this.synthesisError = '';
+    },
+
+    resetFullTextPreview() {
+        this.fullTextPreview = '';
+        this.fullTextSourceUrl = '';
+        this.fullTextContentType = '';
+        this.fullTextNotice = '';
+        this.fullTextError = '';
+        this.fullTextResultKey = '';
+        this.isLoadingFullText = false;
+    },
+
+    accessLabel(source) {
+        return source?.access_label || ({
+            open_access: 'Open-access full text available',
+            abstract_only: 'Abstract available; full text not accessed',
+            restricted: 'Paywalled or restricted',
+            unknown: 'Full-text access unknown',
+        }[source?.access_status] || 'Full-text access unknown');
+    },
+
+    accessExplanation(source) {
+        return ({
+            open_access: 'This index supplied a public full-text location. ATHENA will retrieve it only when you choose Load available full text.',
+            abstract_only: 'The index supplied an abstract, but ATHENA has not been given a public full-text source.',
+            restricted: 'The provider reports restricted access. ATHENA will not bypass a paywall, sign-in, or institutional access control.',
+            unknown: 'The provider did not give enough information to verify full-text availability. This is not treated as proof of a paywall.',
+        }[source?.access_status] || 'Full-text availability has not been verified.');
+    },
+
+    async loadFullText(source = this.selectedResult()) {
+        const workspace = document.querySelector('[data-rrl-workspace]');
+        const url = workspace?.dataset.literatureFullTextPreviewUrl || '';
+
+        if (!source?.full_text_token || !url || this.isLoadingFullText) return;
+
+        this.fullTextError = '';
+        this.fullTextNotice = '';
+        this.isLoadingFullText = true;
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ source_token: source.full_text_token }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                this.fullTextError = payload.message || payload.failure_reason || 'The public full text could not be extracted. Generation can still use the indexed abstract.';
+                return;
+            }
+
+            this.fullTextPreview = String(payload.preview_text || '');
+            this.fullTextSourceUrl = String(payload.source_url || '');
+            this.fullTextContentType = String(payload.content_type || '');
+            this.fullTextNotice = String(payload.notice || 'Open-access text loaded transiently.');
+            this.fullTextResultKey = this.resultKey(source);
+        } catch (error) {
+            this.fullTextError = error.message || 'A network error interrupted full-text extraction. Generation can still use the indexed abstract.';
+        } finally {
+            this.isLoadingFullText = false;
+        }
     },
 
     async prepareSynthesis(source, applyTo = 'rrl', sourceIsSaved = false) {
@@ -1946,18 +2041,38 @@ Alpine.store('literatureSearch', {
 
         this.saveNotice = '';
         this.saveError = '';
-        this.synthesisSource = source;
-        this.synthesisSourceIsSaved = sourceIsSaved;
+        const librarySource = sourceIsSaved ? source : await this.saveResult(source);
+
+        if (!librarySource?.id) return;
+
+        const linkedSource = await this.attachSourceToProposal(librarySource, null, null, false);
+
+        if (!linkedSource?.id) return;
+
+        this.synthesisSource = linkedSource;
+        this.synthesisSourceIsSaved = true;
         this.synthesisApplyTo = applyTo;
-        this.synthesisDraft = '';
+        this.synthesisDraft = String(linkedSource.rrl_note || '').trim();
         this.synthesisNotice = '';
         this.synthesisError = '';
-        this.synthesisBasis = '';
+        const hasCurrentFullText = this.fullTextPreview.length >= 500 && this.fullTextResultKey === this.resultKey(source);
+        this.synthesisBasis = linkedSource.rrl_evidence_basis || (hasCurrentFullText ? 'full_text' : 'abstract');
+        this.synthesisEvidenceText = this.synthesisBasis === 'full_text'
+            ? (hasCurrentFullText ? this.fullTextPreview : '')
+            : String(source.description || '');
+        this.synthesisWordCountFromServer = 0;
         this.synthesisReviewOpen = true;
         document.body.classList.add('overflow-y-hidden');
 
         if (!this.hasSynthesisEvidence(source)) {
-            this.synthesisError = 'This record has no usable abstract. Automatic wording is disabled so ATHENA does not invent findings. You may write a paragraph manually after reviewing the paper.';
+            this.synthesisError = this.synthesisBasis === 'full_text'
+                ? 'This saved draft used transient full-text evidence that is no longer retained. Reload the available public full text before regenerating; you may still edit or confirm the saved draft.'
+                : 'This record has no usable abstract. Automatic wording is disabled so ATHENA does not invent findings. You may write a paragraph manually after reviewing the paper.';
+            return;
+        }
+
+        if (this.synthesisDraft) {
+            this.synthesisNotice = 'Loaded the proposal-specific saved draft. Edit it, generate again, discard it, or confirm it for insertion.';
             return;
         }
 
@@ -1998,6 +2113,8 @@ Alpine.store('literatureSearch', {
                     year: source.year || null,
                     abstract: source.description,
                     is_open_access: Boolean(source.is_open_access),
+                    evidence_basis: this.synthesisBasis || 'abstract',
+                    evidence_text: this.synthesisBasis === 'full_text' ? this.synthesisEvidenceText : null,
                 }),
             });
             const payload = await response.json().catch(() => ({}));
@@ -2015,7 +2132,9 @@ Alpine.store('literatureSearch', {
 
             this.synthesisDraft = String(payload.synthesis || '').trim();
             this.synthesisBasis = String(payload.basis || 'abstract');
+            this.synthesisWordCountFromServer = Number(payload.word_count) || this.synthesisWordCount();
             this.synthesisNotice = String(payload.notice || 'Drafted from the available abstract only.');
+            await this.persistSynthesisDraft('draft');
 
             window.setTimeout(() => {
                 document.getElementById('literature-synthesis-draft')?.focus();
@@ -2039,19 +2158,16 @@ Alpine.store('literatureSearch', {
         const draft = this.synthesisDraft.trim();
         const source = this.synthesisSource;
         const applyTo = this.synthesisApplyTo;
-        const sourceIsSaved = this.synthesisSourceIsSaved;
-
         if (!source || draft.length < 40 || this.isSynthesizing) {
             this.synthesisError = 'Review or write a complete RRL paragraph before inserting it.';
             return;
         }
 
-        if (sourceIsSaved) {
-            await this.attachSourceToProposal(source, applyTo, draft);
-            return;
-        }
+        const saved = await this.persistSynthesisDraft('confirmed');
 
-        await this.saveResult(source, applyTo, draft);
+        if (!saved) return;
+
+        this.redirectToDetailedProposal(source, applyTo);
     },
 
     async saveResult(result, applyTo = null, rrlNote = null) {
@@ -2060,11 +2176,11 @@ Alpine.store('literatureSearch', {
         const librarySaveUrl = workspace?.dataset.literatureLibrarySaveUrl || '';
         const saveKey = `library:${this.resultKey(result)}`;
 
-        if (!result || !librarySaveUrl || this.savingResultKeys.includes(saveKey)) return;
+        if (!result || !librarySaveUrl || this.savingResultKeys.includes(saveKey)) return null;
 
         if (['rrl', 'reference', 'both'].includes(applyTo) && !proposalId) {
             this.saveError = 'Choose an editable proposal before using this paper in a draft.';
-            return;
+            return null;
         }
 
         this.saveNotice = '';
@@ -2091,6 +2207,15 @@ Alpine.store('literatureSearch', {
                     source: result.source,
                     citation_count: Number.isInteger(result.citation_count) ? result.citation_count : null,
                     is_open_access: Boolean(result.is_open_access),
+                    access_status: result.access_status || 'unknown',
+                    full_text_url: result.full_text_url || null,
+                    full_text_token: result.full_text_token || null,
+                    provider_identifier: result.provider_identifier || null,
+                    volume: result.volume || null,
+                    issue: result.issue || null,
+                    pages: result.pages || null,
+                    publisher: result.publisher || null,
+                    publication_date: result.publication_date || null,
                     type: result.type || null,
                     collection_id: Number(this.selectedCollectionId) || null,
                 }),
@@ -2110,7 +2235,7 @@ Alpine.store('literatureSearch', {
                     this.saveError = payload.message || 'The source could not be saved to the shared library.';
                 }
 
-                return;
+                return null;
             }
 
             const resultKey = this.resultKey(result);
@@ -2125,12 +2250,14 @@ Alpine.store('literatureSearch', {
 
             if (['rrl', 'reference', 'both'].includes(applyTo) && payload.source?.id) {
                 await this.attachSourceToProposal(payload.source, applyTo, rrlNote);
-                return;
+                return payload.source;
             }
 
             this.saveNotice = payload.message || 'Paper saved to the shared literature library.';
+            return payload.source || null;
         } catch (error) {
             this.saveError = error.message || 'A network error interrupted the save.';
+            return null;
         } finally {
             this.savingResultKeys = this.savingResultKeys.filter((key) => key !== saveKey);
         }
@@ -2160,7 +2287,7 @@ Alpine.store('literatureSearch', {
         await this.attachSourceToProposal(source, applyTo);
     },
 
-    async attachSourceToProposal(source, applyTo, rrlNote = null) {
+    async attachSourceToProposal(source, applyTo, rrlNote = null, redirect = true) {
         const proposalId = Number(this.selectedProposalId);
         const sourceId = Number(source?.id);
         const workspace = document.querySelector('[data-rrl-workspace]');
@@ -2168,7 +2295,7 @@ Alpine.store('literatureSearch', {
         const detailedProposalUrlTemplate = workspace?.dataset.detailedProposalUrlTemplate || '';
         const saveKey = this.proposalResultKey(source);
 
-        if (!proposalId || !sourceId || !attachUrlTemplate || this.savingResultKeys.includes(saveKey)) return;
+        if (!proposalId || !sourceId || !attachUrlTemplate || this.savingResultKeys.includes(saveKey)) return null;
 
         this.savingResultKeys = [...this.savingResultKeys, saveKey];
 
@@ -2196,27 +2323,120 @@ Alpine.store('literatureSearch', {
                 } else {
                     this.saveError = payload.message || 'The shared paper could not be linked to the proposal.';
                 }
-                return;
+                return null;
             }
 
-            if (['rrl', 'reference', 'both'].includes(applyTo) && payload.source?.id && detailedProposalUrlTemplate) {
-                const detailedProposalUrl = new URL(
-                    detailedProposalUrlTemplate.replace('__proposal__', encodeURIComponent(proposalId)),
-                    window.location.origin,
-                );
-                detailedProposalUrl.searchParams.set('literature_source', String(payload.source.id));
-                detailedProposalUrl.searchParams.set('apply_to', applyTo);
-                detailedProposalUrl.hash = applyTo === 'reference' ? 'references' : 'related-literature';
-                window.location.assign(detailedProposalUrl.toString());
-                return;
+            if (redirect && ['rrl', 'reference', 'both'].includes(applyTo) && payload.source?.id && detailedProposalUrlTemplate) {
+                this.redirectToDetailedProposal(payload.source, applyTo);
+                return payload.source;
             }
 
             this.saveNotice = payload.message || 'Shared paper linked to the proposal.';
+            return payload.source || null;
         } catch (error) {
             this.saveError = error.message || 'A network error interrupted the proposal link.';
+            return null;
         } finally {
             this.savingResultKeys = this.savingResultKeys.filter((key) => key !== saveKey);
         }
+    },
+
+    draftUrl(action, source = this.synthesisSource) {
+        const workspace = document.querySelector('[data-rrl-workspace]');
+        const key = action === 'discard' ? 'literatureDraftDiscardUrlTemplate' : 'literatureDraftUpdateUrlTemplate';
+        const template = workspace?.dataset[key] || '';
+
+        return template
+            .replace('__proposal__', encodeURIComponent(Number(this.selectedProposalId)))
+            .replace('__link__', encodeURIComponent(Number(source?.id)));
+    },
+
+    async persistSynthesisDraft(status = 'draft') {
+        const draft = this.synthesisDraft.trim();
+        const url = this.draftUrl('update');
+
+        if (!draft || !url || this.isSavingDraft) return false;
+
+        this.isSavingDraft = true;
+        this.synthesisError = '';
+
+        try {
+            const response = await fetch(url, {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({
+                    rrl_note: draft,
+                    rrl_evidence_basis: this.synthesisBasis || 'abstract',
+                    rrl_draft_status: status,
+                }),
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                this.synthesisError = Object.values(payload.errors || {}).flat()[0] || payload.message || 'The RRL draft could not be saved.';
+                return false;
+            }
+
+            this.synthesisSource = payload.source || this.synthesisSource;
+            this.synthesisNotice = payload.message || this.synthesisNotice;
+            return true;
+        } catch (error) {
+            this.synthesisError = error.message || 'A network error interrupted draft saving.';
+            return false;
+        } finally {
+            this.isSavingDraft = false;
+        }
+    },
+
+    async discardSynthesisDraft() {
+        const url = this.draftUrl('discard');
+
+        if (!url || this.isDiscardingDraft) return;
+
+        this.isDiscardingDraft = true;
+        this.synthesisError = '';
+
+        try {
+            const response = await fetch(url, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                this.synthesisError = payload.message || 'The RRL draft could not be discarded.';
+                return;
+            }
+
+            this.synthesisDraft = '';
+            this.synthesisNotice = payload.message || 'Draft discarded.';
+        } catch (error) {
+            this.synthesisError = error.message || 'A network error interrupted draft discard.';
+        } finally {
+            this.isDiscardingDraft = false;
+        }
+    },
+
+    redirectToDetailedProposal(source, applyTo) {
+        const workspace = document.querySelector('[data-rrl-workspace]');
+        const template = workspace?.dataset.detailedProposalUrlTemplate || '';
+
+        if (!template || !source?.id) return;
+
+        const url = new URL(template.replace('__proposal__', encodeURIComponent(Number(this.selectedProposalId))), window.location.origin);
+        url.searchParams.set('literature_source', String(source.id));
+        url.searchParams.set('apply_to', applyTo);
+        url.hash = applyTo === 'reference' ? 'references' : 'related-literature';
+        window.location.assign(url.toString());
     },
 
     filterSummary() {
@@ -2300,6 +2520,7 @@ Alpine.store('literatureSearch', {
         this.hasSearched = false;
         this.saveNotice = '';
         this.saveError = '';
+        this.resetFullTextPreview();
         this.stopLoadingTimer();
     },
 });
@@ -4895,19 +5116,21 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     addLiteratureSourceToRrl(source, quiet = false) {
         const note = String(source?.rrl_note || '').trim();
+        const citation = String(source?.rrl_citation || '').trim();
+        const citedNote = citation && !note.includes(citation) ? `${note} ${citation}` : note;
         const title = String(source?.title || '').trim();
 
-        if (!note) {
-            if (!quiet) this.literatureSourceNotice = 'No reviewed RRL paragraph is available. Return to the RRL Finder and prepare this source first.';
+        if (!note || source?.rrl_draft_status !== 'confirmed') {
+            if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Return to the RRL Finder to review and confirm this draft first.';
             return false;
         }
 
-        if (title && this.relatedLiterature.toLowerCase().includes(title.toLowerCase())) {
+        if ((citation && this.relatedLiterature.includes(citation)) || (title && this.relatedLiterature.toLowerCase().includes(title.toLowerCase()))) {
             if (!quiet) this.literatureSourceNotice = 'That source already appears in the Related Studies and Literature field.';
             return false;
         }
 
-        this.relatedLiterature = this.appendLiteratureText(this.relatedLiterature, note);
+        this.relatedLiterature = this.appendLiteratureText(this.relatedLiterature, citedNote);
         this.notifyLiteratureFieldChanged('related-literature');
         if (!quiet) this.literatureSourceNotice = 'Reviewed RRL paragraph added to Section XI. Revise it as needed before submission.';
 
@@ -4925,7 +5148,9 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         this.references = this.appendLiteratureText(this.references, reference);
         this.notifyLiteratureFieldChanged('references');
-        if (!quiet) this.literatureSourceNotice = 'Reference draft added to Section XVI. Check the required citation style before submission.';
+        if (!quiet) this.literatureSourceNotice = source.reference_incomplete
+            ? 'IEEE reference added to Section XVI. Some source metadata was unavailable, so review the incomplete fields.'
+            : 'IEEE reference added to Section XVI with its synchronized number.';
 
         return true;
     },

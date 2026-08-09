@@ -5,6 +5,8 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SynthesizeLiteratureRequest extends FormRequest
 {
@@ -14,6 +16,13 @@ class SynthesizeLiteratureRequest extends FormRequest
             User::WORKSPACE_FACULTY,
             User::WORKSPACE_FACULTY_RESEARCHER,
         ]) === true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        if (! $this->filled('evidence_basis')) {
+            $this->merge(['evidence_basis' => 'abstract']);
+        }
     }
 
     /**
@@ -27,8 +36,29 @@ class SynthesizeLiteratureRequest extends FormRequest
             'title' => ['required', 'string', 'max:500'],
             'authors' => ['nullable', 'string', 'max:1200'],
             'year' => ['nullable', 'integer', 'min:1500', 'max:'.now()->year],
-            'abstract' => ['required', 'string', 'min:80', 'max:6000'],
+            'abstract' => ['nullable', 'string', 'max:6000'],
             'is_open_access' => ['nullable', 'boolean'],
+            'evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
+            'evidence_text' => ['nullable', 'string', 'min:500', 'max:30000'],
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $basis = $this->string('evidence_basis')->toString();
+                $abstract = trim((string) $this->input('abstract'));
+                $evidenceText = trim((string) $this->input('evidence_text'));
+
+                if ($basis === 'abstract' && mb_strlen($abstract) < 80) {
+                    $validator->errors()->add('abstract', 'The available abstract is too short for a responsible synthesis.');
+                }
+
+                if ($basis === 'full_text' && mb_strlen($evidenceText) < 500) {
+                    $validator->errors()->add('evidence_text', 'Load a usable open-access full-text preview before generating from full text.');
+                }
+            },
         ];
     }
 
@@ -36,8 +66,8 @@ class SynthesizeLiteratureRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'abstract.required' => 'This record has no abstract to synthesize. Save it for later and review the paper manually.',
-            'abstract.min' => 'The available abstract is too short for a responsible synthesis.',
+            'evidence_basis.required' => 'Choose whether the draft should use the indexed abstract or loaded open-access full text.',
+            'evidence_text.min' => 'The loaded full text is too short for a responsible synthesis.',
         ];
     }
 }

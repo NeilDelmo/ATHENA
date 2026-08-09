@@ -79,9 +79,13 @@ class ProposalDraftDetailedProposalController extends Controller
         }
         $budgetTotals = $this->budgetTotals($proposalDraft);
         $literatureSources = $proposalDraft->literatureSources()
+            ->reorder()
+            ->oldest('created_at')
+            ->oldest('id')
             ->with(['literatureSource.addedBy:id,name', 'literatureSource.collections:id,name,slug'])
             ->get()
-            ->map(fn (ProposalDraftLiteratureSource $source): array => $source->toLibraryArray())
+            ->values()
+            ->map(fn (ProposalDraftLiteratureSource $source, int $index): array => $source->toLibraryArray($index + 1))
             ->values();
         $initialLiteratureSourceId = $request->integer('literature_source') ?: null;
         $initialLiteratureAction = $request->string('apply_to')->toString();

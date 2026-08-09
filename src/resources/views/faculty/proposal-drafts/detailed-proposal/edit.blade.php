@@ -244,12 +244,15 @@
                                 <span class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[9px] font-black text-gray-600" x-text="source.year || 'n.d.'"></span>
                             </div>
                             <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-gray-500">
+                                <span class="rounded bg-slate-900 px-2 py-1 text-white" x-text="source.rrl_citation || '[?]'"></span>
                                 <span class="rounded bg-red-50 px-2 py-1 text-red-700" x-text="source.source"></span>
                                 <span x-show="source.venue" class="max-w-56 truncate rounded bg-gray-50 px-2 py-1" x-text="source.venue"></span>
                                 <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="rounded px-2 py-1 font-black text-red-700 hover:bg-red-50">Verify source</a>
                             </div>
+                            <p x-show="source.rrl_draft_status && source.rrl_draft_status !== 'none'" class="mt-3 text-[10px] font-bold text-emerald-700" x-text="`${source.rrl_draft_status === 'confirmed' ? 'Confirmed' : 'Saved'} RRL draft · ${source.rrl_evidence_basis === 'full_text' ? 'loaded open-access full text' : 'indexed abstract'} · ${source.rrl_word_count || 0} words`"></p>
+                            <p x-show="source.reference_incomplete" class="mt-2 text-[10px] font-bold text-amber-700">IEEE reference has incomplete source metadata; unavailable details were omitted.</p>
                             <div class="mt-auto grid gap-2 pt-4 sm:grid-cols-3">
-                                <button type="button" @click="addLiteratureSourceToRrl(source)" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">Use in RRL</button>
+                                <button type="button" @click="addLiteratureSourceToRrl(source)" :disabled="!source.rrl_note || source.rrl_draft_status !== 'confirmed'" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">Use in RRL</button>
                                 <button type="button" @click="addLiteratureSourceToReferences(source)" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">Add reference</button>
                                 <button type="button" @click="addLiteratureSourceToBoth(source)" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black text-white transition hover:bg-red-700">Use both</button>
                             </div>

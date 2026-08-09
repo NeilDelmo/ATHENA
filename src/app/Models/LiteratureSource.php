@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\IeeeReferenceFormatter;
+use App\Support\LiteratureFullTextToken;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -10,6 +12,14 @@ use Illuminate\Support\Str;
 
 class LiteratureSource extends Model
 {
+    public const ACCESS_ABSTRACT_ONLY = 'abstract_only';
+
+    public const ACCESS_OPEN = 'open_access';
+
+    public const ACCESS_RESTRICTED = 'restricted';
+
+    public const ACCESS_UNKNOWN = 'unknown';
+
     protected $fillable = [
         'added_by',
         'fingerprint',
@@ -17,19 +27,32 @@ class LiteratureSource extends Model
         'authors',
         'abstract',
         'publication_year',
+        'publication_date',
         'venue',
+        'volume',
+        'issue',
+        'pages',
+        'publisher',
         'doi',
         'url',
+        'full_text_url',
         'provider',
+        'provider_identifier',
         'citation_count',
         'is_open_access',
+        'access_status',
         'publication_type',
+    ];
+
+    protected $attributes = [
+        'access_status' => self::ACCESS_UNKNOWN,
     ];
 
     protected function casts(): array
     {
         return [
             'publication_year' => 'integer',
+            'publication_date' => 'date',
             'citation_count' => 'integer',
             'is_open_access' => 'boolean',
         ];
@@ -81,18 +104,7 @@ class LiteratureSource extends Model
 
     public function referenceDraft(): string
     {
-        $authors = $this->sentencePart($this->authors ?: 'Author not listed');
-        $year = $this->publication_year ?: 'n.d.';
-        $title = $this->sentencePart($this->title);
-        $venue = $this->sentencePart($this->venue);
-        $location = $this->doi ? 'https://doi.org/'.$this->doi : $this->url;
-
-        return collect([
-            "{$authors}. ({$year}).",
-            "{$title}.",
-            $venue !== '' ? "{$venue}." : null,
-            $location,
-        ])->filter()->join(' ');
+        return IeeeReferenceFormatter::format($this);
     }
 
     public function rrlNoteDraft(): string
@@ -109,12 +121,22 @@ class LiteratureSource extends Model
             'authors' => $this->authors,
             'description' => $this->abstract,
             'year' => $this->publication_year,
+            'publication_date' => $this->publication_date?->toDateString(),
             'venue' => $this->venue,
+            'volume' => $this->volume,
+            'issue' => $this->issue,
+            'pages' => $this->pages,
+            'publisher' => $this->publisher,
             'doi' => $this->doi,
             'url' => $this->url,
+            'full_text_url' => $this->full_text_url,
+            'full_text_token' => $this->fullTextToken(),
             'source' => $this->provider,
+            'provider_identifier' => $this->provider_identifier,
             'citation_count' => $this->citation_count,
             'is_open_access' => $this->is_open_access,
+            'access_status' => $this->effectiveAccessStatus(),
+            'access_label' => self::accessLabel($this->effectiveAccessStatus()),
             'type' => $this->publication_type,
             'added_by_name' => $this->relationLoaded('addedBy') ? $this->addedBy?->name : null,
             'collections' => $this->relationLoaded('collections')
@@ -122,11 +144,44 @@ class LiteratureSource extends Model
                 : [],
             'rrl_note' => $this->rrlNoteDraft(),
             'reference' => $this->referenceDraft(),
+            'reference_incomplete' => IeeeReferenceFormatter::isIncomplete($this),
         ];
     }
 
-    private function sentencePart(?string $value): string
+    public function effectiveAccessStatus(): string
     {
-        return rtrim(trim((string) $value), " .\t\n\r\0\x0B");
+        if (filled($this->full_text_url) || $this->access_status === self::ACCESS_OPEN) {
+            return self::ACCESS_OPEN;
+        }
+
+        return in_array($this->access_status, [
+            self::ACCESS_ABSTRACT_ONLY,
+            self::ACCESS_OPEN,
+            self::ACCESS_RESTRICTED,
+            self::ACCESS_UNKNOWN,
+        ], true) ? $this->access_status : self::ACCESS_UNKNOWN;
+    }
+
+    public static function accessLabel(string $status): string
+    {
+        return match ($status) {
+            self::ACCESS_OPEN => 'Open-access full text available',
+            self::ACCESS_ABSTRACT_ONLY => 'Abstract available; full text not accessed',
+            self::ACCESS_RESTRICTED => 'Paywalled or restricted',
+            default => 'Full-text access unknown',
+        };
+    }
+
+    private function fullTextToken(): ?string
+    {
+        if (blank($this->full_text_url)) {
+            return null;
+        }
+
+        return LiteratureFullTextToken::issue([
+            'url' => $this->full_text_url,
+            'provider' => $this->provider,
+            'identifier' => $this->provider_identifier,
+        ]);
     }
 }

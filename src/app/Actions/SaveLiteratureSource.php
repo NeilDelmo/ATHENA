@@ -42,6 +42,10 @@ class SaveLiteratureSource
             $venue = Str::squish((string) ($validated['venue'] ?? '')) ?: $source->venue;
             $url = $validated['url'] ?? $source->url;
             $publicationType = Str::squish((string) ($validated['type'] ?? '')) ?: $source->publication_type;
+            $fullTextUrl = $validated['full_text_url'] ?? $source->full_text_url;
+            $accessStatus = $fullTextUrl
+                ? LiteratureSource::ACCESS_OPEN
+                : ($validated['access_status'] ?? $source->access_status ?? LiteratureSource::ACCESS_UNKNOWN);
             $citationCount = max(
                 (int) ($source->citation_count ?? 0),
                 (int) ($validated['citation_count'] ?? 0),
@@ -52,12 +56,22 @@ class SaveLiteratureSource
                 'authors' => $authors,
                 'abstract' => $abstract,
                 'publication_year' => $publicationYear ?? $source->publication_year,
+                'publication_date' => $validated['publication_date'] ?? $source->publication_date,
                 'venue' => $venue,
+                'volume' => Str::squish((string) ($validated['volume'] ?? '')) ?: $source->volume,
+                'issue' => Str::squish((string) ($validated['issue'] ?? '')) ?: $source->issue,
+                'pages' => Str::squish((string) ($validated['pages'] ?? '')) ?: $source->pages,
+                'publisher' => Str::squish((string) ($validated['publisher'] ?? '')) ?: $source->publisher,
                 'doi' => $doi ?: $source->doi,
                 'url' => $url,
+                'full_text_url' => $fullTextUrl,
                 'provider' => Str::squish($validated['source']),
+                'provider_identifier' => Str::squish((string) ($validated['provider_identifier'] ?? '')) ?: $source->provider_identifier,
                 'citation_count' => $citationCount ?: null,
                 'is_open_access' => $source->is_open_access || (bool) ($validated['is_open_access'] ?? false),
+                'access_status' => $source->effectiveAccessStatus() === LiteratureSource::ACCESS_OPEN
+                    ? LiteratureSource::ACCESS_OPEN
+                    : $accessStatus,
                 'publication_type' => $publicationType,
             ]);
             $source->save();

@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\FacultyDirectoryController;
 use App\Http\Controllers\LiteratureCollectionController;
+use App\Http\Controllers\LiteratureFullTextPreviewController;
 use App\Http\Controllers\LiteratureSearchController;
 use App\Http\Controllers\LiteratureSourceController;
 use App\Http\Controllers\LiteratureSynthesisController;
@@ -288,6 +289,9 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
     Route::post('/research-support/literature-synthesis', LiteratureSynthesisController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.literature-synthesis');
+    Route::post('/research-support/literature-full-text-preview', LiteratureFullTextPreviewController::class)
+        ->middleware('throttle:12,1')
+        ->name('research-support.literature-full-text-preview');
     Route::post('/research-support/literature-library', [LiteratureSourceController::class, 'store'])
         ->middleware('throttle:30,1')
         ->name('research-support.literature-library.store');
@@ -299,6 +303,13 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
 Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{literatureSource}', [ProposalDraftLiteratureSourceController::class, 'store'])
     ->middleware(['auth', 'workspace:faculty', 'throttle:30,1'])
     ->name('faculty.proposal-drafts.literature-sources.store');
+
+Route::middleware(['auth', 'workspace:faculty', 'throttle:30,1'])->group(function () {
+    Route::put('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/draft', [ProposalDraftLiteratureSourceController::class, 'updateDraft'])
+        ->name('faculty.proposal-drafts.literature-drafts.update');
+    Route::delete('/faculty/proposal-drafts/{proposalDraft}/literature-links/{proposalDraftLiteratureSource}/draft', [ProposalDraftLiteratureSourceController::class, 'discardDraft'])
+        ->name('faculty.proposal-drafts.literature-drafts.destroy');
+});
 
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::post('/research-support/conference-search', ConferenceSearchController::class)
