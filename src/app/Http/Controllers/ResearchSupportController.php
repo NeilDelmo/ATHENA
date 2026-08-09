@@ -22,15 +22,17 @@ class ResearchSupportController extends Controller
             User::WORKSPACE_FACULTY,
             User::WORKSPACE_FACULTY_RESEARCHER,
         ])) {
-            Gate::authorize('viewAny', ProposalDraft::class);
+            if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
+                Gate::authorize('viewAny', ProposalDraft::class);
 
-            $proposalDrafts = ProposalDraft::query()
-                ->accessibleTo($request->user())
-                ->where('status', ProposalDraft::STATUS_DRAFT)
-                ->with('owner:id,name')
-                ->latest('updated_at')
-                ->limit(30)
-                ->get(['id', 'user_id', 'project_title', 'updated_at']);
+                $proposalDrafts = ProposalDraft::query()
+                    ->accessibleTo($request->user())
+                    ->where('status', ProposalDraft::STATUS_DRAFT)
+                    ->with('owner:id,name')
+                    ->latest('updated_at')
+                    ->limit(30)
+                    ->get(['id', 'user_id', 'project_title', 'updated_at']);
+            }
 
             $literatureCollections = LiteratureCollection::query()
                 ->withCount('sources')

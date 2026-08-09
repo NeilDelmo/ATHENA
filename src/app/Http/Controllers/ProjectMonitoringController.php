@@ -27,18 +27,18 @@ class ProjectMonitoringController extends Controller
         $allowedAttention = ['needs_attention', 'pending_reports'];
 
         $summary = [
-            'ongoing' => TopicProposal::monitoringAvailable()->where('project_status', 'ongoing')->count(),
-            'delayed' => TopicProposal::monitoringAvailable()->where('project_status', 'delayed')->count(),
-            'completed' => TopicProposal::monitoringAvailable()->where('project_status', 'completed')->count(),
+            'ongoing' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_ONGOING)->count(),
+            'delayed' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_DELAYED)->count(),
+            'completed' => TopicProposal::completedProject()->count(),
             'pending_reports' => ProjectProgressReport::where('review_status', 'pending')
-                ->whereHas('topic', fn ($query) => $query->monitoringAvailable())
+                ->whereHas('topic', fn ($query) => $query->withIssuedNotice())
                 ->count()
                 + ProjectNarrativeReport::where('review_status', ProjectNarrativeReport::STATUS_PENDING)
-                    ->whereHas('topic', fn ($query) => $query->monitoringAvailable())
+                    ->whereHas('topic', fn ($query) => $query->withIssuedNotice())
                     ->count(),
         ];
 
-        $projects = TopicProposal::monitoringAvailable()
+        $projects = TopicProposal::withIssuedNotice()
             ->with(['user', 'researchCall', 'category', 'latestProgressReport', 'latestNarrativeReport'])
             ->withCount([
                 'progressReports',
@@ -115,7 +115,7 @@ class ProjectMonitoringController extends Controller
 
     public function review(Request $request, ProjectProgressReport $report): RedirectResponse
     {
-        abort_unless($report->topic()->monitoringAvailable()->exists(), 404);
+        abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in(['reviewed', 'revision_requested'])],
@@ -145,7 +145,11 @@ class ProjectMonitoringController extends Controller
         abort_unless($topic->isMonitoringAvailable(), 404);
 
         $validated = $request->validate([
-            'project_status' => ['required', Rule::in(['ongoing', 'delayed', 'completed'])],
+            'project_status' => ['required', Rule::in([
+                TopicProposal::PROJECT_STATUS_ONGOING,
+                TopicProposal::PROJECT_STATUS_DELAYED,
+                TopicProposal::PROJECT_STATUS_COMPLETED,
+            ])],
         ]);
 
         $topic->update($validated);

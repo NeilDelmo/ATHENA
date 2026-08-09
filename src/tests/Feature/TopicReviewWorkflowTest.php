@@ -303,7 +303,7 @@ test('a research head can approve a resubmitted proposal with external evaluatio
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->reviews()->count())->toBe(2)
         ->and($topic->fresh()->project_status)->toBeNull()
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
 });
 
 test('legacy review records do not block the Research Head decision', function () {
@@ -338,7 +338,7 @@ test('legacy review records do not block the Research Head decision', function (
 
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->fresh()->project_status)->toBeNull()
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
 });
 
 test('a rejected proposal remains final', function () {
@@ -667,7 +667,7 @@ test('Comment-Response Form generation is private to the revision owner', functi
         ->assertForbidden();
 });
 
-test('faculty researchers can browse and open only their own research records', function () {
+test('faculty researchers can browse and open only their own approved research records', function () {
     $this->withoutVite();
 
     $faculty = User::factory()->create();
@@ -682,7 +682,7 @@ test('faculty researchers can browse and open only their own research records', 
         'description' => 'A visible research record.',
         'estimated_budget' => 14500,
         'initial_file_path' => 'proposals/own.pdf',
-        'status' => 'revision_requested',
+        'status' => 'approved',
     ]);
 
     $ownTopic->versions()->create([
@@ -712,12 +712,13 @@ test('faculty researchers can browse and open only their own research records', 
         ->get('/research')
         ->assertOk()
         ->assertSee('My catalogued research')
+        ->assertSee('Awaiting Notice to Proceed')
         ->assertDontSee('Another faculty research');
 
     $this->actingAs($faculty)
         ->get("/research/{$ownTopic->id}")
         ->assertOk()
-        ->assertSee('revision requested')
+        ->assertSee('Approved - awaiting notice')
         ->assertSee('PHP 14,500.00')
         ->assertSee('Submitted proposal files')
         ->assertSee('Decision history')
@@ -1060,5 +1061,5 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->fresh()->project_status)->toBeNull()
-        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+        ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
 });

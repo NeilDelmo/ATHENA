@@ -72,14 +72,14 @@
                     $latestFiles = $latestVersion?->files ?? collect();
                     $latestReview = $topic->reviews->sortByDesc('created_at')->first();
                     $statusStyle = match (true) {
-                        $topic->status === 'approved' && ! $topic->isMonitoringAvailable() => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
+                        $topic->isAwaitingNoticeToProceed() => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
                         $topic->status === 'approved' => 'bg-gray-950 text-white ring-gray-950 dark:bg-white dark:text-gray-950 dark:ring-white',
                         $topic->status === 'rejected' => 'bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-800',
                         in_array($topic->status, ['ready_for_signature', 'revision_requested'], true) => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
                         default => 'bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800',
                     };
                     $statusLabel = match (true) {
-                        $topic->status === 'approved' && ! $topic->isMonitoringAvailable() => 'Approved - issue notice',
+                        $topic->isAwaitingNoticeToProceed() => 'Approved - issue notice',
                         $topic->status === 'approved' => 'Notice issued',
                         $topic->status === 'ready_for_signature' => 'Ready for signature',
                         $topic->status === 'rejected' => 'Rejected',
@@ -130,7 +130,7 @@
 
                         <a href="{{ route('topics.show', $topic) }}#proposal-review" class="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-3 text-sm font-black text-white transition hover:bg-[#7A0019] focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-white dark:text-gray-950 dark:hover:bg-red-200 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 lg:mt-auto">
                             {{ match (true) {
-                                $topic->status === 'approved' && ! $topic->isMonitoringAvailable() => 'Issue Notice to Proceed',
+                                $topic->isAwaitingNoticeToProceed() => 'Issue Notice to Proceed',
                                 in_array($topic->status, ['approved', 'rejected'], true) => 'Open proposal record',
                                 $topic->status === 'ready_for_signature' => 'Complete signatures',
                                 default => 'Review proposal',

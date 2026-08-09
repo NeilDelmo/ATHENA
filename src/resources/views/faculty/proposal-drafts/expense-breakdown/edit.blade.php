@@ -4,7 +4,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $expenseBreakdownDocument?->completed_at ? 'bg-green-100 text-green-800' : ($expenseBreakdownDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $expenseBreakdownDocument?->completed_at ? 'Complete' : ($expenseBreakdownDocument ? 'In progress' : 'Not started') }}</span>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($expenseBreakdownDocument?->completed_at ? 'bg-green-100 text-green-800' : ($expenseBreakdownDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')) }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($expenseBreakdownDocument?->completed_at ? 'Complete' : ($expenseBreakdownDocument ? 'In progress' : 'Not started')) }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official expense table through structured inputs. Totals and subtotals are calculated automatically.</p>
             </div>
@@ -128,21 +128,23 @@
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-account-${item.id}`">Account <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
-                                    <select :id="`expense-account-${item.id}`" :name="`items[${index}][account]`" x-model="item.account" x-on:change="$nextTick(() => syncGrouping(item))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    <select :id="`expense-account-${item.id}`" x-model="item.account" x-on:change="$nextTick(() => syncGrouping(item))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         <option value="">Select an official account</option>
                                         <template x-for="account in accountsFor(item)" :key="account.label">
-                                            <option :value="account.label" x-text="account.label"></option>
+                                            <option :value="account.label" :selected="account.label === item.account" x-text="account.label"></option>
                                         </template>
                                     </select>
+                                    <input type="hidden" :name="`items[${index}][account]`" :value="item.account">
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-sub-account-${item.id}`">Sub-account <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
-                                    <select :id="`expense-sub-account-${item.id}`" :name="`items[${index}][sub_account]`" x-model="item.sub_account" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    <select :id="`expense-sub-account-${item.id}`" x-model="item.sub_account" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         <option value="">Select an official sub-account</option>
                                         <template x-for="subAccount in subAccountsFor(item)" :key="subAccount.label">
-                                            <option :value="subAccount.label" x-text="subAccount.label"></option>
+                                            <option :value="subAccount.label" :selected="subAccount.label === item.sub_account" x-text="subAccount.label"></option>
                                         </template>
                                     </select>
+                                    <input type="hidden" :name="`items[${index}][sub_account]`" :value="item.sub_account">
                                 </div>
                             </div>
 

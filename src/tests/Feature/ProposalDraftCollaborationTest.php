@@ -1,10 +1,13 @@
 <?php
 
+use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\LinkProposalDraftMemberships;
 use App\Actions\SaveProposalDraftDocument;
+use App\Actions\SyncTopicCollaborators;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Notifications\ProposalWorkspaceInvitation;
@@ -183,6 +186,38 @@ test('an owner can tag an existing account and the collaborator can edit but not
     $this->actingAs($this->outsider)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertForbidden();
+});
+
+test('accepted collaborators are restored when a revision workspace is created', function () {
+    $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => now(),
+    ]);
+    $topic = TopicProposal::query()->create([
+        'user_id' => $this->owner->id,
+        'research_call_id' => $this->draft->research_call_id,
+        'title' => $this->draft->project_title,
+        'estimated_duration_months' => $this->draft->duration_months,
+        'status' => 'revision_requested',
+    ]);
+
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+    $this->draft->delete();
+
+    expect($topic->collaborators()->sole()->user_id)->toBe($this->collaborator->id);
+
+    $revisionDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->owner);
+    $restoredMember = $revisionDraft->members()->sole();
+
+    expect($restoredMember->user_id)->toBe($this->collaborator->id)
+        ->and($restoredMember->accepted_at)->not->toBeNull();
+
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.show', $revisionDraft))
+        ->assertOk()
+        ->assertSee('Shared with you by Workspace Owner');
 });
 
 test('an unregistered person remains external and is linked after verified Google account matching', function () {

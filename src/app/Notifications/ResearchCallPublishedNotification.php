@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\User;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\BroadcastMessage;
@@ -34,6 +35,7 @@ class ResearchCallPublishedNotification extends Notification implements ShouldQu
             'url' => $this->url,
             'level' => 'info',
             'research_call_id' => $this->researchCallId,
+            'workspace' => User::WORKSPACE_FACULTY,
         ];
     }
 

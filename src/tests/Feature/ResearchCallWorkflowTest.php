@@ -8,13 +8,14 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ResearchCallPublishedNotification;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
+    foreach (['expert', 'faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -22,6 +23,8 @@ beforeEach(function () {
     $this->head->assignRole('research_head');
     $this->faculty = User::factory()->create();
     $this->faculty->assignRole('faculty');
+    $this->expert = User::factory()->create();
+    $this->expert->assignRole('expert');
     $this->category = ResearchCategory::create(['name' => 'Environment']);
     $this->call = ResearchCall::create([
         'title' => 'Open Institutional Call',
@@ -127,6 +130,12 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertDontSee($this->call->title);
 
     $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.index'))
+        ->assertOk()
+        ->assertSee('No open research call')
+        ->assertDontSee(route('faculty.proposal-drafts.create'), false);
+
+    $this->actingAs($this->faculty)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
         ->assertForbidden();
 
@@ -137,7 +146,7 @@ test('research heads can close and reopen calls while faculty cannot change call
     expect($this->call->fresh()->status)->toBe('open');
 });
 
-test('faculty and faculty researchers are notified when an open research call is posted', function () {
+test('only faculty workspace recipients are notified when an open research call is posted', function () {
     $facultyResearcher = User::factory()->create();
     $facultyResearcher->assignRole('faculty_researcher');
     Notification::fake();
@@ -157,19 +166,18 @@ test('faculty and faculty researchers are notified when an open research call is
 
     $call = ResearchCall::query()->where('title', 'Newly Posted Institutional Call')->firstOrFail();
 
-    foreach ([$this->faculty, $facultyResearcher] as $recipient) {
-        Notification::assertSentTo(
-            $recipient,
-            ResearchCallPublishedNotification::class,
-            fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $call->id
-                && $notification->url === route('faculty.dashboard'),
-        );
-    }
+    Notification::assertSentTo(
+        $this->faculty,
+        ResearchCallPublishedNotification::class,
+        fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $call->id
+            && $notification->url === route('faculty.dashboard'),
+    );
 
+    Notification::assertNotSentTo($facultyResearcher, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
 });
 
-test('faculty and faculty researchers are notified when a draft research call is published', function () {
+test('only faculty workspace recipients are notified when a draft research call is published', function () {
     $facultyResearcher = User::factory()->create();
     $facultyResearcher->assignRole('faculty_researcher');
     $draftCall = ResearchCall::create([
@@ -190,15 +198,14 @@ test('faculty and faculty researchers are notified when a draft research call is
         ])
         ->assertRedirect();
 
-    foreach ([$this->faculty, $facultyResearcher] as $recipient) {
-        Notification::assertSentTo(
-            $recipient,
-            ResearchCallPublishedNotification::class,
-            fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $draftCall->id
-                && $notification->url === route('faculty.dashboard'),
-        );
-    }
+    Notification::assertSentTo(
+        $this->faculty,
+        ResearchCallPublishedNotification::class,
+        fn (ResearchCallPublishedNotification $notification): bool => $notification->researchCallId === $draftCall->id
+            && $notification->url === route('faculty.dashboard'),
+    );
 
+    Notification::assertNotSentTo($facultyResearcher, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
 });
@@ -451,7 +458,7 @@ test('research heads can save workflow dates and a reference poster with a resea
         ->assertHeader('Content-Type', 'image/jpeg');
 });
 
-test('faculty research workload is limited to two approved projects per academic year', function () {
+test('faculty research workload is limited to two concurrent approved projects across calls and academic years', function () {
     $createProposal = function (ResearchCall $call, string $title, string $status): TopicProposal {
         $topic = TopicProposal::create([
             'user_id' => $this->faculty->id,
@@ -485,6 +492,10 @@ test('faculty research workload is limited to two approved projects per academic
     $createProposal($this->call, 'Approved project one', 'approved');
     $createProposal($this->call, 'Approved project two', 'approved');
     $thirdProposal = $createProposal($this->call, 'Third project in the same year', 'pending');
+    $approvalQueries = collect();
+    DB::listen(function ($query) use ($approvalQueries): void {
+        $approvalQueries->push($query->sql);
+    });
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $thirdProposal), [
@@ -494,6 +505,8 @@ test('faculty research workload is limited to two approved projects per academic
         ->assertSessionHasErrors('status');
 
     expect($thirdProposal->fresh()->status)->toBe('pending');
+    expect($approvalQueries->contains(fn (string $sql): bool => str_contains($sql, 'from `users`')
+        && str_contains(strtolower($sql), 'for update')))->toBeTrue();
 
     $nextYearCall = ResearchCall::create([
         'title' => 'Next Academic Year Call',
@@ -512,9 +525,39 @@ test('faculty research workload is limited to two approved projects per academic
             'status' => 'approved',
             'evaluation_document' => UploadedFile::fake()->create('next-year-evaluation.pdf', 100, 'application/pdf'),
         ])
+        ->assertSessionHasErrors('status');
+
+    expect($nextYearProposal->fresh()->status)->toBe('pending');
+
+    TopicProposal::query()
+        ->where('title', 'Approved project one')
+        ->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
+            'status' => 'approved',
+            'evaluation_document' => UploadedFile::fake()->create('next-year-evaluation-after-completion.pdf', 100, 'application/pdf'),
+        ])
         ->assertRedirect(route('research_head.dashboard'));
 
     expect($nextYearProposal->fresh()->status)->toBe('approved');
+});
+
+test('research call configuration cannot raise the institutional project limit above two', function () {
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [
+            'title' => 'Invalid high-capacity call',
+            'academic_year' => '2028-2029',
+            'opens_at' => now()->addDay()->format('Y-m-d H:i:s'),
+            'closes_at' => now()->addMonth()->format('Y-m-d H:i:s'),
+            'max_active_research_per_faculty' => 20,
+            'maximum_budget' => 150000,
+            'categories' => 'Technology',
+            'status' => 'draft',
+        ])
+        ->assertSessionHasErrors('max_active_research_per_faculty');
+
+    expect(ResearchCall::where('title', 'Invalid high-capacity call')->exists())->toBeFalse();
 });
 
 test('a revision snapshots the package and carries forward unchanged files', function () {
@@ -656,7 +699,7 @@ test('research head records the final decision with external evaluation proof', 
     expect($topic->status)->toBe('approved')
         ->and($evaluationDocument->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
         ->and($topic->project_status)->toBeNull()
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
     Storage::disk('local')->assertExists($evaluationDocument->file_path);
 
     $this->actingAs($this->faculty)

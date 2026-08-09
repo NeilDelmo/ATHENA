@@ -40,8 +40,9 @@ class ProposalDraftController extends Controller
             ->with(['researchCall', 'documents', 'owner:id,name,email'])
             ->latest()
             ->paginate(12);
+        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
-        return view('faculty.proposal-drafts.index', compact('proposalDrafts'));
+        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'hasOpenResearchCall'));
     }
 
     public function create(Request $request): View

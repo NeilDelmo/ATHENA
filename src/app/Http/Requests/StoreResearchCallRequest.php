@@ -33,7 +33,7 @@ class StoreResearchCallRequest extends FormRequest
             'lrec_end_date' => ['nullable', 'date'],
             'implementation_start_date' => ['nullable', 'date'],
             'implementation_end_date' => ['nullable', 'date'],
-            'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:20'],
+            'max_active_research_per_faculty' => ['required', 'integer', 'min:1', 'max:2'],
             'categories' => ['required', 'string', 'max:1000'],
             'status' => ['required', Rule::in(['draft', 'open'])],
         ];

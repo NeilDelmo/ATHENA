@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalVersionFile;
+use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalPaperCatalog;
@@ -32,6 +33,7 @@ class CreateProposalRevisionDraft
             $topic->loadMissing([
                 'researchCall',
                 'latestVersion.files',
+                'collaborators',
             ]);
 
             $history = ProposalDraftDocumentVersion::query()
@@ -69,6 +71,15 @@ class CreateProposalRevisionDraft
                 'lock_version' => 0,
             ]);
 
+            $draft->members()->createMany(
+                $topic->collaborators->map(fn (TopicCollaborator $collaborator): array => [
+                    'user_id' => $collaborator->user_id,
+                    'name' => $collaborator->name,
+                    'email' => $collaborator->email,
+                    'accepted_at' => $collaborator->accepted_at,
+                ])->all(),
+            );
+
             foreach ($this->catalog->all()->where('mode', '!=', 'automatic') as $paper) {
                 $documentType = $paper['document_type'];
                 $source = $this->sourceFor($historyByType, $versionFiles, $documentType);
@@ -102,7 +113,7 @@ class CreateProposalRevisionDraft
                 }
             }
 
-            return $draft->fresh(['documents', 'researchCall']);
+            return $draft->fresh(['documents', 'members', 'researchCall']);
         }, 3);
     }
 

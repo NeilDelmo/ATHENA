@@ -76,7 +76,7 @@ class User extends Authenticatable
             ],
             self::WORKSPACE_FACULTY_RESEARCHER => [
                 'label' => 'Faculty Researcher',
-                'description' => 'Manage proposals and monitor approved institutional research projects.',
+                'description' => 'View approved projects, Notices to Proceed, monitoring, and completed research.',
                 'route' => 'faculty.dashboard',
             ],
             self::WORKSPACE_FACULTY => [

@@ -18,7 +18,9 @@
     </x-slot>
 
     @php
-        $completedPaperCount = $checklist->where('complete', true)->count();
+        $completedPaperCount = $checklist
+            ->filter(fn (array $item): bool => $item['complete'] && ! $item['needs_attention'])
+            ->count();
         $paperCount = $checklist->count();
         $initialProposalTab = in_array(session('proposal_tab'), ['details', 'attachments', 'collaborators'], true)
             ? session('proposal_tab')
@@ -228,7 +230,7 @@
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h4 class="text-sm font-black leading-6 text-gray-950 dark:text-white">{{ $paper['label'] }}</h4>
-                                <span class="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $item['complete'] ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : ($item['status'] === 'In progress' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' : 'border-gray-200 bg-white text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400') }}">{{ $item['status'] }}</span>
+                                <span class="rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $item['needs_attention'] ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' : ($item['complete'] ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : ($item['status'] === 'In progress' ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' : 'border-gray-200 bg-white text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400')) }}">{{ $item['status'] }}</span>
                             </div>
                             <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">{{ $paper['description'] }}</p>
 

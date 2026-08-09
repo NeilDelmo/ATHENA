@@ -2,8 +2,9 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">Research Calls</h2>
-                <p class="mt-1 text-xs text-gray-500">Submission periods, rules, categories, and previous-call history.</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-700 dark:text-red-300">Research Office</p>
+                <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Research Calls</h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Plan submission windows, publish call artwork, and keep a clear history.</p>
             </div>
             @if (Auth::user()->isUsingWorkspace('research_head'))
                 <a href="{{ route('announcement-images.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
@@ -14,15 +15,39 @@
         </div>
     </x-slot>
 
-    <div class="space-y-6">
+    <div class="space-y-6" data-research-call-palette="red-black-white">
         @if (session('success'))
             <div class="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-semibold text-green-700">{{ session('success') }}</div>
         @endif
 
+        <section class="relative isolate overflow-hidden rounded-3xl bg-gray-950 px-6 py-7 text-white shadow-xl shadow-gray-950/10 sm:px-8" aria-label="Research call overview">
+            <div class="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[44px] border-white/[0.04]" aria-hidden="true"></div>
+            <div class="pointer-events-none absolute bottom-0 right-1/3 h-24 w-64 bg-red-700/25 blur-3xl" aria-hidden="true"></div>
+            <div class="relative grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                <div class="max-w-2xl">
+                    <span class="inline-flex rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Call lifecycle</span>
+                    <h3 class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">From announcement to archived call.</h3>
+                    <p class="mt-3 text-sm leading-6 text-gray-300">Only calls inside an open submission window appear to faculty and allow new proposal drafts. Closing a call removes linked posters automatically.</p>
+                </div>
+                <dl class="grid grid-cols-3 gap-px overflow-hidden rounded-2xl bg-white/10 text-center">
+                    @foreach ([['Open', $activeCalls->count(), 'text-red-300'], ['Upcoming', $upcomingCalls->count(), 'text-white'], ['Previous', $previousCalls->count(), 'text-gray-300']] as [$label, $count, $color])
+                        <div class="min-w-24 bg-white/[0.04] px-4 py-4 sm:min-w-28">
+                            <dt class="text-[9px] font-black uppercase tracking-wider text-gray-400">{{ $label }}</dt>
+                            <dd class="mt-1 text-2xl font-black {{ $color }}">{{ $count }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+            </div>
+        </section>
+
         @if (Auth::user()->isUsingWorkspace('research_head'))
-            <details class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm" @if ($errors->any()) open @endif>
-                <summary class="cursor-pointer text-sm font-black text-gray-900">Create a research call</summary>
-                <form method="POST" action="{{ route('research-calls.store') }}" enctype="multipart/form-data" class="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]" data-research-call-form data-extract-url="{{ route('research-calls.extract-image') }}">
+            <details class="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" @if ($errors->any()) open @endif>
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-5 text-sm font-black text-gray-950 dark:text-white sm:px-6">
+                    <span class="flex items-center gap-3"><span class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg></span>Create a research call</span>
+                    <span class="text-xs font-bold text-gray-400 group-open:hidden">Open form</span>
+                    <span class="hidden text-xs font-bold text-red-700 group-open:inline dark:text-red-300">Close form</span>
+                </summary>
+                <form method="POST" action="{{ route('research-calls.store') }}" enctype="multipart/form-data" class="grid gap-6 border-t border-gray-100 px-5 pb-6 pt-5 dark:border-slate-800 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]" data-research-call-form data-extract-url="{{ route('research-calls.extract-image') }}">
                     @csrf
                     <div class="space-y-4">
                         <div class="grid gap-4 md:grid-cols-2">
@@ -32,7 +57,7 @@
                     <div><label class="text-xs font-bold text-gray-600">Categories</label><input name="categories" value="{{ old('categories') }}" placeholder="Environment, Education, Technology" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm"><p class="mt-1 text-[11px] text-gray-400">Separate category names with commas.</p></div>
                     <div><label class="text-xs font-bold text-gray-600">Submission starts</label><input type="datetime-local" name="opens_at" value="{{ old('opens_at') }}" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm"></div>
                     <div><label class="text-xs font-bold text-gray-600">Submission ends</label><input type="datetime-local" name="closes_at" value="{{ old('closes_at') }}" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm"></div>
-                    <div><label class="text-xs font-bold text-gray-600">Active research limit per faculty</label><input type="number" name="max_active_research_per_faculty" value="{{ old('max_active_research_per_faculty', 2) }}" min="1" max="20" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm"><p class="mt-1 text-[11px] text-gray-400">Maximum projects that may be approved for one faculty researcher in this academic year. Proposal applications remain unlimited.</p></div>
+                    <div><label class="text-xs font-bold text-gray-600">Active research limit per faculty</label><input type="number" name="max_active_research_per_faculty" value="{{ old('max_active_research_per_faculty', 2) }}" min="1" max="2" required class="mt-1 block w-full rounded-xl border-gray-200 text-sm"><p class="mt-1 text-[11px] text-gray-400">The institutional hard limit is two concurrent approved projects across all calls and academic years.</p></div>
                     <div><span class="text-xs font-bold text-gray-600">Maximum budget (PHP)</span><div class="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-black text-gray-700">PHP {{ number_format($institutionalBudgetCeiling, 2) }}</div><p class="mt-1 text-[11px] text-gray-400">Fixed institutional limit for every research call.</p></div>
                     <div class="md:col-span-2">
                         <div class="mb-3">
@@ -111,7 +136,7 @@
                                 <dl class="grid min-w-72 grid-cols-2 gap-3 text-xs">
                                     <div><dt class="font-bold text-gray-400">Submission starts</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->opens_at->format('M d, Y') }} &middot; {{ $call->opens_at->format('h:i A') }}</dd></div>
                                     <div><dt class="font-bold text-gray-400">Submission ends</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->closes_at->format('M d, Y') }} &middot; {{ $call->closes_at->format('h:i A') }}</dd></div>
-                                    <div><dt class="font-bold text-gray-400">Research workload limit</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->max_active_research_per_faculty }} approved projects per faculty</dd></div>
+                                    <div><dt class="font-bold text-gray-400">Research workload limit</dt><dd class="mt-1 font-semibold text-gray-700">{{ min((int) $call->max_active_research_per_faculty, \App\Models\TopicProposal::MAX_CONCURRENT_APPROVED_PROJECTS) }} concurrent approved projects per faculty, institution-wide</dd></div>
                                      <div><dt class="font-bold text-gray-400">Maximum budget</dt><dd class="mt-1 font-semibold text-gray-700">PHP {{ number_format($call->budgetCeiling(), 2) }}</dd></div>
                                      <div><dt class="font-bold text-gray-400">Submissions</dt><dd class="mt-1 font-semibold text-gray-700">{{ $call->topics_count }}</dd></div>
                                      @foreach ([

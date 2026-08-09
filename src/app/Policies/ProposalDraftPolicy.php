@@ -9,10 +9,7 @@ class ProposalDraftPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->isUsingWorkspace([
-            User::WORKSPACE_FACULTY,
-            User::WORKSPACE_FACULTY_RESEARCHER,
-        ]);
+        return $user->isUsingWorkspace(User::WORKSPACE_FACULTY);
     }
 
     public function create(User $user): bool

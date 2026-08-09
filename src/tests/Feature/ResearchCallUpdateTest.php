@@ -60,7 +60,7 @@ test('Research Head can edit a research call and replace its poster', function (
             'lrec_end_date' => '2027-04-10',
             'implementation_start_date' => '2027-08-01',
             'implementation_end_date' => '2028-01-31',
-            'max_active_research_per_faculty' => 3,
+            'max_active_research_per_faculty' => 2,
             'maximum_budget' => 125000,
             'categories' => 'Technology, Environment',
         ])
@@ -71,7 +71,7 @@ test('Research Head can edit a research call and replace its poster', function (
     expect($this->call->title)->toBe('Updated Research Call')
         ->and($this->call->academic_year)->toBe('2027-2028')
         ->and($this->call->description)->toBe('Updated guidelines.')
-        ->and($this->call->max_active_research_per_faculty)->toBe(3)
+        ->and($this->call->max_active_research_per_faculty)->toBe(2)
         ->and((float) $this->call->maximum_budget)->toBe(150000.0)
         ->and($this->call->categories()->pluck('name')->all())->toEqual(['Environment', 'Technology'])
         ->and($this->call->reference_image_path)->not->toBe('research-calls/original.jpg');
@@ -79,16 +79,17 @@ test('Research Head can edit a research call and replace its poster', function (
     Storage::disk('local')->assertExists($this->call->reference_image_path);
     Storage::disk('local')->assertMissing('research-calls/original.jpg');
 
-    foreach ([$this->head, $this->faculty, $this->otherUser] as $user) {
-        $notification = $user->notifications()->firstOrFail();
+    $notification = $this->faculty->notifications()->firstOrFail();
 
-        expect($notification->type)->toBe(ResearchCallUpdatedNotification::class)
-            ->and($notification->data)->toMatchArray([
-                'title' => 'Research call updated',
-                'research_call_id' => $this->call->id,
-                'url' => route('research-calls.index'),
-            ]);
-    }
+    expect($notification->type)->toBe(ResearchCallUpdatedNotification::class)
+        ->and($notification->data)->toMatchArray([
+            'title' => 'Research call updated',
+            'research_call_id' => $this->call->id,
+            'url' => route('research-calls.index'),
+            'workspace' => User::WORKSPACE_FACULTY,
+        ])
+        ->and($this->head->notifications()->exists())->toBeFalse()
+        ->and($this->otherUser->notifications()->exists())->toBeFalse();
 });
 
 test('Research Head sees edit controls for research calls', function () {

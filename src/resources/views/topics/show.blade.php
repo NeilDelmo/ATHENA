@@ -17,21 +17,45 @@
             'expert_review', 'for_final_decision' => 'Awaiting Research Head',
             default => 'Awaiting Research Head',
         };
-        if ($topic->status === 'approved' && ! $topic->isMonitoringAvailable()) {
+        if ($topic->isAwaitingNoticeToProceed()) {
             $statusClass = 'bg-amber-100 text-amber-800';
             $statusLabel = 'Approved - awaiting notice';
+        } elseif ($topic->isCompletedProject()) {
+            $statusClass = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
+            $statusLabel = 'Completed - archived';
         }
         $backRoute = Auth::user()->isUsingWorkspace('research_head')
             ? route('research_head.dashboard')
-            : route('faculty.dashboard');
+            : (Auth::user()->isUsingWorkspace('faculty_researcher') ? route('research.index') : route('faculty.dashboard'));
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
-        $isFacultyWorkspace = Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
-        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && $isFacultyWorkspace;
+        $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
+        $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
         $resubmissionErrors = $errors->getBag('resubmission');
+        $noticeToProceedErrors = $errors->hasAny([
+            'notice_to_proceed',
+            'notice_date',
+            'researcher_names',
+            'researcher_names.*',
+            'campus_line',
+            'project_title',
+            'resolution_number',
+            'resolution_year',
+            'approved_start_date',
+            'approved_end_date',
+            'approved_duration_months',
+            'approved_budget',
+            'issuing_officer_name',
+            'issuing_officer_title',
+            'issuing_officer_committee_role',
+            'verifying_officer_name',
+            'verifying_officer_title',
+            'verifying_officer_committee_role',
+        ]);
         $reviewTabHash = 'proposal-review';
         $initialTopicTab = $resubmissionErrors->any()
-            || $errors->hasAny(['evaluation_document', 'status', 'revision_file_ids', 'revision_file_notes.*', 'notice_to_proceed'])
+            || $errors->hasAny(['evaluation_document', 'status', 'revision_file_ids', 'revision_file_notes.*'])
+            || $noticeToProceedErrors
             ? 'review'
             : (in_array(session('topic_tab'), ['details', 'review', 'history'], true) ? session('topic_tab') : null);
     @endphp
@@ -45,7 +69,7 @@
                     <p class="mt-1 text-sm text-gray-600">Proposal #{{ $topic->id }} &middot; {{ $topic->user->name }} &middot; {{ $topic->researchCall?->title ?? 'Research proposal' }}</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2">
-                    @if ($draftHistoryCount > 0)
+                    @if ($draftHistoryCount > 0 && ($isFacultyWorkspace || $isResearchHead))
                         <a href="{{ route('topics.draft-history.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50">Draft history ({{ $draftHistoryCount }})</a>
                     @endif
                     @if ($canAskAthenaAboutProposal)
@@ -224,8 +248,10 @@
                         Review the faculty package, receive the completed evaluation outside ATHENA, then upload that document here with your decision. ATHENA shares both the decision and its proof with the faculty member.
                     @elseif ($topic->status === 'revision_requested')
                         The Research Head requested changes. Read the decision, download the evaluation document, and replace only the files marked for revision.
-                    @elseif ($topic->status === 'approved' && ! $topic->isMonitoringAvailable())
+                    @elseif ($topic->isAwaitingNoticeToProceed())
                         Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
+                    @elseif ($topic->isCompletedProject())
+                        This project is complete and archived. Its approved papers, Notice to Proceed, and previous monitoring records remain available as read-only records.
                     @elseif ($topic->status === 'approved')
                         Your Notice to Proceed has been issued. The proposal is now an active research project and monitoring is open.
                     @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
@@ -589,7 +615,7 @@
 
             @include('topics.partials.version-history', ['topic' => $topic, 'expanded' => true])
 
-            @if ($topic->isMonitoringAvailable() && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
+            @if (($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject()) && (Auth::user()->isUsingWorkspace('research_head') || $topic->user_id === Auth::id()))
                 @include('topics.partials.project-monitoring')
             @endif
         </section>

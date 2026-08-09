@@ -320,6 +320,14 @@ test('a downloaded generated paper is staged in its matching revision attachment
         ->assertRedirect();
 
     $draft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+    $revisionCollaborator = User::factory()->create();
+    $revisionCollaborator->assignRole('faculty');
+    $draft->members()->create([
+        'user_id' => $revisionCollaborator->id,
+        'name' => $revisionCollaborator->name,
+        'email' => $revisionCollaborator->email,
+        'accepted_at' => now(),
+    ]);
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.proposal-drafts.revision-files.store', $draft), [
@@ -355,6 +363,7 @@ test('a downloaded generated paper is staged in its matching revision attachment
 
     expect($this->topic->fresh()->status)->toBe('resubmitted')
         ->and(ProposalDraft::query()->where('topic_id', $this->topic->id)->exists())->toBeFalse();
+    expect($this->topic->collaborators()->sole()->user_id)->toBe($revisionCollaborator->id);
     expect($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->original_filename)
         ->toBe('coastal-work-plan.docx');
 });

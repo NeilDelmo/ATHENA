@@ -88,6 +88,9 @@ Route::middleware('auth')->group(function () {
 // FACULTY ROUTES
 Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
+});
+
+Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::get('/faculty/topics/create', [TopicController::class, 'create'])->name('faculty.topics.create');
 
     Route::prefix('/faculty/proposal-drafts')->name('faculty.proposal-drafts.')->group(function () {
@@ -153,10 +156,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
 });
 
 Route::get('/proposal-templates/{proposalTemplate}/download', [ProposalTemplateController::class, 'download'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->name('proposal-templates.download');
 Route::get('/proposal-samples/{sample}', [ProposalTemplateController::class, 'showSample'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->where('sample', '[a-z0-9-]+')
     ->name('proposal-samples.show');
 
@@ -182,10 +185,10 @@ Route::delete('/topics/{topic}/versions/{version}/files/{file}/annotations/{anno
     ->middleware(['auth', 'workspace:research_head'])
     ->name('topics.versions.files.annotations.destroy');
 Route::get('/topics/{topic}/draft-history', [ProposalDraftDocumentVersionController::class, 'archived'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->name('topics.draft-history.index');
 Route::get('/topics/{topic}/draft-history/{documentVersion}/download', [ProposalDraftDocumentVersionController::class, 'downloadArchived'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->name('topics.draft-history.download');
 Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApproval'])
     ->middleware('auth')
@@ -205,15 +208,16 @@ Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadU
     ->name('topics.head-uploads.store');
 
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->name('research-calls.index');
 Route::get('/research-calls/{researchCall}/reference-image', [ResearchCallController::class, 'sourceImage'])
-    ->middleware('auth')
+    ->middleware(['auth', 'workspace:faculty|research_head'])
     ->name('research-calls.reference-image');
 
 Route::middleware(['auth', 'workspace:research_head'])->prefix('announcement-images')->name('announcement-images.')->group(function () {
     Route::get('/', [AnnouncementImageController::class, 'index'])->name('index');
     Route::post('/', [AnnouncementImageController::class, 'store'])->name('store');
+    Route::patch('/{announcementImage}', [AnnouncementImageController::class, 'update'])->name('update');
     Route::delete('/{announcementImage}', [AnnouncementImageController::class, 'destroy'])->name('destroy');
 });
 Route::get('/announcement-images/{announcementImage}/source', [AnnouncementImageController::class, 'show'])
@@ -223,7 +227,9 @@ Route::get('/announcement-images/{announcementImage}/source', [AnnouncementImage
 Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
     Route::get('/', [NotificationController::class, 'index'])->name('index');
     Route::patch('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
-    Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])->name('proposal-invitations.accept');
+    Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])
+        ->middleware('workspace:faculty')
+        ->name('proposal-invitations.accept');
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
 
@@ -277,10 +283,11 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(funct
     Route::post('/research-support/literature-collections', [LiteratureCollectionController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('research-support.literature-collections.store');
-    Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{literatureSource}', [ProposalDraftLiteratureSourceController::class, 'store'])
-        ->middleware('throttle:30,1')
-        ->name('faculty.proposal-drafts.literature-sources.store');
 });
+
+Route::post('/faculty/proposal-drafts/{proposalDraft}/literature-sources/{literatureSource}', [ProposalDraftLiteratureSourceController::class, 'store'])
+    ->middleware(['auth', 'workspace:faculty', 'throttle:30,1'])
+    ->name('faculty.proposal-drafts.literature-sources.store');
 
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::post('/research-support/conference-search', ConferenceSearchController::class)

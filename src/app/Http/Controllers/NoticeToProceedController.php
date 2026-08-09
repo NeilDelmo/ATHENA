@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\IssueNoticeToProceedRequest;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\NoticeToProceedDataService;
+use App\Services\NoticeToProceedDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -19,16 +23,45 @@ use Throwable;
 
 class NoticeToProceedController extends Controller
 {
+    public function __construct(
+        private readonly NoticeToProceedDataService $dataService,
+        private readonly NoticeToProceedDocumentService $documentService,
+        private readonly DocumentPdfConverter $pdfConverter,
+    ) {}
+
     public function store(IssueNoticeToProceedRequest $request, TopicProposal $topic): RedirectResponse
     {
-        $notice = $request->file('notice_to_proceed');
-        $path = $notice->store('notices-to-proceed/'.$topic->id, 'local');
+        if ($topic->status !== 'approved') {
+            throw ValidationException::withMessages([
+                'notice_to_proceed' => 'The proposal papers must be approved before a Notice to Proceed can be issued.',
+            ]);
+        }
 
-        if (! is_string($path)) {
+        $noticeData = $this->dataService->snapshot($request->validated());
+
+        try {
+            $document = $this->documentService->generate(
+                $this->dataService->documentValues($noticeData),
+            );
+            $pdf = $this->pdfConverter->convertDocx($document);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'notice_to_proceed' => 'The Notice to Proceed PDF could not be generated. Please verify the notice details and try again.',
+                ]);
+        }
+
+        $slug = Str::limit(Str::slug($noticeData['project_title']), 150, '');
+        $originalFilename = 'notice-to-proceed-'.($slug !== '' ? $slug : $topic->id).'.pdf';
+        $path = 'notices-to-proceed/'.$topic->id.'/'.Str::uuid().'.pdf';
+
+        if (! Storage::disk('local')->put($path, $pdf)) {
             throw new RuntimeException('The Notice to Proceed could not be stored.');
         }
 
-        $originalFilename = Str::limit($notice->getClientOriginalName(), 255, '');
         $previousPath = null;
         $firstIssuance = false;
 
@@ -38,6 +71,7 @@ class NoticeToProceedController extends Controller
                 $topic,
                 $path,
                 $originalFilename,
+                $noticeData,
                 &$previousPath,
                 &$firstIssuance,
             ): void {
@@ -60,6 +94,7 @@ class NoticeToProceedController extends Controller
                     'notice_to_proceed_original_filename' => $originalFilename,
                     'notice_to_proceed_issued_by' => $request->user()->id,
                     'notice_to_proceed_issued_at' => now(),
+                    'notice_to_proceed_data' => $noticeData,
                     'project_status' => $approvedTopic->project_status ?? 'ongoing',
                 ]);
 
@@ -98,17 +133,13 @@ class NoticeToProceedController extends Controller
         return redirect()
             ->to(route('topics.show', $topic).'#notice-to-proceed')
             ->with('success', $firstIssuance
-                ? 'Notice to Proceed issued. Faculty Researcher access and project monitoring are now open.'
-                : 'Notice to Proceed replaced successfully.');
+                ? 'Notice to Proceed generated and issued. Faculty Researcher access and project monitoring are now open.'
+                : 'Notice to Proceed regenerated successfully.');
     }
 
     public function download(Request $request, TopicProposal $topic): StreamedResponse
     {
-        abort_unless(
-            $request->user()->isUsingWorkspace('research_head')
-                || $topic->user_id === $request->user()->id,
-            403,
-        );
+        Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless($topic->notice_to_proceed_issued_at, 404);
         abort_unless($topic->notice_to_proceed_path, 404);
         abort_unless(Storage::disk('local')->exists($topic->notice_to_proceed_path), 404);

@@ -4,13 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\FinalizeResearchHeadTopicApprovalRequest;
 use App\Http\Requests\UpdateResearchHeadTopicStatusRequest;
-use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\FacultyProjectCapacityService;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\RedirectResponse;
@@ -32,6 +32,7 @@ class ResearchHeadTopicController extends Controller
         UpdateResearchHeadTopicStatusRequest $request,
         TopicProposal $topic,
         ProposalPackageService $packageService,
+        FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
         $validated = $request->validated();
         $latestVersion = $topic->latestVersion()->with('files')->first();
@@ -135,6 +136,7 @@ class ResearchHeadTopicController extends Controller
                 $latestVersion,
                 $evaluationAttributes,
                 $selectedRevisionFiles,
+                $capacityService,
             ): void {
                 $reviewedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
@@ -147,8 +149,8 @@ class ResearchHeadTopicController extends Controller
                     ]);
                 }
 
-                if (in_array($validated['status'], ['approved', TopicProposal::STATUS_READY_FOR_SIGNATURE], true)) {
-                    $this->ensureResearchWorkloadAvailable($reviewedTopic);
+                if ($validated['status'] === 'approved') {
+                    $capacityService->ensureAvailableFor($reviewedTopic);
                 }
 
                 $lockedVersion = ProposalVersion::query()
@@ -166,6 +168,10 @@ class ResearchHeadTopicController extends Controller
                 ]);
 
                 $reviewedTopic->update(['status' => $validated['status']]);
+
+                if ($validated['status'] === 'approved') {
+                    $reviewedTopic->user()->firstOrFail()->assignRole(User::WORKSPACE_FACULTY_RESEARCHER);
+                }
                 $reviewedTopic->expertAssignments()
                     ->where('status', 'pending')
                     ->update(['status' => 'cancelled']);
@@ -248,8 +254,9 @@ class ResearchHeadTopicController extends Controller
         FinalizeResearchHeadTopicApprovalRequest $request,
         TopicProposal $topic,
         ProposalSignatureWorkflow $signatureWorkflow,
+        FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
-        DB::transaction(function () use ($request, $topic, $signatureWorkflow): void {
+        DB::transaction(function () use ($request, $topic, $signatureWorkflow, $capacityService): void {
             $reviewedTopic = TopicProposal::query()
                 ->whereKey($topic->getKey())
                 ->lockForUpdate()
@@ -283,11 +290,12 @@ class ResearchHeadTopicController extends Controller
                 ]);
             }
 
-            $this->ensureResearchWorkloadAvailable($reviewedTopic);
+            $capacityService->ensureAvailableFor($reviewedTopic);
             $reviewedTopic->update([
                 'status' => 'approved',
                 'project_status' => null,
             ]);
+            $reviewedTopic->user()->firstOrFail()->assignRole(User::WORKSPACE_FACULTY_RESEARCHER);
             $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => 'approved',
@@ -310,24 +318,6 @@ class ResearchHeadTopicController extends Controller
         return redirect()
             ->to(route('topics.show', $topic).'#proposal-review')
             ->with('success', 'Proposal approved. The signed final copies are available; monitoring will open after the Notice to Proceed is issued.');
-    }
-
-    private function ensureResearchWorkloadAvailable(TopicProposal $topic): void
-    {
-        $researchCall = $topic->researchCall()->firstOrFail();
-        $approvedProjectIds = TopicProposal::query()
-            ->where('user_id', $topic->user_id)
-            ->whereKeyNot($topic->getKey())
-            ->where('status', 'approved')
-            ->whereHas('researchCall', fn ($query) => $query->where('academic_year', $researchCall->academic_year))
-            ->lockForUpdate()
-            ->pluck('id');
-
-        if ($approvedProjectIds->count() >= $researchCall->max_active_research_per_faculty) {
-            throw ValidationException::withMessages([
-                'status' => "This faculty researcher already has the maximum of {$researchCall->max_active_research_per_faculty} approved research projects for academic year {$researchCall->academic_year}. Applications remain unlimited, but another project cannot be approved for that year.",
-            ]);
-        }
     }
 
     /**

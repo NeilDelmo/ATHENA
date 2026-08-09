@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SyncTopicCollaborators;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
@@ -14,6 +15,7 @@ use App\Models\TopicProposal;
 use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
@@ -27,6 +29,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -36,15 +39,21 @@ use Throwable;
 
 class TopicController extends Controller
 {
-    public function __construct(private ProposalSignatureWorkflow $signatureWorkflow) {}
+    public function __construct(
+        private ProposalSignatureWorkflow $signatureWorkflow,
+        private NoticeToProceedDataService $noticeToProceedDataService,
+    ) {}
 
     public function index(ProposalDraftReadiness $readiness): View
     {
         $user = Auth::user();
         $isFacultyResearcher = $user->isUsingWorkspace('faculty_researcher');
 
+        if ($isFacultyResearcher) {
+            return $this->researchWorkspace($user);
+        }
+
         $topics = $user->proposals()
-            ->when($isFacultyResearcher, fn ($query) => $query->where('status', 'approved'))
             ->with([
                 'researchCall', 'category',
                 'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file'])->oldest(),
@@ -70,10 +79,16 @@ class TopicController extends Controller
                 'closes_at',
                 'status',
             ]);
+        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
         $announcementImages = AnnouncementImage::query()
+            ->with('researchCall:id,status,opens_at,closes_at')
+            ->where(function ($query): void {
+                $query->whereNull('research_call_id')
+                    ->orWhereHas('researchCall', fn ($researchCallQuery) => $researchCallQuery->acceptingSubmissions());
+            })
             ->latest()
-            ->get(['id', 'image_path']);
+            ->get(['id', 'image_path', 'research_call_id']);
 
         $researchCallCarouselItems = $researchCallPosters
             ->map(fn (ResearchCall $researchCall): array => [
@@ -86,9 +101,10 @@ class TopicController extends Controller
             ->concat($announcementImages->map(fn (AnnouncementImage $announcementImage): array => [
                 'url' => route('announcement-images.show', $announcementImage),
                 'alt' => 'Research Office announcement',
-                'isResearchCall' => false,
-                'researchCallId' => null,
-                'canSubmitProposal' => false,
+                'isResearchCall' => $announcementImage->research_call_id !== null,
+                'researchCallId' => $announcementImage->research_call_id,
+                'canSubmitProposal' => ! $isFacultyResearcher
+                    && ($announcementImage->researchCall?->isAcceptingSubmissions() ?? false),
             ]))
             ->values();
 
@@ -107,7 +123,9 @@ class TopicController extends Controller
 
             $proposalDraftProgress = $recentProposalDrafts->mapWithKeys(function (ProposalDraft $draft) use ($readiness): array {
                 $checklist = $readiness->checklist($draft);
-                $completed = $checklist->where('complete', true)->count();
+                $completed = $checklist
+                    ->filter(fn (array $item): bool => $item['complete'] && ! $item['needs_attention'])
+                    ->count();
                 $total = $checklist->count();
 
                 return [$draft->getKey() => [
@@ -125,6 +143,7 @@ class TopicController extends Controller
             'recentProposalDrafts',
             'proposalDraftProgress',
             'isFacultyResearcher',
+            'hasOpenResearchCall',
         ));
     }
 
@@ -135,25 +154,7 @@ class TopicController extends Controller
 
     public function researchIndex(Request $request)
     {
-        $status = $request->string('status')->toString();
-        $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['pending', 'expert_review', 'for_final_decision', 'revision_requested', 'resubmitted', TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'];
-
-        $topics = TopicProposal::query()
-            ->with(['researchCall', 'category', 'latestVersion'])
-            ->where('user_id', $request->user()->id)
-            ->when(in_array($status, $allowedStatuses, true), fn ($query) => $query->where('status', $status))
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
-            })
-            ->latest()
-            ->paginate(15)
-            ->withQueryString();
-
-        return view('research.index', compact('topics', 'status', 'search'));
+        return $this->researchWorkspace($request->user(), trim($request->string('search')->toString()));
     }
 
     public function researchShow(Request $request, TopicProposal $topic)
@@ -243,6 +244,9 @@ class TopicController extends Controller
         $headUploadWorkspace = $request->user()->isUsingWorkspace('research_head')
             ? $this->headUploadWorkspaceData($topic, $latestVersion)
             : null;
+        $noticeToProceedForm = $request->user()->isUsingWorkspace('research_head') && $topic->status === 'approved'
+            ? $this->noticeToProceedDataService->defaults($topic)
+            : null;
 
         return view('topics.show', compact(
             'topic',
@@ -261,6 +265,7 @@ class TopicController extends Controller
             'availableReviewDocumentIds',
             'viewableReviewDocumentIds',
             'headUploadWorkspace',
+            'noticeToProceedForm',
         ));
     }
 
@@ -362,8 +367,12 @@ class TopicController extends Controller
         return redirect()->route('faculty.dashboard')->with('success', 'Proposal submitted successfully and sent to the Research Head.');
     }
 
-    public function resubmit(Request $request, TopicProposal $topic, ProposalPackageService $packageService)
-    {
+    public function resubmit(
+        Request $request,
+        TopicProposal $topic,
+        ProposalPackageService $packageService,
+        SyncTopicCollaborators $syncTopicCollaborators,
+    ) {
         abort_unless($topic->user_id === $request->user()->id, 403);
 
         if ($topic->status !== 'revision_requested') {
@@ -459,7 +468,7 @@ class TopicController extends Controller
         $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, &$result) {
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -518,7 +527,10 @@ class TopicController extends Controller
                     ]);
                 }
 
-                $revisionDraft?->delete();
+                if ($revisionDraft) {
+                    $syncTopicCollaborators->handle($revisionDraft, $revisedTopic);
+                    $revisionDraft->delete();
+                }
 
                 $result['updated'] = true;
             });
@@ -860,9 +872,30 @@ class TopicController extends Controller
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
     {
-        $user = $request->user();
+        Gate::forUser($request->user())->authorize('view', $topic);
+    }
 
-        abort_unless($user->isUsingWorkspace('research_head') || $topic->user_id === $user->id, 403);
+    private function researchWorkspace(User $user, string $search = ''): View
+    {
+        $projects = $user->proposals()
+            ->with(['researchCall', 'category', 'latestVersion'])
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%");
+                });
+            });
+
+        $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
+        $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
+        $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
+
+        return view('research.index', compact(
+            'activeProjects',
+            'awaitingProjects',
+            'completedProjects',
+            'search',
+        ));
     }
 
     private function ensureCanAccessVersionFile(

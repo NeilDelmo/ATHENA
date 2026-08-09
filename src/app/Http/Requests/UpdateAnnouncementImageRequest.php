@@ -7,7 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreAnnouncementImageRequest extends FormRequest
+class UpdateAnnouncementImageRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -17,27 +17,19 @@ class StoreAnnouncementImageRequest extends FormRequest
         return $this->user()?->isUsingWorkspace('research_head') ?? false;
     }
 
-    /** @return array<string, ValidationRule|array<mixed>|string> */
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, ValidationRule|array<mixed>|string>
+     */
     public function rules(): array
     {
         return [
-            'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240'],
             'research_call_id' => [
                 'nullable',
                 'integer',
                 Rule::exists((new ResearchCall)->getTable(), 'id'),
             ],
-        ];
-    }
-
-    /** @return array<string, string> */
-    public function messages(): array
-    {
-        return [
-            'image.required' => 'Choose an announcement image first.',
-            'image.image' => 'The announcement must be a valid image.',
-            'image.mimes' => 'The announcement must be a JPG, PNG, or WebP image.',
-            'image.max' => 'The announcement image may not be larger than 10 MB.',
         ];
     }
 }

@@ -52,6 +52,7 @@ class SubmitProposalDraft
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
         private readonly ArchiveProposalDraftDocumentHistory $archiveDocumentHistory,
+        private readonly SyncTopicCollaborators $syncTopicCollaborators,
     ) {}
 
     public function handle(ProposalDraft $draft, User $user): TopicProposal
@@ -158,6 +159,7 @@ class SubmitProposalDraft
                     'estimated_duration_months' => $lockedDraft->duration_months,
                     'status' => 'pending',
                 ]);
+                $this->syncTopicCollaborators->handle($lockedDraft, $topic);
                 $version = $topic->versions()->create([
                     'submitted_by' => $user->id,
                     'version_number' => 1,

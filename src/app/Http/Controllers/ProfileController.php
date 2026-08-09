@@ -25,6 +25,10 @@ class ProfileController extends Controller
         ]);
 
         $recentProposals = $user->proposals()
+            ->when(
+                $user->isUsingWorkspace('faculty_researcher'),
+                fn ($query) => $query->approved(),
+            )
             ->with(['researchCall', 'category'])
             ->latest()
             ->limit(3)

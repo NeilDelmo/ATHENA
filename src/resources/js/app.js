@@ -5128,4 +5128,6 @@ initializeResearchCallImageExtractors();
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
-Livewire.start();
+if (typeof window.livewireScriptConfig !== 'undefined') {
+    Livewire.start();
+}

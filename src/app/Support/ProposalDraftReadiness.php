@@ -27,6 +27,7 @@ class ProposalDraftReadiness
      *     paper: array<string, mixed>,
      *     documents: Collection<int, ProposalDraftDocument>,
      *     complete: bool,
+     *     needs_attention: bool,
      *     status: string,
      *     count: int,
      *     submission_filename: string
@@ -35,14 +36,20 @@ class ProposalDraftReadiness
     public function checklist(ProposalDraft $draft): Collection
     {
         $draft->loadMissing('documents');
+        $budgetComparison = $this->proposalBudgetConsistency->compare($draft);
+        $budgetNeedsAttention = $budgetComparison['available'] && ! $budgetComparison['consistent'];
 
-        return $this->catalog->all()->mapWithKeys(function (array $paper) use ($draft): array {
+        return $this->catalog->all()->mapWithKeys(function (array $paper) use ($budgetNeedsAttention, $draft): array {
             $documents = $draft->documents
                 ->where('document_type', $paper['document_type'])
                 ->sortBy('position')
                 ->values();
             $complete = $this->paperIsComplete($draft, $paper, $documents);
+            $needsAttention = $complete
+                && $budgetNeedsAttention
+                && in_array($paper['slug'], ['line-item-budget', 'expense-breakdown'], true);
             $status = match (true) {
+                $needsAttention => 'Needs attention',
                 $complete => 'Complete',
                 $paper['mode'] === 'automatic' => 'Waiting for project details',
                 $documents->isEmpty() => 'Not started',
@@ -53,6 +60,7 @@ class ProposalDraftReadiness
                 'paper' => $paper,
                 'documents' => $documents,
                 'complete' => $complete,
+                'needs_attention' => $needsAttention,
                 'status' => $status,
                 'count' => $documents->count(),
                 'submission_filename' => $documents->first()?->original_filename

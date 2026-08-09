@@ -12,6 +12,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\NoticeToProceedDataService;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
@@ -1100,6 +1101,13 @@ test('budget mismatches are identified in the interface and prevent final submis
         ->assertOk()
         ->assertSee('Budget totals do not match')
         ->assertSee('Submission blocked')
+        ->assertSee('5 of 7 required PDF attachments ready')
+        ->assertSeeTextInOrder([
+            'Attachment B: Line-Item Budget',
+            'Needs attention',
+            'Estimated Expense Breakdown',
+            'Needs attention',
+        ])
         ->assertSee('MOOE')
         ->assertSee('Total Project Cost')
         ->assertSee('Php 4,200.00')
@@ -1108,12 +1116,23 @@ test('budget mismatches are identified in the interface and prevent final submis
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.line-item-budget.edit', $draft))
         ->assertOk()
-        ->assertSee('Budget totals do not match');
+        ->assertSee('Budget totals do not match')
+        ->assertSee('Needs attention');
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $draft))
         ->assertOk()
-        ->assertSee('Budget totals do not match');
+        ->assertSee('Budget totals do not match')
+        ->assertSee('Needs attention');
+
+    $checklist = app(ProposalDraftReadiness::class)->checklist($draft->fresh());
+
+    expect($checklist['line-item-budget']['complete'])->toBeTrue()
+        ->and($checklist['line-item-budget']['needs_attention'])->toBeTrue()
+        ->and($checklist['line-item-budget']['status'])->toBe('Needs attention')
+        ->and($checklist['expense-breakdown']['complete'])->toBeTrue()
+        ->and($checklist['expense-breakdown']['needs_attention'])->toBeTrue()
+        ->and($checklist['expense-breakdown']['status'])->toBe('Needs attention');
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submit', $draft))
@@ -1124,6 +1143,27 @@ test('budget mismatches are identified in the interface and prevent final submis
 
     expect(ProposalDraft::find($draft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
+
+    $lineItemBudget->update([
+        'source_data' => [
+            'amounts' => [
+                'telephone_expenses' => 3600,
+            ],
+        ],
+    ]);
+    $resolvedChecklist = app(ProposalDraftReadiness::class)->checklist($draft->fresh());
+
+    expect($resolvedChecklist['line-item-budget']['complete'])->toBeTrue()
+        ->and($resolvedChecklist['line-item-budget']['needs_attention'])->toBeFalse()
+        ->and($resolvedChecklist['line-item-budget']['status'])->toBe('Complete')
+        ->and($resolvedChecklist['expense-breakdown']['needs_attention'])->toBeFalse()
+        ->and($resolvedChecklist['expense-breakdown']['status'])->toBe('Complete');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertDontSee('Budget totals do not match')
+        ->assertDontSee('Needs attention');
 });
 
 test('a PDF conversion failure keeps the complete draft available for another Turn in attempt', function () {
@@ -1214,6 +1254,8 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->and($gadChecklist->source_data['project_leader'])->toBe('Faculty Owner')
         ->and($initialScreeningForm->source_data['project_title'])->toBe('Coastal Habitat Restoration')
         ->and($initialScreeningForm->source_data['project_leader'])->toBe('Faculty Owner');
+
+    expect($topic->collaborators()->sole()->user_id)->toBe($this->otherFaculty->id);
 
     $version->files->each(function (ProposalVersionFile $file): void {
         Storage::disk('local')->assertExists($file->file_path);
@@ -1434,17 +1476,18 @@ test('an rrl backed proposal completes submission revision approval notice and m
 
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->fresh()->isMonitoringAvailable())->toBeFalse()
-        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
     Notification::assertSentTo(
         $this->faculty,
         ProposalActivityNotification::class,
         fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal papers approved',
     );
 
+    $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
+    $notice['resolution_number'] = $notice['resolution_number'] ?: '01';
+
     $this->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.store', $topic), [
-            'notice_to_proceed' => UploadedFile::fake()->create('notice-to-proceed.pdf', 100, 'application/pdf'),
-        ])
+        ->post(route('research_head.topics.notice-to-proceed.store', $topic), $notice)
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
         ->assertSessionHasNoErrors();
 

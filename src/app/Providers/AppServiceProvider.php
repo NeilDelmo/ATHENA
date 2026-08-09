@@ -63,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
 
             $routeDraft = request()->route('proposalDraft');
             $activeProposalDraftId = $user
+                && $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
                 && $routeDraft instanceof ProposalDraft
                 && ProposalDraft::query()->accessibleTo($user)->whereKey($routeDraft->getKey())->exists()
                     ? $routeDraft->getKey()
@@ -81,6 +82,10 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $contexts = $user->proposals()
+                ->when(
+                    $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER),
+                    fn ($query) => $query->visibleInResearcherWorkspace(),
+                )
                 ->with(['category', 'researchCall', 'latestVersion'])
                 ->latest()
                 ->limit(8)
@@ -98,8 +103,10 @@ class AppServiceProvider extends ServiceProvider
 
             $routeTopic = request()->route('topic');
             $activeContextId = match (true) {
-                $routeTopic instanceof TopicProposal && $routeTopic->user_id === $user->id => $routeTopic->id,
-                $routeDraft instanceof ProposalDraft && $routeDraft->topic?->user_id === $user->id => $routeDraft->topic_id,
+                $routeTopic instanceof TopicProposal && $user->can('view', $routeTopic) => $routeTopic->id,
+                $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
+                    && $routeDraft instanceof ProposalDraft
+                    && $routeDraft->topic?->user_id === $user->id => $routeDraft->topic_id,
                 default => null,
             };
 

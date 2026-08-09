@@ -1,102 +1,110 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900">Research</h2>
-            <p class="mt-1 text-xs text-gray-500">Browse your proposals and track each review status.</p>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+                <p class="text-xs font-black uppercase tracking-[0.2em] text-[#7A0019] dark:text-red-300">Faculty Researcher</p>
+                <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Approved Research Projects</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Notices to Proceed, approved papers, monitoring, and completed research in one workspace.</p>
+            </div>
+            <form method="GET" action="{{ route('research.index') }}" class="flex w-full gap-2 sm:w-auto">
+                <label for="research_search" class="sr-only">Search approved projects</label>
+                <input id="research_search" name="search" type="search" value="{{ $search }}" placeholder="Search projects..." class="min-w-0 flex-1 rounded-xl border-gray-300 text-sm shadow-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-gray-700 dark:bg-gray-950 dark:text-white sm:w-64">
+                <button class="rounded-xl bg-gray-950 px-4 py-2 text-xs font-black text-white transition hover:bg-[#7A0019] dark:bg-white dark:text-gray-950 dark:hover:bg-red-200">Search</button>
+            </form>
         </div>
     </x-slot>
 
-    <div class="space-y-5">
-        <form method="GET" action="{{ route('research.index') }}" class="grid gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 shadow-sm sm:grid-cols-[1fr_220px_auto]">
-            <div>
-                <label for="research_search" class="sr-only">Search research</label>
-                <input id="research_search" name="search" type="search" value="{{ $search }}" placeholder="Search title or description..." class="block w-full rounded-xl border-gray-200 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+    <div class="space-y-6">
+        @if ($search !== '')
+            <div class="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm dark:border-gray-800 dark:bg-gray-950">
+                <p class="font-semibold text-gray-700 dark:text-gray-300">Results for “{{ $search }}”</p>
+                <a href="{{ route('research.index') }}" class="text-xs font-black text-[#7A0019] dark:text-red-300">Clear search</a>
             </div>
-            <div>
-                <label for="research_status" class="sr-only">Filter by status</label>
-                <select id="research_status" name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold text-gray-700 shadow-sm focus:border-red-600 focus:ring-red-600">
-                    <option value="">All statuses</option>
-                    <option value="pending" @selected($status === 'pending')>Pending</option>
-                    <option value="revision_requested" @selected($status === 'revision_requested')>Revision requested</option>
-                    <option value="resubmitted" @selected($status === 'resubmitted')>Resubmitted</option>
-                    <option value="ready_for_signature" @selected($status === 'ready_for_signature')>Ready for signature</option>
-                    <option value="approved" @selected($status === 'approved')>Approved</option>
-                    <option value="rejected" @selected($status === 'rejected')>Rejected</option>
-                </select>
-            </div>
-            <div class="flex gap-2">
-                <button type="submit" class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-red-700">Filter</button>
-                @if ($search !== '' || $status !== '')
-                    <a href="{{ route('research.index') }}" class="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600 transition hover:bg-gray-50">Clear</a>
-                @endif
-            </div>
-        </form>
+        @endif
 
-        <div class="overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-sm">
-            <div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-                <div>
-                    <h3 class="text-sm font-bold text-gray-900">Research list</h3>
-                    <p class="mt-0.5 text-xs text-gray-400">{{ $topics->total() }} {{ Str::plural('record', $topics->total()) }} found</p>
+        @php
+            $sections = [
+                [
+                    'id' => 'active-projects',
+                    'eyebrow' => 'In implementation',
+                    'title' => 'Active Projects',
+                    'description' => 'Approved projects with an issued Notice to Proceed. Monitoring is open for ongoing and delayed projects.',
+                    'projects' => $activeProjects,
+                    'empty' => 'No active projects right now.',
+                    'tone' => 'active',
+                ],
+                [
+                    'id' => 'awaiting-ntp',
+                    'eyebrow' => 'Approved papers',
+                    'title' => 'Awaiting Notice to Proceed',
+                    'description' => 'These approved projects occupy a capacity slot, but monitoring remains closed until the Research Head issues the NTP.',
+                    'projects' => $awaitingProjects,
+                    'empty' => 'No approved projects are waiting for an NTP.',
+                    'tone' => 'awaiting',
+                ],
+                [
+                    'id' => 'completed-projects',
+                    'eyebrow' => 'Read-only records',
+                    'title' => 'Completed / Archive',
+                    'description' => 'Completed projects no longer occupy a capacity slot. Their approved papers, NTP, and submitted reports remain available.',
+                    'projects' => $completedProjects,
+                    'empty' => 'No completed projects have been archived yet.',
+                    'tone' => 'completed',
+                ],
+            ];
+        @endphp
+
+        @foreach ($sections as $section)
+            <section id="{{ $section['id'] }}" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <div class="flex flex-col gap-3 border-b border-gray-200 px-5 py-5 dark:border-gray-800 sm:flex-row sm:items-end sm:justify-between">
+                    <div class="border-l-4 border-[#7A0019] pl-3 dark:border-red-500">
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-[#7A0019] dark:text-red-300">{{ $section['eyebrow'] }}</p>
+                        <h3 class="mt-1 text-lg font-black text-gray-950 dark:text-white">{{ $section['title'] }}</h3>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $section['description'] }}</p>
+                    </div>
+                    <span class="self-start rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-700 dark:bg-gray-900 dark:text-gray-300 sm:self-auto">{{ $section['projects']->count() }}</span>
                 </div>
-            </div>
 
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-100">
-                    <thead class="bg-gray-50/70">
-                        <tr>
-                            <th class="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wider text-gray-400">Research</th>
-                            <th class="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wider text-gray-400">Status</th>
-                            <th class="px-5 py-3 text-right text-[11px] font-black uppercase tracking-wider text-gray-400">Budget</th>
-                            <th class="px-5 py-3 text-left text-[11px] font-black uppercase tracking-wider text-gray-400">Updated</th>
-                            <th class="px-5 py-3"><span class="sr-only">View</span></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @forelse ($topics as $topic)
-                            @php
-                                $statusClass = match ($topic->status) {
-                                    'approved' => $topic->isMonitoringAvailable() ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700',
-                                    'ready_for_signature' => 'bg-red-50 text-red-800',
-                                    'rejected' => 'bg-red-50 text-red-700',
-                                    'revision_requested' => 'bg-blue-50 text-blue-700',
-                                    'resubmitted' => 'bg-purple-50 text-purple-700',
-                                    default => 'bg-amber-50 text-amber-700',
-                                };
-                            @endphp
-                            <tr class="transition hover:bg-gray-50/70">
-                                <td class="px-5 py-4">
-                                    <a href="{{ route('topics.show', $topic) }}" class="block max-w-md">
-                                        <span class="block text-sm font-bold text-gray-900 hover:text-red-600">{{ $topic->title }}</span>
-                                        <span class="mt-1 block truncate text-xs text-gray-400">{{ $topic->description ?: 'No description provided.' }}</span>
-                                        <span class="mt-1 block text-[11px] font-semibold text-gray-400">{{ $topic->researchCall->title }}@if ($topic->category) · {{ $topic->category->name }}@endif</span>
-                                    </a>
-                                </td>
-                                <td class="whitespace-nowrap px-5 py-4">
-                                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusClass }}">{{ $topic->status === 'approved' && ! $topic->isMonitoringAvailable() ? 'approved - awaiting notice' : str_replace('_', ' ', $topic->status) }}</span>
-                                </td>
-                                <td class="whitespace-nowrap px-5 py-4 text-right text-xs font-bold text-gray-700">
-                                    {{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}
-                                </td>
-                                <td class="whitespace-nowrap px-5 py-4 text-xs text-gray-500">{{ $topic->updated_at->format('M d, Y') }}</td>
-                                <td class="whitespace-nowrap px-5 py-4 text-right">
-                                    <a href="{{ route('topics.show', $topic) }}{{ $topic->isMonitoringAvailable() ? '#project-monitoring' : ($topic->status === 'approved' ? '#notice-to-proceed' : '') }}" class="inline-flex items-center rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">{{ $topic->isMonitoringAvailable() ? 'Monitor project' : 'View details' }}</a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="px-5 py-14 text-center">
-                                    <p class="text-sm font-bold text-gray-700">No research found</p>
-                                    <p class="mt-1 text-xs text-gray-400">Try changing the search or status filter.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                <div class="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+                    @forelse ($section['projects'] as $topic)
+                        <article class="flex min-h-64 flex-col rounded-2xl border border-gray-200 p-5 transition hover:border-red-200 hover:shadow-md dark:border-gray-800 dark:hover:border-red-900">
+                            <div class="flex flex-wrap items-center gap-2">
+                                @if ($section['tone'] === 'active')
+                                    <span class="rounded-full bg-gray-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white dark:bg-white dark:text-gray-950">{{ $topic->project_status }}</span>
+                                @elseif ($section['tone'] === 'awaiting')
+                                    <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#7A0019] ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900">Awaiting Notice to Proceed</span>
+                                @else
+                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:bg-gray-900 dark:text-gray-400">Completed · Read only</span>
+                                @endif
+                            </div>
 
-            @if ($topics->hasPages())
-                <div class="border-t border-gray-100 px-5 py-4">{{ $topics->links() }}</div>
-            @endif
-        </div>
+                            <h4 class="mt-4 text-base font-black leading-6 text-gray-950 dark:text-white">{{ $topic->title }}</h4>
+                            <p class="mt-2 line-clamp-3 text-xs leading-5 text-gray-600 dark:text-gray-400">{{ $topic->description ?: 'No project description provided.' }}</p>
+
+                            <dl class="mt-4 grid grid-cols-2 gap-3 text-xs">
+                                <div>
+                                    <dt class="font-black uppercase tracking-wider text-gray-400">Budget</dt>
+                                    <dd class="mt-1 font-bold text-gray-800 dark:text-gray-200">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="font-black uppercase tracking-wider text-gray-400">Academic year</dt>
+                                    <dd class="mt-1 font-bold text-gray-800 dark:text-gray-200">{{ $topic->researchCall?->academic_year ?: 'Not provided' }}</dd>
+                                </div>
+                            </dl>
+
+                            <div class="mt-auto flex gap-2 pt-5">
+                                <a href="{{ route('research.show', $topic) }}{{ in_array($section['tone'], ['active', 'completed'], true) ? '#project-monitoring' : '#notice-to-proceed' }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-[#7A0019] dark:bg-white dark:text-gray-950 dark:hover:bg-red-200">
+                                    {{ $section['tone'] === 'active' ? 'Project & monitoring' : 'View project record' }}
+                                </a>
+                            </div>
+                        </article>
+                    @empty
+                        <div class="rounded-2xl border border-dashed border-gray-300 px-5 py-10 text-center md:col-span-2 xl:col-span-3 dark:border-gray-700">
+                            <p class="text-sm font-black text-gray-700 dark:text-gray-300">{{ $section['empty'] }}</p>
+                        </div>
+                    @endforelse
+                </div>
+            </section>
+        @endforeach
     </div>
 </x-app-layout>

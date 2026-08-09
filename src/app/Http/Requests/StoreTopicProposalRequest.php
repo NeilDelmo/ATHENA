@@ -16,10 +16,7 @@ class StoreTopicProposalRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->isUsingWorkspace([
-            User::WORKSPACE_FACULTY,
-            User::WORKSPACE_FACULTY_RESEARCHER,
-        ]) ?? false;
+        return $this->user()?->isUsingWorkspace(User::WORKSPACE_FACULTY) ?? false;
     }
 
     /**

@@ -97,7 +97,7 @@ class ResearchCallController extends Controller
 
         if ($hasChanges) {
             Notification::sendNow(
-                User::query()->get(),
+                User::role(User::WORKSPACE_FACULTY)->get(),
                 new ResearchCallUpdatedNotification(
                     $researchCall->id,
                     $researchCall->title,
@@ -172,7 +172,7 @@ class ResearchCallController extends Controller
     private function notifyFacultyOfPublishedCall(ResearchCall $researchCall): void
     {
         Notification::sendNow(
-            User::role(['faculty', 'faculty_researcher'])->get(),
+            User::role(User::WORKSPACE_FACULTY)->get(),
             new ResearchCallPublishedNotification(
                 $researchCall->id,
                 $researchCall->title,

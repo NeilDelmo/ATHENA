@@ -86,7 +86,7 @@ class ProjectNarrativeReportController extends Controller
 
     public function review(Request $request, ProjectNarrativeReport $report): RedirectResponse
     {
-        abort_unless($report->topic()->monitoringAvailable()->exists(), 404);
+        abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in([

@@ -1,10 +1,12 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\NoticeToProceedDataService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -25,6 +27,18 @@ beforeEach(function () {
 
     Storage::fake('local');
     $this->withoutVite();
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+    });
 });
 
 test('a user with both faculty and research_head roles uses the same college and contact number in every workspace', function () {
@@ -160,10 +174,13 @@ test('issuing a Notice to Proceed promotes a faculty researcher without duplicat
 
     expect($owner->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 
+    $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
+    $notice['resolution_number'] = '01';
+    $notice['approved_start_date'] = '2026-08-01';
+    $notice['approved_end_date'] = '2027-07-31';
+
     $this->actingAs($head)
-        ->post(route('research_head.topics.notice-to-proceed.store', $topic), [
-            'notice_to_proceed' => UploadedFile::fake()->create('notice-to-proceed.pdf', 100, 'application/pdf'),
-        ])
+        ->post(route('research_head.topics.notice-to-proceed.store', $topic), $notice)
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
 
     $owner->refresh();

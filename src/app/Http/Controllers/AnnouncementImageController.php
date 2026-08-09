@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreAnnouncementImageRequest;
+use App\Http\Requests\UpdateAnnouncementImageRequest;
 use App\Models\AnnouncementImage;
+use App\Models\ResearchCall;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
@@ -14,7 +16,8 @@ class AnnouncementImageController extends Controller
     public function index(): View
     {
         return view('announcement_images.index', [
-            'announcementImages' => AnnouncementImage::query()->latest()->get(),
+            'announcementImages' => AnnouncementImage::query()->with('researchCall')->latest()->get(),
+            'researchCalls' => ResearchCall::query()->latest('opens_at')->get(),
         ]);
     }
 
@@ -22,9 +25,21 @@ class AnnouncementImageController extends Controller
     {
         AnnouncementImage::create([
             'image_path' => $request->file('image')->store('announcements', 'local'),
+            'research_call_id' => $request->validated('research_call_id'),
         ]);
 
         return redirect()->route('announcement-images.index')->with('success', 'Announcement image uploaded successfully.');
+    }
+
+    public function update(
+        UpdateAnnouncementImageRequest $request,
+        AnnouncementImage $announcementImage,
+    ): RedirectResponse {
+        $announcementImage->update($request->validated());
+
+        return redirect()
+            ->route('announcement-images.index')
+            ->with('success', 'Announcement visibility updated.');
     }
 
     public function show(AnnouncementImage $announcementImage): StreamedResponse

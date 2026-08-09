@@ -10,6 +10,7 @@ use App\Models\TopicProposal;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -139,8 +140,7 @@ class ProposalFileAnnotationController extends Controller
     ): void {
         $this->ensureFileScope($topic, $version, $file);
 
-        $user = $request->user();
-        abort_unless($user->isUsingWorkspace('research_head') || $topic->user_id === $user->id, 403);
+        Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless($this->isPdf($file), 415);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
     }

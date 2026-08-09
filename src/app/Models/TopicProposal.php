@@ -10,7 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class TopicProposal extends Model
 {
+    public const MAX_CONCURRENT_APPROVED_PROJECTS = 2;
+
     public const STATUS_READY_FOR_SIGNATURE = 'ready_for_signature';
+
+    public const PROJECT_STATUS_ONGOING = 'ongoing';
+
+    public const PROJECT_STATUS_DELAYED = 'delayed';
+
+    public const PROJECT_STATUS_COMPLETED = 'completed';
 
     protected $table = 'topics';
 
@@ -29,6 +37,7 @@ class TopicProposal extends Model
         'notice_to_proceed_original_filename',
         'notice_to_proceed_issued_by',
         'notice_to_proceed_issued_at',
+        'notice_to_proceed_data',
         'status',
         'project_status',
     ];
@@ -38,20 +47,116 @@ class TopicProposal extends Model
         return [
             'estimated_budget' => 'decimal:2',
             'notice_to_proceed_issued_at' => 'datetime',
+            'notice_to_proceed_data' => 'array',
         ];
     }
 
     public function scopeMonitoringAvailable(Builder $query): Builder
     {
+        return $query->activeProject();
+    }
+
+    public function scopeApproved(Builder $query): Builder
+    {
+        return $query->where('status', 'approved');
+    }
+
+    public function scopeOccupiesCapacity(Builder $query): Builder
+    {
         return $query
-            ->where('status', 'approved')
+            ->approved()
+            ->where(function (Builder $query): void {
+                $query->whereNull('project_status')
+                    ->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED);
+            });
+    }
+
+    public function scopeAwaitingNoticeToProceed(Builder $query): Builder
+    {
+        return $query
+            ->occupiesCapacity()
+            ->whereNull('notice_to_proceed_issued_at');
+    }
+
+    public function scopeWithIssuedNotice(Builder $query): Builder
+    {
+        return $query
+            ->approved()
             ->whereNotNull('notice_to_proceed_issued_at');
+    }
+
+    public function scopeActiveProject(Builder $query): Builder
+    {
+        return $query
+            ->withIssuedNotice()
+            ->whereIn('project_status', [
+                self::PROJECT_STATUS_ONGOING,
+                self::PROJECT_STATUS_DELAYED,
+            ]);
+    }
+
+    public function scopeCompletedProject(Builder $query): Builder
+    {
+        return $query
+            ->approved()
+            ->where('project_status', self::PROJECT_STATUS_COMPLETED);
+    }
+
+    public function scopeVisibleInResearcherWorkspace(Builder $query): Builder
+    {
+        return $query
+            ->approved()
+            ->where(function (Builder $query): void {
+                $query->where(function (Builder $query): void {
+                    $query->whereNull('notice_to_proceed_issued_at')
+                        ->where(function (Builder $query): void {
+                            $query->whereNull('project_status')
+                                ->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED);
+                        });
+                })->orWhere(function (Builder $query): void {
+                    $query->whereNotNull('notice_to_proceed_issued_at')
+                        ->whereIn('project_status', [
+                            self::PROJECT_STATUS_ONGOING,
+                            self::PROJECT_STATUS_DELAYED,
+                        ]);
+                })->orWhere('project_status', self::PROJECT_STATUS_COMPLETED);
+            });
     }
 
     public function isMonitoringAvailable(): bool
     {
         return $this->status === 'approved'
+            && $this->notice_to_proceed_issued_at !== null
+            && in_array($this->project_status, [
+                self::PROJECT_STATUS_ONGOING,
+                self::PROJECT_STATUS_DELAYED,
+            ], true);
+    }
+
+    public function hasIssuedNoticeToProceed(): bool
+    {
+        return $this->status === 'approved'
             && $this->notice_to_proceed_issued_at !== null;
+    }
+
+    public function isAwaitingNoticeToProceed(): bool
+    {
+        return $this->status === 'approved'
+            && $this->project_status !== self::PROJECT_STATUS_COMPLETED
+            && $this->notice_to_proceed_issued_at === null;
+    }
+
+    public function isCompletedProject(): bool
+    {
+        return $this->status === 'approved'
+            && $this->project_status === self::PROJECT_STATUS_COMPLETED;
+    }
+
+    public function isVisibleInResearcherWorkspace(): bool
+    {
+        return $this->isAwaitingNoticeToProceed()
+            || $this->isMonitoringAvailable()
+            || $this->isCompletedProject();
     }
 
     public function user(): BelongsTo
@@ -103,6 +208,12 @@ class TopicProposal extends Model
     public function revisionDraft(): HasOne
     {
         return $this->hasOne(ProposalDraft::class, 'topic_id');
+    }
+
+    public function collaborators(): HasMany
+    {
+        return $this->hasMany(TopicCollaborator::class, 'topic_id')
+            ->orderBy('name');
     }
 
     public function progressReports(): HasMany

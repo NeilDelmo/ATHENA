@@ -47,7 +47,7 @@
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h4 class="text-sm font-black text-gray-900">{{ $paper['label'] }}</h4>
-                                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $item['complete'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">{{ $item['status'] }}</span>
+                                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $item['needs_attention'] ? 'bg-red-100 text-red-800' : ($item['complete'] ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600') }}">{{ $item['status'] }}</span>
                             </div>
                             <p class="mt-2 break-all text-xs font-bold text-gray-800">{{ $item['submission_filename'] }}</p>
                             <div class="mt-2 text-xs leading-5 text-gray-500">

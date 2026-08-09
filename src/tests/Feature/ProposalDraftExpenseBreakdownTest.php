@@ -126,6 +126,10 @@ test('expense items are validated saved resumed and marked ready', function () {
 
     expect($document->document_type)->toBe(ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)
         ->and($document->source_data['items'])->toHaveCount(3)
+        ->and($document->source_data['items'][0]['account'])->toBe('Communication Expenses')
+        ->and($document->source_data['items'][0]['sub_account'])->toBe('Telephone Expenses')
+        ->and($document->source_data['items'][1]['account'])->toBe('Professional Services')
+        ->and($document->source_data['items'][1]['sub_account'])->toBe('Other Professional Services')
         ->and($document->source_data['items'][1]['unit_cost'])->toBe(219.85)
         ->and($document->file_path)->toBeNull()
         ->and($document->completed_at)->not->toBeNull()
@@ -135,7 +139,11 @@ test('expense items are validated saved resumed and marked ready', function () {
         ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft))
         ->assertOk()
         ->assertSee('Back End Developer')
-        ->assertSee('Professional Services');
+        ->assertSee('Professional Services')
+        ->assertSee(':selected="account.label === item.account"', false)
+        ->assertSee(':selected="subAccount.label === item.sub_account"', false)
+        ->assertSee(':value="item.account"', false)
+        ->assertSee(':value="item.sub_account"', false);
 });
 
 test('the preview follows the supplied official table and calculates grouped totals', function () {

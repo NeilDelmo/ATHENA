@@ -101,6 +101,6 @@ class ResearchCall extends Model
 
     public function budgetCeiling(): float
     {
-        return self::MAXIMUM_BUDGET;
+        return min((float) $this->maximum_budget, self::MAXIMUM_BUDGET);
     }
 }
