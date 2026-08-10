@@ -11,6 +11,7 @@ use App\Models\ResearchCall;
 use App\Models\User;
 use App\Notifications\ResearchCallUpdatedNotification;
 use App\Services\ResearchCallImageParser;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -121,7 +122,8 @@ class ResearchCallController extends Controller
     public function extractImage(ExtractResearchCallImageRequest $request): JsonResponse
     {
         try {
-            $fields = $this->imageParser->extract($request->file('reference_image'));
+            $extraction = $this->imageParser->extractWithEvidence($request->file('reference_image'));
+            $fields = $extraction['fields'];
             $detectedBudget = $fields['maximum_budget'];
 
             $warnings = [];
@@ -147,9 +149,23 @@ class ResearchCallController extends Controller
                 $warnings[] = 'No workflow milestones were confidently detected. Add them manually if the poster includes important dates.';
             }
 
+            if (blank($extraction['transcription'])) {
+                $warnings[] = 'The reader could not provide a reviewable poster transcription. Verify every suggested field against the image.';
+            }
+
+            $fieldSummary = $this->imageExtractionFieldSummary($fields);
+            $submissionWindowHasEnded = $this->submissionWindowHasEnded($fields['closes_at']);
+
             return response()->json([
                 'fields' => $fields,
+                'detected_fields' => $fieldSummary['detected'],
+                'missing_fields' => $fieldSummary['missing'],
+                'transcription' => $extraction['transcription'],
                 'warnings' => $warnings,
+                'schedule_is_expired' => $submissionWindowHasEnded,
+                'expired_schedule_warning' => $submissionWindowHasEnded
+                    ? 'This poster’s submission window has already ended. Update the schedule before publishing.'
+                    : null,
             ]);
         } catch (ResearchCallImageExtractionException $exception) {
             Log::warning('Research call image extraction failed.', [
@@ -159,6 +175,57 @@ class ResearchCallController extends Controller
 
             return response()->json(['message' => $exception->getMessage()], 503);
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $fields
+     * @return array{detected: list<string>, missing: list<string>}
+     */
+    private function imageExtractionFieldSummary(array $fields): array
+    {
+        $fieldGroups = [
+            ['label' => 'Call name', 'fields' => ['title']],
+            ['label' => 'Academic year', 'fields' => ['academic_year']],
+            ['label' => 'Term / semester (optional)', 'fields' => ['term']],
+            ['label' => 'Submission window', 'fields' => ['opens_at', 'closes_at']],
+            ['label' => 'Initial evaluation (optional)', 'fields' => ['initial_evaluation_start_date']],
+            ['label' => 'Paper revisions (optional)', 'fields' => ['paper_revisions_start_date']],
+            ['label' => 'Tentative LREC (optional)', 'fields' => ['lrec_start_date']],
+            ['label' => 'Implementation (optional)', 'fields' => ['implementation_start_date']],
+            ['label' => 'Description / guidelines', 'fields' => ['description']],
+        ];
+
+        $detected = [];
+        $missing = [];
+
+        foreach ($fieldGroups as $fieldGroup) {
+            $hasEveryField = collect($fieldGroup['fields'])
+                ->every(fn (string $field): bool => filled($fields[$field] ?? null));
+
+            if ($hasEveryField) {
+                $detected[] = $fieldGroup['label'];
+            } else {
+                $missing[] = $fieldGroup['label'];
+            }
+        }
+
+        if (filled($fields['maximum_budget'] ?? null)) {
+            $detected[] = 'Poster budget';
+        }
+
+        return [
+            'detected' => $detected,
+            'missing' => $missing,
+        ];
+    }
+
+    private function submissionWindowHasEnded(?string $closesAt): bool
+    {
+        if (blank($closesAt)) {
+            return false;
+        }
+
+        return Carbon::parse($closesAt, 'Asia/Manila')->lessThanOrEqualTo(now('Asia/Manila'));
     }
 
     public function sourceImage(Request $request, ResearchCall $researchCall): StreamedResponse
@@ -189,7 +256,7 @@ class ResearchCallController extends Controller
         ]);
         $wasPublished = $researchCall->status === 'open';
 
-        if ($validated['status'] === 'open' && $researchCall->closes_at->isPast()) {
+        if ($validated['status'] === 'open' && $researchCall->closes_at->lessThanOrEqualTo(now('Asia/Manila'))) {
             return back()->withErrors([
                 'status' => 'This call cannot be reopened because its submission end date has passed.',
             ]);

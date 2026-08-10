@@ -31,6 +31,7 @@ class StoreProjectProgressReportRequest extends FormRequest
     {
         return [
             'reporting_date' => ['required', 'date', 'before_or_equal:today'],
+            'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
             'work_plan.*.activity' => ['required', 'string', 'max:300'],

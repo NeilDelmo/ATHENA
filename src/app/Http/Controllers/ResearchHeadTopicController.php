@@ -44,6 +44,8 @@ class ResearchHeadTopicController extends Controller
             ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD);
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
+        $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
+            && $validated['status'] === 'revision_requested';
 
         if ($validated['status'] === 'revision_requested') {
             $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
@@ -112,6 +114,7 @@ class ResearchHeadTopicController extends Controller
             $request,
             $topic,
             $validated,
+            $latestVersion,
             $selectedRevisionFiles,
             $selectedSignatureFiles,
             $capacityService,
@@ -121,7 +124,11 @@ class ResearchHeadTopicController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
+            $isReturningFromSigning = $reviewedTopic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
+                && $validated['status'] === 'revision_requested';
+
+            if (! $isReturningFromSigning
+                && ! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
                 throw ValidationException::withMessages([
                     'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
                 ]);
@@ -141,6 +148,27 @@ class ResearchHeadTopicController extends Controller
                 $reviewedTopic->expertAssignments()
                     ->where('status', 'completed')
                     ->update(['status' => 'superseded']);
+
+                if ($isReturningFromSigning) {
+                    $lockedVersion = ProposalVersion::query()
+                        ->where('topic_id', $reviewedTopic->id)
+                        ->with('files')
+                        ->orderByDesc('version_number')
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    $reviewedTopic->reviews()
+                        ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+                        ->where('signature_proposal_version_id', $lockedVersion->id)
+                        ->whereNull('signature_superseded_at')
+                        ->update(['signature_superseded_at' => now()]);
+
+                    $lockedVersion->files()
+                        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+                        ->whereNull('superseded_at')
+                        ->update(['superseded_at' => now()]);
+                }
             }
 
             $review = $reviewedTopic->reviews()->create([
@@ -149,6 +177,9 @@ class ResearchHeadTopicController extends Controller
                 'required_signature_file_ids' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
                     ? $selectedSignatureFiles->pluck('id')->all()
                     : [],
+                'signature_proposal_version_id' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
+                    ? $latestVersion->id
+                    : null,
             ]);
 
             if ($validated['status'] === 'revision_requested') {
@@ -170,7 +201,7 @@ class ResearchHeadTopicController extends Controller
         });
 
         $notificationDetails = match ($validated['status']) {
-            'approved' => ['Proposal papers approved', 'Your proposal papers for “'.$topic->title.'” were approved. Wait for the Notice to Proceed before beginning project monitoring.', 'success'],
+            'approved' => ['Proposal approved — awaiting Notice to Proceed', 'Your proposal papers for “'.$topic->title.'” were approved. Wait for the Notice to Proceed before beginning project monitoring.', 'success'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
                 'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
@@ -189,6 +220,10 @@ class ResearchHeadTopicController extends Controller
                 ? $selectedRevisionFiles->count().' proposal file(s) require changes in '
                 : 'Changes were requested for ')
                 .'“'.$topic->title.'”. Review the highlighted comments and file-specific instructions, then submit a new version.';
+
+            if ($returningFromSigning) {
+                $notificationDetails[1] .= ' Final signing is paused; previous signed copies were retained as superseded records and cannot be reused.';
+            }
         }
 
         if ($validated['status'] === 'rejected') {
@@ -208,9 +243,11 @@ class ResearchHeadTopicController extends Controller
         ));
 
         $message = match ($validated['status']) {
-            'approved' => 'Proposal papers approved. The faculty member is now waiting for a Notice to Proceed.',
+            'approved' => 'Proposal approved. The faculty member is now waiting for a Notice to Proceed.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
-            'revision_requested' => 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.',
+            'revision_requested' => $returningFromSigning
+                ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
+                : 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.',
             'rejected' => 'Proposal rejected.',
         };
 
@@ -272,8 +309,8 @@ class ResearchHeadTopicController extends Controller
         });
 
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
-            'Proposal papers approved',
-            'All required signed final copies for “'.$topic->title.'” are available. Wait for the Notice to Proceed before beginning project monitoring.',
+            'Signed documents ready',
+            'All required signed final copies for “'.$topic->title.'” are now available. The proposal is approved and waiting for its Notice to Proceed.',
             route('topics.show', $topic),
             'success',
             $topic->id,
@@ -285,7 +322,7 @@ class ResearchHeadTopicController extends Controller
 
         return redirect()
             ->to(route('topics.show', $topic).'#proposal-review')
-            ->with('success', 'Proposal approved. The signed final copies are available; monitoring will open after the Notice to Proceed is issued.');
+            ->with('success', 'Signed documents finalized and released. Monitoring will open after the Notice to Proceed is issued.');
     }
 
     /**

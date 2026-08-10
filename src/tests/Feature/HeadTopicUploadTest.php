@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -111,7 +112,7 @@ test('research head can attach reviewed files to exact faculty submissions', fun
     expect($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
 });
 
-test('signed copy can be replaced after the proposal is approved', function () {
+test('replacing a signed copy preserves the superseded audit record before final approval', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
 
     $this->actingAs($this->head)
@@ -137,26 +138,83 @@ test('signed copy can be replaced after the proposal is approved', function () {
         ->sole();
 
     $this->actingAs($this->head)
-        ->patch(route('research_head.topics.finalizeApproval', $this->topic))
-        ->assertSessionHasNoErrors();
-
-    $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $gadChecklist->id,
             'review_file' => UploadedFile::fake()->create('corrected-signed-gad-checklist.pdf', 220, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertSessionHas('success', 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.');
 
-    $replacementSignedCopy = $this->version->files()
+    $signedCopies = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+        ->get();
+    $replacementSignedCopy = $signedCopies->whereNull('superseded_at')->sole();
+    $supersededSignedCopy = $signedCopies->whereNotNull('superseded_at')->sole();
+
+    expect($signedCopies)->toHaveCount(2)
+        ->and($replacementSignedCopy->id)->not->toBe($originalSignedCopy->id)
+        ->and($replacementSignedCopy->original_filename)->toBe('corrected-signed-gad-checklist.pdf')
+        ->and($supersededSignedCopy->id)->toBe($originalSignedCopy->id)
+        ->and($supersededSignedCopy->superseded_at)->not->toBeNull()
+        ->and($supersededSignedCopy->superseded_by_version_file_id)->toBe($replacementSignedCopy->id)
+        ->and(Storage::disk('local')->exists($originalSignedCopy->file_path))->toBeTrue()
+        ->and(Storage::disk('local')->exists($replacementSignedCopy->file_path))->toBeTrue();
+});
+
+test('Research Head can return a signing-stage paper to revision and supersede its signed copy', function () {
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'signature_file_ids' => [$workPlan->id],
+        ])
+        ->assertSessionHasNoErrors();
+
+    $signatureReview = $this->topic->reviews()
+        ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+        ->sole();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $workPlan->id,
+            'review_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        ])
+        ->assertSessionHasNoErrors();
+
+    $signedCopy = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
         ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
         ->sole();
 
-    expect($replacementSignedCopy->id)->toBe($originalSignedCopy->id)
-        ->and($replacementSignedCopy->original_filename)->toBe('corrected-signed-gad-checklist.pdf')
-        ->and(Storage::disk('local')->exists($originalSignedCopy->file_path))->toBeFalse()
-        ->and(Storage::disk('local')->exists($replacementSignedCopy->file_path))->toBeTrue();
+    $workPlan->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.4, 'height' => 0.1]],
+        'comment' => 'Replace the incorrect signature page.',
+    ]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'revision_file_ids' => [$workPlan->id],
+        ])
+        ->assertSessionHas('success', 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.');
+
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and($signatureReview->fresh()->signature_superseded_at)->not->toBeNull()
+        ->and($signedCopy->fresh()->superseded_at)->not->toBeNull()
+        ->and(Storage::disk('local')->exists($signedCopy->file_path))->toBeTrue();
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
+    ])->actingAs($this->faculty)
+        ->get(route('topics.versions.files.download', [$this->topic, $this->version, $signedCopy]))
+        ->assertNotFound();
 });
 
 test('a clean proposal moves to signing before it can be approved', function () {
@@ -314,7 +372,7 @@ test('approval stays locked until every required signed PDF is uploaded', functi
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
         ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Proposal approved. The signed final copies are available; monitoring will open after the Notice to Proceed is issued.');
+        ->assertSessionHas('success', 'Signed documents finalized and released. Monitoring will open after the Notice to Proceed is issued.');
 
     expect($this->topic->fresh()->status)->toBe('approved')
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -328,7 +386,7 @@ test('approval stays locked until every required signed PDF is uploaded', functi
     $facultyResponse
         ->assertOk()
         ->assertSee('signed-work_plan.pdf')
-        ->assertSee('Work Plan (signed copy)');
+        ->assertSee('Work Plan (signed official copy)');
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
@@ -508,5 +566,5 @@ test('the shared document list records Research Head uploads', function () {
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 
     $response->assertSee('signed-work-plan.pdf')
-        ->assertSee('Work Plan (signed copy)');
+        ->assertSee('Work Plan (signed official copy)');
 });

@@ -116,7 +116,13 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertSee('data-research-call-image-dropzone', false)
         ->assertSee('data-research-call-image-preview', false)
         ->assertSee('Drag and drop poster')
-        ->assertSee('Ctrl+V also works');
+        ->assertSee('Ctrl+V also works')
+        ->assertSee('<button type="button" data-research-call-extract disabled', false)
+        ->assertSee('data-research-call-extract-spinner', false)
+        ->assertSee('data-research-call-extraction-summary', false)
+        ->assertSee('data-research-call-clear-schedule', false)
+        ->assertSee('data-research-call-expired-schedule-section', false)
+        ->assertSee('Choosing a poster only previews it.');
 
     $this->actingAs($this->head)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'closed'])
@@ -176,6 +182,27 @@ test('only faculty workspace recipients are notified when an open research call 
 
     Notification::assertNotSentTo($facultyResearcher, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
+});
+
+test('a past submission window can be saved as a draft but cannot be published', function () {
+    $payload = [
+        'title' => 'Archived poster schedule',
+        'academic_year' => '2026-2027',
+        'description' => 'Metadata imported from a historical poster.',
+        'opens_at' => now('Asia/Manila')->subDays(2)->format('Y-m-d H:i:s'),
+        'closes_at' => now('Asia/Manila')->subMinute()->format('Y-m-d H:i:s'),
+        'max_active_research_per_faculty' => 2,
+    ];
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [...$payload, 'status' => 'open'])
+        ->assertSessionHasErrors('closes_at');
+
+    $this->actingAs($this->head)
+        ->post(route('research-calls.store'), [...$payload, 'status' => 'draft'])
+        ->assertRedirect(route('research-calls.index'));
+
+    expect(ResearchCall::query()->where('title', 'Archived poster schedule')->value('status'))->toBe('draft');
 });
 
 test('only faculty workspace recipients are notified when a draft research call is published', function () {
@@ -270,10 +297,25 @@ test('research heads can read a research-call poster into blank form fields', fu
             'choices' => [[
                 'message' => [
                     'content' => json_encode([
+                        'source_text' => <<<'POSTER'
+CALL FOR PROPOSALS
+FOR AUGUST 2026 IMPLEMENTATION
+
+THE RESEARCH PROPOSALS MUST BE:
+Aligned with the BatStateU research agenda
+Cross disciplinary or interdisciplinary
+
+IMPORTANT DATES
+FEBRUARY 5, 2026 - MARCH 2, 2026 Deadline of Submission
+MARCH 3-10, 2026 Initial Evaluation
+MARCH 11-20, 2026 Paper Revisions based on the Initial Screening
+APRIL 10, 2026 Tentative Local Research Evaluation (LREC)
+AUGUST 2026 Implementation
+POSTER,
                         'title' => 'Call for Proposals for August 2026 Implementation',
                         'academic_year' => null,
                         'term' => 'August 2026 Implementation',
-                        'description' => "The research proposals must be:\n- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary",
+                        'description' => "- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary",
                         'opens_at' => '2026-02-05T00:00',
                         'closes_at' => '2026-03-02T23:59',
                         'maximum_budget' => 150000,
@@ -298,12 +340,16 @@ test('research heads can read a research-call poster into blank form fields', fu
         ->assertOk();
 
     $response->assertJsonPath('fields.title', 'Call for Proposals — August 2026 Implementation')
-        ->assertJsonPath('fields.description', "The research proposals must be:\n- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary")
+        ->assertJsonPath('fields.academic_year', null)
+        ->assertJsonPath('fields.term', null)
+        ->assertJsonPath('fields.description', "- Aligned with the BatStateU research agenda\n- Cross disciplinary or interdisciplinary")
         ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
         ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
         ->assertJsonPath('fields.paper_revisions_end_date', '2026-03-20')
         ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
-        ->assertJsonPath('fields.implementation_start_date', '2026-08-01');
+        ->assertJsonPath('fields.implementation_start_date', '2026-08-01')
+        ->assertJsonPath('transcription', fn (string $transcription): bool => str_contains($transcription, 'Deadline of Submission'))
+        ->assertJsonFragment(['missing_fields' => ['Academic year', 'Term / semester (optional)']]);
 
     Http::assertSent(fn ($request): bool => $request['messages'][1]['content'][1]['type'] === 'image_url'
         && str_starts_with($request['messages'][1]['content'][1]['image_url']['url'], 'data:image/jpeg;base64,'));
@@ -358,6 +404,68 @@ POSTER,
         ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
         ->assertJsonPath('fields.implementation_start_date', '2026-08-01')
         ->assertJsonPath('fields.description', "Aligned with the BatStateU The NEU research agenda\nWith Budget Requirement of lower that Php 150,000.00\nCross disciplinary or interdisciplinary research projects");
+});
+
+test('research-call extraction recovers a fragmented timeline without inventing academic context', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => [
+                    'content' => json_encode([
+                        'source_text' => <<<'POSTER'
+CALL FOR PROPOSALS
+FOR AUGUST 2026 IMPLEMENTATION
+
+IMPORTANT DATES
+FEB. 5, 2026 - MAR. 2, 2026
+MAR. 3 - 10, 2026
+MAR. 11 - 20, 2026
+APR. 10, 2026
+AUG. 2026
+
+Deadline
+of Submission
+Initial Evaluation
+Paper Revisions
+based on the Initial Screening
+Tentative LREC
+Implementation
+POSTER,
+                        'title' => 'Call for Proposals for August 2026 Implementation',
+                        'academic_year' => '2026-2027',
+                        'term' => 'First Semester',
+                    ]),
+                ],
+            ]],
+        ]),
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->post(route('research-calls.extract-image'), [
+            'reference_image' => UploadedFile::fake()->image('fragmented-research-call.jpg'),
+        ])
+        ->assertOk()
+        ->assertJsonPath('fields.academic_year', null)
+        ->assertJsonPath('fields.term', null)
+        ->assertJsonPath('fields.opens_at', '2026-02-05T00:00')
+        ->assertJsonPath('fields.closes_at', '2026-03-02T23:59')
+        ->assertJsonPath('fields.initial_evaluation_start_date', '2026-03-03')
+        ->assertJsonPath('fields.initial_evaluation_end_date', '2026-03-10')
+        ->assertJsonPath('fields.paper_revisions_start_date', '2026-03-11')
+        ->assertJsonPath('fields.paper_revisions_end_date', '2026-03-20')
+        ->assertJsonPath('fields.lrec_start_date', '2026-04-10')
+        ->assertJsonPath('fields.implementation_start_date', '2026-08-01');
+
+    expect($response->json('detected_fields'))
+        ->toContain('Submission window', 'Initial evaluation (optional)', 'Paper revisions (optional)', 'Tentative LREC (optional)', 'Implementation (optional)')
+        ->and($response->json('missing_fields'))
+        ->toContain('Academic year', 'Term / semester (optional)', 'Description / guidelines');
 });
 
 test('research-call extraction strips leaked JSON markup and literal escapes from truncating poster text', function () {

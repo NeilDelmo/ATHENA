@@ -13,12 +13,15 @@ class TopicReview extends Model
         'decision',
         'comment',
         'required_signature_file_ids',
+        'signature_proposal_version_id',
+        'signature_superseded_at',
     ];
 
     protected function casts(): array
     {
         return [
             'required_signature_file_ids' => 'array',
+            'signature_superseded_at' => 'datetime',
         ];
     }
 
@@ -35,5 +38,10 @@ class TopicReview extends Model
     public function fileRevisions(): HasMany
     {
         return $this->hasMany(TopicReviewFileRevision::class);
+    }
+
+    public function signatureProposalVersion(): BelongsTo
+    {
+        return $this->belongsTo(ProposalVersion::class, 'signature_proposal_version_id');
     }
 }

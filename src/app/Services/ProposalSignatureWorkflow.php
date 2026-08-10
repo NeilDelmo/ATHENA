@@ -19,8 +19,20 @@ class ProposalSignatureWorkflow
         $selectionRecord = TopicReview::query()
             ->where('topic_id', $version->topic_id)
             ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+            ->where('signature_proposal_version_id', $version->id)
+            ->whereNull('signature_superseded_at')
             ->latest('id')
             ->first();
+
+        if (! $selectionRecord) {
+            $selectionRecord = TopicReview::query()
+                ->where('topic_id', $version->topic_id)
+                ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+                ->whereNull('signature_proposal_version_id')
+                ->whereNull('signature_superseded_at')
+                ->latest('id')
+                ->first();
+        }
         $selectedFileIds = collect($selectionRecord?->required_signature_file_ids ?? [])
             ->map(fn (mixed $fileId): int => (int) $fileId)
             ->unique();
@@ -51,6 +63,7 @@ class ProposalSignatureWorkflow
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
             ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
                 && $file->source_version_file_id !== null
+                && ! $file->isSuperseded()
                 && Storage::disk('local')->exists($file->file_path))
             ->pluck('source_version_file_id')
             ->unique()

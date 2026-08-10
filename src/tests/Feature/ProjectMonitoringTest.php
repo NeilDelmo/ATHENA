@@ -108,7 +108,7 @@ test('a researcher prepares an official monitoring PDF before submitting it to t
     ]);
     $report = ProjectProgressReport::firstOrFail();
     Storage::disk('local')->assertExists($report->official_pdf_path);
-    expect($report->official_pdf_filename)->toBe('approved-community-research-monitoring-tool.pdf')
+    expect($report->official_pdf_filename)->toBe('approved-community-research-'.$report->quarter_label.'-v1-monitoring-tool.pdf')
         ->and($this->pdfConverter->conversionCount)->toBe(1);
     Notification::assertNothingSent();
 
@@ -122,7 +122,8 @@ test('a researcher prepares an official monitoring PDF before submitting it to t
     Notification::assertSentTo(
         $this->head,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Monitoring tool submitted',
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'New '.$report->quarter_label.' Monitoring Tool Submitted'
+            && $notification->url === route('topics.show', $this->topic).'#monitoring-tool-'.$report->id,
     );
 });
 
@@ -363,6 +364,71 @@ test('revision requests require Research Head remarks', function () {
     expect($report->fresh()->review_status)->toBe('pending');
 });
 
+test('a revised Monitoring Tool remains in its original quarter with a retained PDF history', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+
+    $original = ProjectProgressReport::firstOrFail();
+    $originalPdfPath = $original->official_pdf_path;
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.submit-prepared', [$this->topic, $original]))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.progress-reports.review', $original), [
+            'review_status' => 'revision_requested',
+            'research_head_remarks' => 'Please correct the accomplishment data.',
+        ])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->researcher)
+        ->get(route('research.show', ['topic' => $this->topic, 'revise_monitoring_report' => $original->id]))
+        ->assertOk()
+        ->assertSee('Revise '.$original->quarter_label.' Monitoring Tool')
+        ->assertSee('Please correct the accomplishment data.');
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)([
+            'source_report_id' => $original->id,
+            'tracking_number' => 'REC-2026-001-R2',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $replacement = ProjectProgressReport::query()
+        ->where('supersedes_report_id', $original->id)
+        ->sole();
+
+    expect($replacement->reporting_year)->toBe($original->fresh()->reporting_year)
+        ->and($replacement->reporting_quarter)->toBe($original->fresh()->reporting_quarter)
+        ->and($replacement->version_number)->toBe(2)
+        ->and($replacement->isPrepared())->toBeTrue()
+        ->and($original->fresh()->review_status)->toBe('revision_requested')
+        ->and($original->fresh()->nextVersion->is($replacement))->toBeTrue();
+    Storage::disk('local')->assertExists($originalPdfPath);
+    Storage::disk('local')->assertExists($replacement->official_pdf_path);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.submit-prepared', [$this->topic, $replacement]))
+        ->assertSessionHasNoErrors();
+
+    Notification::assertSentTo(
+        $this->head,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === $replacement->quarter_label.' Monitoring Tool Resubmitted'
+            && $notification->url === route('topics.show', $this->topic).'#monitoring-tool-'.$replacement->id,
+    );
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Monitoring Tool quarters')
+        ->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2')
+        ->assertSee('Historical version')
+        ->assertSee('Current submission');
+});
+
 test('project status accepts only supported execution states', function () {
     $this->actingAs($this->head)
         ->patch(route('research_head.projects.update-status', $this->topic), [
@@ -417,7 +483,7 @@ test('the owner and Research Head can download the filled official monitoring to
     $ownerResponse = $this->actingAs($this->researcher)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk()
-        ->assertDownload('approved-community-research-monitoring-tool.pdf');
+        ->assertDownload('approved-community-research-'.$report->quarter_label.'-v1-monitoring-tool.pdf');
     expect($ownerResponse->streamedContent())->toStartWith('%PDF-');
     $sourceDocument = $this->pdfConverter->sourceDocument;
     expect($this->pdfConverter->conversionCount)->toBe(1);

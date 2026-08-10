@@ -86,7 +86,7 @@
         </section>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-            <label class="block"><span class="{{ $labelClass }}">Description / guidelines</span><textarea name="description" rows="6" placeholder="Describe the proposal requirements, priorities, and other instructions for faculty." class="{{ $inputClass }} resize-y">{{ $fieldValue('description') }}</textarea><span class="{{ $hintClass }} block">Poster requirements are stored here and can be edited before saving.</span></label>
+            <label class="block"><span class="{{ $labelClass }}">Description / guidelines</span><textarea name="description" rows="6" placeholder="Describe the proposal requirements, priorities, and other instructions for faculty." class="{{ $inputClass }} resize-y">{{ $fieldValue('description') }}</textarea><span class="{{ $hintClass }} block">Poster requirements stay editable. When the reader can verify them against the poster text, visual wraps are grouped into one requirement per line.</span></label>
             <div class="mt-5 flex flex-col gap-4 border-t border-gray-100 pt-5 dark:border-slate-800 sm:flex-row sm:items-end sm:justify-between">
                 @unless ($isEditing)
                     <label class="block sm:max-w-sm"><span class="{{ $labelClass }}">Publication</span><select name="status" class="{{ $inputClass }}"><option value="draft" @selected($fieldValue('status', 'draft') === 'draft')>Save as draft</option><option value="open" @selected($fieldValue('status') === 'open')>Publish and follow schedule</option></select><span class="{{ $hintClass }} block">A published call opens and ends automatically according to the dates above.</span></label>
@@ -108,9 +108,50 @@
                 <span data-research-call-image-empty class="{{ $currentImageUrl ? 'hidden' : 'flex' }} flex-col items-center gap-3 px-5 py-8"><span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300"><svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5V6.75A2.25 2.25 0 015.25 4.5h13.5A2.25 2.25 0 0121 6.75v10.5a2.25 2.25 0 01-2.25 2.25H8.25M3 16.5l3.75-3.75a2.25 2.25 0 013.182 0L12 13.818m-9 2.682 2.25 2.25m12-7.5 1.5-1.5M15 8.25h.008v.008H15V8.25z" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 19.5h6" /></svg></span><span><span class="block text-sm font-black text-gray-700 dark:text-slate-200">Drag and drop poster</span><span class="mt-1 block text-xs text-gray-400">or click to choose · Ctrl+V also works</span></span></span>
                 <img data-research-call-image-preview src="{{ $currentImageUrl ?? '' }}" alt="{{ $isEditing ? 'Current research call poster preview' : 'Selected research call poster preview' }}" class="{{ $currentImageUrl ? '' : 'hidden' }} max-h-[34rem] w-full rounded-lg object-contain">
             </label>
-            <div class="mt-3 flex items-center justify-between gap-3"><p data-research-call-image-name class="min-w-0 truncate text-xs font-bold text-gray-600 dark:text-slate-300">{{ $currentImageUrl ? 'Current poster saved. Choose a new image to replace it.' : '' }}</p><button type="button" data-research-call-extract class="shrink-0 rounded-xl bg-red-700 px-3 py-2.5 text-xs font-black text-white transition hover:bg-red-800 disabled:cursor-wait disabled:opacity-60">Read image</button></div>
-            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">The image reader can suggest a call name and copy the poster's requirements and dates into the form. Review everything before saving.</p>
-            <p data-research-call-image-status role="status" class="mt-2 hidden text-xs font-semibold text-red-700 dark:text-red-300"></p>
+            <div class="mt-3 flex items-center justify-between gap-3">
+                <p data-research-call-image-name class="min-w-0 truncate text-xs font-bold text-gray-600 dark:text-slate-300">{{ $currentImageUrl ? 'Current poster saved. Choose a new image to replace it.' : '' }}</p>
+                <button type="button" data-research-call-extract disabled class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-slate-950">
+                    <svg data-research-call-extract-spinner class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-30" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle><path class="opacity-90" fill="currentColor" d="M21 12a9 9 0 00-9-9v3a6 6 0 016 6h3z"></path></svg>
+                    <span data-research-call-extract-label>Read image</span>
+                </button>
+            </div>
+            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Choosing a poster only previews it. Click <span class="font-bold text-gray-700 dark:text-slate-200">Read image</span> to suggest the call name, requirements, and dates; existing entries will not be replaced.</p>
+            <p data-research-call-image-status role="status" aria-live="polite" class="mt-2 hidden text-xs font-semibold text-red-700 dark:text-red-300"></p>
+
+            <div data-research-call-extraction-summary class="mt-4 hidden space-y-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <section class="rounded-xl border border-green-200 bg-green-50 p-3 dark:border-green-900/70 dark:bg-green-950/25">
+                        <h4 class="text-xs font-black text-green-800 dark:text-green-200">Detected from the poster</h4>
+                        <ul data-research-call-detected-fields class="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-green-800 dark:text-green-200"></ul>
+                    </section>
+                    <section class="rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/70 dark:bg-amber-950/25">
+                        <h4 class="text-xs font-black text-amber-900 dark:text-amber-200">Not found or incomplete</h4>
+                        <ul data-research-call-missing-fields class="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-amber-900 dark:text-amber-200"></ul>
+                    </section>
+                </div>
+
+                <section data-research-call-warning-section class="hidden rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900/70 dark:bg-red-950/25">
+                    <h4 class="text-xs font-black text-red-800 dark:text-red-200">Review before saving</h4>
+                    <ul data-research-call-warning-list class="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-red-800 dark:text-red-200"></ul>
+                </section>
+
+                <section data-research-call-expired-schedule-section class="hidden rounded-xl border border-red-300 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/35">
+                    <h4 class="text-xs font-black text-red-900 dark:text-red-100">Schedule needs replacement</h4>
+                    <p data-research-call-expired-schedule-warning class="mt-1 text-xs font-semibold leading-5 text-red-800 dark:text-red-200"></p>
+                </section>
+
+                <section data-research-call-clear-schedule-section class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/70 dark:bg-amber-950/25">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p class="text-xs leading-5 text-amber-900 dark:text-amber-200">Dates copied from this poster can be cleared without changing the poster, call details, or guidelines.</p>
+                        <button type="button" data-research-call-clear-schedule class="inline-flex shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-900 transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-100 dark:hover:bg-amber-950/50">Clear extracted schedule</button>
+                    </div>
+                </section>
+
+                <details data-research-call-transcription-section class="hidden overflow-hidden rounded-xl border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-950/60">
+                    <summary class="cursor-pointer px-3 py-2.5 text-xs font-black text-gray-700 dark:text-slate-200">Review extracted poster text</summary>
+                    <pre data-research-call-transcription class="max-h-72 overflow-auto whitespace-pre-wrap border-t border-gray-200 px-3 py-3 font-sans text-xs leading-5 text-gray-600 dark:border-slate-700 dark:text-slate-300"></pre>
+                </details>
+            </div>
         </div>
     </aside>
 </form>

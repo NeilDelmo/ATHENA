@@ -47,6 +47,8 @@ class ProposalVersionFile extends Model
         'source_data',
         'is_carried_forward',
         'uploaded_by',
+        'superseded_at',
+        'superseded_by_version_file_id',
     ];
 
     protected function casts(): array
@@ -56,6 +58,7 @@ class ProposalVersionFile extends Model
             'position' => 'integer',
             'source_data' => 'array',
             'is_carried_forward' => 'boolean',
+            'superseded_at' => 'datetime',
         ];
     }
 
@@ -72,6 +75,11 @@ class ProposalVersionFile extends Model
     public function uploadedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function supersededBy(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'superseded_by_version_file_id');
     }
 
     public function annotations(): HasMany
@@ -121,10 +129,15 @@ class ProposalVersionFile extends Model
     {
         return match ($this->source_data['purpose'] ?? null) {
             self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
-            self::HEAD_UPLOAD_PURPOSE_SIGNED => 'Signed copy',
+            self::HEAD_UPLOAD_PURPOSE_SIGNED => $this->superseded_at ? 'Superseded signed copy' : 'Signed official copy',
             self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL => 'Supplemental paper',
             self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'External evaluation',
             default => 'Research Head copy',
         };
+    }
+
+    public function isSuperseded(): bool
+    {
+        return $this->superseded_at !== null;
     }
 }

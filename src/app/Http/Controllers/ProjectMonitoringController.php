@@ -11,7 +11,10 @@ use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -90,25 +93,56 @@ class ProjectMonitoringController extends Controller
         StoreProjectProgressReportRequest $request,
         TopicProposal $topic,
         PrepareProjectProgressReport $prepareProjectProgressReport,
+        MonitoringQuarterService $monitoringQuarterService,
     ): RedirectResponse {
-        $existingPreparedReport = ProjectProgressReport::query()
+        $validated = $request->validated();
+        $sourceReport = $this->revisionSourceReport($request, $topic);
+        $period = $monitoringQuarterService->forDate($validated['reporting_date']);
+
+        if ($sourceReport !== null) {
+            $sourcePeriod = $monitoringQuarterService->forReport($sourceReport);
+
+            if ($sourcePeriod['year'] !== $period['year'] || $sourcePeriod['quarter'] !== $period['quarter']) {
+                return back()->withInput()->withErrors([
+                    'reporting_date' => 'Use a reporting date within '.$sourceReport->quarter_label.' when revising this Monitoring Tool.',
+                ]);
+            }
+        }
+
+        $existingPreparedReport = $this->reportsForPeriod($topic, $period)
             ->prepared()
-            ->whereBelongsTo($topic, 'topic')
-            ->where('submitted_by', $request->user()->id)
+            ->when(
+                $sourceReport !== null,
+                fn ($query) => $query->where('supersedes_report_id', $sourceReport->id),
+                fn ($query) => $query->whereNull('supersedes_report_id'),
+            )
             ->exists();
 
         if ($existingPreparedReport) {
             return back()->withErrors([
-                'preparation' => 'Discard the prepared Monitoring Tool before preparing another one.',
+                'preparation' => 'Discard the prepared '.$period['label'].' Monitoring Tool before preparing another one.',
+            ]);
+        }
+
+        if ($sourceReport === null && $this->reportsForPeriod($topic, $period)->submitted()->exists()) {
+            return back()->withInput()->withErrors([
+                'reporting_date' => $period['label'].' already has a submitted Monitoring Tool. Open that quarter if a revision is required.',
+            ]);
+        }
+
+        if ($sourceReport !== null && $sourceReport->nextVersion()->exists()) {
+            return back()->withErrors([
+                'preparation' => 'A newer version of this '.$sourceReport->quarter_label.' Monitoring Tool is already in progress.',
             ]);
         }
 
         try {
-            $prepareProjectProgressReport->handle(
+            $report = $prepareProjectProgressReport->handle(
                 $topic,
                 $request->user(),
-                $request->validated(),
+                $validated,
                 $request->file('attachment'),
+                $sourceReport,
             );
         } catch (\Throwable $exception) {
             report($exception);
@@ -120,7 +154,10 @@ class ProjectMonitoringController extends Controller
                 ]);
         }
 
-        return back()->with('success', 'Monitoring Tool PDF prepared. Review it, then submit the exact file to the Research Head.');
+        return back()->with(
+            'success',
+            $report->quarter_label.' '.$report->version_label.' PDF prepared. Review it, then submit the exact file to the Research Head.',
+        );
     }
 
     public function submitPrepared(
@@ -140,11 +177,14 @@ class ProjectMonitoringController extends Controller
         ]);
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            'Monitoring tool submitted',
-            $request->user()->name.' submitted a monitoring tool for '.$topic->title.'.',
-            route('topics.show', $topic).'#project-monitoring',
-            'info',
-            $topic->id,
+            title: $report->version_number > 1
+                ? $report->quarter_label.' Monitoring Tool Resubmitted'
+                : 'New '.$report->quarter_label.' Monitoring Tool Submitted',
+            message: 'Project: '.$topic->title."\nResearcher: ".$request->user()->name."\nReporting Period: ".$report->reporting_period_label,
+            url: route('topics.show', $topic).'#monitoring-tool-'.$report->id,
+            level: 'info',
+            topicId: $topic->id,
+            workspace: 'research_head',
         ));
 
         return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
@@ -161,13 +201,20 @@ class ProjectMonitoringController extends Controller
         return back()->with('success', 'Prepared Monitoring Tool discarded. You can now prepare a new PDF.');
     }
 
-    public function store(StoreProjectProgressReportRequest $request, TopicProposal $topic): RedirectResponse
-    {
+    public function store(
+        StoreProjectProgressReportRequest $request,
+        TopicProposal $topic,
+        MonitoringQuarterService $monitoringQuarterService,
+    ): RedirectResponse {
         $validated = $request->validated();
         $workPlan = collect($validated['work_plan']);
+        $period = $monitoringQuarterService->forDate($validated['reporting_date']);
 
         $validated['topic_id'] = $topic->id;
         $validated['submitted_by'] = $request->user()->id;
+        $validated['reporting_year'] = $period['year'];
+        $validated['reporting_quarter'] = $period['quarter'];
+        $validated['version_number'] = 1;
         $validated['progress_percentage'] = (int) round($workPlan->sum(
             fn (array $entry): float => (float) $entry['accomplished_percentage'],
         ));
@@ -180,7 +227,7 @@ class ProjectMonitoringController extends Controller
             ->filter()
             ->implode("\n") ?: null;
         $validated['attachment_path'] = $request->file('attachment')?->store('progress-reports/'.$topic->id, 'local');
-        unset($validated['attachment']);
+        unset($validated['attachment'], $validated['source_report_id']);
 
         $report = ProjectProgressReport::create($validated);
 
@@ -222,6 +269,7 @@ class ProjectMonitoringController extends Controller
     {
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
+        abort_if($report->nextVersion()->exists(), 404);
 
         $validated = $request->validate([
             'review_status' => ['required', Rule::in(['reviewed', 'revision_requested'])],
@@ -234,13 +282,16 @@ class ProjectMonitoringController extends Controller
             'reviewed_at' => now(),
         ]);
 
-        $report->load('topic.user');
-        $report->topic->user->notify(new ProposalActivityNotification(
-            $validated['review_status'] === 'reviewed' ? 'Monitoring tool reviewed' : 'Monitoring tool needs revision',
-            'The Research Head reviewed your monitoring tool for “'.$report->topic->title.'”.',
-            route('topics.show', $report->topic).'#project-monitoring',
-            $validated['review_status'] === 'reviewed' ? 'success' : 'warning',
-            $report->topic_id,
+        $report->load(['topic.user', 'submitter']);
+        $report->submitter->notify(new ProposalActivityNotification(
+            title: $validated['review_status'] === 'reviewed'
+                ? $report->quarter_label.' Monitoring Tool Reviewed'
+                : $report->quarter_label.' Monitoring Tool Needs Revision',
+            message: 'Project: '.$report->topic->title."\nReporting Period: ".$report->reporting_period_label,
+            url: route('topics.show', $report->topic).'#monitoring-tool-'.$report->id,
+            level: $validated['review_status'] === 'reviewed' ? 'success' : 'warning',
+            topicId: $report->topic_id,
+            workspace: 'faculty_researcher',
         ));
 
         return back()->with('success', 'Monitoring tool review saved.');
@@ -332,5 +383,44 @@ class ProjectMonitoringController extends Controller
         collect([$report->attachment_path, $report->official_pdf_path])
             ->filter()
             ->each(fn (string $path) => Storage::disk('local')->delete($path));
+    }
+
+    /**
+     * @param  array{year: int, quarter: int, start: CarbonImmutable, end: CarbonImmutable}  $period
+     */
+    private function reportsForPeriod(TopicProposal $topic, array $period): Builder
+    {
+        return ProjectProgressReport::query()
+            ->whereBelongsTo($topic, 'topic')
+            ->where(function ($query) use ($period): void {
+                $query->where(function ($query) use ($period): void {
+                    $query->where('reporting_year', $period['year'])
+                        ->where('reporting_quarter', $period['quarter']);
+                })->orWhere(function ($query) use ($period): void {
+                    $query->whereNull('reporting_year')
+                        ->whereBetween('reporting_date', [
+                            $period['start']->toDateString(),
+                            $period['end']->toDateString(),
+                        ]);
+                });
+            });
+    }
+
+    private function revisionSourceReport(Request $request, TopicProposal $topic): ?ProjectProgressReport
+    {
+        $sourceReportId = $request->integer('source_report_id');
+
+        if ($sourceReportId === 0) {
+            return null;
+        }
+
+        $sourceReport = ProjectProgressReport::query()
+            ->submitted()
+            ->whereBelongsTo($topic, 'topic')
+            ->findOrFail($sourceReportId);
+
+        abort_unless($sourceReport->review_status === 'revision_requested', 404);
+
+        return $sourceReport;
     }
 }

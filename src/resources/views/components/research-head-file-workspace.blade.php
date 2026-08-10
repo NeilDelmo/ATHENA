@@ -13,6 +13,12 @@
     $missingSignatureFiles = $workspace['missingSignatureFiles'];
     $isSigningStage = $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
     $canUploadRevisionCopy = in_array($topic->status, ['pending', 'expert_review', 'for_final_decision', 'resubmitted', 'revision_requested'], true);
+    $activeSignedCopiesBySource = $headUploadedFiles
+        ->filter(fn ($file) => ($file->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED && ! $file->isSuperseded())
+        ->groupBy('source_version_file_id');
+    $supersededSignedCopiesBySource = $headUploadedFiles
+        ->filter(fn ($file) => ($file->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED && $file->isSuperseded())
+        ->groupBy('source_version_file_id');
 @endphp
 
 <div data-research-head-file-workspace {{ $attributes->merge(['class' => 'space-y-5']) }}>
@@ -22,7 +28,7 @@
             <div class="max-w-3xl">
                 <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-400">Research Head workspace</p>
                 <h3 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Review faculty files</h3>
-                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Open the faculty original, highlight PDF revisions when needed, and attach a reviewed copy only when there is a separate file to return.</p>
+                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Open the faculty original, highlight PDF revisions when needed, and attach a reviewed copy only when there is a separate file to return. Scanned PDFs can be marked by area; corrections and signatures are verified manually.</p>
             </div>
             <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-950 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number.' · '.$headUploadedFiles->count().' uploaded' : 'No submitted version' }}
@@ -57,6 +63,8 @@
                 @foreach ($requiredSignatureFiles as $requiredSignatureFile)
                     @php
                         $hasSignedCopy = $signedSourceFileIds->contains($requiredSignatureFile->id);
+                        $activeSignedCopy = $activeSignedCopiesBySource->get($requiredSignatureFile->id, collect())->first();
+                        $supersededSignedCopies = $supersededSignedCopiesBySource->get($requiredSignatureFile->id, collect());
                     @endphp
                     <article class="grid gap-4 bg-white p-4 dark:bg-gray-950 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-end">
                         <div class="min-w-0">
@@ -69,19 +77,31 @@
                             <p class="mt-2 break-all text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $requiredSignatureFile->original_filename }}</p>
                         </div>
 
-                        <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                            @csrf
-                            <input type="hidden" name="source_file_id" value="{{ $requiredSignatureFile->id }}">
-                            <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED }}">
-                            <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
-                                Signed final PDF
-                                <input name="review_file" type="file" accept=".pdf" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white">
-                            </label>
-                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto">
-                                {{ $hasSignedCopy ? 'Replace PDF' : 'Upload PDF' }}
-                            </button>
-                        </form>
+                        @if ($isSigningStage)
+                            <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                                @csrf
+                                <input type="hidden" name="source_file_id" value="{{ $requiredSignatureFile->id }}">
+                                <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED }}">
+                                <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
+                                    Signed final PDF
+                                    <input name="review_file" type="file" accept=".pdf" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white">
+                                </label>
+                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto">
+                                    {{ $hasSignedCopy ? 'Replace PDF' : 'Upload PDF' }}
+                                </button>
+                            </form>
+                        @elseif ($activeSignedCopy)
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white">View signed copy</a>
+                                <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $activeSignedCopy]) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950">Download signed copy</a>
+                            </div>
+                        @endif
                     </article>
+                    @if ($supersededSignedCopies->isNotEmpty())
+                        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                            {{ $supersededSignedCopies->count() }} superseded signed {{ \Illuminate\Support\Str::plural('copy', $supersededSignedCopies->count()) }} retained in the Research Head audit record.
+                        </div>
+                    @endif
                 @endforeach
             </div>
 

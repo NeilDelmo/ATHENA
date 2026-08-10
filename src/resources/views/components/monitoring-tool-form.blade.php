@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null])
+@props(['topic', 'preparedReport' => null, 'revisionReport' => null])
 
 @if ($preparedReport)
     <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5">
@@ -7,7 +7,7 @@
         @endif
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <p class="text-sm font-black text-blue-950">Monitoring Tool PDF prepared</p>
+                <p class="text-sm font-black text-blue-950">{{ $preparedReport->quarter_label }} {{ $preparedReport->version_label }} Monitoring Tool PDF prepared</p>
                 <p class="mt-1 max-w-2xl text-xs leading-5 text-blue-800">Review this exact stored PDF before sending it to the Research Head. To change its contents, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-blue-700">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
             </div>
@@ -28,7 +28,7 @@
 @else
 
 @php
-    $defaultWorkPlan = [[
+    $defaultWorkPlan = $revisionReport?->work_plan ?: [[
         'activity' => '',
         'percent_weight' => '',
         'physical_target' => '',
@@ -37,7 +37,7 @@
         'accomplished_percentage' => '',
         'findings' => '',
     ]];
-    $defaultBudget = collect(['Purchase Request', 'Cash Advance', 'Request of Payment'])
+    $defaultBudget = $revisionReport?->budget_utilization ?: collect(['Purchase Request', 'Cash Advance', 'Request of Payment'])
         ->map(fn ($type) => [
             'type' => $type,
             'details' => '',
@@ -54,7 +54,7 @@
 
 <details
     class="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50"
-    @if ($errors->any()) open @endif
+    @if ($errors->any() || $revisionReport) open @endif
     x-data="monitoringToolForm({
         entries: @js($workPlanRows),
         previewUrl: @js(route('project-progress.preview', $topic)),
@@ -63,8 +63,8 @@
 >
     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-black text-blue-900">
         <span>
-            Submit monitoring tool
-            <span class="mt-1 block text-xs font-normal text-blue-700">BatStateU-REC-RES-03 · Revision 03</span>
+            {{ $revisionReport ? 'Revise '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}
+            <span class="mt-1 block text-xs font-normal text-blue-700">BatStateU-REC-RES-03 · Revision 03{{ $revisionReport ? ' · '.$revisionReport->version_label.' is retained as the original record' : '' }}</span>
         </span>
         <span class="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-blue-700 shadow-sm">Open form</span>
     </summary>
@@ -78,6 +78,9 @@
         @submit="submitting = true"
     >
         @csrf
+        @if ($revisionReport)
+            <input type="hidden" name="source_report_id" value="{{ $revisionReport->id }}">
+        @endif
 
         @if ($errors->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -108,11 +111,11 @@
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label for="reporting_date" class="text-[11px] font-bold text-gray-600">Reporting date</label>
-                <x-date-picker id="reporting_date" name="reporting_date" :value="old('reporting_date', now()->toDateString())" :max="now()->toDateString()" required class="mt-1" />
+                <x-date-picker id="reporting_date" name="reporting_date" :value="old('reporting_date', $revisionReport?->reporting_date?->toDateString() ?? now()->toDateString())" :max="now()->toDateString()" required class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600">
                 Tracking number <span class="font-normal text-gray-400">(optional)</span>
-                <input type="text" name="tracking_number" value="{{ old('tracking_number') }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
+                <input type="text" name="tracking_number" value="{{ old('tracking_number', $revisionReport?->tracking_number) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
             </label>
         </div>
 
@@ -195,7 +198,7 @@
         <div class="grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
-                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed')" :max="now()->toDateString()" class="mt-1" />
+                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $revisionReport?->prepared_by_date_signed?->toDateString())" :max="now()->toDateString()" class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600">Supporting attachment <span class="font-normal text-gray-400">(optional)</span>
                 <input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs">

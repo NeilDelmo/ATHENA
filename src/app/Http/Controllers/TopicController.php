@@ -16,6 +16,7 @@ use App\Models\TopicProposal;
 use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalSignatureWorkflow;
@@ -43,6 +44,7 @@ class TopicController extends Controller
     public function __construct(
         private ProposalSignatureWorkflow $signatureWorkflow,
         private NoticeToProceedDataService $noticeToProceedDataService,
+        private MonitoringQuarterService $monitoringQuarterService,
     ) {}
 
     public function index(ProposalDraftReadiness $readiness): View
@@ -165,20 +167,40 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'noticeIssuer', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'narrativeReports.submitter', 'narrativeReports.reviewer',
+            'user', 'noticeIssuer', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'progressReports.supersedes', 'progressReports.nextVersion', 'narrativeReports.submitter', 'narrativeReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
         ]);
 
         $preparedProgressReport = null;
         $preparedNarrativeReport = null;
+        $revisionProgressReport = null;
 
         if (! $request->user()->isUsingWorkspace('research_head')
             && $topic->isMonitoringAvailable()
             && $topic->isAccessibleTo($request->user())) {
+            $requestedRevisionReportId = $request->integer('revise_monitoring_report');
+
+            if ($requestedRevisionReportId !== 0) {
+                $revisionProgressReport = ProjectProgressReport::query()
+                    ->submitted()
+                    ->whereBelongsTo($topic, 'topic')
+                    ->where('review_status', 'revision_requested')
+                    ->with(['submitter', 'reviewer', 'nextVersion'])
+                    ->findOrFail($requestedRevisionReportId);
+
+                abort_if($revisionProgressReport->nextVersion !== null, 404);
+            }
+
             $preparedProgressReport = ProjectProgressReport::query()
                 ->prepared()
                 ->whereBelongsTo($topic, 'topic')
                 ->where('submitted_by', $request->user()->id)
+                ->with('nextVersion')
+                ->when(
+                    $revisionProgressReport !== null,
+                    fn ($query) => $query->where('supersedes_report_id', $revisionProgressReport->id),
+                    fn ($query) => $query->whereNull('supersedes_report_id'),
+                )
                 ->latest('prepared_at')
                 ->first();
             $preparedNarrativeReport = ProjectNarrativeReport::query()
@@ -188,6 +210,14 @@ class TopicController extends Controller
                 ->latest('prepared_at')
                 ->first();
         }
+
+        $monitoringReports = $topic->progressReports->values();
+
+        if ($preparedProgressReport !== null) {
+            $monitoringReports->push($preparedProgressReport);
+        }
+
+        $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
         $previousVersion = $topic->versions
@@ -220,9 +250,10 @@ class TopicController extends Controller
         $reviewDocuments = ($latestVersion?->files ?? collect())
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD);
 
-        if (! $request->user()->isUsingWorkspace('research_head') && $topic->status !== 'approved') {
+        if (! $request->user()->isUsingWorkspace('research_head')) {
             $reviewDocuments = $reviewDocuments
-                ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED);
+                ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
+                    && ($topic->status !== 'approved' || $file->isSuperseded()));
         }
 
         $reviewDocuments = $reviewDocuments
@@ -283,7 +314,9 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'preparedProgressReport',
+            'revisionProgressReport',
             'preparedNarrativeReport',
+            'monitoringQuarterRows',
         ));
     }
 
@@ -707,10 +740,10 @@ class TopicController extends Controller
                 ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
                 ->firstOrFail();
 
-        if ($isSignedCopy && ! in_array($topic->status, [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'], true)) {
+        if ($isSignedCopy && $topic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
             return back()
                 ->withInput()
-                ->withErrors(['purpose' => 'Signed final copies can only be uploaded after the proposal is ready for signature.'], 'headUpload');
+                ->withErrors(['purpose' => 'Signed final copies can only be uploaded while the proposal is ready for signature.'], 'headUpload');
         }
 
         if ($isSignedCopy
@@ -731,7 +764,7 @@ class TopicController extends Controller
         $file = $request->file('review_file');
         $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
         $storedPath = null;
-        $replacedPath = null;
+        $replacedSignedCopy = false;
 
         try {
             $attributes = $packageService->storeHeadUpload(
@@ -748,38 +781,35 @@ class TopicController extends Controller
             );
             $storedPath = $attributes['file_path'];
 
-            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $sourceFile, &$replacedPath): void {
+            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $sourceFile, &$replacedSignedCopy): void {
                 $lockedVersion = ProposalVersion::query()
                     ->whereKey($latestVersion->id)
                     ->lockForUpdate()
                     ->firstOrFail();
-                $existingSignedCopy = $isSignedCopy
+                $existingSignedCopies = $isSignedCopy
                     ? $lockedVersion->files()
                         ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
                         ->where('source_version_file_id', $sourceFile?->id)
+                        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+                        ->whereNull('superseded_at')
+                        ->lockForUpdate()
                         ->get()
-                        ->first(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
-                    : null;
+                    : collect();
+                $position = ((int) $lockedVersion->files()
+                    ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+                    ->max('position')) + 1;
+                $newHeadUpload = $lockedVersion->files()->create([
+                    ...$attributes,
+                    'position' => $position,
+                    'uploaded_by' => $request->user()->id,
+                ]);
 
-                if ($existingSignedCopy instanceof ProposalVersionFile) {
-                    $replacedPath = $existingSignedCopy->file_path;
-                    $replacementAttributes = $attributes;
-                    unset($replacementAttributes['position']);
-
-                    $existingSignedCopy->update([
-                        ...$replacementAttributes,
-                        'uploaded_by' => $request->user()->id,
-                    ]);
-                } else {
-                    $position = ((int) $lockedVersion->files()
-                        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-                        ->max('position')) + 1;
-
-                    $lockedVersion->files()->create([
-                        ...$attributes,
-                        'position' => $position,
-                        'uploaded_by' => $request->user()->id,
-                    ]);
+                if ($existingSignedCopies->isNotEmpty()) {
+                    $existingSignedCopies->each(fn (ProposalVersionFile $signedCopy) => $signedCopy->update([
+                        'superseded_at' => now(),
+                        'superseded_by_version_file_id' => $newHeadUpload->id,
+                    ]));
+                    $replacedSignedCopy = true;
                 }
 
                 $topic->reviews()->create([
@@ -790,9 +820,6 @@ class TopicController extends Controller
                 ]);
             });
 
-            if ($replacedPath !== null && $replacedPath !== $storedPath) {
-                Storage::disk('local')->delete($replacedPath);
-            }
         } catch (Throwable) {
             if ($storedPath !== null) {
                 Storage::disk('local')->delete($storedPath);
@@ -807,7 +834,9 @@ class TopicController extends Controller
             ->to(route('topics.show', $topic).'#proposal-review')
             ->with('success', $isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
-                : 'Research Head file attached to the faculty submission.');
+                : ($replacedSignedCopy
+                    ? 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.'
+                    : 'Research Head file attached to the faculty submission.'));
     }
 
     /**
@@ -846,7 +875,10 @@ class TopicController extends Controller
             ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
             ->values();
         $headUploadsBySource = $headUploadedFiles
-            ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
+            ->reject(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            ], true))
             ->groupBy(
                 fn (ProposalVersionFile $file): int => $file->source_version_file_id
                     ?? $facultySubmittedFiles->firstWhere(
@@ -928,7 +960,7 @@ class TopicController extends Controller
 
         $isUnreleasedSignedCopy = $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
             && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
-            && $topic->status !== 'approved';
+            && ($topic->status !== 'approved' || $file->isSuperseded());
 
         abort_if($isUnreleasedSignedCopy, 404);
     }

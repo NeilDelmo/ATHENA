@@ -6,6 +6,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -17,6 +18,7 @@ class PrepareProjectProgressReport
     public function __construct(
         private readonly MonitoringToolDocumentService $documentService,
         private readonly DocumentPdfConverter $pdfConverter,
+        private readonly MonitoringQuarterService $monitoringQuarterService,
     ) {}
 
     /**
@@ -27,11 +29,15 @@ class PrepareProjectProgressReport
         User $user,
         array $validated,
         ?UploadedFile $attachment,
+        ?ProjectProgressReport $supersedesReport = null,
     ): ProjectProgressReport {
         $storedPaths = [];
 
         try {
             $workPlan = collect($validated['work_plan']);
+            $period = $supersedesReport === null
+                ? $this->monitoringQuarterService->forDate($validated['reporting_date'])
+                : $this->monitoringQuarterService->forReport($supersedesReport);
             $attachmentPath = $attachment?->store('progress-reports/'.$topic->id, 'local');
 
             if ($attachmentPath !== null) {
@@ -39,9 +45,13 @@ class PrepareProjectProgressReport
             }
 
             $report = new ProjectProgressReport([
-                ...collect($validated)->except('attachment')->all(),
+                ...collect($validated)->except(['attachment', 'source_report_id'])->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $user->id,
+                'reporting_year' => $period['year'],
+                'reporting_quarter' => $period['quarter'],
+                'version_number' => $supersedesReport === null ? 1 : $supersedesReport->version_number + 1,
+                'supersedes_report_id' => $supersedesReport?->id,
                 'progress_percentage' => (int) round($workPlan->sum(
                     fn (array $entry): float => (float) $entry['accomplished_percentage'],
                 )),
@@ -61,7 +71,7 @@ class PrepareProjectProgressReport
             $report->setRelation('submitter', $user);
 
             $pdf = $this->pdfConverter->convertDocx($this->documentService->generate($report));
-            $filename = Str::slug($topic->title).'-monitoring-tool.pdf';
+            $filename = Str::slug($topic->title).'-'.$report->quarter_label.'-v'.$report->version_number.'-monitoring-tool.pdf';
             $pdfPath = 'progress-reports/'.$topic->id.'/prepared/'.Str::uuid().'.pdf';
 
             if (! Storage::disk('local')->put($pdfPath, $pdf)) {

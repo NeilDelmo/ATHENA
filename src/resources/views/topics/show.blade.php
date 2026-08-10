@@ -29,6 +29,7 @@
             : (Auth::user()->isUsingWorkspace('faculty_researcher') ? route('research.index') : route('faculty.dashboard'));
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
+        $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
           $hasProjectAccess = $isResearchHead || $topic->isAccessibleTo(Auth::user());
           $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed())
@@ -100,7 +101,7 @@
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
                         ? 'notice'
-                    : window.location.hash === '#project-monitoring'
+                    : (window.location.hash === '#project-monitoring' || window.location.hash.startsWith('#monitoring-tool-'))
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
@@ -115,7 +116,7 @@
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
                     this.activeTopicTab = 'notice';
-                } else if (window.location.hash === '#project-monitoring') {
+                } else if (window.location.hash === '#project-monitoring' || window.location.hash.startsWith('#monitoring-tool-')) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
@@ -128,11 +129,14 @@
                 this.scrollToProjectMonitoring();
             },
             scrollToProjectMonitoring() {
-                if (window.location.hash !== '#project-monitoring') {
+                if (window.location.hash !== '#project-monitoring' && ! window.location.hash.startsWith('#monitoring-tool-')) {
                     return;
                 }
                 this.$nextTick(() => {
-                    const section = document.getElementById('project-monitoring');
+                    const targetId = window.location.hash.startsWith('#monitoring-tool-')
+                        ? window.location.hash.slice(1)
+                        : 'project-monitoring';
+                    const section = document.getElementById(targetId) || document.getElementById('project-monitoring');
                     if (!section) {
                         return;
                     }
@@ -516,6 +520,33 @@
                             </section>
 
                             <button class="w-full rounded-xl bg-red-600 px-5 py-3.5 text-base font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save decision and share with faculty</button>
+                        </form>
+                    </div>
+                </details>
+            @elseif ($canReturnToRevision)
+                <details class="group overflow-hidden rounded-2xl border-2 border-amber-300 shadow-lg" open>
+                    <summary class="flex cursor-pointer items-center justify-between gap-4 bg-amber-50 px-5 py-4 transition hover:bg-amber-100 sm:px-6">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-wider text-amber-800">Signing correction</p>
+                            <h3 class="mt-1 text-base font-black text-gray-900">Return to revision</h3>
+                        </div>
+                        <svg class="h-5 w-5 shrink-0 text-amber-600 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
+                    </summary>
+                    <div class="border-t border-amber-200 bg-white p-5 sm:p-6">
+                        <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="space-y-5">
+                            @csrf @method('PATCH')
+                            <input type="hidden" name="status" value="revision_requested">
+                            <input type="hidden" name="redirect_to" value="topic">
+                            <p class="text-sm leading-6 text-gray-700">Use this only when a paper must change after signing has started. Select every affected paper and provide the same file-specific feedback required for a normal revision. Current signed uploads will be retained as superseded audit copies and cannot be reused for the new version.</p>
+                            <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20 sm:p-5">
+                                <h4 class="text-base font-black text-gray-900 dark:text-white">Papers that must be corrected</h4>
+                                <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">For PDFs, save at least one highlight and comment before selecting the paper. For non-PDF files, give exact instructions.</p>
+                                <div class="mt-4">
+                                    @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
+                                </div>
+                                @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                            </section>
+                            <button class="w-full rounded-xl bg-amber-700 px-5 py-3.5 text-base font-black text-white transition hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:ring-offset-2">Return selected papers to revision</button>
                         </form>
                     </div>
                 </details>

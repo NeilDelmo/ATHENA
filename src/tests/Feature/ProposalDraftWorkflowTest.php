@@ -1592,11 +1592,9 @@ test('an rrl backed proposal completes submission revision approval notice and m
     expect($topic->fresh()->status)->toBe('approved')
         ->and($topic->fresh()->isMonitoringAvailable())->toBeFalse()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
-    Notification::assertSentTo(
-        $this->faculty,
-        ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal papers approved',
-    );
+    expect(Notification::sent($this->faculty, ProposalActivityNotification::class)
+        ->map(fn (ProposalActivityNotification $notification): string => $notification->title)
+        ->all())->toContain('Signed documents ready');
 
     $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
     $notice['resolution_number'] = $notice['resolution_number'] ?: '01';
@@ -1645,6 +1643,8 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->assertOk()
         ->assertSee('Project monitoring');
 
+    $headNotificationCountBeforePreparation = Notification::sent($this->head, ProposalActivityNotification::class)->count();
+
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
     ])->actingAs($this->faculty)
@@ -1656,11 +1656,23 @@ test('an rrl backed proposal completes submission revision approval notice and m
 
     expect($report->topic_id)->toBe($topic->id)
         ->and($report->review_status)->toBe('pending')
-        ->and($report->progress_percentage)->toBe(25);
+        ->and($report->progress_percentage)->toBe(25)
+        ->and($report->isPrepared())->toBeTrue();
+    expect(Notification::sent($this->head, ProposalActivityNotification::class)->count())
+        ->toBe($headNotificationCountBeforePreparation);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($this->faculty)
+        ->post(route('project-progress.submit-prepared', [$topic, $report]))
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
     Notification::assertSentTo(
         $this->head,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Monitoring tool submitted',
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'New '.$report->quarter_label.' Monitoring Tool Submitted'
+            && $notification->url === route('topics.show', $topic).'#monitoring-tool-'.$report->id,
     );
 
     $this->actingAs($this->head)

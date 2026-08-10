@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Carbon\Carbon;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -42,6 +43,17 @@ class StoreResearchCallRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if ($this->input('status') === 'open' && ! $validator->errors()->has('closes_at')) {
+                $closesAt = Carbon::parse($this->input('closes_at'), 'Asia/Manila');
+
+                if ($closesAt->lessThanOrEqualTo(now('Asia/Manila'))) {
+                    $validator->errors()->add(
+                        'closes_at',
+                        'A published research call must have a submission end date in the future. Save it as a draft until the schedule is updated.',
+                    );
+                }
+            }
+
             foreach ([
                 ['initial_evaluation_start_date', 'initial_evaluation_end_date'],
                 ['paper_revisions_start_date', 'paper_revisions_end_date'],
