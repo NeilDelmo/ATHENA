@@ -14,6 +14,7 @@ use App\Support\DetailedProposalData;
 use App\Support\LineItemBudgetData;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -42,10 +43,13 @@ class ProposalDraftDetailedProposalController extends Controller
         'cooperating_agency',
         'executive_brief',
         'rationale',
-        'objectives',
+        'general_objective',
+        'specific_objectives',
         'expected_outputs',
         'introduction',
         'related_literature',
+        'literature_research_history',
+        'literature_citations',
         'methodology',
         'methodology_images',
         'responsibilities',
@@ -116,11 +120,27 @@ class ProposalDraftDetailedProposalController extends Controller
         SaveProposalDraftDocument $saveProposalDraftDocument,
         SaveProposalDraftDetails $saveProposalDraftDetails,
         DetailedProposalMethodologyImageService $methodologyImageService,
-    ): RedirectResponse {
+    ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('detailed-proposal');
         $validated = $request->validated();
         $sourceData = Arr::only($validated, self::SOURCE_FIELDS);
+        $normalizedProposal = DetailedProposalData::fromValidated($validated);
+
+        foreach ([
+            'executive_brief',
+            'rationale',
+            'general_objective',
+            'specific_objectives',
+            'expected_outputs',
+            'introduction',
+            'related_literature',
+            'methodology',
+            'responsibilities',
+            'references',
+        ] as $field) {
+            $sourceData[$field] = $normalizedProposal[$field];
+        }
         $projectLeader = Str::of((string) $validated['project_leader'])->squish()->toString();
         [$sourceData['methodology_images'], $storedImagePaths] = $this->storeMethodologyImages(
             $proposalDraft,
@@ -129,7 +149,7 @@ class ProposalDraftDetailedProposalController extends Controller
         );
 
         try {
-            DB::transaction(function () use ($proposalDraft, $request, $paper, $sourceData, $projectLeader, $saveProposalDraftDetails, $saveProposalDraftDocument): void {
+            $savedDocument = DB::transaction(function () use ($proposalDraft, $request, $paper, $sourceData, $projectLeader, $saveProposalDraftDetails, $saveProposalDraftDocument): ProposalDraftDocument {
                 if ($projectLeader !== $proposalDraft->project_leader) {
                     $saveProposalDraftDetails->handle(
                         $proposalDraft,
@@ -138,7 +158,7 @@ class ProposalDraftDetailedProposalController extends Controller
                     );
                 }
 
-                $saveProposalDraftDocument->handle(
+                return $saveProposalDraftDocument->handle(
                     $proposalDraft,
                     $request->user(),
                     $paper['document_type'],
@@ -160,6 +180,18 @@ class ProposalDraftDetailedProposalController extends Controller
             Storage::disk('local')->delete($storedImagePaths);
 
             throw $exception;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $request->boolean('save_as_draft')
+                    ? 'Detailed Research Proposal saved as a draft.'
+                    : 'Detailed Research Proposal saved.',
+                'document_version' => $savedDocument->lock_version,
+                'draft_version' => $proposalDraft->fresh()->lock_version,
+                'saved_as_draft' => $request->boolean('save_as_draft'),
+                'methodology_images' => $this->methodologyImagesForAutoSave($savedDocument, $request, $proposalDraft),
+            ]);
         }
 
         return redirect()
@@ -313,6 +345,30 @@ class ProposalDraftDetailedProposalController extends Controller
             ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
             ->where('position', 0)
             ->first();
+    }
+
+    /**
+     * @return list<array{client_id: string, id: string, url: string}>
+     */
+    private function methodologyImagesForAutoSave(
+        ProposalDraftDocument $document,
+        Request $request,
+        ProposalDraft $proposalDraft,
+    ): array {
+        $clientIds = collect(Arr::wrap($request->input('methodology_images', [])))
+            ->pluck('client_id')
+            ->map(fn (mixed $clientId): string => (string) $clientId)
+            ->values();
+
+        return collect(Arr::wrap($document->source_data['methodology_images'] ?? []))
+            ->filter(fn (mixed $image): bool => is_array($image) && filled($image['id'] ?? null))
+            ->values()
+            ->map(fn (array $image, int $index): array => [
+                'client_id' => $clientIds->get($index, ''),
+                'id' => (string) $image['id'],
+                'url' => route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, $image['id']]),
+            ])
+            ->all();
     }
 
     /**

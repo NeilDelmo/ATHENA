@@ -77,6 +77,44 @@ test('faculty share one canonical literature record instead of creating duplicat
         ->toBe('Community participation improved the continuity of local monitoring activities.');
 });
 
+test('faculty can search canonical shared literature records before linking one to a proposal', function () {
+    $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated();
+
+    $this->actingAs($this->faculty)
+        ->getJson(route('research-support.literature-library.index', ['query' => 'mangrove']))
+        ->assertOk()
+        ->assertJsonCount(1, 'sources')
+        ->assertJsonPath('sources.0.title', 'Community Participation in Mangrove Monitoring');
+});
+
+test('an externally found source is saved as a verifiable library record before it is used in a proposal', function () {
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            'title' => 'Library Automation Adoption in Higher Education',
+            'authors' => 'Ada Reyes, Ben Cruz',
+            'year' => 2025,
+            'venue' => 'Journal of Computing Education',
+            'doi' => '10.5555/library.automation.2025',
+            'url' => 'https://doi.org/10.5555/library.automation.2025',
+            'source' => 'External: Google Scholar',
+            'type' => 'external record',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('source.source', 'External: Google Scholar')
+        ->json('source.id');
+
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]))
+        ->assertCreated()
+        ->assertJsonPath('source.rrl_draft_status', 'none');
+
+    expect($this->draft->literatureSources()->sole()->rrl_note)->toBeNull();
+});
+
 test('shared collections act like collaborative playlists', function () {
     $collectionId = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-collections.store'), [
@@ -151,6 +189,24 @@ test('the same shared paper has distinct links in separate proposal drafts', fun
         ->and($secondLink->fresh()->rrl_note)->not->toBe('Draft-specific synthesis for the first proposal.');
 });
 
+test('proposal literature links retain the proposal context that led to the paper', function () {
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()
+        ->json('source.id');
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]), [
+            'research_context' => ['Project title', 'Specific objectives'],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('source.research_context', ['Project title', 'Specific objectives']);
+
+    expect($this->draft->literatureSources()->sole()->research_context)
+        ->toBe(['Project title', 'Specific objectives']);
+});
+
 test('a reviewed rrl paragraph is stored only on its proposal link', function () {
     $sourceId = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
@@ -175,14 +231,20 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
         'services.gemini.key' => 'test-key',
         'services.gemini.model' => 'gemini-test-model',
         'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+        'services.gemini.rrl_reasoning_effort' => 'low',
+        'services.gemini.rrl_max_completion_tokens' => 2048,
+        'services.gemini.rrl_retry_max_completion_tokens' => 4096,
     ]);
+
+    $completeParagraph = 'Santos and Cruz examined how community participation influenced the continuity of mangrove monitoring activities. The study focused on local involvement in environmental observation and considered whether sustained participation helped monitoring efforts continue over time. The reported results showed that consistent community engagement was associated with more regular observation activities and stronger local stewardship. These findings suggest that monitoring programs may benefit when residents have continuing roles in collecting and maintaining environmental information. For a project concerned with community based resource management, the study provides relevant evidence that participation can support operational continuity and shared responsibility. However, the evidence describes an association rather than proving that participation alone caused the improved monitoring outcomes. The source therefore supports cautious consideration of participatory approaches when designing local monitoring processes, assigning responsibilities, and planning activities intended to remain active beyond initial implementation.';
 
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => [
-                    'content' => 'Draft: Santos and Cruz (2024) examined community participation in mangrove monitoring. Their findings indicate that sustained local involvement supported more consistent monitoring activities. DOI: 10.1234/paywalled-record https://example.test/full-paper',
+                    'content' => "Draft: {$completeParagraph} DOI: 10.1234/paywalled-record https://example.test/full-paper",
                 ],
+                'finish_reason' => 'stop',
             ]],
         ]),
     ]);
@@ -199,7 +261,7 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
         ])
         ->assertOk()
         ->assertJsonPath('basis', 'abstract')
-        ->assertJsonPath('notice', 'Drafted only from the indexed abstract. No paywalled or restricted full text was accessed.')
+        ->assertJsonPath('notice', 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.')
         ->assertJsonMissingPath('doi')
         ->assertJsonMissingPath('url')
         ->assertJson(fn ($json) => $json
@@ -216,10 +278,64 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
 
     Http::assertSent(fn ($request) => $request->url() === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
         && $request['model'] === 'gemini-test-model'
-        && $request['max_completion_tokens'] === 320
-        && str_contains($request['messages'][0]['content'], 'Use only claims explicitly supported by the abstract')
+        && $request['reasoning_effort'] === 'low'
+        && $request['max_completion_tokens'] === 2048
+        && ! isset($request['temperature'])
+        && str_contains($request['messages'][0]['content'], 'Use only claims explicitly supported by the supplied evidence')
         && str_contains($request['messages'][1]['content'], $abstract));
     Http::assertSentCount(1);
+});
+
+test('rrl synthesis retries a token limited response with a larger completion budget', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+        'services.gemini.rrl_reasoning_effort' => 'low',
+        'services.gemini.rrl_max_completion_tokens' => 2048,
+        'services.gemini.rrl_retry_max_completion_tokens' => 4096,
+    ]);
+
+    $completeParagraph = 'Santos and Cruz examined how community participation influenced the continuity of mangrove monitoring activities. The study focused on local involvement in environmental observation and considered whether sustained participation helped monitoring efforts continue over time. The reported results showed that consistent community engagement was associated with more regular observation activities and stronger local stewardship. These findings suggest that monitoring programs may benefit when residents have continuing roles in collecting and maintaining environmental information. For a project concerned with community based resource management, the study provides relevant evidence that participation can support operational continuity and shared responsibility. However, the evidence describes an association rather than proving that participation alone caused the improved monitoring outcomes. The source therefore supports cautious consideration of participatory approaches when designing local monitoring processes, assigning responsibilities, and planning activities intended to remain active beyond initial implementation.';
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::sequence()
+            ->push([
+                'choices' => [[
+                    'message' => ['content' => 'Community participation was associated with stronger local monitoring continuity, but the response ended before completing its explanation'],
+                    'finish_reason' => 'length',
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['content' => $completeParagraph],
+                    'finish_reason' => 'stop',
+                ]],
+            ]),
+    ]);
+
+    $abstract = 'This study examined how community participation influenced the continuity of mangrove monitoring activities. Results showed that sustained local involvement supported more consistent environmental observation and strengthened local stewardship.';
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-synthesis'), [
+            'title' => 'Community Participation in Mangrove Monitoring',
+            'authors' => 'Maria Santos, Luis Cruz',
+            'year' => 2024,
+            'abstract' => $abstract,
+            'is_open_access' => false,
+        ])
+        ->assertOk()
+        ->assertJsonPath('synthesis', $completeParagraph)
+        ->assertJsonPath('basis', 'abstract');
+
+    $requests = Http::recorded()->map(fn (array $recording) => $recording[0]);
+
+    expect($requests)->toHaveCount(2)
+        ->and($requests[0]['reasoning_effort'])->toBe('low')
+        ->and($requests[0]['max_completion_tokens'])->toBe(2048)
+        ->and($requests[1]['reasoning_effort'])->toBe('low')
+        ->and($requests[1]['max_completion_tokens'])->toBe(4096)
+        ->and($requests[1]['messages'][1]['content'])->toContain('This is a retry. Ensure the paragraph is complete');
 });
 
 test('rrl synthesis refuses records without a usable abstract', function () {
@@ -322,10 +438,13 @@ test('only papers linked to a proposal appear in that detailed proposal', functi
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertSee('Literature linked to this proposal')
+        ->assertSee('Literature Assistant')
+        ->assertSee('Search related literature')
         ->assertSee('Community Participation in Mangrove Monitoring')
-        ->assertSee('Use in RRL')
-        ->assertSee('Add reference')
-        ->assertSee('Use both');
+        ->assertSee('Review RRL')
+        ->assertSee('Add to Section XVI')
+        ->assertSee('Reference options')
+        ->assertDontSee('Use both');
 });
 
 test('a shared paper can be staged directly in the selected detailed proposal', function () {
@@ -360,8 +479,9 @@ test('staged literature actions focus the matching detailed proposal field', fun
     expect($appJavaScript)
         ->toContain('this.focusLiteratureDestination(action);')
         ->toContain("const fieldId = action === 'reference' ? 'references' : 'related-literature';")
-        ->toContain("const destination = field.closest('section') || field;")
+        ->toContain('const focusTarget = field._semanticEditor instanceof HTMLElement ? field._semanticEditor : field;')
+        ->toContain("const destination = focusTarget.closest('section') || focusTarget;")
         ->toContain('const destinationTop = destination.getBoundingClientRect().top + window.scrollY - 144;')
         ->toContain("window.scrollTo({ top: Math.max(0, destinationTop), behavior: 'smooth' });")
-        ->toContain('field.focus({ preventScroll: true });');
+        ->toContain('focusTarget.focus({ preventScroll: true });');
 });

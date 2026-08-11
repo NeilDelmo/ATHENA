@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -134,12 +135,42 @@ test('the faculty project page shows the official monitoring tool fields', funct
         ->assertSee('Submit monitoring tool')
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview monitoring tool')
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('A. Work Plan')
         ->assertSee('Add up to eleven activities')
         ->assertSee('B. Budget Utilization')
         ->assertSee('Purchase Request')
         ->assertSee('Request of Payment');
+});
+
+test('a monitoring form auto-saves a private draft without preparing an official PDF', function () {
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.draft', $this->topic), [
+            ...($this->monitoringPayload)(),
+            'draft_version' => 0,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('draft_version', 1);
+
+    $draft = ProjectMonitoringDraft::sole();
+
+    expect($draft->topic_id)->toBe($this->topic->id)
+        ->and($draft->user_id)->toBe($this->researcher->id)
+        ->and($draft->source_data['tracking_number'])->toBe('REC-2026-001')
+        ->and(ProjectProgressReport::count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.draft', $this->topic), [
+            ...$draft->source_data,
+            'draft_version' => 1,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('draft_version', 1);
+
+    expect($draft->fresh()->lock_version)->toBe(1);
 });
 
 test('a researcher can preview the filled monitoring tool without submitting it', function () {

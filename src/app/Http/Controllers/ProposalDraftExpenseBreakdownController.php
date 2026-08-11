@@ -11,6 +11,7 @@ use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalPaperCatalog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
@@ -45,10 +46,10 @@ class ProposalDraftExpenseBreakdownController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         SaveProposalDraftDocument $saveProposalDraftDocument,
-    ): RedirectResponse {
+    ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('expense-breakdown');
-        $saveProposalDraftDocument->handle(
+        $savedDocument = $saveProposalDraftDocument->handle(
             $proposalDraft,
             $request->user(),
             $paper['document_type'],
@@ -65,6 +66,17 @@ class ProposalDraftExpenseBreakdownController extends Controller
             ],
             changeNote: $request->string('change_note')->toString(),
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $request->boolean('save_as_draft')
+                    ? 'Estimated Expense Breakdown saved as a draft.'
+                    : 'Estimated Expense Breakdown saved.',
+                'document_version' => $savedDocument->lock_version,
+                'draft_version' => $proposalDraft->fresh()->lock_version,
+                'saved_as_draft' => $request->boolean('save_as_draft'),
+            ]);
+        }
 
         return redirect()
             ->route(

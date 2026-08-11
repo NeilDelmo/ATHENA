@@ -26,6 +26,7 @@ class ProposalDraftLiteratureSourceController extends Controller
             $request->user(),
             $request->validated('rrl_note'),
             $request->validated('rrl_evidence_basis'),
+            is_array($request->validated('research_context')) ? $request->validated('research_context') : [],
         );
 
         $referenceNumber = $proposalDraft->literatureSources()

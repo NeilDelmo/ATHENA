@@ -49,7 +49,7 @@ class StoreLiteratureSourceRequest extends FormRequest
     {
         return [
             'title' => ['required', 'string', 'max:500'],
-            'description' => ['nullable', 'string', 'max:5000'],
+            'description' => ['nullable', 'string', 'max:12000'],
             'authors' => ['nullable', 'string', 'max:2000'],
             'year' => ['nullable', 'integer', 'min:1900', 'max:'.now()->year],
             'publication_date' => ['nullable', 'date_format:Y-m-d'],

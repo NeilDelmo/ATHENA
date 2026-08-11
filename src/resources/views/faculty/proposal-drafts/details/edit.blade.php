@@ -20,12 +20,14 @@
         class="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
+        data-project-details-autosave="true"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}"
         x-data="proposalDraftProjectDetails({
             initialDuration: @js($initialDuration),
             initialStart: @js($initialPlannedStart),
             initialEnd: @js($initialPlannedEnd),
+            autoSave: true,
         })"
     >
         @if (session('success'))
@@ -33,6 +35,7 @@
         @endif
 
         <x-paper-editor-submit-status />
+        <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('draft_version', $proposalDraft->lock_version)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, 'details', 0])"
@@ -53,7 +56,7 @@
                 </x-proposal-alert>
             @endif
 
-            <form data-paper-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6">
+            <form data-paper-form data-project-details-autosave-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
@@ -93,9 +96,11 @@
                     @error('project_leader')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                 </div>
 
-                <div class="flex flex-col gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
-                    <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and exit</button>
-                </div>
+                <noscript>
+                    <div class="flex justify-end border-t border-gray-100 pt-6">
+                        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Save project details</button>
+                    </div>
+                </noscript>
             </form>
         </section>
     </div>

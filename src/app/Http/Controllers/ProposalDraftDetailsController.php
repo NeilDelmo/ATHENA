@@ -6,6 +6,7 @@ use App\Actions\SaveProposalDraftDetails;
 use App\Http\Requests\UpdateProposalDraftDetailsRequest;
 use App\Models\ProposalDraft;
 use App\Support\ProposalWorkspacePeople;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -28,14 +29,21 @@ class ProposalDraftDetailsController extends Controller
         UpdateProposalDraftDetailsRequest $request,
         ProposalDraft $proposalDraft,
         SaveProposalDraftDetails $saveProposalDraftDetails,
-    ): RedirectResponse {
+    ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
 
-        $saveProposalDraftDetails->handle(
+        $savedDraft = $saveProposalDraftDetails->handle(
             $proposalDraft,
             $request->integer('draft_version'),
             $request->validated(),
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Project details saved.',
+                'draft_version' => $savedDraft->lock_version,
+            ]);
+        }
 
         return redirect()
             ->route(

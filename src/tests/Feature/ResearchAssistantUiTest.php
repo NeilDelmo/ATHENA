@@ -81,6 +81,8 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Saved library')
         ->assertSee('Search papers')
         ->assertSee('Abstract excerpt')
+        ->assertSee('Show full abstract')
+        ->assertSee('Show less')
         ->assertSee('Paper details')
         ->assertSee('Add to a Detailed Proposal')
         ->assertDontSee('No scrolling required')

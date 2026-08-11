@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 
 class DetailedProposalData
@@ -14,9 +15,12 @@ class DetailedProposalData
      */
     public static function fromValidated(array $validated, array $budgetTotals = []): array
     {
-        $expectedOutputs = is_array($validated['expected_outputs'] ?? null)
-            ? $validated['expected_outputs']
-            : [];
+        $objectives = self::objectives(
+            $validated['general_objective'] ?? '',
+            $validated['specific_objectives'] ?? null,
+            $validated['objectives'] ?? '',
+        );
+        $expectedOutputs = self::expectedOutputs($validated['expected_outputs'] ?? []);
         $methodology = is_array($validated['methodology'] ?? null)
             ? $validated['methodology']
             : [];
@@ -52,12 +56,9 @@ class DetailedProposalData
             'cooperating_agency' => self::text($validated['cooperating_agency'] ?? ''),
             'executive_brief' => self::narrative($validated['executive_brief'] ?? ''),
             'rationale' => self::narrative($validated['rationale'] ?? ''),
-            'objectives' => self::narrative($validated['objectives'] ?? ''),
-            'expected_outputs' => collect(config('detailed_proposal.expected_outputs'))
-                ->mapWithKeys(fn (string $label, string $key): array => [
-                    $key => self::narrative($expectedOutputs[$key] ?? ''),
-                ])
-                ->all(),
+            'general_objective' => $objectives['general_objective'],
+            'specific_objectives' => $objectives['specific_objectives'],
+            'expected_outputs' => $expectedOutputs,
             'introduction' => self::narrative($validated['introduction'] ?? ''),
             'related_literature' => self::narrative($validated['related_literature'] ?? ''),
             'methodology' => [
@@ -83,9 +84,138 @@ class DetailedProposalData
 
     private static function narrative(mixed $value): string
     {
-        $value = str_replace(["\r\n", "\r"], "\n", self::validXml((string) $value));
+        return app(ProposalRichText::class)->sanitize(self::validXml((string) $value));
+    }
 
-        return trim((string) preg_replace('/[ \t]+$/m', '', $value));
+    /**
+     * @return array{general_objective: string, specific_objectives: list<array{description: string}>}
+     */
+    private static function objectives(mixed $generalObjective, mixed $specificObjectives, mixed $legacyObjectives): array
+    {
+        $general = self::narrative($generalObjective);
+        $objectiveRows = is_array($specificObjectives)
+            ? collect($specificObjectives)->map(
+                fn (mixed $objective): string => self::plainText(is_array($objective) ? ($objective['description'] ?? '') : ''),
+            )
+            : collect(preg_split('/\R+/u', (string) $legacyObjectives) ?: [])
+                ->map(fn (string $objective): string => self::plainText($objective));
+        $section = self::plainText($general) === '' ? null : 'specific';
+        $specific = [];
+
+        foreach ($objectiveRows as $objective) {
+            $objective = preg_replace('/^\s*(?:\d+[.)]|[-\x{2022}])\s*/u', '', $objective) ?: '';
+
+            if ($objective === '') {
+                continue;
+            }
+
+            if (preg_match('/^general objectives?:?$/iu', $objective) === 1) {
+                $section = 'general';
+
+                continue;
+            }
+
+            if (preg_match('/^specific objectives?:?$/iu', $objective) === 1) {
+                $section = 'specific';
+
+                continue;
+            }
+
+            if ($section === 'general' && self::plainText($general) === '') {
+                $general = self::narrative($objective);
+
+                continue;
+            }
+
+            $specific[] = ['description' => $objective];
+        }
+
+        return [
+            'general_objective' => $general,
+            'specific_objectives' => collect($specific)
+                ->filter(fn (array $objective): bool => $objective['description'] !== '')
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @return list<array{description: string}>
+     */
+    private static function specificObjectives(mixed $specificObjectives, mixed $legacyObjectives): array
+    {
+        $objectives = collect(is_array($specificObjectives) ? $specificObjectives : [])
+            ->map(fn (mixed $objective): array => [
+                'description' => self::narrative(is_array($objective) ? ($objective['description'] ?? '') : ''),
+            ])
+            ->filter(fn (array $objective): bool => $objective['description'] !== '')
+            ->values();
+
+        if ($objectives->isNotEmpty()) {
+            return $objectives->all();
+        }
+
+        return collect(preg_split('/\R+/u', self::plainText((string) $legacyObjectives)) ?: [])
+            ->map(fn (string $objective): string => preg_replace('/^\s*(?:\d+[.)]|[-â€¢])\s*/u', '', $objective) ?: '')
+            ->map(fn (string $objective): array => ['description' => self::narrative($objective)])
+            ->filter(fn (array $objective): bool => $objective['description'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, list<array{quantity: ?int, unit: string, description: string}>>
+     */
+    private static function expectedOutputs(mixed $outputs): array
+    {
+        $outputs = is_array($outputs) ? $outputs : [];
+
+        return collect(config('detailed_proposal.expected_outputs'))
+            ->mapWithKeys(function (string $label, string $key) use ($outputs): array {
+                $value = $outputs[$key] ?? [];
+                $entries = is_string($value)
+                    ? [['quantity' => null, 'unit' => '', 'description' => $value]]
+                    : (is_array($value) ? $value : []);
+
+                return [$key => collect($entries)
+                    ->filter(fn (mixed $entry): bool => is_array($entry))
+                    ->map(fn (array $entry): array => [
+                        'quantity' => null,
+                        'unit' => '',
+                        'description' => self::expectedOutputDescription($entry),
+                    ])
+                    ->filter(fn (array $entry): bool => $entry['description'] !== '')
+                    ->values()
+                    ->all()];
+            })
+            ->all();
+    }
+
+    /** @param array<string, mixed> $entry */
+    private static function expectedOutputDescription(array $entry): string
+    {
+        $description = self::plainText($entry['description'] ?? '');
+        $unit = self::text($entry['unit'] ?? '');
+        $quantity = filled($entry['quantity'] ?? null) ? (int) $entry['quantity'] : null;
+
+        if ($quantity === null) {
+            return trim($unit.' '.$description);
+        }
+
+        if (str_contains($description, '('.number_format($quantity).')')) {
+            return $description;
+        }
+
+        $quantityLabel = ucfirst(Number::spell($quantity, 'en')).' ('.number_format($quantity).')';
+
+        return trim($quantityLabel.' '.$unit.' '.$description);
+    }
+
+    private static function plainText(string $value): string
+    {
+        $value = preg_replace('/<(?:br\s*\/?>|\/p|\/div|\/li)>/iu', "\n", self::validXml($value)) ?? $value;
+
+        return trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
     }
 
     private static function titledName(mixed $title, mixed $name): string

@@ -55,6 +55,9 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),
         'vision_model' => env('GEMINI_VISION_MODEL', env('GEMINI_MODEL', 'gemini-3.5-flash')),
         'base_url' => rtrim(env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai'), '/'),
+        'rrl_reasoning_effort' => env('GEMINI_RRL_REASONING_EFFORT', 'low'),
+        'rrl_max_completion_tokens' => (int) env('GEMINI_RRL_MAX_COMPLETION_TOKENS', 2048),
+        'rrl_retry_max_completion_tokens' => (int) env('GEMINI_RRL_RETRY_MAX_COMPLETION_TOKENS', 4096),
     ],
 
     'openalex' => [

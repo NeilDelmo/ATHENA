@@ -1,7 +1,7 @@
 @if ($researchCallCarouselItems->isNotEmpty())
     <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl bg-gray-950 text-white shadow-xl shadow-gray-950/10" aria-label="Research Office announcements" aria-roledescription="carousel">
-        <img src="{{ asset('images/maingate.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20 grayscale" aria-hidden="true">
-        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-gray-950 via-gray-950/90 to-red-950/90" aria-hidden="true"></div>
+        <img src="{{ asset('images/front.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-40" aria-hidden="true">
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/75 to-red-950/80" aria-hidden="true"></div>
         <div class="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border-[44px] border-white/[0.04]" aria-hidden="true"></div>
 
         <div class="relative flex items-end justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
@@ -9,14 +9,15 @@
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-300">Research Office Bulletin</p>
                 <h3 class="mt-1 text-lg font-black tracking-tight">Calls and announcements</h3>
             </div>
-            <span class="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-gray-300">{{ $researchCallCarouselItems->count() }} live</span>
         </div>
 
-        <div data-research-call-viewport data-research-call-single-slide class="relative h-[22rem] overflow-hidden sm:h-[28rem]">
+        <div data-research-call-viewport data-research-call-single-slide class="relative h-[17rem] overflow-hidden sm:h-[22rem]">
             @foreach ($researchCallCarouselItems as $carouselItem)
-                <article data-research-call-slide class="group absolute left-1/2 top-1/2 flex h-[88%] w-[calc(100%-2rem)] max-w-[48rem] cursor-zoom-in flex-col overflow-hidden rounded-2xl border border-white/10 bg-white p-2 text-gray-950 shadow-2xl transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[calc(100%-7rem)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
-                    <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-gray-100">
-                        <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="h-full w-full cursor-zoom-in object-contain transition-transform duration-500 ease-out" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
+                <article data-research-call-slide class="group absolute left-1/2 top-1/2 flex h-[86%] w-[calc(100%-2rem)] max-w-3xl cursor-zoom-in flex-col overflow-hidden rounded-2xl border border-white/10 bg-white p-2 text-gray-950 shadow-2xl transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[calc(100%-6rem)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
+                    <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-slate-800">
+                        <img src="{{ asset('images/front.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full scale-105 object-cover opacity-45 blur-[1px]" aria-hidden="true">
+                        <div class="pointer-events-none absolute inset-0 bg-slate-950/35" aria-hidden="true"></div>
+                        <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="relative z-[1] h-full w-full cursor-zoom-in object-contain transition-transform duration-500 ease-out" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
 
                         @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
                             <div data-research-call-submit-overlay class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gray-950/55 opacity-0 backdrop-blur-[1px] transition-all duration-300 group-hover:pointer-events-auto group-hover:opacity-100">

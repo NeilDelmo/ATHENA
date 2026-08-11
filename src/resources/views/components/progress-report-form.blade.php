@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null])
+@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null])
 
 @if ($preparedReport)
     <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
@@ -28,28 +28,39 @@
 @else
 
 @php
-    $draft = $topic->revisionDraft;
-    $researcherNames = collect([$draft?->project_leader ?: $topic->user->name])
-        ->merge($draft?->members?->pluck('name') ?? collect())
+    $proposalDraft = $topic->revisionDraft;
+    $draftData = is_array($narrativeReportDraft?->source_data) ? $narrativeReportDraft->source_data : [];
+    $researcherNames = collect([$proposalDraft?->project_leader ?: $topic->user->name])
+        ->merge($proposalDraft?->members?->pluck('name') ?? collect())
         ->filter()
         ->unique()
         ->implode("\n");
-    $approvedStart = $draft?->planned_start ?? $topic->notice_to_proceed_issued_at?->copy()->startOfDay();
-    $approvedEnd = $draft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
+    $approvedStart = $proposalDraft?->planned_start ?? $topic->notice_to_proceed_issued_at?->copy()->startOfDay();
+    $approvedEnd = $proposalDraft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
     $maxAccomplishments = (int) config('progress_report.max_accomplishments');
     $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => ''];
-    $accomplishmentRows = collect(old('accomplishments', array_fill(0, 4, $blankAccomplishment)))
+    $accomplishmentRows = collect(old('accomplishments', $draftData['accomplishments'] ?? array_fill(0, 4, $blankAccomplishment)))
         ->map(fn ($row) => array_merge($blankAccomplishment, is_array($row) ? $row : []))
         ->pad($maxAccomplishments, $blankAccomplishment)
         ->take($maxAccomplishments);
     $maxFigures = (int) config('progress_report.max_figures');
+    $defaultSubmissionDate = array_key_exists('submission_date', $draftData) ? $draftData['submission_date'] : now()->toDateString();
+    $defaultTrackingNumber = array_key_exists('tracking_number', $draftData) ? $draftData['tracking_number'] : '';
+    $defaultResearchers = array_key_exists('researchers', $draftData) ? $draftData['researchers'] : $researcherNames;
+    $defaultImplementationStart = array_key_exists('implementation_start', $draftData) ? $draftData['implementation_start'] : $approvedStart?->toDateString();
+    $defaultImplementationEnd = array_key_exists('implementation_end', $draftData) ? $draftData['implementation_end'] : $approvedEnd?->toDateString();
+    $defaultFundingAgency = array_key_exists('funding_agency', $draftData) ? $draftData['funding_agency'] : 'Batangas State University';
+    $defaultPreparedByDate = array_key_exists('prepared_by_date_signed', $draftData) ? $draftData['prepared_by_date_signed'] : '';
 @endphp
 
 <details
     class="overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50/50"
-    @if ($errors->narrativeProgress->any()) open @endif
+    @if ($errors->narrativeProgress->any() || $narrativeReportDraft) open @endif
+    data-narrative-progress-autosave="true"
     x-data="narrativeProgressReportForm({
         previewUrl: @js(route('project-narrative-reports.preview', $topic)),
+        draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
+        initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
     })"
 >
@@ -61,8 +72,9 @@
         <span class="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase text-emerald-700 shadow-sm">Open form</span>
     </summary>
 
-    <form x-ref="form" method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5" @submit="submitting = true">
+    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-emerald-100 bg-white p-5" @submit="submitting = true">
         @csrf
+        <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
 
         @if ($errors->narrativeProgress->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -74,6 +86,10 @@
                 </ul>
             </div>
         @endif
+
+        <x-proposal-autosave-status />
+
+        <p class="rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-800">Changes save privately as a draft. Add photos immediately before preparing the official PDF; preparation and submission remain manual.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="sm:col-span-2">
@@ -93,27 +109,27 @@
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label for="progress_submission_date" class="text-[11px] font-bold text-gray-600">Submission date</label>
-                <x-date-picker id="progress_submission_date" name="submission_date" :value="old('submission_date', now()->toDateString())" :max="now()->toDateString()" required class="mt-1" />
+                <x-date-picker id="progress_submission_date" name="submission_date" :value="old('submission_date', $defaultSubmissionDate)" :max="now()->toDateString()" required class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600">Tracking number <span class="font-normal text-gray-400">(optional)</span>
-                <input type="text" name="tracking_number" value="{{ old('tracking_number') }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
+                <input type="text" name="tracking_number" value="{{ old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
             </label>
         </div>
 
         <section class="grid gap-4 md:grid-cols-2">
             <label class="text-[11px] font-bold text-gray-600 md:col-span-2">II. Researchers
-                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter one researcher per line">{{ old('researchers', $researcherNames) }}</textarea>
+                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter one researcher per line">{{ old('researchers', $defaultResearchers) }}</textarea>
             </label>
             <div>
                 <label for="implementation_start" class="text-[11px] font-bold text-gray-600">III. Approved implementation start</label>
-                <x-date-picker id="implementation_start" name="implementation_start" :value="old('implementation_start', $approvedStart?->toDateString())" required class="mt-1" />
+                <x-date-picker id="implementation_start" name="implementation_start" :value="old('implementation_start', $defaultImplementationStart)" required class="mt-1" />
             </div>
             <div>
                 <label for="implementation_end" class="text-[11px] font-bold text-gray-600">III. Approved implementation end</label>
-                <x-date-picker id="implementation_end" name="implementation_end" :value="old('implementation_end', $approvedEnd?->toDateString())" required class="mt-1" />
+                <x-date-picker id="implementation_end" name="implementation_end" :value="old('implementation_end', $defaultImplementationEnd)" required class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600 md:col-span-2">V. Funding agency
-                <input type="text" name="funding_agency" value="{{ old('funding_agency', 'Batangas State University') }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">
+                <input type="text" name="funding_agency" value="{{ old('funding_agency', $defaultFundingAgency) }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">
             </label>
         </section>
 
@@ -153,7 +169,7 @@
                 'results_discussion' => 'X. Results and Discussion',
             ] as $field => $label)
                 <label class="block text-[11px] font-bold text-gray-600">{{ $label }}
-                    <textarea name="{{ $field }}" rows="4" maxlength="5000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">{{ old($field) }}</textarea>
+                    <textarea name="{{ $field }}" rows="4" maxlength="5000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">{{ old($field, $draftData[$field] ?? '') }}</textarea>
                 </label>
             @endforeach
         </section>
@@ -176,12 +192,12 @@
                     </label>
                     <label class="text-[11px] font-bold text-gray-600">Place under
                         <select name="photo_section_{{ $photoIndex }}" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border-gray-200 text-xs">
-                            <option value="results_discussion" @selected(old('photo_section_'.$photoIndex, 'results_discussion') === 'results_discussion')>Results and Discussion</option>
-                            <option value="methodology" @selected(old('photo_section_'.$photoIndex) === 'methodology')>Methodology</option>
+                            <option value="results_discussion" @selected(old('photo_section_'.$photoIndex, $draftData['photo_section_'.$photoIndex] ?? 'results_discussion') === 'results_discussion')>Results and Discussion</option>
+                            <option value="methodology" @selected(old('photo_section_'.$photoIndex, $draftData['photo_section_'.$photoIndex] ?? '') === 'methodology')>Methodology</option>
                         </select>
                     </label>
                     <label class="text-[11px] font-bold text-gray-600">Caption {{ $photoIndex }}
-                        <input type="text" name="photo_caption_{{ $photoIndex }}" value="{{ old('photo_caption_'.$photoIndex) }}" maxlength="200" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Describe what the photo shows">
+                        <input type="text" name="photo_caption_{{ $photoIndex }}" value="{{ old('photo_caption_'.$photoIndex, $draftData['photo_caption_'.$photoIndex] ?? '') }}" maxlength="200" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Describe what the photo shows">
                     </label>
                 </div>
 
@@ -195,7 +211,7 @@
         <div class="grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 sm:items-end">
             <div>
                 <label for="progress_prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
-                <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed')" :max="now()->toDateString()" class="mt-1" />
+                <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
             </div>
             <div class="flex flex-wrap justify-end gap-2">
                 <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-xs font-bold text-emerald-700 shadow-sm hover:bg-emerald-50 disabled:cursor-wait disabled:opacity-60">

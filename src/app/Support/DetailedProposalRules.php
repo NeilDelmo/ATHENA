@@ -37,15 +37,24 @@ class DetailedProposalRules
             'cooperating_agency' => ['nullable', 'string', 'max:500'],
             'executive_brief' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'rationale' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
-            'objectives' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
+            'general_objective' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
+            'specific_objectives' => [$presenceRule, 'array', ...($allowDraft ? [] : ['min:1']), 'max:20'],
+            'specific_objectives.*' => ['array:description'],
+            'specific_objectives.*.description' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'expected_outputs' => [$presenceRule, 'array'],
             ...collect(config('detailed_proposal.expected_outputs'))
                 ->mapWithKeys(fn (string $label, string $key): array => [
-                    'expected_outputs.'.$key => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
+                    'expected_outputs.'.$key => ['nullable', 'array', 'max:20'],
+                    'expected_outputs.'.$key.'.*' => ['array:quantity,unit,description'],
+                    'expected_outputs.'.$key.'.*.quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
+                    'expected_outputs.'.$key.'.*.unit' => ['nullable', 'string', 'max:100'],
+                    'expected_outputs.'.$key.'.*.description' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
                 ])
                 ->all(),
             'introduction' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'related_literature' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
+            'literature_research_history' => ['nullable', 'json', 'max:12000'],
+            'literature_citations' => ['nullable', 'json', 'max:30000'],
             'methodology' => [$presenceRule, 'array'],
             'methodology.research_design' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'methodology.specific_methods' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
@@ -82,7 +91,11 @@ class DetailedProposalRules
             function (Validator $validator): void {
                 $expectedOutputs = Arr::wrap($validator->getData()['expected_outputs'] ?? []);
 
-                if (collect($expectedOutputs)->every(fn (mixed $value): bool => trim((string) $value) === '')) {
+                $hasExpectedOutput = collect($expectedOutputs)
+                    ->flatten(1)
+                    ->contains(fn (mixed $entry): bool => is_array($entry) && filled($entry['description'] ?? null));
+
+                if (! $hasExpectedOutput) {
                     $validator->errors()->add(
                         'expected_outputs',
                         'Provide at least one expected output under the expanded 6Ps and 2Is.',
@@ -105,6 +118,22 @@ class DetailedProposalRules
                         );
                     }
                 }
+
+                foreach (Arr::wrap($validator->getData()['expected_outputs'] ?? []) as $key => $entries) {
+                    foreach (Arr::wrap($entries) as $index => $entry) {
+                        if (! is_array($entry)) {
+                            continue;
+                        }
+
+                        if (collect($entry)->filter(fn (mixed $value): bool => filled($value))->isNotEmpty()
+                            && blank($entry['description'] ?? null)) {
+                            $validator->errors()->add(
+                                'expected_outputs.'.$key.'.'.$index.'.description',
+                                'Each expected output entry needs a description.',
+                            );
+                        }
+                    }
+                }
             },
         ];
     }
@@ -123,6 +152,8 @@ class DetailedProposalRules
             'proponent_college' => 'proponent college',
             'proponent_campus' => 'proponent campus',
             'executive_brief' => 'executive brief',
+            'general_objective' => 'general objective',
+            'specific_objectives' => 'specific objectives',
             'introduction' => 'introduction',
             'related_literature' => 'related studies and literature',
             'methodology.research_design' => 'research design',

@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null, 'revisionReport' => null])
+@props(['topic', 'preparedReport' => null, 'revisionReport' => null, 'monitoringDraft' => null])
 
 @if ($preparedReport)
     <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5">
@@ -28,7 +28,8 @@
 @else
 
 @php
-    $defaultWorkPlan = $revisionReport?->work_plan ?: [[
+    $draftData = is_array($monitoringDraft?->source_data) ? $monitoringDraft->source_data : [];
+    $defaultWorkPlan = $draftData['work_plan'] ?? $revisionReport?->work_plan ?? [[
         'activity' => '',
         'percent_weight' => '',
         'physical_target' => '',
@@ -37,7 +38,7 @@
         'accomplished_percentage' => '',
         'findings' => '',
     ]];
-    $defaultBudget = $revisionReport?->budget_utilization ?: collect(['Purchase Request', 'Cash Advance', 'Request of Payment'])
+    $defaultBudget = $draftData['budget_utilization'] ?? $revisionReport?->budget_utilization ?? collect(['Purchase Request', 'Cash Advance', 'Request of Payment'])
         ->map(fn ($type) => [
             'type' => $type,
             'details' => '',
@@ -50,14 +51,26 @@
     $workPlanRows = $workPlanRows !== [] ? $workPlanRows : $defaultWorkPlan;
     $budgetRows = old('budget_utilization', $defaultBudget);
     $budgetRows = is_array($budgetRows) ? $budgetRows : $defaultBudget;
+    $defaultReportingDate = array_key_exists('reporting_date', $draftData)
+        ? $draftData['reporting_date']
+        : $revisionReport?->reporting_date?->toDateString() ?? now()->toDateString();
+    $defaultTrackingNumber = array_key_exists('tracking_number', $draftData)
+        ? $draftData['tracking_number']
+        : $revisionReport?->tracking_number;
+    $defaultPreparedByDate = array_key_exists('prepared_by_date_signed', $draftData)
+        ? $draftData['prepared_by_date_signed']
+        : $revisionReport?->prepared_by_date_signed?->toDateString();
 @endphp
 
 <details
     class="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50"
-    @if ($errors->any() || $revisionReport) open @endif
+    @if ($errors->any() || $revisionReport || $monitoringDraft) open @endif
+    data-monitoring-tool-autosave="true"
     x-data="monitoringToolForm({
         entries: @js($workPlanRows),
         previewUrl: @js(route('project-progress.preview', $topic)),
+        draftSaveUrl: @js(route('project-progress.draft', $topic)),
+        initialDraftVersion: @js((int) ($monitoringDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
     })"
 >
@@ -71,6 +84,7 @@
 
     <form
         x-ref="form"
+        data-monitoring-tool-autosave-form
         method="POST"
         action="{{ route('project-progress.prepare', $topic) }}"
         enctype="multipart/form-data"
@@ -81,6 +95,7 @@
         @if ($revisionReport)
             <input type="hidden" name="source_report_id" value="{{ $revisionReport->id }}">
         @endif
+        <input type="hidden" name="draft_version" value="{{ $monitoringDraft?->lock_version ?? 0 }}">
 
         @if ($errors->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -92,6 +107,8 @@
                 </ul>
             </div>
         @endif
+
+        <x-proposal-autosave-status />
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="sm:col-span-2">
@@ -111,11 +128,11 @@
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
                 <label for="reporting_date" class="text-[11px] font-bold text-gray-600">Reporting date</label>
-                <x-date-picker id="reporting_date" name="reporting_date" :value="old('reporting_date', $revisionReport?->reporting_date?->toDateString() ?? now()->toDateString())" :max="now()->toDateString()" required class="mt-1" />
+                <x-date-picker id="reporting_date" name="reporting_date" :value="old('reporting_date', $defaultReportingDate)" :max="now()->toDateString()" required class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600">
                 Tracking number <span class="font-normal text-gray-400">(optional)</span>
-                <input type="text" name="tracking_number" value="{{ old('tracking_number', $revisionReport?->tracking_number) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
+                <input type="text" name="tracking_number" value="{{ old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
             </label>
         </div>
 
@@ -198,7 +215,7 @@
         <div class="grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
-                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $revisionReport?->prepared_by_date_signed?->toDateString())" :max="now()->toDateString()" class="mt-1" />
+                <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
             </div>
             <label class="text-[11px] font-bold text-gray-600">Supporting attachment <span class="font-normal text-gray-400">(optional)</span>
                 <input type="file" name="attachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs">
@@ -206,7 +223,7 @@
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-5">
-            <p class="text-xs text-gray-500">Prepare and review the official Revision 03 PDF before submitting it to the Research Head.</p>
+            <p class="text-xs text-gray-500">Changes save privately as a draft. Prepare and review the official Revision 03 PDF before submitting it to the Research Head.</p>
             <div class="flex flex-wrap gap-2">
                 <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-blue-200 bg-white px-5 py-3 text-xs font-bold text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60">
                     <span x-show="!previewLoading">Preview monitoring tool</span>

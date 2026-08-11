@@ -6,7 +6,9 @@ use App\Actions\SyncTopicCollaborators;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
+use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersion;
@@ -174,6 +176,8 @@ class TopicController extends Controller
         $preparedProgressReport = null;
         $preparedNarrativeReport = null;
         $revisionProgressReport = null;
+        $monitoringDraft = null;
+        $narrativeReportDraft = null;
 
         if (! $request->user()->isUsingWorkspace('research_head')
             && $topic->isMonitoringAvailable()
@@ -202,6 +206,15 @@ class TopicController extends Controller
                     fn ($query) => $query->whereNull('supersedes_report_id'),
                 )
                 ->latest('prepared_at')
+                ->first();
+            $monitoringDraft = ProjectMonitoringDraft::query()
+                ->whereBelongsTo($topic, 'topic')
+                ->whereBelongsTo($request->user(), 'user')
+                ->forSource($revisionProgressReport)
+                ->first();
+            $narrativeReportDraft = ProjectNarrativeReportDraft::query()
+                ->whereBelongsTo($topic, 'topic')
+                ->whereBelongsTo($request->user(), 'user')
                 ->first();
             $preparedNarrativeReport = ProjectNarrativeReport::query()
                 ->prepared()
@@ -314,6 +327,8 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'preparedProgressReport',
+            'monitoringDraft',
+            'narrativeReportDraft',
             'revisionProgressReport',
             'preparedNarrativeReport',
             'monitoringQuarterRows',

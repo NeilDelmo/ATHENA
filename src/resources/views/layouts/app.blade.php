@@ -193,7 +193,15 @@
                                 class="flex gap-3"
                             >
                                 <div class="min-w-0 flex-1">{{ $header }}</div>
-                                <x-paper-editor-shortcuts />
+                                <x-paper-editor-shortcuts :auto-save="request()->routeIs(
+                                    'faculty.proposal-drafts.details.*',
+                                    'faculty.proposal-drafts.detailed-proposal.*',
+                                    'faculty.proposal-drafts.work-plan.*',
+                                    'faculty.proposal-drafts.line-item-budget.*',
+                                    'faculty.proposal-drafts.expense-breakdown.*',
+                                    'faculty.proposal-drafts.curriculum-vitae.*',
+                                    'faculty.proposal-drafts.show',
+                                )" />
                             </div>
                         @else
                             {{ $header }}

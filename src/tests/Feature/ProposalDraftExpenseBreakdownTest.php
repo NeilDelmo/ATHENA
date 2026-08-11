@@ -93,6 +93,10 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertSee('border-red-200 bg-red-50', false)
         ->assertSee('Preview paper')
         ->assertSee('Download PDF')
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-expense-breakdown-autosave="true"', false)
+        ->assertSee('data-expense-breakdown-autosave-form', false)
+        ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('Choose completed PDF');
 
     $this->actingAs($this->faculty)
@@ -100,6 +104,39 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertOk()
         ->assertSee(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft), false)
         ->assertDontSee('Upload PDF');
+});
+
+test('the Estimated Expense Breakdown auto-save returns the current version without duplicating unchanged versions', function () {
+    $this->draft->update([
+        'duration_months' => null,
+        'planned_start' => null,
+        'planned_end' => null,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            ...$this->payload,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)
+        ->sole();
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            ...$document->source_data,
+            'document_version' => 1,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+
+    expect($document->fresh()->lock_version)->toBe(1)
+        ->and($document->versions()->count())->toBe(1);
 });
 
 test('expense items are validated saved resumed and marked ready', function () {

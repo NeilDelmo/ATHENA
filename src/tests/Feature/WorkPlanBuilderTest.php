@@ -69,7 +69,63 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('DJOANNA MARIE V. SALAC')
         ->assertSee('Head, Research')
         ->assertSee('Download Word file')
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-work-plan-autosave="true"', false)
+        ->assertSee('data-work-plan-autosave-form', false)
+        ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('type="file"', false);
+});
+
+test('the Work Plan auto-save returns the current version without duplicating unchanged versions', function () {
+    $researchCall = ResearchCall::create([
+        'title' => 'Work Plan Auto-save Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'status' => 'open',
+        'created_by' => $this->head->id,
+    ]);
+    $draft = ProposalDraft::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $researchCall->id,
+        'project_title' => 'Community-led Coastal Habitat Restoration',
+        'duration_months' => 12,
+        'planned_start' => '2026-08-01',
+        'planned_end' => '2027-07-31',
+        'project_leader' => 'Faculty Project Leader',
+    ]);
+    $payload = [
+        'document_version' => 0,
+        'save_as_draft' => true,
+        'entries' => [[
+            'objective' => 'Document the baseline habitat condition',
+            'expected_output' => 'Validated baseline habitat profile',
+            'activity' => 'Conduct field surveys and community mapping',
+            'months' => [1, 2, 3],
+        ]],
+    ];
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $payload, ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $draft), [
+            ...$payload,
+            'document_version' => 1,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+
+    $document = $draft->documents()
+        ->where('document_type', config('proposal_papers.work-plan.document_type'))
+        ->sole();
+
+    expect($document->lock_version)->toBe(1)
+        ->and($document->versions()->count())->toBe(1);
 });
 
 test('an incomplete Work Plan can be previewed but not downloaded', function () {

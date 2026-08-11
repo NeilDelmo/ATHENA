@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ProposalRichText;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -39,6 +40,7 @@ class DetailedProposalDocumentService
     public function __construct(
         private readonly DetailedProposalMethodologyImageService $methodologyImageService,
         private readonly WordDocumentPaginationService $paginationService,
+        private readonly ProposalRichText $proposalRichText,
     ) {}
 
     /** @param array<string, mixed> $proposal */
@@ -139,7 +141,12 @@ class DetailedProposalDocumentService
         $this->appendValueToFirstParagraph($xpath, $rows[16], $proposal['cooperating_agency'] ?: 'None', false);
         $this->fillNarrativeRow($xpath, $rows[17], $proposal['executive_brief']);
         $this->fillNarrativeRow($xpath, $rows[18], $proposal['rationale']);
-        $this->fillNarrativeRow($xpath, $rows[19], $proposal['objectives']);
+        $this->fillObjectives(
+            $xpath,
+            $rows[19],
+            $proposal['general_objective'],
+            $proposal['specific_objectives'],
+        );
         $this->fillExpectedOutputs($xpath, $rows[20], $proposal['expected_outputs']);
         $this->fillIntroductionAndLiterature(
             $xpath,
@@ -484,8 +491,48 @@ class DetailedProposalDocumentService
         $paragraphs = $this->paragraphs($xpath, $cell);
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
 
-        foreach ($this->textBlocks($value) as $block) {
-            $cell->appendChild($this->bodyParagraph($cell->ownerDocument, $block));
+        $this->appendRichTextBlocks($cell, $value);
+    }
+
+    /** @param list<array{description: string}> $specificObjectives */
+    private function fillObjectives(
+        DOMXPath $xpath,
+        DOMElement $row,
+        string $generalObjective,
+        array $specificObjectives,
+    ): void {
+        $cell = $this->onlyCell($xpath, $row);
+        $paragraphs = $this->paragraphs($xpath, $cell);
+        $this->removeParagraphs($cell, array_slice($paragraphs, 1));
+
+        if ($generalObjective !== '') {
+            $heading = $this->simpleParagraph($cell->ownerDocument, 'General Objective:', true);
+            $cell->appendChild($heading);
+            $this->appendRichTextBlocks($cell, $generalObjective);
+        }
+
+        $cell->appendChild($this->simpleParagraph($cell->ownerDocument, 'Specific Objectives:', true));
+
+        foreach ($specificObjectives as $index => $objective) {
+            $paragraph = $this->simpleParagraph($cell->ownerDocument, ($index + 1).'. ', alignment: 'both', bodySpacing: true);
+
+            foreach ($this->proposalRichText->blocks($objective['description']) as $blockIndex => $block) {
+                if ($blockIndex > 0) {
+                    $this->appendLineBreak($paragraph);
+                }
+
+                foreach ($block['runs'] as $run) {
+                    if ($run['break']) {
+                        $this->appendLineBreak($paragraph);
+
+                        continue;
+                    }
+
+                    $this->appendRun($paragraph, $run['text'], $run['bold'], $run['italic'], $run['underline']);
+                }
+            }
+
+            $cell->appendChild($paragraph);
         }
     }
 
@@ -506,18 +553,14 @@ class DetailedProposalDocumentService
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
         $this->replaceParagraphText($heading, 'XI. Introduction:', true);
 
-        foreach ($this->textBlocks($introduction) as $block) {
-            $cell->appendChild($this->bodyParagraph($cell->ownerDocument, $block));
-        }
+        $this->appendRichTextBlocks($cell, $introduction);
 
         $literatureHeading = $this->simpleParagraph($cell->ownerDocument, '');
         $this->appendRun($literatureHeading, 'Related Studies and Literature:', true);
         $this->appendRun($literatureHeading, ' (minimum of ten literature/studies reviewed)', italic: true);
         $cell->appendChild($literatureHeading);
 
-        foreach ($this->textBlocks($relatedLiterature) as $block) {
-            $cell->appendChild($this->bodyParagraph($cell->ownerDocument, $block));
-        }
+        $this->appendRichTextBlocks($cell, $relatedLiterature);
     }
 
     /** @param array<string, string> $outputs */
@@ -532,7 +575,24 @@ class DetailedProposalDocumentService
 
         foreach (array_values(config('detailed_proposal.expected_outputs')) as $index => $label) {
             $key = array_keys(config('detailed_proposal.expected_outputs'))[$index];
-            $this->replaceWithLabelValue($paragraphs[$index + 1], $label.':', $outputs[$key] ?? '', false);
+            $paragraph = $paragraphs[$index + 1];
+            $this->clearParagraphContent($paragraph);
+            $this->appendRun($paragraph, $label.':');
+
+            foreach (array_values($outputs[$key] ?? []) as $outputIndex => $output) {
+                if (! is_array($output) || blank($output['description'] ?? null)) {
+                    continue;
+                }
+
+                $text = $this->expectedOutputText($output);
+
+                if ($outputIndex === 0) {
+                    $this->appendRun($paragraph, '  '.$text);
+                } else {
+                    $this->appendLineBreak($paragraph);
+                    $this->appendRun($paragraph, '   '.($outputIndex + 1).'. '.$text);
+                }
+            }
         }
     }
 
@@ -604,9 +664,7 @@ class DetailedProposalDocumentService
                 ));
             }
 
-            foreach ($this->textBlocks($value) as $block) {
-                $cell->appendChild($this->bodyParagraph($sectionParagraph->ownerDocument, $block));
-            }
+            $this->appendRichTextBlocks($cell, $value);
         }
     }
 
@@ -751,9 +809,7 @@ class DetailedProposalDocumentService
             );
             $cell->appendChild($memberHeading);
 
-            foreach ($this->textBlocks($responsibility['duties']) as $block) {
-                $cell->appendChild($this->bodyParagraph($cell->ownerDocument, $block));
-            }
+            $this->appendRichTextBlocks($cell, $responsibility['duties']);
         }
     }
 
@@ -984,6 +1040,7 @@ class DetailedProposalDocumentService
         string $text,
         bool $bold = false,
         bool $italic = false,
+        bool $underline = false,
         int $fontSizeHalfPoints = 22,
     ): void {
         if ($text === '') {
@@ -1005,6 +1062,12 @@ class DetailedProposalDocumentService
 
         if ($italic) {
             $runProperties->appendChild($document->createElementNS(self::W, 'w:i'));
+        }
+
+        if ($underline) {
+            $underlineElement = $document->createElementNS(self::W, 'w:u');
+            $underlineElement->setAttributeNS(self::W, 'w:val', 'single');
+            $runProperties->appendChild($underlineElement);
         }
 
         $size = $document->createElementNS(self::W, 'w:sz');
@@ -1032,6 +1095,42 @@ class DetailedProposalDocumentService
     private function bodyParagraph(DOMDocument $document, string $text): DOMElement
     {
         return $this->simpleParagraph($document, $text, false, 'both', true);
+    }
+
+    /** @param array{quantity: ?int, unit: string, description: string} $output */
+    private function expectedOutputText(array $output): string
+    {
+        return trim(strip_tags($output['description']));
+    }
+
+    private function appendRichTextBlocks(DOMElement $cell, string $value): void
+    {
+        $orderedIndex = 0;
+
+        foreach ($this->proposalRichText->blocks($value) as $block) {
+            $paragraph = $this->simpleParagraph($cell->ownerDocument, '', alignment: 'both', bodySpacing: true);
+
+            if ($block['type'] === 'ordered') {
+                $orderedIndex += 1;
+                $this->appendRun($paragraph, $orderedIndex.'. ');
+            } elseif ($block['type'] === 'unordered') {
+                $this->appendRun($paragraph, 'â€¢ ');
+            } else {
+                $orderedIndex = 0;
+            }
+
+            foreach ($block['runs'] as $run) {
+                if ($run['break']) {
+                    $this->appendLineBreak($paragraph);
+
+                    continue;
+                }
+
+                $this->appendRun($paragraph, $run['text'], $run['bold'], $run['italic'], $run['underline']);
+            }
+
+            $cell->appendChild($paragraph);
+        }
     }
 
     private function simpleParagraph(

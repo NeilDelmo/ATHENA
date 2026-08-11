@@ -29,7 +29,8 @@ class LiteratureSynthesisService
         }
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
-            $response = $this->requestSynthesis($baseUrl, $apiKey, $model, $paper, $attempt);
+            $maxCompletionTokens = $this->maxCompletionTokens($attempt);
+            $response = $this->requestSynthesis($baseUrl, $apiKey, $model, $paper, $attempt, $maxCompletionTokens);
             $synthesis = $this->cleanSynthesis((string) $response->json('choices.0.message.content'));
             $wordCount = Str::wordCount($synthesis);
             $finishReason = Str::lower((string) $response->json('choices.0.finish_reason'));
@@ -52,6 +53,7 @@ class LiteratureSynthesisService
                 'finish_reason' => $finishReason,
                 'ends_cleanly' => $endsCleanly,
                 'model' => $model,
+                'max_completion_tokens' => $maxCompletionTokens,
             ]);
         }
 
@@ -62,7 +64,7 @@ class LiteratureSynthesisService
     }
 
     /** @param array<string, mixed> $paper */
-    private function requestSynthesis(string $baseUrl, string $apiKey, string $model, array $paper, int $attempt): Response
+    private function requestSynthesis(string $baseUrl, string $apiKey, string $model, array $paper, int $attempt, int $maxCompletionTokens): Response
     {
         try {
             $response = Http::baseUrl($baseUrl)
@@ -74,8 +76,8 @@ class LiteratureSynthesisService
                 ->post('chat/completions', [
                     'model' => $model,
                     'messages' => $this->messages($paper, $attempt),
-                    'temperature' => 0.15,
-                    'max_completion_tokens' => 640,
+                    'reasoning_effort' => $this->reasoningEffort(),
+                    'max_completion_tokens' => $maxCompletionTokens,
                     'stream' => false,
                 ]);
         } catch (ConnectionException $exception) {
@@ -100,6 +102,26 @@ class LiteratureSynthesisService
         }
 
         return $response;
+    }
+
+    private function reasoningEffort(): string
+    {
+        $effort = Str::lower(trim((string) config('services.gemini.rrl_reasoning_effort', 'low')));
+
+        return in_array($effort, ['minimal', 'low', 'medium', 'high'], true) ? $effort : 'low';
+    }
+
+    private function maxCompletionTokens(int $attempt): int
+    {
+        $initial = min(65536, max(2048, (int) config('services.gemini.rrl_max_completion_tokens', 2048)));
+
+        if ($attempt === 1) {
+            return $initial;
+        }
+
+        $retry = min(65536, max(2048, (int) config('services.gemini.rrl_retry_max_completion_tokens', 4096)));
+
+        return max($initial, $retry);
     }
 
     /**

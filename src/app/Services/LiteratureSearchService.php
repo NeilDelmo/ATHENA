@@ -532,6 +532,7 @@ class LiteratureSearchService
         }
 
         return collect($xml->entry)
+            ->values()
             ->map(function (\SimpleXMLElement $entry, int $index): array {
                 $links = collect($entry->link)->map(fn (\SimpleXMLElement $link): array => [
                     'href' => (string) $link['href'],
@@ -1025,7 +1026,10 @@ class LiteratureSearchService
             return self::DESCRIPTION_FALLBACK;
         }
 
-        return Str::limit($description, 4000);
+        // Keep every character supplied by the academic index. The interface can
+        // collapse a long abstract for reading comfort, but it must not silently
+        // discard the remainder of the source text.
+        return $description;
     }
 
     private function cleanText(mixed $value): string

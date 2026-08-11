@@ -25,10 +25,12 @@
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
         data-paper-draft-save="true"
+        data-detailed-proposal-autosave="true"
         data-paper-project-details-complete="{{ $projectDetailsComplete ? 'true' : 'false' }}"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
+        x-on:proposal-cite-selection.window="openCitationPicker($event.detail)"
         x-data="proposalDraftDetailedProposal({
             initialData: @js($initialData),
             literatureSources: @js($literatureSources),
@@ -36,12 +38,21 @@
             initialLiteratureAction: @js($initialLiteratureAction),
             workspacePeople: @js($workspacePeople),
             projectLeader: @js($proposalDraft->project_leader),
+            proposalTitle: @js($proposalDraft->project_title),
             expectedOutputKeys: @js(array_keys($expectedOutputs)),
             methodologyKeys: @js(array_keys($methodologyFields)),
             methodologySections: @js($methodologyFields),
             methodologyImageUrlTemplate: @js(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, '__image_id__'])),
+            literatureSearchUrl: @js(route('research-support.literature-search')),
+            literatureLibrarySearchUrl: @js(route('research-support.literature-library.index')),
+            literatureLibrarySaveUrl: @js(route('research-support.literature-library.store')),
+            literatureAttachUrlTemplate: @js(route('faculty.proposal-drafts.literature-sources.store', [$proposalDraft, '__literature_source__'])),
+            literatureDraftUpdateUrlTemplate: @js(route('faculty.proposal-drafts.literature-drafts.update', [$proposalDraft, '__proposal_literature_source__'])),
+            literatureSynthesisUrl: @js(route('research-support.literature-synthesis')),
+            literatureFullTextPreviewUrl: @js(route('research-support.literature-full-text-preview')),
             previewUrl: @js(route('faculty.proposal-drafts.detailed-proposal.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.detailed-proposal.download', $proposalDraft)),
+            updateUrl: @js(route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft)),
             csrfToken: @js(csrf_token()),
             revisionUploadUrl: @js($proposalDraft->topic_id ? route('faculty.proposal-drafts.revision-files.store', $proposalDraft) : null),
             revisionDocumentType: @js($paper['document_type']),
@@ -62,6 +73,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
         <x-paper-editor-submit-status />
+        <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $detailedProposalDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
@@ -95,13 +107,15 @@
             </dl>
         </section>
 
-        <form data-paper-form x-ref="form" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
+        <form data-paper-form data-detailed-proposal-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
             <input type="hidden" name="staff" value="">
+            <input type="hidden" name="literature_research_history" x-bind:value="JSON.stringify(literatureSearchHistory)">
+            <input id="literature-citations" type="hidden" name="literature_citations" x-bind:value="JSON.stringify(literatureCitations)">
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">II–III. Research alignment</h3>
@@ -195,42 +209,187 @@
             @foreach ([
                 'executive_brief' => ['VII. Executive Brief', 'Summarize the proposed project and its intended contribution.'],
                 'rationale' => ['VIII. Rationale', 'Include available statistics related to the problem.'],
-                'objectives' => ['IX. Objectives of the Project', 'State the general and specific objectives.'],
             ] as $field => [$label, $help])
                 <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <label for="{{ str_replace('_', '-', $field) }}" class="block text-base font-black text-gray-900">{{ $label }}</label>
                     <p class="mt-1 text-xs text-gray-500">{{ $help }}</p>
-                    <textarea id="{{ str_replace('_', '-', $field) }}" name="{{ $field }}" rows="{{ $field === 'rationale' ? 14 : 9 }}" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="{{ \Illuminate\Support\Str::camel($field) }}" class="mt-4 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                    <textarea id="{{ str_replace('_', '-', $field) }}" name="{{ $field }}" rows="{{ $field === 'rationale' ? 14 : 9 }}" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="{{ \Illuminate\Support\Str::camel($field) }}" data-semantic-editor class="mt-4 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                 </section>
             @endforeach
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>
-                <p class="mt-1 text-xs text-gray-500">Complete the applicable expanded 6Ps and 2Is. At least one output is required.</p>
-                <div class="mt-5 grid gap-4 lg:grid-cols-2">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 class="text-base font-black text-gray-900">IX. Objectives of the Project</h3>
+                        <p class="mt-1 text-xs text-gray-500">Add one optional general objective, then list the specific objectives. Numbering is generated automatically.</p>
+                    </div>
+                    <button type="button" x-on:click="addSpecificObjective" class="inline-flex shrink-0 rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Add specific objective</button>
+                </div>
+                <label for="general-objective" class="mt-5 block text-xs font-black uppercase tracking-wider text-gray-600">General objective <span class="font-normal normal-case text-gray-400">Optional</span></label>
+                <textarea id="general-objective" name="general_objective" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="generalObjective" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                <div class="mt-5 space-y-3">
+                    <template x-for="(objective, index) in specificObjectives" :key="objective.id">
+                        <article class="rounded-xl border border-gray-200 p-4">
+                            <div class="flex items-center justify-between gap-3">
+                                <label class="text-xs font-black uppercase tracking-wider text-gray-600" :for="`specific-objective-${objective.id}`"><span x-text="`${index + 1}. Specific objective`"></span></label>
+                                <div class="flex gap-1">
+                                    <button type="button" x-on:click="moveSpecificObjective(index, -1)" :disabled="index === 0" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-40">Up</button>
+                                    <button type="button" x-on:click="moveSpecificObjective(index, 1)" :disabled="index === specificObjectives.length - 1" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-100 disabled:opacity-40">Down</button>
+                                    <button type="button" x-on:click="removeSpecificObjective(index)" class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
+                                </div>
+                            </div>
+                            <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                        </article>
+                    </template>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>
+                        <p class="mt-1 text-xs text-gray-500">Add only the 6Ps and 2Is that apply. At least one output is required.</p>
+                    </div>
+                </div>
+                <div class="mt-5 grid gap-x-6 gap-y-3 lg:grid-cols-2">
                     @foreach ($expectedOutputs as $key => $label)
-                        <div><label for="expected-output-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $label }}</label><textarea id="expected-output-{{ $key }}" name="expected_outputs[{{ $key }}]" rows="3" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="expectedOutputs.{{ $key }}" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea></div>
+                        <section class="border-b border-gray-100 py-3 first:pt-0 lg:[&:nth-child(2)]:pt-0">
+                            <div class="flex items-center justify-between gap-3">
+                                <h4 class="text-xs font-black uppercase tracking-wider text-gray-700">{{ $label }}</h4>
+                                <button type="button" x-on:click="addExpectedOutput('{{ $key }}')" class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-[11px] font-bold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 active:bg-red-100">
+                                    <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                    Add output
+                                </button>
+                            </div>
+                            <div class="space-y-2">
+                                <template x-for="(output, index) in expectedOutputs.{{ $key }}" :key="output.id">
+                                    <div class="flex items-start gap-2">
+                                        <textarea :name="`expected_outputs[{{ $key }}][${index}][description]`" rows="2" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="output.description" aria-label="{{ $label }} description" placeholder="Describe the expected output" class="block w-full rounded-lg border-gray-300 text-sm leading-5 focus:border-red-600 focus:ring-red-600"></textarea>
+                                        <button type="button" x-on:click="removeExpectedOutput('{{ $key }}', index)" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 active:bg-red-200" :aria-label="`Remove {{ $label }} output ${index + 1}`" title="Remove output">
+                                            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                            <span class="sr-only">Remove</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </section>
                     @endforeach
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/80 via-white to-amber-50/60 p-5 shadow-sm sm:p-6">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <section x-ref="literatureWorkspace" class="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/80 via-white to-amber-50/60 p-5 shadow-sm sm:p-6">
+                <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5" aria-labelledby="literature-assistant-heading">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 id="literature-assistant-heading" class="text-base font-black text-slate-950 dark:text-white">Literature Assistant</h3>
+                                <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black text-red-800 dark:bg-red-950/50 dark:text-red-200">Proposal-aware search</span>
+                            </div>
+                            <p class="mt-1 max-w-3xl text-xs leading-5 text-slate-500 dark:text-slate-400">Build an editable search from this proposal, review the evidence, then choose what belongs in the RRL or references. Nothing is cited or written automatically.</p>
+                        </div>
+                        <button type="button" x-on:click="refreshSuggestedLiteratureQuery()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-200">Update from proposal</button>
+                    </div>
+
+                    <div class="mt-4 rounded-xl border border-red-100 bg-red-50/60 p-3.5 dark:border-red-900/70 dark:bg-red-950/20">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-red-800 dark:text-red-200">Use in the suggested search</p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <template x-for="context in literatureSearchContextOptions()" :key="context.key">
+                                <button
+                                    type="button"
+                                    x-show="context.available"
+                                    x-on:click="toggleLiteratureSearchContext(context.key)"
+                                    x-bind:aria-pressed="literatureSearchContext[context.key] ? 'true' : 'false'"
+                                    x-bind:class="literatureSearchContext[context.key] ? 'border-red-600 bg-red-600 text-white' : 'border-red-200 bg-white text-red-800 hover:bg-red-100 dark:border-red-900 dark:bg-slate-950 dark:text-red-200 dark:hover:bg-red-950/40'"
+                                    class="rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2"
+                                    x-text="context.label"
+                                ></button>
+                            </template>
+                        </div>
+                        <p class="mt-2 text-[11px] leading-5 text-red-900/80 dark:text-red-200/80">The query is only a suggestion. You can edit it before ATHENA contacts the academic indexes.</p>
+                    </div>
+
+                    <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <label class="block min-w-0 flex-1 text-xs font-black text-slate-700 dark:text-slate-200" for="proposal-literature-query">
+                            Search query
+                            <input id="proposal-literature-query" type="search" maxlength="180" x-model="literatureSearchQuery" x-on:input="literatureSearchError = ''" x-on:keydown.enter.prevent="searchSuggestedLiterature()" placeholder="Use the proposal title, objectives, or your own research terms" class="mt-1.5 block h-11 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
+                        </label>
+                        <button type="button" x-on:click="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading || literatureSearchQuery.trim().length < 3" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureSearchLoading ? 'Searching academic indexes...' : 'Search related literature'"></button>
+                    </div>
+
+                    <p x-show="literatureSearchError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs font-semibold leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="literatureSearchError" role="alert"></p>
+                    <p x-show="literatureSearchNotice" x-cloak class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs font-semibold leading-5 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" x-text="literatureSearchNotice" role="status"></p>
+
+                    <div x-show="literatureSearchResults.length" x-cloak class="mt-5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <p class="text-xs font-black text-slate-900 dark:text-white"><span x-text="literatureSearchResults.length"></span> related papers found</p>
+                            <p class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Scroll through results; expand an abstract before deciding.</p>
+                        </div>
+                        <div class="mt-3 max-h-[44rem] space-y-3 overflow-y-auto pr-1" aria-live="polite">
+                            <template x-for="result in literatureSearchResults" :key="literatureResultKey(result)">
+                                <article x-data="{ abstractExpanded: false }" class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div class="min-w-0">
+                                            <h4 class="text-sm font-black leading-5 text-slate-950 dark:text-white" x-text="result.title"></h4>
+                                            <p class="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400"><span x-text="result.authors || 'Authors not listed'"></span><span x-show="result.year"> &middot; <span x-text="result.year"></span></span></p>
+                                        </div>
+                                        <div class="flex shrink-0 flex-wrap gap-1.5 text-[9px] font-black">
+                                            <span class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="result.relevance_label || 'Potential match'"></span>
+                                            <span class="rounded bg-slate-200 px-2 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="result.access_label || 'Access not listed'"></span>
+                                            <span x-show="result._linked" class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Linked</span>
+                                            <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">RRL added</span>
+                                            <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Reference added</span>
+                                        </div>
+                                    </div>
+                                    <p class="mt-3 text-[11px] font-semibold leading-5 text-slate-600 dark:text-slate-300"><span class="font-black text-red-800 dark:text-red-200">Why this matched:</span> <span x-text="result.match_reason || 'Matched the proposal search context.'"></span></p>
+                                    <p x-show="Array.isArray(result.matched_terms) && result.matched_terms.length" class="mt-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">Matched terms: <span x-text="result.matched_terms.join(', ')"></span></p>
+                                    <p class="mt-3 whitespace-pre-wrap text-xs leading-6 text-slate-700 dark:text-slate-300" x-bind:class="abstractExpanded ? '' : 'line-clamp-5'" x-text="result.description"></p>
+                                    <button type="button" x-show="String(result.description || '').length > 720" x-on:click="abstractExpanded = !abstractExpanded" x-bind:aria-expanded="abstractExpanded.toString()" class="mt-2 inline-flex min-h-8 items-center rounded-lg px-2 text-[11px] font-black text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:text-red-200 dark:hover:bg-red-950/40"><span x-text="abstractExpanded ? 'Show less' : 'Show full abstract'"></span></button>
+                                    <p x-show="!hasUsableSuggestedAbstract(result)" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-4 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">This record does not include a usable abstract, so ATHENA will not prepare an RRL paragraph from it.</p>
+                                    <div class="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700 sm:flex-row sm:flex-wrap">
+                                        <button type="button" x-on:click="prepareSuggestedLiteratureReview(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || !hasUsableSuggestedAbstract(result)" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-red-700 px-3.5 text-[11px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="isSavingSuggestedLiterature(result) ? 'Preparing...' : 'Review and add RRL'"></button>
+                                        <button type="button" x-on:click="addSuggestedLiteratureReference(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || (result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences)" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 text-[11px] font-black text-slate-800 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/30" x-text="result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences ? 'Reference added' : (isSavingSuggestedLiterature(result) ? 'Adding...' : 'Add reference only')"></button>
+                                        <details class="group self-start">
+                                            <summary class="inline-flex min-h-10 cursor-pointer list-none items-center justify-center rounded-lg px-3 text-[11px] font-black text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white [&::-webkit-details-marker]:hidden">More</summary>
+                                            <div class="mt-2 flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-950">
+                                                <button type="button" x-on:click="saveSuggestedLiterature(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || result._linked" class="inline-flex min-h-9 items-center justify-center rounded-md px-2.5 text-[10px] font-black text-slate-700 transition hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-red-950/30 dark:hover:text-red-200" x-text="result._linked ? 'Saved to proposal library' : 'Save only'"></button>
+                                                <a x-show="result.url" x-bind:href="result.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-9 items-center justify-center rounded-md px-2.5 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
+                                            </div>
+                                        </details>
+                                    </div>
+                                    <p x-show="result._actionNotice" x-cloak class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" x-text="result._actionNotice" role="status"></p>
+                                </article>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div x-show="literatureSearchHistory.length" x-cloak class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Research trail</p>
+                        <div class="mt-2 space-y-2">
+                            <template x-for="entry in literatureSearchHistory" :key="entry.id">
+                                <div class="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-950/50 sm:flex-row sm:items-center sm:justify-between">
+                                    <p class="min-w-0 text-[11px] leading-5 text-slate-600 dark:text-slate-300"><span class="font-black text-slate-900 dark:text-white" x-text="entry.query"></span><span class="text-slate-400"> &middot; </span><span x-text="literatureSearchHistoryLabel(entry)"></span></p>
+                                    <button type="button" x-on:click="runLiteratureSearchHistory(entry)" class="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-200">Run again</button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </section>
+
+                <div>
                     <div>
                         <div class="flex flex-wrap items-center gap-2">
                             <h3 class="text-base font-black text-gray-900">Literature linked to this proposal</h3>
                             <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black text-red-700"><span x-text="literatureSources.length"></span> linked</span>
                         </div>
-                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">These are separate links from the shared faculty library to this draft. Insert a source note into Section XI, a reference into Section XVI, or both.</p>
-                    </div>
-                    <a href="{{ route('research-support.index') }}#rrl-finder" class="inline-flex shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-black text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Find more literature</a>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Papers used in the RRL are automatically kept in the synchronized reference list. You can also add a reference without adding an RRL paragraph.</p>
+                        </div>
                 </div>
 
-                <p x-show="literatureSourceNotice" x-cloak class="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-xs font-semibold text-green-800" x-text="literatureSourceNotice" role="status"></p>
+                <p x-show="literatureSourceNotice" x-cloak class="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-semibold text-slate-800" x-text="literatureSourceNotice" role="status"></p>
 
                 <div x-show="literatureSources.length === 0" class="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/80 px-4 py-6 text-center">
                     <p class="text-sm font-black text-gray-800">No shared literature linked to this proposal yet</p>
-                    <p class="mt-1 text-xs text-gray-500">Open the RRL Finder, browse the shared library, and link the papers this draft needs.</p>
+                    <p class="mt-1 text-xs text-gray-500">Search above, then review a paper for the RRL or add it as a reference only.</p>
                 </div>
 
                 <div x-show="literatureSources.length" x-cloak class="mt-5 grid gap-3 lg:grid-cols-2">
@@ -249,29 +408,164 @@
                                 <span x-show="source.venue" class="max-w-56 truncate rounded bg-gray-50 px-2 py-1" x-text="source.venue"></span>
                                 <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="rounded px-2 py-1 font-black text-red-700 hover:bg-red-50">Verify source</a>
                             </div>
+                            <div class="mt-3 flex flex-wrap gap-1.5 text-[9px] font-black">
+                                <span class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Linked to proposal</span>
+                                <span x-show="literatureSourceUsage(source).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Used in RRL</span>
+                                <span x-show="literatureSourceUsage(source).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Added to references <span x-text="`[${literatureSourceUsage(source).referenceNumber}]`"></span></span>
+                            </div>
                             <p x-show="source.rrl_draft_status && source.rrl_draft_status !== 'none'" class="mt-3 text-[10px] font-bold text-emerald-700" x-text="`${source.rrl_draft_status === 'confirmed' ? 'Confirmed' : 'Saved'} RRL draft · ${source.rrl_evidence_basis === 'full_text' ? 'loaded open-access full text' : 'indexed abstract'} · ${source.rrl_word_count || 0} words`"></p>
                             <p x-show="source.reference_incomplete" class="mt-2 text-[10px] font-bold text-amber-700">IEEE reference has incomplete source metadata; unavailable details were omitted.</p>
-                            <div class="mt-auto grid gap-2 pt-4 sm:grid-cols-3">
-                                <button type="button" @click="addLiteratureSourceToRrl(source)" :disabled="!source.rrl_note || source.rrl_draft_status !== 'confirmed'" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">Use in RRL</button>
-                                <button type="button" @click="addLiteratureSourceToReferences(source)" class="rounded-lg border border-gray-300 px-3 py-2 text-[10px] font-black text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700">Add reference</button>
-                                <button type="button" @click="addLiteratureSourceToBoth(source)" class="rounded-lg bg-red-600 px-3 py-2 text-[10px] font-black text-white transition hover:bg-red-700">Use both</button>
+                            <div class="mt-auto flex flex-wrap gap-2 pt-4">
+                                <button x-show="!literatureSourceUsage(source).usedInRrl" type="button" x-on:click="source.rrl_draft_status === 'confirmed' ? addLiteratureSourceToRrl(source) : prepareLinkedLiteratureReview(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2" x-text="source.rrl_draft_status === 'confirmed' ? 'Add to Section XI' : (source.rrl_draft_status === 'draft' ? 'Review saved RRL' : 'Review RRL')"></button>
+                                <button x-show="!literatureSourceUsage(source).addedToReferences" type="button" x-on:click="addLiteratureSourceToReferences(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Add to Section XVI</button>
+                                <p x-show="literatureSourceUsage(source).usedInRrl && literatureSourceUsage(source).addedToReferences" class="self-center text-[10px] font-bold text-slate-500">Already added to Sections XI and XVI.</p>
                             </div>
+                            <details x-show="literatureSourceUsage(source).addedToReferences" class="mt-2 text-[10px] font-black">
+                                <summary class="inline-flex min-h-8 cursor-pointer list-none items-center rounded-md px-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 [&::-webkit-details-marker]:hidden">Reference options</summary>
+                                <div class="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
+                                    <span class="text-slate-500">Order</span>
+                                    <button type="button" x-on:click="moveCitationReference(source, -1)" x-bind:disabled="literatureSourceUsage(source).referenceNumber === 1" class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Move reference up">↑</button>
+                                    <button type="button" x-on:click="moveCitationReference(source, 1)" x-bind:disabled="literatureSourceUsage(source).referenceNumber === citationReferenceSources().length" class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Move reference down">↓</button>
+                                    <button type="button" x-on:click="removeCitationSource(source)" class="inline-flex h-7 items-center justify-center rounded-md border border-red-200 bg-white px-2.5 text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600">Remove citations</button>
+                                </div>
+                            </details>
                         </article>
                     </template>
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <div x-show="literatureReviewOpen" x-cloak x-on:keydown.escape.window="closeLiteratureReview()" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="proposal-literature-review-title">
+                <button type="button" x-on:click="closeLiteratureReview()" class="absolute inset-0 cursor-default bg-slate-950/55" aria-label="Close RRL review"></button>
+                <section class="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 id="proposal-literature-review-title" class="text-lg font-black text-slate-950 dark:text-white">Review RRL paragraph</h3>
+                                <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" x-text="literatureReviewBasis === 'full_text' ? 'Loaded public full text' : 'Indexed abstract' "></span>
+                            </div>
+                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Evidence stays visible while you review and confirm the editable wording.</p>
+                        </div>
+                        <button type="button" x-on:click="closeLiteratureReview()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close RRL review">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </header>
+
+                    <div class="grid min-h-0 flex-1 overflow-y-auto lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:overflow-hidden">
+                        <section class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-slate-700 dark:bg-slate-950/40 lg:overflow-y-auto lg:border-b-0 lg:border-r sm:p-6">
+                            <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Source evidence</p>
+                            <h4 class="mt-3 text-base font-black leading-6 text-slate-950 dark:text-white" x-text="literatureReviewSource?.title || 'Selected paper'"></h4>
+                            <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400"><span x-text="literatureReviewSource?.authors || 'Authors not listed'"></span><span x-show="literatureReviewSource?.year"> &middot; <span x-text="literatureReviewSource?.year"></span></span></p>
+                            <div class="mt-4 flex flex-wrap gap-2">
+                                <button type="button" x-on:click="literatureReviewBasis = 'abstract'" x-bind:class="literatureReviewBasis === 'abstract' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'border border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200'" class="rounded-lg px-3 py-2 text-[10px] font-black focus:outline-none focus:ring-2 focus:ring-red-600">Use abstract</button>
+                                <button type="button" x-show="literatureReviewSource?.full_text_token" x-on:click="loadLiteratureReviewFullText()" x-bind:disabled="literatureReviewLoadingFullText" x-bind:class="literatureReviewBasis === 'full_text' ? 'bg-emerald-700 text-white' : 'border border-emerald-200 bg-white text-emerald-800 dark:border-emerald-900 dark:bg-slate-950 dark:text-emerald-200'" class="rounded-lg px-3 py-2 text-[10px] font-black focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewLoadingFullText ? 'Loading public text...' : (literatureReviewFullText ? 'Use loaded public text' : 'Load public full text')"></button>
+                            </div>
+                            <p x-show="literatureReviewFullTextError" x-cloak class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold leading-5 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" x-text="literatureReviewFullTextError"></p>
+                            <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                                <p class="text-xs font-black text-slate-800 dark:text-slate-100" x-text="literatureReviewBasis === 'full_text' ? 'Loaded open-access evidence' : 'Indexed abstract evidence'"></p>
+                                <p class="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="literatureReviewEvidence()"></p>
+                            </div>
+                            <a x-show="literatureReviewSource?.url" x-bind:href="literatureReviewSource?.url" target="_blank" rel="noopener noreferrer" class="mt-4 inline-flex text-xs font-black text-red-800 hover:underline dark:text-red-200">Open source record</a>
+                        </section>
+
+                        <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-900 lg:overflow-y-auto sm:p-6">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Editable RRL paragraph</p>
+                                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Generate a cautious draft from the visible evidence or write your own. Adding it to the RRL also creates its synchronized reference.</p>
+                                </div>
+                                <button type="button" x-on:click="generateLiteratureReviewDraft()" x-bind:disabled="literatureReviewGenerating || !hasLiteratureReviewEvidence()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-3.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewGenerating ? 'Drafting...' : 'Draft from evidence'"></button>
+                            </div>
+                            <textarea x-model="literatureReviewDraft" rows="12" maxlength="5000" placeholder="Write or generate a source-supported RRL paragraph after reviewing the evidence." class="mt-4 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"></textarea>
+                            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <p class="font-medium text-slate-500 dark:text-slate-400"><span x-text="literatureReviewWordCount()"></span> words <span aria-hidden="true">&middot;</span> Review required before saving</p>
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="literatureReviewBasis === 'full_text' ? 'Public full-text based' : 'Abstract based'"></span>
+                            </div>
+                            <p x-show="literatureReviewNotice" x-cloak class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-xs font-semibold leading-5 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200" x-text="literatureReviewNotice" role="status"></p>
+                            <p x-show="literatureReviewError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs font-semibold leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="literatureReviewError" role="alert"></p>
+                            <div class="mt-5 flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:justify-end">
+                                <button type="button" x-on:click="saveLiteratureReview()" x-bind:disabled="literatureReviewSaving || literatureReviewDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30" x-text="literatureReviewSaving ? 'Saving...' : 'Save for later'"></button>
+                                <button type="button" x-on:click="saveLiteratureReview(true)" x-bind:disabled="literatureReviewSaving || literatureReviewDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewSaving ? 'Adding...' : 'Add RRL + reference'"></button>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+            </div>
+
+            <div x-show="citationPickerOpen" x-cloak x-on:keydown.escape.window="closeCitationPicker()" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="proposal-citation-picker-title">
+                <button type="button" x-on:click="closeCitationPicker()" class="absolute inset-0 cursor-default bg-slate-950/55" aria-label="Close citation picker"></button>
+                <section class="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                    <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                        <div class="min-w-0">
+                            <h3 id="proposal-citation-picker-title" class="text-lg font-black text-slate-950 dark:text-white">Cite from literature library</h3>
+                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Choose the paper that supports the text you selected. ATHENA will add its citation marker and synchronized IEEE reference.</p>
+                        </div>
+                        <button type="button" x-on:click="closeCitationPicker()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close citation picker">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                        </button>
+                    </header>
+
+                    <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+                        <div class="rounded-xl border border-red-100 bg-red-50/70 p-3.5 dark:border-red-900/70 dark:bg-red-950/20">
+                            <p class="text-[10px] font-black uppercase tracking-wider text-red-800 dark:text-red-200">Selected text</p>
+                            <p class="mt-2 text-sm leading-6 text-slate-800 dark:text-slate-100" x-text="citationPickerSelection?.selectedText"></p>
+                        </div>
+
+                        <label class="block text-xs font-black text-slate-700 dark:text-slate-200" for="citation-locator">
+                            Page or locator <span class="font-normal text-slate-500">Optional for direct quotations</span>
+                            <input id="citation-locator" type="text" maxlength="100" x-model="citationPickerLocator" placeholder="e.g. p. 14 or Table 2" class="mt-1.5 block h-10 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                        </label>
+
+                        <section>
+                            <div class="flex items-center justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-black text-slate-900 dark:text-white">Already linked to this proposal</h4>
+                                    <p class="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">Choose a saved paper to cite it immediately.</p>
+                                </div>
+                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="`${literatureSources.length} available`"></span>
+                            </div>
+                            <div x-show="literatureSources.length" class="mt-3 space-y-2">
+                                <template x-for="source in literatureSources" :key="`citation-linked-${source.id}`">
+                                    <button type="button" x-on:click="citeSelectedText(source)" x-bind:disabled="citationPickerSaving" class="block w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-red-900 dark:hover:bg-red-950/30">
+                                        <span class="block text-xs font-black leading-5 text-slate-900 dark:text-white" x-text="source.title"></span>
+                                        <span class="mt-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span x-text="source.authors || 'Authors not listed'"></span><span x-show="source.year"> &middot; <span x-text="source.year"></span></span></span>
+                                    </button>
+                                </template>
+                            </div>
+                            <p x-show="!literatureSources.length" class="mt-3 rounded-xl border border-dashed border-slate-300 px-3 py-3 text-xs leading-5 text-slate-500 dark:border-slate-700 dark:text-slate-400">No paper is linked yet. Search the shared library below, then choose a verified record.</p>
+                        </section>
+
+                        <section class="border-t border-slate-200 pt-5 dark:border-slate-700">
+                            <h4 class="text-sm font-black text-slate-900 dark:text-white">Search the shared literature library</h4>
+                            <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+                                <label class="sr-only" for="citation-library-query">Search saved papers</label>
+                                <input id="citation-library-query" type="search" maxlength="180" x-model="citationPickerQuery" x-on:keydown.enter.prevent="searchCitationLibrary()" placeholder="Title, author, venue, or DOI" class="block h-10 min-w-0 flex-1 rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                <button type="button" x-on:click="searchCitationLibrary()" x-bind:disabled="citationPickerLoading" class="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="citationPickerLoading ? 'Searching...' : 'Search library'"></button>
+                            </div>
+                            <p x-show="citationPickerError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="citationPickerError" role="alert"></p>
+                            <div x-show="citationPickerResults.length" class="mt-3 space-y-2">
+                                <template x-for="source in citationPickerResults" :key="`citation-library-${source.id}`">
+                                    <button type="button" x-on:click="citeSelectedText(linkedCitationSourceForLibrarySource(source) || source, Boolean(linkedCitationSourceForLibrarySource(source)))" x-bind:disabled="citationPickerSaving" class="block w-full rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-red-900 dark:hover:bg-red-950/30">
+                                        <span class="block text-xs font-black leading-5 text-slate-900 dark:text-white" x-text="source.title"></span>
+                                        <span class="mt-1 block text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span x-text="source.authors || 'Authors not listed'"></span><span x-show="source.year"> &middot; <span x-text="source.year"></span></span><span x-show="linkedCitationSourceForLibrarySource(source)" class="text-red-700 dark:text-red-200"> &middot; already linked</span></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </section>
+                    </div>
+                </section>
+            </div>
+
+            <section x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">XI. Introduction and Related Studies and Literature</h3>
                 <div class="mt-5 grid gap-5">
                     <div>
                         <label for="introduction" class="block text-xs font-black uppercase tracking-wider text-gray-600">Introduction</label>
-                        <textarea id="introduction" name="introduction" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                        <textarea id="introduction" name="introduction" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                     <div>
                         <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
                         <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources.</p>
-                        <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                        <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                 </div>
             </section>
@@ -307,7 +601,7 @@
                                                 <div class="min-w-0 flex-1 space-y-3">
                                                     <div class="flex items-start justify-between gap-3"><p class="truncate text-xs font-bold text-gray-800" x-text="image.originalFilename || 'Methodology visual'"></p><a x-bind:href="image.previewUrl" target="_blank" rel="noopener" class="shrink-0 text-xs font-bold text-red-700 hover:underline">Full preview</a></div>
                                                     <div class="grid gap-3 sm:grid-cols-2">
-                                                        <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Alignment</label><div class="mt-1 grid grid-cols-3 overflow-hidden rounded-lg border border-gray-300"><template x-for="alignment in ['left', 'center', 'right']" :key="alignment"><button type="button" x-on:click="image.alignment = alignment" x-bind:class="image.alignment === alignment ? 'bg-red-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'" class="px-2 py-1.5 text-xs font-bold" x-text="alignment.charAt(0).toUpperCase() + alignment.slice(1)"></button></template></div></div>
+                                                        <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Alignment</label><div class="mt-1 grid grid-cols-3 overflow-hidden rounded-lg border border-gray-300"><template x-for="alignment in ['left', 'center', 'right']" :key="alignment"><button type="button" x-on:click="image.alignment = alignment; scheduleDetailedProposalAutoSave()" x-bind:class="image.alignment === alignment ? 'bg-red-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'" class="px-2 py-1.5 text-xs font-bold" x-text="alignment.charAt(0).toUpperCase() + alignment.slice(1)"></button></template></div></div>
                                                         <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Size</label><select x-model="image.size" class="mt-1 block w-full rounded-lg border-gray-300 py-1.5 text-xs focus:border-red-600 focus:ring-red-600"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div>
                                                     </div>
                                                     <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`methodology-image-caption-${image.clientId}`"><span x-text="`Figure ${methodologyImageFigureNumber(image)} title`"></span></label><input :id="`methodology-image-caption-${image.clientId}`" type="text" required maxlength="500" x-model="image.caption" placeholder="e.g., Proposed data-collection workflow" class="mt-1 block w-full rounded-lg border-gray-300 py-1.5 text-xs focus:border-red-600 focus:ring-red-600"></div>
@@ -315,6 +609,7 @@
                                                 </div>
                                             </div>
                                             <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][id]`" :value="image.id">
+                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][client_id]`" :value="image.clientId">
                                             <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][section]`" value="research_design">
                                             <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][alignment]`" :value="image.alignment">
                                             <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][size]`" :value="image.size">
@@ -325,7 +620,7 @@
                                 </div>
                             </div>
                             @endif
-                            <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" data-semantic-editor class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                         </div>
                     @endforeach
                 </div>
@@ -341,7 +636,7 @@
                                 <div><label class="text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-percentage-${responsibility.id}`">Responsibility %</label><input :id="`responsibility-percentage-${responsibility.id}`" :name="`responsibilities[${index}][percentage]`" type="number" required min="1" max="100" x-model="responsibility.percentage" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                                 <button type="button" x-on:click="removeResponsibility(index)" x-bind:disabled="responsibilities.length === 1" class="rounded-xl px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-40">Remove</button>
                             </div>
-                            <label class="mt-3 block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-duties-${responsibility.id}`">Duties and responsibilities</label><textarea :id="`responsibility-duties-${responsibility.id}`" :name="`responsibilities[${index}][duties]`" rows="5" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="responsibility.duties" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            <label class="mt-3 block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`responsibility-duties-${responsibility.id}`">Duties and responsibilities</label><textarea :id="`responsibility-duties-${responsibility.id}`" :name="`responsibilities[${index}][duties]`" rows="5" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="responsibility.duties" data-semantic-editor class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                         </div>
                     </template>
                 </div>
@@ -372,7 +667,7 @@
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <label for="references" class="block text-base font-black text-gray-900">XVI. References</label>
                 <p class="mt-1 text-xs text-gray-500">Enter one reference per line or separate entries with blank lines.</p>
-                <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" class="mt-4 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" data-semantic-editor class="mt-4 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
             </section>
 
             <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
@@ -385,7 +680,9 @@
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 disabled:opacity-50 sm:w-auto"><span x-show="previewLoading" x-cloak class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900"></span><span x-text="previewLoading ? 'Generating…' : 'Preview content'"></span></button>
                 <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 sm:w-auto"><span x-show="downloadLoading" x-cloak class="h-4 w-4 animate-spin rounded-full border-2 border-red-200 border-t-red-700"></span><span x-text="downloadLoading ? 'Preparing…' : 'Download exact Word file'"></span></button>
-                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50 sm:w-auto">Save and exit</button>
+                <noscript>
+                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 sm:w-auto">Save Detailed Proposal</button>
+                </noscript>
             </div>
         </form>
 

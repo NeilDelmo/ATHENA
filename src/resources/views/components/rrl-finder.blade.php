@@ -159,6 +159,26 @@
                 <p class="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400"><svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>Up to 50 deduplicated, evidence-ranked records</p>
             </div>
         </form>
+
+        <details class="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/40">
+            <summary class="cursor-pointer text-xs font-black text-slate-800 dark:text-slate-100">Add a source found outside ATHENA</summary>
+            <p class="mt-2 max-w-3xl text-[11px] leading-5 text-slate-500 dark:text-slate-400">Use this for a paper found in Google Scholar, Elicit, or another service. ATHENA does not scrape those services. Paste a citation or BibTeX/RIS record, then verify the title and DOI or source URL before saving.</p>
+            <form class="mt-4 space-y-4" @submit.prevent="$store.literatureSearch.saveExternalSource()">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Found via<select x-model="$store.literatureSearch.externalSource.provider" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-xs font-bold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-white"><option>Google Scholar</option><option>Elicit</option><option>Other</option></select></label>
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 sm:col-span-2 lg:col-span-3">Paper title<input x-model="$store.literatureSearch.externalSource.title" required maxlength="500" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 sm:col-span-2">Authors<input x-model="$store.literatureSearch.externalSource.authors" maxlength="2000" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Year<input x-model="$store.literatureSearch.externalSource.year" type="number" min="1900" max="{{ now()->year }}" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Venue<input x-model="$store.literatureSearch.externalSource.venue" maxlength="500" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">DOI<input x-model="$store.literatureSearch.externalSource.doi" maxlength="255" placeholder="10.xxxx/example" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                    <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Public source URL<input x-model="$store.literatureSearch.externalSource.url" type="url" maxlength="2048" placeholder="https://..." class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
+                </div>
+                <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Paste citation, BibTeX, or RIS <span class="normal-case font-medium tracking-normal">(optional; fields are filled when recognizable)</span><textarea x-model="$store.literatureSearch.externalSource.citation" @blur="$store.literatureSearch.parseExternalCitation()" rows="5" maxlength="10000" class="mt-1 block w-full rounded-lg border-slate-200 bg-white text-xs leading-5 dark:border-slate-700 dark:bg-slate-900 dark:text-white"></textarea></label>
+                <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-[10px] leading-4 text-slate-500 dark:text-slate-400">A selected proposal is linked privately; an RRL paragraph still needs review and confirmation before insertion.</p><button type="submit" :disabled="$store.literatureSearch.isSavingExternalSource" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-slate-900"><span x-text="$store.literatureSearch.isSavingExternalSource ? 'Saving...' : 'Save external source'"></span></button></div>
+            </form>
+        </details>
     </div>
 
     <section id="shared-literature-library" x-show="workspaceMode === 'library'" x-cloak x-transition class="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/35 sm:p-6" aria-labelledby="shared-literature-heading" role="tabpanel">
@@ -431,9 +451,26 @@
 
                     <p class="mt-3 text-[10px] font-semibold leading-4 text-gray-500 dark:text-slate-400" x-text="$store.literatureSearch.selectedResult()?.match_reason"></p>
 
-                    <div class="mt-5">
-                        <p class="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-slate-500">Abstract excerpt</p>
-                        <p class="mt-2 text-xs leading-6 text-gray-600 dark:text-slate-300" x-text="$store.literatureSearch.selectedResult()?.description"></p>
+                    <div
+                        x-data="{ abstractExpanded: true }"
+                        x-init="$watch(() => $store.literatureSearch.selectedIndex, () => abstractExpanded = true)"
+                        class="mt-5"
+                    >
+                        <p class="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-slate-500">Abstract</p>
+                        <p
+                            class="mt-2 text-xs leading-6 text-gray-600 dark:text-slate-300"
+                            :class="abstractExpanded ? '' : 'line-clamp-12'"
+                            x-text="$store.literatureSearch.selectedResult()?.description"
+                        ></p>
+                        <button
+                            type="button"
+                            x-show="String($store.literatureSearch.selectedResult()?.description || '').length > 720"
+                            @click="abstractExpanded = !abstractExpanded"
+                            :aria-expanded="abstractExpanded.toString()"
+                            class="mt-3 inline-flex min-h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-200"
+                        >
+                            <span x-text="abstractExpanded ? 'Show less' : 'Show full abstract'"></span>
+                        </button>
                     </div>
 
                     <div x-show="$store.literatureSearch.selectedResult()?.doi" class="mt-5">

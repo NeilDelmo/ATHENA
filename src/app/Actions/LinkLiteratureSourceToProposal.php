@@ -17,6 +17,7 @@ class LinkLiteratureSourceToProposal
         User $user,
         ?string $rrlNote = null,
         ?string $evidenceBasis = null,
+        array $researchContext = [],
     ): array {
         $link = $proposalDraft->literatureSources()->firstOrNew([
             'fingerprint' => $source->fingerprint,
@@ -57,6 +58,19 @@ class LinkLiteratureSourceToProposal
 
         if (blank($link->reference_text)) {
             $link->reference_text = $source->referenceDraft();
+        }
+
+        $researchContext = collect(is_array($link->research_context) ? $link->research_context : [])
+            ->merge($researchContext)
+            ->filter(fn (mixed $label): bool => is_string($label) && filled($label))
+            ->map(fn (string $label): string => Str::squish($label))
+            ->unique(fn (string $label): string => Str::lower($label))
+            ->take(5)
+            ->values()
+            ->all();
+
+        if ($researchContext !== []) {
+            $link->research_context = $researchContext;
         }
 
         $link->save();

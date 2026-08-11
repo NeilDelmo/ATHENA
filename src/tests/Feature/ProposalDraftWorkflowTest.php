@@ -409,7 +409,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('Project Details')
         ->assertSee('Required PDF attachments')
         ->assertSee('Proposal collaborators')
-        ->assertSee('Update Project Details')
+        ->assertSee('Changes save automatically.')
         ->assertSee('Workspace overview')
         ->assertSee('data-workspace-palette="red-black-white"', false)
         ->assertSee('proposal-review', false)
@@ -425,6 +425,8 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('lg:grid-cols-[minmax(0,1fr)_18rem]', false)
         ->assertSee('data-paper-shortcuts-trigger', false)
         ->assertSee('data-paper-shortcuts-dropdown', false)
+        ->assertSee('data-project-details-autosave="true"', false)
+        ->assertSee('data-project-details-autosave-form', false)
         ->assertDontSee('Upload PDF')
         ->assertSee('>Open Research Proposal</a>', false)
         ->assertSee('>Open Work Plan</a>', false)
@@ -436,6 +438,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertDontSee('>Open paper</a>', false)
         ->assertDontSee('>Edit paper</a>', false)
         ->assertDontSee('>Preview paper</a>', false)
+        ->assertDontSee('>Update Project Details</button>', false)
         ->assertSeeInOrder([
             'Detailed Research Proposal',
             'Attachment A: Work Plan',
@@ -509,12 +512,13 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Detailed Research Proposal')
         ->assertSee('Environment and Climate Change')
         ->assertSee('Exit editor')
-        ->assertSee('Save and exit')
+        ->assertSee('Changes save automatically.')
         ->assertDontSee('Save and stay')
         ->assertSee('Ctrl + S')
         ->assertSee('Ctrl + Enter')
         ->assertSee('data-paper-submit-status', false)
-        ->assertSee('data-paper-save-exit', false);
+        ->assertSee('data-detailed-proposal-autosave="true"', false)
+        ->assertDontSee('data-paper-save-exit', false);
 
     $reviewResponse = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.review', $draft))
@@ -549,6 +553,9 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSee('x-model.number="durationMonths"', false)
         ->assertSee('x-model="plannedStart"', false)
         ->assertSee('x-model="plannedEnd"', false)
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-project-details-autosave="true"', false)
+        ->assertSee('data-project-details-autosave-form', false)
         ->assertSee('Only today and future dates can be selected.')
         ->assertSee('Automatically calculated from the total duration and planned start.');
 
@@ -571,8 +578,30 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertSessionHas('success', 'Project details saved.');
 
     $this->actingAs($this->faculty)
-        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+        ->putJson(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
             'draft_version' => 1,
+            'project_title' => 'Automatically Saved Project Details',
+            'duration_months' => 18,
+            'planned_end' => '2028-01-31',
+        ]))
+        ->assertOk()
+        ->assertJsonPath('message', 'Project details saved.')
+        ->assertJsonPath('draft_version', 2);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+            'draft_version' => 2,
+            'project_title' => 'Automatically Saved Project Details',
+            'duration_months' => 18,
+            'planned_end' => '2028-01-31',
+        ]))
+        ->assertOk()
+        ->assertJsonPath('draft_version', 2);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.details.update', $draft), ($this->projectDetails)([
+            'draft_version' => 2,
+            'project_title' => 'Automatically Saved Project Details',
             'duration_months' => 18,
             'planned_end' => '2028-01-31',
             'exit_after_save' => '1',
@@ -580,7 +609,7 @@ test('project details are validated once and reused by the Work Plan workflow', 
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft));
 
     $draft->refresh();
-    expect($draft->project_title)->toBe('Coastal Habitat Restoration')
+    expect($draft->project_title)->toBe('Automatically Saved Project Details')
         ->and($draft->duration_months)->toBe(18)
         ->and($draft->planned_start->toDateString())->toBe('2026-08-01')
         ->and($draft->planned_end->toDateString())->toBe('2028-01-31')
@@ -589,7 +618,7 @@ test('project details are validated once and reused by the Work Plan workflow', 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.work-plan.edit', $draft))
         ->assertOk()
-        ->assertSee('Coastal Habitat Restoration')
+        ->assertSee('Automatically Saved Project Details')
         ->assertSee('Faculty Owner')
         ->assertSee('Each 12-month block becomes a matching Attachment A year sheet.');
 });

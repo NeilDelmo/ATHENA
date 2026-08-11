@@ -10,6 +10,7 @@ use App\Services\CurriculumVitaeDocumentService;
 use App\Support\CurriculumVitaeData;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -57,7 +58,7 @@ class ProposalDraftCurriculumVitaeController extends Controller
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
         SaveProposalDraftDocument $saveProposalDraftDocument,
-    ): RedirectResponse {
+    ): JsonResponse|RedirectResponse {
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('curriculum-vitae');
         $documents = $proposalDraft->documents()
@@ -88,6 +89,17 @@ class ProposalDraftCurriculumVitaeController extends Controller
             ->delete();
 
         Storage::disk('local')->delete($stagedPaths);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $request->boolean('save_as_draft')
+                    ? 'Attachment C: Curriculum Vitae saved as a draft.'
+                    : 'Attachment C: Curriculum Vitae saved.',
+                'document_version' => $document->lock_version,
+                'draft_version' => $proposalDraft->fresh()->lock_version,
+                'saved_as_draft' => $request->boolean('save_as_draft'),
+            ]);
+        }
 
         return redirect()
             ->route(

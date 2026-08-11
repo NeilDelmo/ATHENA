@@ -2,6 +2,7 @@
 
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -167,7 +168,41 @@ test('the faculty monitoring page shows the separate progress report form', func
         ->assertSee('Target accomplishment')
         ->assertSee('VIII. Rationale')
         ->assertSee('X. Results and Discussion')
-        ->assertSee('Figures and photo documentation required');
+        ->assertSee('Figures and photo documentation required')
+        ->assertSee('Changes save privately as a draft.')
+        ->assertSee('data-narrative-progress-autosave-form', false);
+});
+
+test('a progress report form auto-saves a private draft without preparing an official PDF', function () {
+    $payload = [
+        ...($this->progressReportPayload)([
+            'photo_1' => null,
+        ]),
+        'draft_version' => 0,
+    ];
+
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.draft', $this->topic), $payload)
+        ->assertSuccessful()
+        ->assertJsonPath('draft_version', 1);
+
+    $draft = ProjectNarrativeReportDraft::sole();
+
+    expect($draft->topic_id)->toBe($this->topic->id)
+        ->and($draft->user_id)->toBe($this->researcher->id)
+        ->and($draft->source_data['tracking_number'])->toBe('PR-2026-001')
+        ->and(ProjectNarrativeReport::count())->toBe(0)
+        ->and($this->pdfConverter->conversionCount)->toBe(0);
+
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.draft', $this->topic), [
+            ...$payload,
+            'draft_version' => 1,
+        ])
+        ->assertSuccessful()
+        ->assertJsonPath('draft_version', 1);
+
+    expect($draft->fresh()->lock_version)->toBe(1);
 });
 
 test('a researcher can preview the filled progress report without submitting it', function () {

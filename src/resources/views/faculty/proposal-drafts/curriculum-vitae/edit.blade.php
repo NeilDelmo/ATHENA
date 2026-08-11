@@ -25,6 +25,7 @@
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
         data-paper-draft-save="true"
+        data-curriculum-vitae-autosave="true"
         data-paper-dirty="{{ $errors->any() ? 'true' : 'false' }}"
         data-paper-edit-url="{{ route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft) }}"
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
@@ -32,6 +33,7 @@
             initialPeople: @js($initialPeople),
             workspacePeople: @js($workspacePeople),
             sections: @js($sections),
+            updateUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft)),
             previewUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.curriculum-vitae.download', $proposalDraft)),
             csrfToken: @js(csrf_token()),
@@ -54,7 +56,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
-        <x-paper-editor-submit-status />
+        <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $curriculumVitaeDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
@@ -91,7 +93,7 @@
             </div>
         </section>
 
-        <form data-paper-form x-ref="form" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
+        <form data-paper-form data-curriculum-vitae-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.curriculum-vitae.update', $proposalDraft) }}" method="POST" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $curriculumVitaeDocument?->lock_version ?? 0) }}">
@@ -180,7 +182,7 @@
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview package</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
                 <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download Word file</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
-                <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save and exit</button>
+                <noscript><button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save Curriculum Vitae</button></noscript>
             </div>
         </form>
 

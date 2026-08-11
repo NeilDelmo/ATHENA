@@ -125,15 +125,43 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('<option value="Project Leader"></option>', false)
         ->assertSee('<option value="R &amp; D Papers in Scientific Journals"></option>', false)
         ->assertSee('Choose a suggested value or type your own.')
-        ->assertSee('data-paper-submit-status', false)
-        ->assertSee('data-paper-submit-message', false)
-        ->assertSee('Please keep this page open while ATHENA updates the paper.')
-        ->assertSee('aria-live="assertive"', false)
+        ->assertDontSee('data-paper-submit-status', false)
+        ->assertDontSee('data-paper-submit-message', false)
+        ->assertSee('Changes save automatically.')
+        ->assertDontSee('aria-live="assertive"', false)
         ->assertSee('Ctrl + S')
         ->assertSee('Exit editor')
-        ->assertSee('Save and exit')
-        ->assertDontSee('Save and stay')
+        ->assertSee('data-curriculum-vitae-autosave="true"', false)
+        ->assertSee('data-curriculum-vitae-autosave-form', false)
+        ->assertDontSee('data-paper-save-exit', false)
         ->assertSee('data-paper-form', false);
+});
+
+test('the Curriculum Vitae auto-save returns the current version without duplicating unchanged versions', function () {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), [
+            ...($this->payload)(),
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_CURRICULUM_VITAE)
+        ->sole();
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.curriculum-vitae.update', $this->draft), [
+            ...$document->source_data,
+            'document_version' => 1,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+
+    expect($document->fresh()->lock_version)->toBe(1)
+        ->and($document->versions()->count())->toBe(1);
 });
 
 test('CV editable suggestion fields use the official Attachment C choices', function () {

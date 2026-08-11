@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -98,6 +99,12 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertOk()
         ->assertSee('BatStateU-FO-RES-02 Rev. 04')
         ->assertSee('leader@g.batstate-u.edu.ph')
+        ->assertSee('x-ref="introductionSection"', false)
+        ->assertSee('x-ref="literatureWorkspace"', false)
+        ->assertSee('Add output')
+        ->assertDontSee('+ Add output')
+        ->assertDontSee('Quantity and unit are optional.')
+        ->assertDontSee('Quantity is optional for qualitative outcomes such as social and economic impact.')
         ->assertSee('College of Informatics and Computing Sciences')
         ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
         ->assertSee('From your profile')
@@ -119,7 +126,10 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Approval Signatory Names')
         ->assertSee('Faculty may enter the three names shown in the approval blocks.')
         ->assertSee('Download exact Word file')
-        ->assertSee('Ctrl + S');
+        ->assertSee('Ctrl + S')
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-detailed-proposal-autosave="true"', false)
+        ->assertSee('data-detailed-proposal-autosave-form', false);
 
     expect($response->getContent())
         ->toContain('id="proponent-department" name="proponent_department" type="text" maxlength="255"')
@@ -137,6 +147,253 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->toContain('method="POST" enctype="multipart/form-data"')
         ->toContain('id="leader-contact" name="leader_contact" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}"')
         ->toContain('placeholder="09XXXXXXXXX"');
+});
+
+test('detailed proposal citations link selected RRL text to one proposal library source and synchronize its reference', function () {
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            'title' => 'Participatory Coastal Monitoring',
+            'authors' => 'Maria Santos',
+            'description' => 'This study examines how local participation can strengthen the continuity of coastal monitoring activities.',
+            'year' => 2025,
+            'venue' => 'Coastal Research Journal',
+            'doi' => '10.5555/coastal.monitoring.2025',
+            'url' => 'https://doi.org/10.5555/coastal.monitoring.2025',
+            'source' => 'OpenAlex',
+            'type' => 'article',
+        ])
+        ->assertCreated()
+        ->json('source.id');
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+    $sourceLinkId = $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]))
+        ->assertCreated()
+        ->json('source.id');
+    $citation = [
+        'id' => 'citation-1',
+        'source_link_id' => $sourceLinkId,
+        'literature_source_id' => $sourceId,
+        'field' => 'related_literature',
+        'selected_text' => 'Participatory coastal monitoring can improve the continuity of local research activities.',
+        'locator' => 'p. 14',
+        'created_at' => now()->toIso8601String(),
+    ];
+    $payload = ($this->payload)([
+        'related_literature' => '<p>Participatory coastal monitoring can <strong>improve</strong> the continuity of local research activities.<span data-proposal-citation="'.$sourceLinkId.'"> [1]</span></p>',
+        'literature_citations' => json_encode([$citation], JSON_THROW_ON_ERROR),
+        'references' => '<p>[1] M. Santos, “Participatory Coastal Monitoring,” Coastal Research Journal, 2025.</p>',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect(json_decode($sourceData['literature_citations'], true, flags: JSON_THROW_ON_ERROR))
+        ->toMatchArray([$citation])
+        ->and($sourceData['related_literature'])
+        ->toContain('<strong>improve</strong>')
+        ->toContain('data-proposal-citation="'.$sourceLinkId.'"')
+        ->toContain('[1]')
+        ->and($sourceData['references'])
+        ->toContain('“Participatory Coastal Monitoring,”');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $payload)
+        ->assertOk()
+        ->assertSee('[1]')
+        ->assertSee('Participatory Coastal Monitoring');
+
+    $documentResponse = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $payload)
+        ->assertOk();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'detailed-proposal-citation-');
+    file_put_contents($temporaryPath, $documentResponse->streamedContent());
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue()
+            ->and($archive->getFromName('word/document.xml'))
+            ->toContain('[1]');
+    } finally {
+        $archive->close();
+        unlink($temporaryPath);
+    }
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Review and add RRL')
+        ->assertSee('Add reference only')
+        ->assertSee('Save only')
+        ->assertSee('proposal-cite-selection', false)
+        ->assertSee('literature_citations', false);
+});
+
+test('detailed proposal structures and numbers objectives and quantified expected outputs', function () {
+    $payload = ($this->payload)([
+        'general_objective' => 'Improve the management of the campus library collection.',
+        'specific_objectives' => [
+            ['description' => 'Implement an automated book cataloging module.'],
+            ['description' => 'Create circulation and user management features.'],
+        ],
+        'expected_outputs' => [
+            'publication' => [[
+                'quantity' => 1,
+                'unit' => 'publication',
+                'description' => 'in a peer-reviewed computing journal.',
+            ]],
+            'social_impact' => [[
+                'quantity' => null,
+                'unit' => '',
+                'description' => 'Improved access to academic literature across campus.',
+            ]],
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect($sourceData['general_objective'])->toBe('<p>Improve the management of the campus library collection.</p>')
+        ->and($sourceData['specific_objectives'])->toMatchArray([
+            ['description' => 'Implement an automated book cataloging module.'],
+            ['description' => 'Create circulation and user management features.'],
+        ])
+        ->and($sourceData['expected_outputs']['publication'][0]['quantity'])->toBeNull()
+        ->and($sourceData['expected_outputs']['publication'][0]['description'])->toBe('One (1) publication in a peer-reviewed computing journal.')
+        ->and($sourceData['expected_outputs']['social_impact'][0]['quantity'])->toBeNull();
+
+    $preview = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $payload)
+        ->assertOk();
+
+    $preview
+        ->assertSee('General Objective:')
+        ->assertSee('Implement an automated book cataloging module.')
+        ->assertSee('One (1) publication')
+        ->assertSee('Improved access to academic literature across campus.');
+
+    $documentResponse = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $payload)
+        ->assertOk();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'structured-detailed-proposal-');
+    file_put_contents($temporaryPath, $documentResponse->streamedContent());
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue();
+        $documentXml = $archive->getFromName('word/document.xml');
+        $document = new DOMDocument;
+        $document->loadXML($documentXml, LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $objectivesText = (string) $xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[20])');
+        $expectedOutputText = (string) $xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[21])');
+
+        expect($objectivesText)
+            ->toContain('1. Implement an automated book cataloging module.')
+            ->toContain('2. Create circulation and user management features.');
+        expect($expectedOutputText)
+            ->toContain('One (1) publication');
+    } finally {
+        $archive->close();
+
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
+test('legacy objective headings and plain output fields never expose rich text markup', function () {
+    $payload = ($this->payload)([
+        'general_objective' => '',
+        'specific_objectives' => [
+            ['description' => '<p>General Objective:</p>'],
+            ['description' => '<p>Design and deploy a web-based Book Management System.</p>'],
+            ['description' => '<p>Specific Objectives:</p>'],
+            ['description' => '<p>Implement automated cataloging.</p>'],
+            ['description' => '<p>Create circulation management.</p>'],
+        ],
+        'expected_outputs' => [
+            'publication' => [[
+                'quantity' => 1,
+                'unit' => 'publication',
+                'description' => '<p>in a peer-reviewed technology journal.</p>',
+            ]],
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect($sourceData['general_objective'])->toBe('<p>Design and deploy a web-based Book Management System.</p>')
+        ->and($sourceData['specific_objectives'])->toMatchArray([
+            ['description' => 'Implement automated cataloging.'],
+            ['description' => 'Create circulation management.'],
+        ])
+        ->and($sourceData['expected_outputs']['publication'][0]['description'])->toBe('One (1) publication in a peer-reviewed technology journal.');
+});
+
+test('detailed proposal preserves only approved semantic formatting', function () {
+    $payload = ($this->payload)([
+        'executive_brief' => '<p><strong>Important</strong> <span style="font-family: Comic Sans; color: red">library result</span><script>alert(1)</script></p>',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect($sourceData['executive_brief'])
+        ->toBe('<p><strong>Important</strong> library result</p>')
+        ->not->toContain('font-family')
+        ->not->toContain('script');
+
+    $documentResponse = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $payload)
+        ->assertOk();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'formatted-detailed-proposal-');
+    file_put_contents($temporaryPath, $documentResponse->streamedContent());
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $importantRun = $xpath->query('//w:r[w:t = "Important"]')->item(0);
+
+        expect($importantRun)->not->toBeNull()
+            ->and($xpath->query('w:rPr/w:b', $importantRun)->length)->toBe(1)
+            ->and($xpath->evaluate('string(w:rPr/w:rFonts/@w:ascii)', $importantRun))->toBe('Times New Roman');
+    } finally {
+        $archive->close();
+
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
 });
 
 test('detailed proposal contact numbers must contain exactly 11 digits', function () {
@@ -317,6 +574,196 @@ test('structured detailed proposal data saves, resumes, and observes optimistic 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $stalePayload)
         ->assertSessionHasErrors('document_version');
+});
+
+test('detailed proposal auto-save returns the current draft version without duplicating unchanged versions', function () {
+    $payload = ($this->payload)(['save_as_draft' => '1']);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertOk()
+        ->assertJsonPath('message', 'Detailed Research Proposal saved as a draft.')
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('draft_version', 0)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+
+    expect($document->completed_at)->toBeNull()
+        ->and($document->lock_version)->toBe(1);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [
+            ...$payload,
+            'document_version' => 1,
+        ])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+});
+
+test('detailed proposal autosave retains the literature assistant research trail', function () {
+    $history = [[
+        'id' => 'book-management-search-1',
+        'query' => 'web based book management system library circulation',
+        'context' => ['Project title', 'Specific objectives'],
+        'result_count' => 12,
+        'searched_at' => now()->toIso8601String(),
+    ]];
+    $payload = ($this->payload)([
+        'save_as_draft' => '1',
+        'literature_research_history' => json_encode($history, JSON_THROW_ON_ERROR),
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertOk();
+
+    $document = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->sole();
+
+    expect(json_decode($document->source_data['literature_research_history'], true, 512, JSON_THROW_ON_ERROR))
+        ->toBe($history);
+});
+
+test('detailed proposal autosave retains structured literature citations', function () {
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            'title' => 'Community Coastal Evidence',
+            'authors' => 'R. Cruz',
+            'description' => 'Community involvement supports the continuity of coastal monitoring practices.',
+            'year' => 2025,
+            'venue' => 'Coastal Evidence Review',
+            'doi' => '10.5555/coastal.evidence.2025',
+            'url' => 'https://doi.org/10.5555/coastal.evidence.2025',
+            'source' => 'OpenAlex',
+            'type' => 'article',
+        ])
+        ->assertCreated()
+        ->json('source.id');
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+    $sourceLinkId = $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]))
+        ->assertCreated()
+        ->json('source.id');
+    $citation = [
+        'id' => 'autosave-citation',
+        'source_link_id' => $sourceLinkId,
+        'literature_source_id' => $sourceId,
+        'field' => 'related_literature',
+        'selected_text' => 'Community involvement supports the continuity of coastal monitoring practices.',
+        'locator' => '',
+        'created_at' => now()->toIso8601String(),
+    ];
+    $submittedCitations = [
+        $citation,
+        [...$citation, 'id' => 'duplicate-autosave-citation'],
+    ];
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'save_as_draft' => '1',
+            'related_literature' => '<p>Community involvement supports the continuity of coastal monitoring practices.<span data-proposal-citation="'.$sourceLinkId.'"> [1]</span></p>',
+            'literature_citations' => json_encode($submittedCitations, JSON_THROW_ON_ERROR),
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->sole();
+
+    $storedCitations = json_decode($document->source_data['literature_citations'], true, flags: JSON_THROW_ON_ERROR);
+
+    expect($storedCitations)
+        ->toHaveCount(1)
+        ->and($storedCitations[0])
+        ->toMatchArray($citation);
+});
+
+test('detailed proposal autosave retains a reference added without an rrl paragraph', function () {
+    $sourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            'title' => 'Digital Library Processing',
+            'authors' => 'R. Cruz',
+            'description' => 'Digital systems can support consistent library processing and record retrieval.',
+            'year' => 2025,
+            'venue' => 'Library Systems Review',
+            'doi' => '10.5555/digital.library.2025',
+            'url' => 'https://doi.org/10.5555/digital.library.2025',
+            'source' => 'OpenAlex',
+            'type' => 'article',
+        ])
+        ->assertCreated()
+        ->json('source.id');
+    $source = LiteratureSource::query()->findOrFail($sourceId);
+    $sourceLinkId = $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $source]))
+        ->assertCreated()
+        ->json('source.id');
+    $reference = '<p>[1] R. Cruz, “Digital Library Processing,” Library Systems Review, 2025.</p>';
+    $citation = [[
+        'id' => 'reference-only-citation',
+        'source_link_id' => $sourceLinkId,
+        'literature_source_id' => $sourceId,
+        'field' => 'references',
+        'selected_text' => '',
+        'locator' => '',
+        'created_at' => now()->toIso8601String(),
+    ]];
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'save_as_draft' => '1',
+            'references' => $reference,
+            'literature_citations' => json_encode($citation, JSON_THROW_ON_ERROR),
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->sole();
+
+    expect($document->source_data['references'])
+        ->toBe($reference)
+        ->and(json_decode($document->source_data['literature_citations'], true, flags: JSON_THROW_ON_ERROR))
+        ->toMatchArray($citation);
+});
+
+test('detailed proposal auto-save synchronizes saved methodology images', function () {
+    $payload = ($this->payload)([
+        'save_as_draft' => '1',
+        'methodology_images_present' => '1',
+        'methodology_images' => [[
+            'client_id' => 'methodology-image-client-1',
+            'section' => 'research_design',
+            'alignment' => 'center',
+            'size' => 'medium',
+            'caption' => 'Community coastal monitoring workflow',
+            'image' => UploadedFile::fake()->image('coastal-workflow.png', 1200, 800),
+        ]],
+    ]);
+
+    $response = $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload, [
+            'Accept' => 'application/json',
+        ])
+        ->assertOk()
+        ->assertJsonPath('methodology_images.0.client_id', 'methodology-image-client-1');
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+    $image = $document->source_data['methodology_images'][0];
+
+    $response->assertJsonPath('methodology_images.0.id', $image['id'])
+        ->assertJsonPath(
+            'methodology_images.0.url',
+            route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$this->draft, $image['id']]),
+        );
 });
 
 test('the project leader can be edited from the detailed proposal and stays in shared project details', function () {

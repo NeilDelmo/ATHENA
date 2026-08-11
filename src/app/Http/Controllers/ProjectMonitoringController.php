@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Actions\PrepareProjectProgressReport;
+use App\Actions\SaveProjectMonitoringDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Http\Requests\SaveProjectProgressReportDraftRequest;
 use App\Http\Requests\StoreProjectProgressReportRequest;
 use App\Http\Requests\SubmitPreparedProjectProgressReportRequest;
+use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
@@ -15,6 +18,7 @@ use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -154,10 +158,37 @@ class ProjectMonitoringController extends Controller
                 ]);
         }
 
+        ProjectMonitoringDraft::query()
+            ->whereBelongsTo($topic, 'topic')
+            ->whereBelongsTo($request->user(), 'user')
+            ->forSource($sourceReport)
+            ->delete();
+
         return back()->with(
             'success',
             $report->quarter_label.' '.$report->version_label.' PDF prepared. Review it, then submit the exact file to the Research Head.',
         );
+    }
+
+    public function saveDraft(
+        SaveProjectProgressReportDraftRequest $request,
+        TopicProposal $topic,
+        SaveProjectMonitoringDraft $saveProjectMonitoringDraft,
+    ): JsonResponse {
+        $sourceReport = $this->revisionSourceReport($request, $topic);
+        $validated = $request->validated();
+        $draft = $saveProjectMonitoringDraft->handle(
+            $topic,
+            $request->user(),
+            $sourceReport,
+            $request->integer('draft_version'),
+            collect($validated)->except(['draft_version', 'source_report_id'])->all(),
+        );
+
+        return response()->json([
+            'message' => 'Monitoring Tool draft saved.',
+            'draft_version' => $draft->lock_version,
+        ]);
     }
 
     public function submitPrepared(

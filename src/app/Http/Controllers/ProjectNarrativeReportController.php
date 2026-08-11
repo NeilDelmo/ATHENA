@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Actions\PrepareProjectNarrativeReport;
+use App\Actions\SaveProjectNarrativeReportDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Http\Requests\SaveProjectNarrativeReportDraftRequest;
 use App\Http\Requests\StoreProjectNarrativeReportRequest;
 use App\Http\Requests\SubmitPreparedProjectNarrativeReportRequest;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProgressReportDocumentService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -93,7 +97,31 @@ class ProjectNarrativeReportController extends Controller
                 ], 'narrativeProgress');
         }
 
+        ProjectNarrativeReportDraft::query()
+            ->whereBelongsTo($topic, 'topic')
+            ->whereBelongsTo($request->user(), 'user')
+            ->delete();
+
         return back()->with('success', 'Progress Report PDF prepared. Review it, then submit the exact file to the Research Head.');
+    }
+
+    public function saveDraft(
+        SaveProjectNarrativeReportDraftRequest $request,
+        TopicProposal $topic,
+        SaveProjectNarrativeReportDraft $saveProjectNarrativeReportDraft,
+    ): JsonResponse {
+        $validated = $request->validated();
+        $draft = $saveProjectNarrativeReportDraft->handle(
+            $topic,
+            $request->user(),
+            $request->integer('draft_version'),
+            collect($validated)->except('draft_version')->all(),
+        );
+
+        return response()->json([
+            'message' => 'Progress Report draft saved.',
+            'draft_version' => $draft->lock_version,
+        ]);
     }
 
     public function submitPrepared(

@@ -25,16 +25,13 @@ class SaveProposalDraftDetails
                 ]);
             }
 
-            $lockedDraft->fill([
-                ...Arr::only($attributes, [
-                    'project_title',
-                    'duration_months',
-                    'planned_start',
-                    'planned_end',
-                    'project_leader',
-                ]),
-                'lock_version' => $lockedDraft->lock_version + 1,
-            ]);
+            $lockedDraft->fill(Arr::only($attributes, [
+                'project_title',
+                'duration_months',
+                'planned_start',
+                'planned_end',
+                'project_leader',
+            ]));
             $detailsChanged = $lockedDraft->isDirty([
                 'project_title',
                 'duration_months',
@@ -42,6 +39,12 @@ class SaveProposalDraftDetails
                 'planned_end',
                 'project_leader',
             ]);
+
+            if (! $detailsChanged) {
+                return $lockedDraft;
+            }
+
+            $lockedDraft->lock_version++;
             $lockedDraft->save();
 
             if ($detailsChanged) {

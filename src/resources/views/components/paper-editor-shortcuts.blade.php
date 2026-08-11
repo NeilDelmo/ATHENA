@@ -1,3 +1,5 @@
+@props(['autoSave' => false])
+
 <div
     x-data="{ open: false }"
     x-on:keydown.escape.window="if (open) { open = false; $nextTick(() => $refs.trigger.focus()) }"
@@ -48,12 +50,15 @@
 
         <dl class="divide-y divide-gray-100 px-4 dark:divide-slate-800">
             @foreach (config('proposal_editor.shortcuts', []) as $shortcut)
+                @php
+                    $isSaveShortcut = $autoSave && in_array($shortcut['keys'], ['Ctrl + S', 'Ctrl + Enter'], true);
+                @endphp
                 <div class="py-3">
                     <dt class="flex flex-wrap items-center gap-2">
                         <kbd class="rounded-md bg-gray-950 px-2 py-1 font-mono text-[10px] font-black text-white dark:bg-white dark:text-gray-950">{{ $shortcut['keys'] }}</kbd>
-                        <span class="text-xs font-black text-gray-950 dark:text-white">{{ $shortcut['action'] }}</span>
+                        <span class="text-xs font-black text-gray-950 dark:text-white">{{ $isSaveShortcut ? 'Save now' : $shortcut['action'] }}</span>
                     </dt>
-                    <dd class="mt-1.5 text-[11px] leading-4 text-gray-600 dark:text-slate-300">{{ $shortcut['description'] }}</dd>
+                    <dd class="mt-1.5 text-[11px] leading-4 text-gray-600 dark:text-slate-300">{{ $isSaveShortcut ? 'Save the current changes and keep the editor open.' : $shortcut['description'] }}</dd>
                 </div>
             @endforeach
         </dl>

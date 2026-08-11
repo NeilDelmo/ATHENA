@@ -105,7 +105,10 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('Ctrl + S')
         ->assertSee('Exit editor')
         ->assertSee('#required-pdf-attachments', false)
-        ->assertSee('Save and exit')
+        ->assertSee('Changes save automatically.')
+        ->assertSee('data-line-item-budget-autosave="true"', false)
+        ->assertSee('data-line-item-budget-autosave-form', false)
+        ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('Save and stay');
 
     $saveAndExitPayload = $payload;
@@ -122,6 +125,40 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertOk()
         ->assertSee('activeProposalTab:', false)
         ->assertSee('attachments', false);
+});
+
+test('the Line-Item Budget auto-save returns the current version without duplicating unchanged versions', function () {
+    $this->draft->update([
+        'duration_months' => null,
+        'planned_start' => null,
+        'planned_end' => null,
+    ]);
+    $payload = ($this->payload)(['save_as_draft' => true]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $payload, ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), [
+            ...$this->draft->documents()
+                ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+                ->sole()
+                ->source_data,
+            'document_version' => 1,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole();
+
+    expect($document->lock_version)->toBe(1)
+        ->and($document->versions()->count())->toBe(1);
 });
 
 test('the line item budget pre-fills matching amounts from an expense breakdown draft', function () {

@@ -78,22 +78,39 @@ test('turning in a proposal shows a blocking progress screen after confirmation'
 
 test('generated paper editors support partial drafts and gate download controls', function () {
     foreach ([
-        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
-    ] as $editorView) {
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php' => [
+            'data-detailed-proposal-autosave="true"',
+            'data-detailed-proposal-autosave-form',
+        ],
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php' => [
+            'data-work-plan-autosave="true"',
+            'data-work-plan-autosave-form',
+        ],
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php' => [
+            'data-line-item-budget-autosave="true"',
+            'data-line-item-budget-autosave-form',
+        ],
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php' => [
+            'data-expense-breakdown-autosave="true"',
+            'data-expense-breakdown-autosave-form',
+        ],
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php' => [
+            'data-curriculum-vitae-autosave="true"',
+            'data-curriculum-vitae-autosave-form',
+        ],
+    ] as $editorView => [$autoSaveMarker, $autoSaveFormMarker]) {
         $view = file_get_contents(base_path($editorView));
 
         expect($view)
             ->toContain('data-paper-draft-save="true"')
             ->toContain('data-paper-save-mode')
+            ->toContain($autoSaveMarker)
+            ->toContain($autoSaveFormMarker)
             ->toContain('novalidate')
             ->toContain('x-bind:disabled="previewLoading"')
             ->toContain('x-bind:disabled="!isComplete()"')
-            ->not->toContain('x-on:click="generatePreview" x-bind:disabled="!isComplete()"')
-            ->toContain('Save and exit');
+            ->toContain('<x-proposal-autosave-status />')
+            ->not->toContain('data-paper-save-exit');
     }
 });
 
@@ -156,17 +173,15 @@ test('the proposal alert component keeps accessible fallback markup', function (
     'error' => ['error', 'error', 'alert'],
 ]);
 
-test('proposal editors use a protected header exit and one visible save and exit action', function () {
-    $editorViews = [
-        'resources/views/faculty/proposal-drafts/details/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
-        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php',
-    ];
-
-    foreach ($editorViews as $editorView) {
+test('proposal editors use a protected header exit and save actions that match their editor type', function () {
+    foreach ([
+        'resources/views/faculty/proposal-drafts/details/edit.blade.php' => 'data-project-details-autosave="true"',
+        'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php' => 'data-detailed-proposal-autosave="true"',
+        'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php' => 'data-work-plan-autosave="true"',
+        'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php' => 'data-line-item-budget-autosave="true"',
+        'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php' => 'data-expense-breakdown-autosave="true"',
+        'resources/views/faculty/proposal-drafts/curriculum-vitae/edit.blade.php' => 'data-curriculum-vitae-autosave="true"',
+    ] as $editorView => $autoSaveMarker) {
         $view = file_get_contents(base_path($editorView));
         $headerEndPosition = strpos($view, '</x-slot>');
         $exitPosition = strpos($view, 'data-paper-cancel-exit');
@@ -174,12 +189,11 @@ test('proposal editors use a protected header exit and one visible save and exit
         expect($headerEndPosition)->toBeInt()
             ->and($exitPosition)->toBeInt()
             ->and($exitPosition)->toBeLessThan($headerEndPosition)
-            ->and(substr_count($view, 'data-paper-save-exit'))->toBe(1)
             ->and($view)
             ->toContain('Exit editor')
-            ->toContain('Save and exit')
-            ->toContain('data-paper-save-exit type="submit"')
-            ->not->toContain('<button data-paper-save type="submit"')
+            ->toContain($autoSaveMarker)
+            ->toContain('<x-proposal-autosave-status />')
+            ->not->toContain('data-paper-save-exit')
             ->not->toContain('data-paper-discard')
             ->not->toContain('Cancel and exit');
     }

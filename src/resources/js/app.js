@@ -13,6 +13,10 @@ import {
     personInitials,
 } from './proposal-people';
 import {
+    mirrorSemanticEditorHtml,
+    synchronizeCitationMarkerLabels,
+} from './proposal-semantic-editor';
+import {
     escapeAssistantHtml,
     formatAssistantMarkdown,
     stripAssistantGroundingFooter,
@@ -95,6 +99,301 @@ themeMediaQuery.addEventListener('change', () => {
 
 initializeThemeToggles();
 document.addEventListener('livewire:navigated', initializeThemeToggles);
+
+function sanitizedSemanticHtml(value) {
+    const template = document.createElement('template');
+    template.innerHTML = String(value || '');
+    const escapeHtml = (text) => String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const sanitizeNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) return escapeHtml(node.textContent || '');
+        if (!(node instanceof HTMLElement)) return '';
+
+        const content = [...node.childNodes].map(sanitizeNode).join('');
+        const tag = ({
+            b: 'strong',
+            strong: 'strong',
+            i: 'em',
+            em: 'em',
+            u: 'u',
+            br: 'br',
+            p: 'p',
+            div: 'p',
+            ol: 'ol',
+            ul: 'ul',
+            li: 'li',
+            span: 'span',
+        })[node.tagName.toLowerCase()];
+
+        if (!tag || ['script', 'style'].includes(node.tagName.toLowerCase())) return content;
+        if (tag === 'br') return '<br>';
+        if (tag === 'span') {
+            const citationSourceId = String(node.getAttribute('data-proposal-citation') || '').trim();
+
+            return /^\d+$/.test(citationSourceId)
+                ? `<span data-proposal-citation="${citationSourceId}">${content}</span>`
+                : content;
+        }
+
+        return `<${tag}>${content}</${tag}>`;
+    };
+    const html = [...template.content.childNodes].map(sanitizeNode).join('');
+
+    if (html.trim()) return html;
+
+    return String(value || '')
+        .split(/\r?\n{2,}/)
+        .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\r?\n/g, '<br>')}</p>`)
+        .join('');
+}
+
+function initializeSemanticEditors() {
+    document.querySelectorAll('[data-semantic-editor]').forEach((textarea) => {
+        if (!(textarea instanceof HTMLTextAreaElement) || textarea.dataset.semanticEditorReady === 'true') return;
+
+        textarea.dataset.semanticEditorReady = 'true';
+        const container = document.createElement('div');
+        container.className = 'mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600';
+        const toolbar = document.createElement('div');
+        toolbar.className = 'flex flex-wrap gap-1 border-b border-gray-200 bg-gray-50 p-2';
+        toolbar.setAttribute('aria-label', 'Text formatting');
+        const formattingHint = document.createElement('p');
+        formattingHint.className = 'basis-full px-1 pb-1 text-[11px] font-medium text-gray-500';
+        formattingHint.textContent = 'Select text, then choose a format. Changes appear here immediately. Shortcuts: Ctrl/Cmd+B, I, U.';
+        toolbar.appendChild(formattingHint);
+        const editor = document.createElement('div');
+        editor.className = 'min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
+        editor.contentEditable = 'true';
+        editor.setAttribute('role', 'textbox');
+        editor.setAttribute('aria-multiline', 'true');
+        editor.innerHTML = sanitizedSemanticHtml(textarea.value);
+        textarea._semanticEditor = editor;
+        const actions = [
+            ['bold', 'Bold', 'B'],
+            ['italic', 'Italic', 'I'],
+            ['underline', 'Underline', 'U'],
+            ['insertOrderedList', 'Numbered list', '1.'],
+            ['insertUnorderedList', 'Bulleted list', '•'],
+        ];
+
+        let syncingFromEditor = false;
+        const sync = () => {
+            syncingFromEditor = true;
+            mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML));
+            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            syncingFromEditor = false;
+        };
+        const refreshFromTextarea = () => {
+            if (syncingFromEditor) return false;
+
+            return mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(textarea.value));
+        };
+        textarea._syncSemanticEditor = refreshFromTextarea;
+        textarea.addEventListener('input', refreshFromTextarea);
+        const normalize = () => {
+            editor.innerHTML = sanitizedSemanticHtml(editor.innerHTML);
+            sync();
+        };
+        let savedRange = null;
+        const saveSelection = () => {
+            const selection = window.getSelection();
+
+            if (!selection?.rangeCount || !editor.contains(selection.getRangeAt(0).commonAncestorContainer)) return;
+
+            savedRange = selection.getRangeAt(0).cloneRange();
+        };
+        const restoreSelection = () => {
+            if (!savedRange) return;
+
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(savedRange);
+        };
+        const actionButtons = new Map();
+        let citationButton = null;
+        const inactiveButtonClasses = ['border-gray-300', 'bg-white', 'text-gray-700', 'hover:border-red-300', 'hover:bg-red-50', 'hover:text-red-700'];
+        const activeButtonClasses = ['border-red-600', 'bg-red-600', 'text-white', 'hover:border-red-700', 'hover:bg-red-700', 'hover:text-white'];
+        const updateActionButtons = () => {
+            actionButtons.forEach((button, command) => {
+                const isActive = document.queryCommandState(command);
+
+                button.classList.remove(...inactiveButtonClasses, ...activeButtonClasses);
+                button.classList.add(...(isActive ? activeButtonClasses : inactiveButtonClasses));
+                button.setAttribute('aria-pressed', String(isActive));
+            });
+
+            if (citationButton) {
+                const canCite = savedRange instanceof Range && !savedRange.collapsed && savedRange.toString().trim() !== '';
+
+                citationButton.hidden = !canCite;
+                citationButton.disabled = !canCite;
+            }
+        };
+
+        actions.forEach(([command, label]) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'rounded-md border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            button.setAttribute('aria-pressed', 'false');
+            button.textContent = label;
+            button.classList.add(...inactiveButtonClasses);
+            actionButtons.set(command, button);
+            button.addEventListener('mousedown', (event) => {
+                saveSelection();
+                event.preventDefault();
+            });
+            button.addEventListener('click', () => {
+                editor.focus();
+                restoreSelection();
+                document.execCommand(command);
+                sync();
+                updateActionButtons();
+            });
+            toolbar.appendChild(button);
+        });
+
+        if (textarea.id === 'related-literature') {
+            citationButton = document.createElement('button');
+            citationButton.type = 'button';
+            citationButton.className = 'rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-black text-red-800 shadow-sm transition hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-40';
+            citationButton.title = 'Cite the selected text from the literature library';
+            citationButton.setAttribute('aria-label', 'Cite selected text from the literature library');
+            citationButton.textContent = 'Cite from library';
+            citationButton.hidden = true;
+            citationButton.disabled = true;
+            citationButton.addEventListener('mousedown', (event) => {
+                saveSelection();
+                event.preventDefault();
+            });
+            citationButton.addEventListener('click', () => {
+                if (!(savedRange instanceof Range) || savedRange.collapsed) return;
+
+                const selectedText = savedRange.toString().trim();
+
+                if (!selectedText) return;
+
+                textarea._semanticCitationRange = savedRange.cloneRange();
+                window.dispatchEvent(new CustomEvent('proposal-cite-selection', {
+                    detail: {
+                        fieldId: textarea.id,
+                        selectedText,
+                    },
+                }));
+            });
+            toolbar.appendChild(citationButton);
+        }
+
+        ['keyup', 'mouseup', 'focus'].forEach((eventName) => editor.addEventListener(eventName, () => {
+            saveSelection();
+            updateActionButtons();
+        }));
+        editor.addEventListener('input', () => {
+            sync();
+            updateActionButtons();
+        });
+        editor.addEventListener('blur', normalize);
+        editor.addEventListener('keydown', (event) => {
+            if (!event.ctrlKey && !event.metaKey) return;
+
+            const commands = {
+                b: 'bold',
+                i: 'italic',
+                u: 'underline',
+            };
+            const command = commands[event.key.toLowerCase()];
+
+            if (!command) return;
+
+            event.preventDefault();
+            saveSelection();
+            document.execCommand(command);
+            sync();
+            updateActionButtons();
+        });
+        editor.addEventListener('paste', (event) => {
+            event.preventDefault();
+            const clipboard = event.clipboardData;
+            const value = clipboard?.getData('text/html') || clipboard?.getData('text/plain') || '';
+            document.execCommand('insertHTML', false, sanitizedSemanticHtml(value));
+            sync();
+        });
+
+        textarea.classList.add('hidden');
+        textarea.insertAdjacentElement('afterend', container);
+        container.append(toolbar, editor);
+    });
+}
+
+window.insertProposalCitationMarker = (fieldId, sourceLinkId, referenceNumber) => {
+    const textarea = document.getElementById(fieldId);
+
+    if (!(textarea instanceof HTMLTextAreaElement)
+        || !(textarea._semanticEditor instanceof HTMLElement)
+        || !(textarea._semanticCitationRange instanceof Range)) {
+        return false;
+    }
+
+    const range = textarea._semanticCitationRange.cloneRange();
+    const marker = document.createElement('span');
+    marker.dataset.proposalCitation = String(sourceLinkId);
+    marker.textContent = ` [${referenceNumber}]`;
+    range.collapse(false);
+    range.insertNode(marker);
+    range.setStartAfter(marker);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    textarea._semanticCitationRange = range.cloneRange();
+    textarea._semanticEditor.dispatchEvent(new Event('input', { bubbles: true }));
+
+    return true;
+};
+
+window.syncProposalCitationMarkers = (fieldId, referenceNumbers) => {
+    const textarea = document.getElementById(fieldId);
+
+    if (!(textarea instanceof HTMLTextAreaElement) || !(textarea._semanticEditor instanceof HTMLElement)) return;
+
+    const changed = synchronizeCitationMarkerLabels(
+        textarea._semanticEditor.querySelectorAll('[data-proposal-citation]'),
+        referenceNumbers,
+    );
+
+    if (changed) textarea._semanticEditor.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+window.removeProposalCitationMarkers = (fieldId, sourceLinkId) => {
+    const textarea = document.getElementById(fieldId);
+
+    if (!(textarea instanceof HTMLTextAreaElement) || !(textarea._semanticEditor instanceof HTMLElement)) return;
+
+    textarea._semanticEditor.querySelectorAll('[data-proposal-citation]').forEach((marker) => {
+        if (String(marker.getAttribute('data-proposal-citation')) === String(sourceLinkId)) marker.remove();
+    });
+    textarea._semanticEditor.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+const semanticEditorObserver = new MutationObserver((mutations) => {
+    const addedSemanticEditor = mutations.some(({ addedNodes }) => [...addedNodes].some((node) => (
+        node instanceof HTMLTextAreaElement
+            ? node.matches('[data-semantic-editor]')
+            : node instanceof HTMLElement && node.querySelector('[data-semantic-editor]')
+    )));
+
+    if (!addedSemanticEditor) return;
+
+    initializeSemanticEditors();
+});
+
+semanticEditorObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 function currentPaperEditor() {
     return document.querySelector('[data-paper-editor]');
@@ -515,6 +814,48 @@ document.addEventListener('submit', async (event) => {
 
     if (!editor) return;
 
+    if (editor.dataset.detailedProposalAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveDetailedProposalNow?.();
+
+        return;
+    }
+
+    if (editor.dataset.workPlanAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveWorkPlanNow?.();
+
+        return;
+    }
+
+    if (editor.dataset.lineItemBudgetAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveLineItemBudgetNow?.();
+
+        return;
+    }
+
+    if (editor.dataset.expenseBreakdownAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveExpenseBreakdownNow?.();
+
+        return;
+    }
+
+    if (editor.dataset.curriculumVitaeAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveCurriculumVitaeNow?.();
+
+        return;
+    }
+
+    if (editor.dataset.projectDetailsAutosave === 'true') {
+        event.preventDefault();
+        window.Alpine?.$data?.(editor)?.saveProjectDetailsNow?.();
+
+        return;
+    }
+
     if (editor.dataset.paperSubmitting === 'true') {
         event.preventDefault();
 
@@ -590,6 +931,43 @@ document.addEventListener('keydown', (event) => {
 
     if (commandKey && !event.altKey && !event.shiftKey && key === 's') {
         event.preventDefault();
+
+        if (editor.dataset.detailedProposalAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveDetailedProposalNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.workPlanAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveWorkPlanNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.lineItemBudgetAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveLineItemBudgetNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.expenseBreakdownAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveExpenseBreakdownNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.curriculumVitaeAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveCurriculumVitaeNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.projectDetailsAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveProjectDetailsNow?.();
+
+            return;
+        }
+
         submitPaperEditor(editor, '[data-paper-save]');
 
         return;
@@ -597,6 +975,43 @@ document.addEventListener('keydown', (event) => {
 
     if (commandKey && !event.altKey && !event.shiftKey && key === 'enter') {
         event.preventDefault();
+
+        if (editor.dataset.detailedProposalAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveDetailedProposalNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.workPlanAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveWorkPlanNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.lineItemBudgetAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveLineItemBudgetNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.expenseBreakdownAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveExpenseBreakdownNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.curriculumVitaeAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveCurriculumVitaeNow?.();
+
+            return;
+        }
+
+        if (editor.dataset.projectDetailsAutosave === 'true') {
+            window.Alpine?.$data?.(editor)?.saveProjectDetailsNow?.();
+
+            return;
+        }
+
         submitPaperEditor(editor, '[data-paper-save-exit]');
 
         return;
@@ -1663,6 +2078,17 @@ Alpine.store('literatureSearch', {
     savedResultKeys: [],
     saveNotice: '',
     saveError: '',
+    externalSource: {
+        provider: 'Google Scholar',
+        title: '',
+        authors: '',
+        year: '',
+        venue: '',
+        doi: '',
+        url: '',
+        citation: '',
+    },
+    isSavingExternalSource: false,
     synthesisReviewOpen: false,
     synthesisSource: null,
     synthesisSourceIsSaved: false,
@@ -1941,6 +2367,86 @@ Alpine.store('literatureSearch', {
 
     isSavedResult(result) {
         return this.savedResultKeys.includes(this.resultKey(result));
+    },
+
+    parseExternalCitation() {
+        const citation = String(this.externalSource.citation || '').trim();
+
+        if (!citation) return;
+
+        const bibtex = (key) => citation.match(new RegExp(`${key}\\s*=\\s*[{"]([^}"]+)`, 'i'))?.[1]?.trim();
+        const ris = (key) => citation.match(new RegExp(`^${key}\\s{2}-\\s(.+)$`, 'im'))?.[1]?.trim();
+        const doi = citation.match(/10\.\d{4,9}\/[\w.()/:;-]+/i)?.[0];
+        const url = citation.match(/https?:\/\/[^\s)>]+/i)?.[0];
+        const year = citation.match(/\b(19|20)\d{2}\b/)?.[0];
+
+        this.externalSource.title ||= bibtex('title') || ris('TI') || ris('T1') || '';
+        this.externalSource.authors ||= bibtex('author')?.replaceAll(' and ', ', ') || ris('AU') || ris('A1') || '';
+        this.externalSource.year ||= bibtex('year') || ris('PY')?.match(/\d{4}/)?.[0] || year || '';
+        this.externalSource.venue ||= bibtex('journal') || bibtex('booktitle') || ris('JO') || ris('JF') || '';
+        this.externalSource.doi ||= bibtex('doi') || ris('DO') || doi || '';
+        this.externalSource.url ||= bibtex('url') || ris('UR') || url || '';
+    },
+
+    async saveExternalSource() {
+        this.parseExternalCitation();
+        const title = String(this.externalSource.title || '').trim();
+
+        if (!title) {
+            this.saveError = 'Add a paper title or paste a citation with a readable title.';
+            return;
+        }
+
+        if (!String(this.externalSource.doi || '').trim() && !String(this.externalSource.url || '').trim()) {
+            this.saveError = 'Add the DOI or a public source URL so the record can be verified.';
+            return;
+        }
+
+        if (this.isSavingExternalSource) return;
+
+        this.isSavingExternalSource = true;
+        this.saveError = '';
+        this.saveNotice = '';
+
+        try {
+            const result = {
+                title,
+                description: null,
+                authors: String(this.externalSource.authors || '').trim() || null,
+                year: this.numberOrNull(this.externalSource.year),
+                venue: String(this.externalSource.venue || '').trim() || null,
+                doi: String(this.externalSource.doi || '').trim() || null,
+                url: String(this.externalSource.url || '').trim() || null,
+                source: `External: ${String(this.externalSource.provider || 'Other').trim() || 'Other'}`,
+                citation_count: null,
+                is_open_access: false,
+                access_status: 'unknown',
+                type: 'external record',
+            };
+            const saved = await this.saveResult(result);
+
+            if (!saved?.id) return;
+
+            if (Number(this.selectedProposalId)) {
+                await this.attachSourceToProposal(saved, null, null, false);
+            }
+
+            this.externalSource = {
+                provider: this.externalSource.provider || 'Google Scholar',
+                title: '',
+                authors: '',
+                year: '',
+                venue: '',
+                doi: '',
+                url: '',
+                citation: '',
+            };
+            this.saveNotice = Number(this.selectedProposalId)
+                ? 'External source saved and linked to the selected proposal. Review and confirm its RRL paragraph before inserting it.'
+                : 'External source saved to the shared library. Link it to a proposal when you are ready.';
+        } finally {
+            this.isSavingExternalSource = false;
+        }
     },
 
     hasSynthesisEvidence(source = this.synthesisSource) {
@@ -2695,16 +3201,159 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
     durationMonths: config.initialDuration ?? '',
     plannedStart: normalizeIsoDate(config.initialStart),
     plannedEnd: normalizeIsoDate(config.initialEnd),
+    autoSave: Boolean(config.autoSave),
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    lastSavedProjectDetails: '',
 
     init() {
-        this.$watch('durationMonths', () => this.syncPlannedEnd());
-        this.$watch('plannedStart', () => this.syncPlannedEnd());
+        this.$watch('durationMonths', () => {
+            this.syncPlannedEnd();
+            this.scheduleProjectDetailsAutoSave();
+        });
+        this.$watch('plannedStart', () => {
+            this.syncPlannedEnd();
+            this.scheduleProjectDetailsAutoSave();
+        });
+        this.$watch('plannedEnd', () => this.scheduleProjectDetailsAutoSave());
 
         if (!this.plannedEnd) this.syncPlannedEnd();
+
+        if (this.autoSave) {
+            this.$nextTick(() => this.startProjectDetailsAutoSave());
+        }
     },
 
     syncPlannedEnd() {
         this.plannedEnd = addCalendarMonths(this.plannedStart, this.durationMonths);
+    },
+
+    startProjectDetailsAutoSave() {
+        const form = this.projectDetailsForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedProjectDetails = this.projectDetailsFingerprint(form);
+
+        form.addEventListener('input', () => this.scheduleProjectDetailsAutoSave());
+        form.addEventListener('change', () => this.scheduleProjectDetailsAutoSave());
+    },
+
+    projectDetailsForm() {
+        return this.$el.querySelector('[data-project-details-autosave-form]');
+    },
+
+    projectDetailsFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'draft_version'].includes(name)));
+    },
+
+    projectDetailsStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    scheduleProjectDetailsAutoSave() {
+        if (!this.autoSave || this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.projectDetailsForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (!form.checkValidity()) {
+            this.projectDetailsStatus('Finish the required fields to save automatically.');
+
+            return;
+        }
+
+        if (this.projectDetailsFingerprint(form) === this.lastSavedProjectDetails) return;
+
+        this.projectDetailsStatus('Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveProjectDetails(), 1200);
+    },
+
+    saveProjectDetailsNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveProjectDetails();
+    },
+
+    async saveProjectDetails() {
+        const form = this.projectDetailsForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        if (!form.checkValidity()) {
+            this.projectDetailsStatus('Finish the required fields to save automatically.');
+
+            return;
+        }
+
+        const fingerprint = this.projectDetailsFingerprint(form);
+
+        if (fingerprint === this.lastSavedProjectDetails) return;
+
+        this.autoSaveInFlight = true;
+        this.projectDetailsStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'Project details could not be saved.');
+            }
+
+            const version = form.querySelector('[name="draft_version"]');
+
+            if (version instanceof HTMLInputElement) version.value = String(payload.draft_version);
+
+            this.lastSavedProjectDetails = fingerprint;
+
+            if (this.projectDetailsFingerprint(form) !== fingerprint) {
+                this.scheduleProjectDetailsAutoSave();
+
+                return;
+            }
+
+            this.$el.dataset.paperDirty = 'false';
+            this.projectDetailsStatus('Saved just now.', 'saved');
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved newer project details')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.projectDetailsStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.projectDetailsStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 }));
 
@@ -3564,6 +4213,15 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             accomplished_percentage: '',
             findings: '',
         }],
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedMonitoringDraft: '',
+
+    init() {
+        this.$nextTick(() => this.startMonitoringDraftAutoSave());
+    },
 
     addEntry() {
         if (this.entries.length >= 11) return;
@@ -3577,17 +4235,293 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             accomplished_percentage: '',
             findings: '',
         });
+        this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
     },
 
     removeEntry(index) {
-        if (this.entries.length > 1) this.entries.splice(index, 1);
+        if (this.entries.length > 1) {
+            this.entries.splice(index, 1);
+            this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+        }
+    },
+
+    startMonitoringDraftAutoSave() {
+        const form = this.monitoringDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedMonitoringDraft = this.monitoringDraftFingerprint(form);
+        form.addEventListener('input', () => this.triggerMonitoringDraftAutoSave());
+        form.addEventListener('change', () => this.triggerMonitoringDraftAutoSave());
+    },
+
+    monitoringDraftAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    monitoringDraftFormData(form) {
+        const formData = new FormData(form);
+        formData.delete('attachment');
+
+        return formData;
+    },
+
+    monitoringDraftFingerprint(form) {
+        return JSON.stringify([...this.monitoringDraftFormData(form).entries()]
+            .filter(([name]) => !['_token', 'draft_version'].includes(name)));
+    },
+
+    monitoringDraftAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerMonitoringDraftAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleMonitoringDraftAutoSave();
+    },
+
+    scheduleMonitoringDraftAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.monitoringDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.monitoringDraftFingerprint(form) === this.lastSavedMonitoringDraft) return;
+
+        this.monitoringDraftAutoSaveStatus('Saving draft soon...');
+        this.autoSaveTimer = window.setTimeout(() => this.saveMonitoringDraft(), 1200);
+    },
+
+    async saveMonitoringDraft() {
+        const form = this.monitoringDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.monitoringDraftFingerprint(form);
+
+        if (fingerprint === this.lastSavedMonitoringDraft) return;
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.monitoringDraftAutoSaveStatus('Saving draft...', 'saving');
+
+        try {
+            const response = await fetch(config.draftSaveUrl, {
+                method: 'POST',
+                body: this.monitoringDraftFormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                const message = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the monitoring information.';
+
+                if (message.includes('A newer saved monitoring draft is available')) {
+                    this.autoSaveBlocked = true;
+                    this.monitoringDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
+
+                    return;
+                }
+
+                this.monitoringDraftAutoSaveStatus(message, 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The monitoring draft could not be saved.');
+            }
+
+            const draftVersion = form.querySelector('[name="draft_version"]');
+
+            if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
+
+            this.lastSavedMonitoringDraft = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleMonitoringDraftAutoSave();
+
+                return;
+            }
+
+            this.lastSavedMonitoringDraft = this.monitoringDraftFingerprint(form);
+            this.monitoringDraftAutoSaveStatus('Draft saved just now.', 'saved');
+        } catch (error) {
+            this.monitoringDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 }));
 
-Alpine.data('narrativeProgressReportForm', (config = {}) => documentPreviewForm({
-    ...config,
-    validationMessage: 'Please review the progress-report information.',
-    failureMessage: 'The progress-report preview could not be generated. Please try again.',
+Alpine.data('narrativeProgressReportForm', (config = {}) => ({
+    ...documentPreviewForm({
+        ...config,
+        validationMessage: 'Please review the progress-report information.',
+        failureMessage: 'The progress-report preview could not be generated. Please try again.',
+    }),
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedNarrativeDraft: '',
+
+    init() {
+        this.$nextTick(() => this.startNarrativeDraftAutoSave());
+    },
+
+    startNarrativeDraftAutoSave() {
+        const form = this.narrativeDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedNarrativeDraft = this.narrativeDraftFingerprint(form);
+        form.addEventListener('input', () => this.triggerNarrativeDraftAutoSave());
+        form.addEventListener('change', () => this.triggerNarrativeDraftAutoSave());
+    },
+
+    narrativeDraftAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    narrativeDraftFormData(form) {
+        const formData = new FormData(form);
+
+        [...formData.keys()]
+            .filter((name) => /^photo_\d+$/.test(name))
+            .forEach((name) => formData.delete(name));
+
+        return formData;
+    },
+
+    narrativeDraftFingerprint(form) {
+        return JSON.stringify([...this.narrativeDraftFormData(form).entries()]
+            .filter(([name]) => !['_token', 'draft_version'].includes(name)));
+    },
+
+    narrativeDraftAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerNarrativeDraftAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleNarrativeDraftAutoSave();
+    },
+
+    scheduleNarrativeDraftAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.narrativeDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.narrativeDraftFingerprint(form) === this.lastSavedNarrativeDraft) return;
+
+        this.narrativeDraftAutoSaveStatus('Saving draft soon...');
+        this.autoSaveTimer = window.setTimeout(() => this.saveNarrativeDraft(), 1200);
+    },
+
+    async saveNarrativeDraft() {
+        const form = this.narrativeDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.narrativeDraftFingerprint(form);
+
+        if (fingerprint === this.lastSavedNarrativeDraft) return;
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.narrativeDraftAutoSaveStatus('Saving draft...', 'saving');
+
+        try {
+            const response = await fetch(config.draftSaveUrl, {
+                method: 'POST',
+                body: this.narrativeDraftFormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                const message = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the progress-report information.';
+
+                if (message.includes('A newer saved progress-report draft is available')) {
+                    this.autoSaveBlocked = true;
+                    this.narrativeDraftAutoSaveStatus('A newer draft is available. Reload the page before saving again.', 'error');
+
+                    return;
+                }
+
+                this.narrativeDraftAutoSaveStatus(message, 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The progress-report draft could not be saved.');
+            }
+
+            const draftVersion = form.querySelector('[name="draft_version"]');
+
+            if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
+
+            this.lastSavedNarrativeDraft = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleNarrativeDraftAutoSave();
+
+                return;
+            }
+
+            this.lastSavedNarrativeDraft = this.narrativeDraftFingerprint(form);
+            this.narrativeDraftAutoSaveStatus('Draft saved just now.', 'saved');
+        } catch (error) {
+            this.narrativeDraftAutoSaveStatus('Could not save the draft. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
+    },
 }));
 
 Alpine.data('noticeToProceedForm', (config = {}) => ({
@@ -3969,6 +4903,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     previewReady: false,
     downloadError: '',
     downloadLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedWorkPlan: '',
 
     init() {
         const initialEntries = Array.isArray(config.initialEntries) ? config.initialEntries : [];
@@ -3977,6 +4916,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             ? initialEntries.slice(0, this.maxEntries).map((entry) => this.newEntry(entry))
             : [this.newEntry()];
         this.limitMonthsToDuration();
+
+        this.$nextTick(() => this.startWorkPlanAutoSave());
     },
 
     newEntry(values = {}) {
@@ -3999,6 +4940,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.entries.push(this.newEntry());
         this.monthErrorIndexes = [];
         this.monthConflictIndexes = [];
+        this.$nextTick(() => this.triggerWorkPlanAutoSave());
     },
 
     removeEntry(index) {
@@ -4007,6 +4949,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.entries.splice(index, 1);
         this.monthErrorIndexes = [];
         this.monthConflictIndexes = [];
+        this.$nextTick(() => this.triggerWorkPlanAutoSave());
     },
 
     clearMonthError(index) {
@@ -4182,6 +5125,150 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         formData.delete('_method');
 
         return formData;
+    },
+
+    startWorkPlanAutoSave() {
+        const form = this.workPlanAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedWorkPlan = this.workPlanFingerprint(form);
+        form.addEventListener('input', () => this.triggerWorkPlanAutoSave());
+        form.addEventListener('change', () => this.triggerWorkPlanAutoSave());
+    },
+
+    workPlanAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    workPlanFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name)));
+    },
+
+    workPlanAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerWorkPlanAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleWorkPlanAutoSave();
+    },
+
+    scheduleWorkPlanAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.workPlanAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.workPlanFingerprint(form) === this.lastSavedWorkPlan) return;
+
+        this.workPlanAutoSaveStatus('Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveWorkPlan(), 1200);
+    },
+
+    saveWorkPlanNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveWorkPlan();
+    },
+
+    workPlanShouldSaveAsDraft() {
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+    },
+
+    async saveWorkPlan() {
+        const form = this.workPlanAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.workPlanFingerprint(form);
+
+        if (fingerprint === this.lastSavedWorkPlan) return;
+
+        const saveMode = form.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = this.workPlanShouldSaveAsDraft() ? '1' : '0';
+        }
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.workPlanAutoSaveStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(config.updateUrl || form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Work Plan information.';
+                this.workPlanAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The Work Plan could not be saved.');
+            }
+
+            const documentVersion = form.querySelector('[name="document_version"]');
+
+            if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+
+            this.lastSavedWorkPlan = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleWorkPlanAutoSave();
+
+                return;
+            }
+
+            this.lastSavedWorkPlan = this.workPlanFingerprint(form);
+            this.$el.dataset.paperDirty = 'false';
+            this.validationMessage = '';
+            this.workPlanAutoSaveStatus(
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                'saved',
+            );
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.workPlanAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.workPlanAutoSaveStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 
     async generatePreview() {
@@ -4419,6 +5506,11 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     previewReady: false,
     downloadError: '',
     downloadLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedLineItemBudget: '',
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -4444,6 +5536,8 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         this.approvalBody = String(data.approval_body ?? '');
         this.resolutionNumber = String(data.resolution_number ?? '');
         this.resolutionYear = String(data.resolution_year ?? '');
+
+        this.$nextTick(() => this.startLineItemBudgetAutoSave());
     },
 
     newStaff(values = {}) {
@@ -4469,6 +5563,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     addStaff() {
         this.staff.push(this.newStaff());
+        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     syncStaff(member) {
@@ -4484,22 +5579,28 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         if (!String(member.college || '').trim()) {
             member.college = String(workspacePerson.college || '');
         }
+
+        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     removeStaff(index) {
         this.staff.splice(index, 1);
 
         if (this.staff.length === 0) this.staff.push(this.newStaff());
+
+        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     addCustomItem(section) {
         const property = section === 'mooe' ? 'customMooeItems' : 'customCoItems';
         this[property].push(this.newBudgetItem());
+        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     removeCustomItem(section, index) {
         const property = section === 'mooe' ? 'customMooeItems' : 'customCoItems';
         this[property].splice(index, 1);
+        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     hasValue(value) {
@@ -4566,6 +5667,150 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         formData.delete('_method');
 
         return formData;
+    },
+
+    startLineItemBudgetAutoSave() {
+        const form = this.lineItemBudgetAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedLineItemBudget = this.lineItemBudgetFingerprint(form);
+        form.addEventListener('input', () => this.triggerLineItemBudgetAutoSave());
+        form.addEventListener('change', () => this.triggerLineItemBudgetAutoSave());
+    },
+
+    lineItemBudgetAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    lineItemBudgetFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name)));
+    },
+
+    lineItemBudgetAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerLineItemBudgetAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleLineItemBudgetAutoSave();
+    },
+
+    scheduleLineItemBudgetAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.lineItemBudgetAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.lineItemBudgetFingerprint(form) === this.lastSavedLineItemBudget) return;
+
+        this.lineItemBudgetAutoSaveStatus('Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveLineItemBudget(), 1200);
+    },
+
+    saveLineItemBudgetNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveLineItemBudget();
+    },
+
+    lineItemBudgetShouldSaveAsDraft() {
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+    },
+
+    async saveLineItemBudget() {
+        const form = this.lineItemBudgetAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.lineItemBudgetFingerprint(form);
+
+        if (fingerprint === this.lastSavedLineItemBudget) return;
+
+        const saveMode = form.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = this.lineItemBudgetShouldSaveAsDraft() ? '1' : '0';
+        }
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.lineItemBudgetAutoSaveStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(config.updateUrl || form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Line-Item Budget information.';
+                this.lineItemBudgetAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The Line-Item Budget could not be saved.');
+            }
+
+            const documentVersion = form.querySelector('[name="document_version"]');
+
+            if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+
+            this.lastSavedLineItemBudget = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleLineItemBudgetAutoSave();
+
+                return;
+            }
+
+            this.lastSavedLineItemBudget = this.lineItemBudgetFingerprint(form);
+            this.$el.dataset.paperDirty = 'false';
+            this.validationMessage = '';
+            this.lineItemBudgetAutoSaveStatus(
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                'saved',
+            );
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.lineItemBudgetAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.lineItemBudgetAutoSaveStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 
     async generatePreview() {
@@ -4666,6 +5911,11 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     previewReady: false,
     downloadError: '',
     downloadLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedExpenseBreakdown: '',
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -4673,6 +5923,8 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.items = initialItems.length > 0
             ? initialItems.map((item) => this.newItem(item))
             : [this.newItem()];
+
+        this.$nextTick(() => this.startExpenseBreakdownAutoSave());
     },
 
     newItem(values = {}) {
@@ -4734,6 +5986,8 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
             if (!item.purpose) item.purpose = 'For unexpected/unforeseen expenses';
         }
+
+        this.$nextTick(() => this.triggerExpenseBreakdownAutoSave());
     },
 
     addItem(copyGrouping = false) {
@@ -4755,6 +6009,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         if (this.items.length === 1) return;
 
         this.items.splice(index, 1);
+        this.$nextTick(() => this.triggerExpenseBreakdownAutoSave());
     },
 
     numeric(value) {
@@ -4808,6 +6063,150 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         formData.delete('_method');
 
         return formData;
+    },
+
+    startExpenseBreakdownAutoSave() {
+        const form = this.expenseBreakdownAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint(form);
+        form.addEventListener('input', () => this.triggerExpenseBreakdownAutoSave());
+        form.addEventListener('change', () => this.triggerExpenseBreakdownAutoSave());
+    },
+
+    expenseBreakdownAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    expenseBreakdownFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name)));
+    },
+
+    expenseBreakdownAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerExpenseBreakdownAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleExpenseBreakdownAutoSave();
+    },
+
+    scheduleExpenseBreakdownAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.expenseBreakdownAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.expenseBreakdownFingerprint(form) === this.lastSavedExpenseBreakdown) return;
+
+        this.expenseBreakdownAutoSaveStatus('Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveExpenseBreakdown(), 1200);
+    },
+
+    saveExpenseBreakdownNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveExpenseBreakdown();
+    },
+
+    expenseBreakdownShouldSaveAsDraft() {
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+    },
+
+    async saveExpenseBreakdown() {
+        const form = this.expenseBreakdownAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.expenseBreakdownFingerprint(form);
+
+        if (fingerprint === this.lastSavedExpenseBreakdown) return;
+
+        const saveMode = form.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = this.expenseBreakdownShouldSaveAsDraft() ? '1' : '0';
+        }
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.expenseBreakdownAutoSaveStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(config.updateUrl || form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Estimated Expense Breakdown information.';
+                this.expenseBreakdownAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The Estimated Expense Breakdown could not be saved.');
+            }
+
+            const documentVersion = form.querySelector('[name="document_version"]');
+
+            if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+
+            this.lastSavedExpenseBreakdown = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleExpenseBreakdownAutoSave();
+
+                return;
+            }
+
+            this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint(form);
+            this.$el.dataset.paperDirty = 'false';
+            this.validationMessage = '';
+            this.expenseBreakdownAutoSaveStatus(
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                'saved',
+            );
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.expenseBreakdownAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.expenseBreakdownAutoSaveStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 
     async generatePreview() {
@@ -4907,12 +6306,19 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     previewReady: false,
     downloadError: '',
     downloadLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedCurriculumVitae: '',
 
     init() {
         const initialPeople = Array.isArray(config.initialPeople) ? config.initialPeople : [];
         this.people = initialPeople.length > 0
             ? initialPeople.map((person) => this.newPerson(person))
             : [this.newPerson()];
+
+        this.$nextTick(() => this.startCurriculumVitaeAutoSave());
     },
 
     newPerson(values = {}) {
@@ -4984,11 +6390,16 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         } else if (row.year_end === 'Present') {
             row.year_end = '';
         }
+
+        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
     },
 
     addPerson() {
         this.people.push(this.newPerson());
-        this.$nextTick(() => this.focusPerson(this.people.length - 1));
+        this.$nextTick(() => {
+            this.focusPerson(this.people.length - 1);
+            this.triggerCurriculumVitaeAutoSave();
+        });
     },
 
     addWorkspacePerson() {
@@ -5011,13 +6422,17 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         this.validationMessage = '';
         this.people.push(this.newPerson(workspacePerson.cv || {}));
         this.selectedWorkspacePerson = '';
-        this.$nextTick(() => this.focusPerson(this.people.length - 1));
+        this.$nextTick(() => {
+            this.focusPerson(this.people.length - 1);
+            this.triggerCurriculumVitaeAutoSave();
+        });
     },
 
     removePerson(index) {
         if (this.people.length === 1) return;
 
         this.people.splice(index, 1);
+        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
     },
 
     personLabel(person) {
@@ -5046,10 +6461,12 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
     addSectionRow(personIndex, sectionKey) {
         this.people[personIndex][sectionKey].push(this.newSectionRow(sectionKey));
+        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
     },
 
     removeSectionRow(personIndex, sectionKey, rowIndex) {
         this.people[personIndex][sectionKey].splice(rowIndex, 1);
+        this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
     },
 
     validateForm() {
@@ -5071,6 +6488,150 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         formData.delete('_method');
 
         return formData;
+    },
+
+    startCurriculumVitaeAutoSave() {
+        const form = this.curriculumVitaeAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedCurriculumVitae = this.curriculumVitaeFingerprint(form);
+        form.addEventListener('input', () => this.triggerCurriculumVitaeAutoSave());
+        form.addEventListener('change', () => this.triggerCurriculumVitaeAutoSave());
+    },
+
+    curriculumVitaeAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    curriculumVitaeFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name)));
+    },
+
+    curriculumVitaeAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerCurriculumVitaeAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleCurriculumVitaeAutoSave();
+    },
+
+    scheduleCurriculumVitaeAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.curriculumVitaeAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.curriculumVitaeFingerprint(form) === this.lastSavedCurriculumVitae) return;
+
+        this.curriculumVitaeAutoSaveStatus('Saving changes soon...');
+        this.autoSaveTimer = window.setTimeout(() => this.saveCurriculumVitae(), 1200);
+    },
+
+    saveCurriculumVitaeNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveCurriculumVitae();
+    },
+
+    curriculumVitaeShouldSaveAsDraft() {
+        return !this.isComplete();
+    },
+
+    async saveCurriculumVitae() {
+        const form = this.curriculumVitaeAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.curriculumVitaeFingerprint(form);
+
+        if (fingerprint === this.lastSavedCurriculumVitae) return;
+
+        const saveMode = form.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = this.curriculumVitaeShouldSaveAsDraft() ? '1' : '0';
+        }
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.curriculumVitaeAutoSaveStatus('Saving changes...', 'saving');
+
+        try {
+            const response = await fetch(config.updateUrl || form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Curriculum Vitae information.';
+                this.curriculumVitaeAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The Curriculum Vitae could not be saved.');
+            }
+
+            const documentVersion = form.querySelector('[name="document_version"]');
+
+            if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+
+            this.lastSavedCurriculumVitae = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleCurriculumVitaeAutoSave();
+
+                return;
+            }
+
+            this.lastSavedCurriculumVitae = this.curriculumVitaeFingerprint(form);
+            this.$el.dataset.paperDirty = 'false';
+            this.validationMessage = '';
+            this.curriculumVitaeAutoSaveStatus(
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                'saved',
+            );
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.curriculumVitaeAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.curriculumVitaeAutoSaveStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
     },
 
     async generatePreview() {
@@ -5178,12 +6739,48 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     cooperatingAgency: '',
     executiveBrief: '',
     rationale: '',
-    objectives: '',
+    generalObjective: '',
+    specificObjectives: [],
     expectedOutputs: {},
     introduction: '',
     relatedLiterature: '',
     literatureSources: [],
+    literatureCitations: [],
     literatureSourceNotice: '',
+    citationPickerOpen: false,
+    citationPickerSelection: null,
+    citationPickerQuery: '',
+    citationPickerResults: [],
+    citationPickerLoading: false,
+    citationPickerError: '',
+    citationPickerSaving: false,
+    citationPickerLocator: '',
+    proposalTitle: String(config.proposalTitle || ''),
+    literatureSearchContext: {
+        title: true,
+        generalObjective: true,
+        specificObjectives: true,
+        researchAgenda: false,
+        methodology: false,
+    },
+    literatureSearchQuery: '',
+    literatureSearchResults: [],
+    literatureSearchHistory: [],
+    literatureSearchLoading: false,
+    literatureSearchError: '',
+    literatureSearchNotice: '',
+    literatureSearchSavingKey: '',
+    literatureReviewOpen: false,
+    literatureReviewSource: null,
+    literatureReviewDraft: '',
+    literatureReviewBasis: 'abstract',
+    literatureReviewFullText: '',
+    literatureReviewFullTextError: '',
+    literatureReviewLoadingFullText: false,
+    literatureReviewGenerating: false,
+    literatureReviewSaving: false,
+    literatureReviewNotice: '',
+    literatureReviewError: '',
     methodology: {},
     methodologyImages: [],
     methodologySections: config.methodologySections && typeof config.methodologySections === 'object'
@@ -5203,6 +6800,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     previewReady: false,
     downloadError: '',
     downloadLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedDetailedProposal: '',
+    autoSaveInitialContent: false,
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -5222,15 +6825,23 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.cooperatingAgency = String(data.cooperating_agency ?? '');
         this.executiveBrief = String(data.executive_brief ?? '');
         this.rationale = String(data.rationale ?? '');
-        this.objectives = String(data.objectives ?? '');
+        const objectives = this.normalizedObjectives(
+            data.general_objective,
+            data.specific_objectives,
+            data.objectives,
+        );
+        this.generalObjective = objectives.generalObjective;
+        this.specificObjectives = objectives.specificObjectives;
         this.expectedOutputs = Object.fromEntries(
-            (config.expectedOutputKeys || []).map((key) => [key, String(data.expected_outputs?.[key] ?? '')]),
+            (config.expectedOutputKeys || []).map((key) => [key, this.normalizedExpectedOutputs(data.expected_outputs?.[key])]),
         );
         this.introduction = String(data.introduction ?? '');
         this.relatedLiterature = String(data.related_literature ?? '');
         this.literatureSources = Array.isArray(config.literatureSources)
             ? config.literatureSources
             : [];
+        this.literatureCitations = this.parseLiteratureCitations(data.literature_citations);
+        this.literatureSearchHistory = this.parseLiteratureSearchHistory(data.literature_research_history);
         this.methodology = Object.fromEntries(
             (config.methodologyKeys || []).map((key) => [key, String(data.methodology?.[key] ?? '')]),
         );
@@ -5248,7 +6859,22 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.recommendingApprovalName = String(data.recommending_approval_name ?? '');
         this.approvedByName = String(data.approved_by_name ?? '');
         this.references = String(data.references ?? '');
+        this.refreshSuggestedLiteratureQuery();
         this.applyInitialLiteratureSource();
+        this.$nextTick(() => {
+            this.moveLiteratureWorkspace();
+            this.synchronizeLiteratureCitations();
+            this.startDetailedProposalAutoSave();
+        });
+    },
+
+    moveLiteratureWorkspace() {
+        const workspace = this.$refs.literatureWorkspace;
+        const introduction = this.$refs.introductionSection;
+
+        if (workspace instanceof HTMLElement && introduction instanceof HTMLElement) {
+            introduction.after(workspace);
+        }
     },
 
     applyInitialLiteratureSource() {
@@ -5265,12 +6891,1179 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         if (action === 'both') applied = this.addLiteratureSourceToBoth(source, true);
 
         if (applied) {
+            this.autoSaveInitialContent = true;
             this.literatureSourceNotice = 'The selected source is staged in this proposal. Review the inserted text, then save the draft to keep it.';
         } else {
             this.literatureSourceNotice = 'The selected source already appears in the requested proposal section.';
         }
 
         this.focusLiteratureDestination(action);
+    },
+
+    parseLiteratureSearchHistory(value) {
+        try {
+            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+
+            if (!Array.isArray(parsed)) return [];
+
+            return parsed
+                .filter((entry) => entry && typeof entry === 'object' && String(entry.query || '').trim())
+                .map((entry, index) => ({
+                    id: String(entry.id || `${entry.query}-${entry.searched_at || index}`),
+                    query: String(entry.query || '').trim(),
+                    context: Array.isArray(entry.context)
+                        ? entry.context.filter((label) => typeof label === 'string' && label.trim()).slice(0, 5)
+                        : [],
+                    resultCount: Number.isInteger(entry.result_count) ? entry.result_count : 0,
+                    searchedAt: String(entry.searched_at || ''),
+                }))
+                .slice(0, 8);
+        } catch (error) {
+            return [];
+        }
+    },
+
+    parseLiteratureCitations(value) {
+        try {
+            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+
+            if (!Array.isArray(parsed)) return [];
+
+            const seenCitations = new Set();
+
+            return parsed
+                .filter((citation) => citation && typeof citation === 'object')
+                .map((citation, index) => ({
+                    id: String(citation.id || `citation-${index}`),
+                    source_link_id: Number(citation.source_link_id),
+                    literature_source_id: Number(citation.literature_source_id),
+                    field: citation.field === 'references' ? 'references' : 'related_literature',
+                    selected_text: String(citation.selected_text || '').trim().slice(0, 2000),
+                    locator: String(citation.locator || '').trim().slice(0, 100),
+                    created_at: String(citation.created_at || ''),
+                }))
+                .filter((citation) => Number.isInteger(citation.source_link_id) && citation.source_link_id > 0)
+                .filter((citation) => {
+                    const identity = [
+                        citation.source_link_id,
+                        citation.field,
+                        citation.selected_text.toLowerCase().replace(/\s+/g, ' '),
+                        citation.locator.toLowerCase(),
+                    ].join('|');
+
+                    if (seenCitations.has(identity)) return false;
+
+                    seenCitations.add(identity);
+
+                    return true;
+                })
+                .slice(0, 100);
+        } catch (error) {
+            return [];
+        }
+    },
+
+    literatureCitationsFor(source) {
+        const sourceLinkId = Number(source?.id);
+
+        return this.literatureCitations.filter((citation) => citation.source_link_id === sourceLinkId);
+    },
+
+    citationReferenceSourceIds() {
+        return [...new Set(this.literatureCitations.map((citation) => citation.source_link_id))];
+    },
+
+    citationReferenceSources() {
+        return this.citationReferenceSourceIds()
+            .map((sourceLinkId) => this.literatureSources.find((source) => Number(source.id) === sourceLinkId))
+            .filter(Boolean);
+    },
+
+    citationReferenceNumber(source) {
+        const index = this.citationReferenceSourceIds().indexOf(Number(source?.id));
+
+        return index === -1 ? null : index + 1;
+    },
+
+    citationReferenceNumbers() {
+        return Object.fromEntries(this.citationReferenceSourceIds().map((sourceLinkId, index) => [sourceLinkId, index + 1]));
+    },
+
+    literatureSourceUsage(source) {
+        const citations = this.literatureCitationsFor(source);
+        const sourceLinkId = Number(source?.id);
+        const relatedLiteratureText = this.plainText(this.relatedLiterature).toLowerCase().replace(/\s+/g, ' ');
+        const hasCitationMarker = String(this.relatedLiterature || '').includes(`data-proposal-citation="${sourceLinkId}"`);
+        const usedInRrl = citations
+            .filter((citation) => citation.field === 'related_literature')
+            .some((citation) => hasCitationMarker || (
+                citation.selected_text
+                && relatedLiteratureText.includes(this.plainText(citation.selected_text).toLowerCase().replace(/\s+/g, ' '))
+            ));
+
+        return {
+            linked: sourceLinkId > 0,
+            usedInRrl,
+            addedToReferences: citations.length > 0,
+            referenceNumber: this.citationReferenceNumber(source),
+        };
+    },
+
+    escapeLiteratureHtml(value) {
+        return String(value || '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    },
+
+    referenceTextForCitationSource(source, referenceNumber) {
+        const reference = String(source?.reference || '').trim();
+
+        if (!reference) return '';
+
+        return /^\s*\[\d+\]/.test(reference)
+            ? reference.replace(/^\s*\[\d+\]/, `[${referenceNumber}]`)
+            : `[${referenceNumber}] ${reference}`;
+    },
+
+    removeManagedReferenceBlocks(value) {
+        const template = document.createElement('template');
+        template.innerHTML = String(value || '');
+        const identities = this.citationReferenceSources().flatMap((source) => [source.doi, source.title])
+            .map((identity) => String(identity || '').trim().toLowerCase())
+            .filter(Boolean);
+
+        if (!identities.length) return String(value || '');
+
+        [...template.content.children].forEach((block) => {
+            const text = String(block.textContent || '').toLowerCase();
+
+            if (identities.some((identity) => text.includes(identity))) block.remove();
+        });
+
+        return template.innerHTML.trim();
+    },
+
+    synchronizeLiteratureCitations() {
+        const references = this.citationReferenceSources()
+            .map((source, index) => this.referenceTextForCitationSource(source, index + 1))
+            .filter(Boolean)
+            .map((reference) => `<p>${this.escapeLiteratureHtml(reference)}</p>`)
+            .join('');
+        const manualReferences = this.removeManagedReferenceBlocks(this.references);
+
+        if (references) {
+            this.references = manualReferences ? `${manualReferences}${references}` : references;
+        } else {
+            this.references = manualReferences;
+        }
+
+        window.syncProposalCitationMarkers?.('related-literature', this.citationReferenceNumbers());
+        this.$nextTick(() => {
+            document.getElementById('literature-citations')?.dispatchEvent(new Event('input', { bubbles: true }));
+            this.notifyLiteratureFieldChanged('references');
+            this.triggerDetailedProposalAutoSave();
+        });
+    },
+
+    recordLiteratureCitation(source, field, selectedText = '', locator = '') {
+        const sourceLinkId = Number(source?.id);
+        const normalizedSelectedText = String(selectedText || '').trim().slice(0, 2000);
+        const normalizedLocator = String(locator || '').trim().slice(0, 100);
+
+        if (!sourceLinkId) return null;
+
+        if (field === 'references' && this.literatureCitations.some((citation) => citation.source_link_id === sourceLinkId)) {
+            return this.citationReferenceNumber(source);
+        }
+
+        const duplicate = this.literatureCitations.find((citation) => (
+            citation.source_link_id === sourceLinkId
+            && citation.field === field
+            && citation.selected_text === normalizedSelectedText
+            && citation.locator === normalizedLocator
+        ));
+
+        if (duplicate) return this.citationReferenceNumber(source);
+
+        this.literatureCitations.push({
+            id: window.crypto?.randomUUID?.() || `citation-${Date.now()}-${sourceLinkId}`,
+            source_link_id: sourceLinkId,
+            literature_source_id: Number(source.literature_source_id || 0),
+            field,
+            selected_text: normalizedSelectedText,
+            locator: normalizedLocator,
+            created_at: new Date().toISOString(),
+        });
+
+        return this.citationReferenceNumber(source);
+    },
+
+    moveCitationReference(source, direction) {
+        const sourceLinkId = Number(source?.id);
+        const sourceIds = this.citationReferenceSourceIds();
+        const index = sourceIds.indexOf(sourceLinkId);
+        const destinationIndex = index + direction;
+
+        if (index < 0 || destinationIndex < 0 || destinationIndex >= sourceIds.length) return;
+
+        [sourceIds[index], sourceIds[destinationIndex]] = [sourceIds[destinationIndex], sourceIds[index]];
+        this.literatureCitations = sourceIds.flatMap((id) => this.literatureCitations.filter((citation) => citation.source_link_id === id));
+        this.synchronizeLiteratureCitations();
+        this.literatureSourceNotice = 'Reference order updated. Citation markers and Section XVI now use the new numbering.';
+    },
+
+    removeCitationSource(source) {
+        const sourceLinkId = Number(source?.id);
+
+        if (!sourceLinkId || !window.confirm('Remove this source’s citation markers and generated reference? The selected RRL wording will remain.')) return;
+
+        this.literatureCitations = this.literatureCitations.filter((citation) => citation.source_link_id !== sourceLinkId);
+        window.removeProposalCitationMarkers?.('related-literature', sourceLinkId);
+        this.synchronizeLiteratureCitations();
+        this.literatureSourceNotice = 'Citation markers and the generated reference were removed. The source remains saved in this proposal library.';
+    },
+
+    openCitationPicker(selection) {
+        if (!selection?.fieldId || !String(selection.selectedText || '').trim()) return;
+
+        this.citationPickerSelection = {
+            fieldId: String(selection.fieldId),
+            selectedText: String(selection.selectedText).trim(),
+        };
+        this.citationPickerQuery = '';
+        this.citationPickerResults = [];
+        this.citationPickerError = '';
+        this.citationPickerLocator = '';
+        this.citationPickerOpen = true;
+        document.body.classList.add('overflow-y-hidden');
+    },
+
+    closeCitationPicker() {
+        this.citationPickerOpen = false;
+        this.citationPickerSelection = null;
+        this.citationPickerError = '';
+        document.body.classList.remove('overflow-y-hidden');
+    },
+
+    async searchCitationLibrary() {
+        const query = this.citationPickerQuery.trim();
+
+        if (query.length < 2) {
+            this.citationPickerError = 'Enter at least two characters to search the shared literature library.';
+            return;
+        }
+
+        this.citationPickerLoading = true;
+        this.citationPickerError = '';
+
+        try {
+            const url = new URL(config.literatureLibrarySearchUrl || '', window.location.origin);
+            url.searchParams.set('query', query);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const payload = await response.json();
+
+            if (!response.ok) throw new Error(payload.message || 'The shared library could not be searched right now.');
+
+            this.citationPickerResults = Array.isArray(payload.sources) ? payload.sources : [];
+        } catch (error) {
+            this.citationPickerError = error.message || 'The shared library could not be searched right now.';
+        } finally {
+            this.citationPickerLoading = false;
+        }
+    },
+
+    async linkExistingLibrarySource(librarySource) {
+        const existing = this.literatureSources.find((source) => Number(source.literature_source_id) === Number(librarySource?.id));
+
+        if (existing) return existing;
+
+        const sourceId = Number(librarySource?.id);
+        const attachUrl = String(config.literatureAttachUrlTemplate || '')
+            .replace('__literature_source__', encodeURIComponent(String(sourceId)));
+
+        if (!sourceId || !attachUrl) return null;
+
+        const response = await fetch(attachUrl, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': config.csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ research_context: ['Citation from Section XI'] }),
+        });
+        const payload = await response.json();
+
+        if (!response.ok || !payload.source?.id) {
+            throw new Error(payload.message || 'This shared paper could not be linked to the proposal.');
+        }
+
+        this.upsertLiteratureSource(payload.source);
+
+        return payload.source;
+    },
+
+    linkedCitationSourceForLibrarySource(librarySource) {
+        return this.literatureSources.find(
+            (source) => Number(source.literature_source_id) === Number(librarySource?.id),
+        ) || null;
+    },
+
+    async citeSelectedText(source, sourceIsLinked = true) {
+        if (!this.citationPickerSelection || this.citationPickerSaving) return;
+
+        this.citationPickerSaving = true;
+        this.citationPickerError = '';
+
+        try {
+            const linkedSource = sourceIsLinked ? source : await this.linkExistingLibrarySource(source);
+
+            if (!linkedSource) throw new Error('Choose a paper from the proposal library or shared library first.');
+
+            const referenceNumber = this.recordLiteratureCitation(
+                linkedSource,
+                'related_literature',
+                this.citationPickerSelection.selectedText,
+                this.citationPickerLocator,
+            );
+            const inserted = window.insertProposalCitationMarker?.(
+                this.citationPickerSelection.fieldId,
+                linkedSource.id,
+                referenceNumber,
+            );
+
+            if (!inserted) {
+                this.literatureCitations.pop();
+                throw new Error('Select the text again, then choose Cite from library.');
+            }
+
+            this.synchronizeLiteratureCitations();
+            this.literatureSourceNotice = `Citation [${referenceNumber}] was linked to the selected text and added to Section XVI.`;
+            this.closeCitationPicker();
+        } catch (error) {
+            this.citationPickerError = error.message || 'The citation could not be added.';
+        } finally {
+            this.citationPickerSaving = false;
+        }
+    },
+
+    literatureSearchContextOptions() {
+        return [
+            { key: 'title', label: 'Project title', value: this.proposalTitle },
+            { key: 'generalObjective', label: 'General objective', value: this.generalObjective },
+            {
+                key: 'specificObjectives',
+                label: 'Specific objectives',
+                value: this.specificObjectives.map((objective) => objective.description).join(' '),
+            },
+            { key: 'researchAgenda', label: 'Research agenda', value: this.researchAgenda },
+            { key: 'methodology', label: 'Methodology', value: this.methodology.research_design },
+        ].map((context) => ({
+            ...context,
+            available: this.literatureSearchText(context.value).length >= 3,
+        }));
+    },
+
+    toggleLiteratureSearchContext(key) {
+        if (!Object.prototype.hasOwnProperty.call(this.literatureSearchContext, key)) return;
+
+        this.literatureSearchContext[key] = !this.literatureSearchContext[key];
+    },
+
+    literatureSearchText(value) {
+        return this.plainText(value)
+            .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+
+    literatureSearchExcerpt(value, maximumWords) {
+        return this.literatureSearchText(value)
+            .split(' ')
+            .filter(Boolean)
+            .slice(0, maximumWords)
+            .join(' ');
+    },
+
+    suggestedLiteratureContext() {
+        const maximumWords = {
+            title: 14,
+            generalObjective: 12,
+            specificObjectives: 18,
+            researchAgenda: 8,
+            methodology: 10,
+        };
+
+        return this.literatureSearchContextOptions()
+            .filter((context) => context.available && this.literatureSearchContext[context.key])
+            .map((context) => ({
+                ...context,
+                excerpt: this.literatureSearchExcerpt(context.value, maximumWords[context.key]),
+            }))
+            .filter((context) => context.excerpt);
+    },
+
+    suggestedLiteratureContextLabels() {
+        return this.suggestedLiteratureContext().map((context) => context.label);
+    },
+
+    buildSuggestedLiteratureQuery() {
+        const words = this.suggestedLiteratureContext()
+            .flatMap((context) => context.excerpt.split(' '))
+            .filter(Boolean)
+            .slice(0, 180);
+        let query = '';
+
+        words.forEach((word) => {
+            const candidate = `${query} ${word}`.trim();
+
+            if (candidate.length <= 180) query = candidate;
+        });
+
+        return query;
+    },
+
+    refreshSuggestedLiteratureQuery() {
+        this.literatureSearchQuery = this.buildSuggestedLiteratureQuery();
+        this.literatureSearchError = '';
+        this.literatureSearchNotice = this.literatureSearchQuery
+            ? `Suggested from: ${this.suggestedLiteratureContextLabels().join(', ')}. Edit it before searching if needed.`
+            : 'Add a project title, objective, research agenda, or methodology detail to create a suggested query.';
+    },
+
+    literatureResultKey(result) {
+        return String(result?.doi || result?.provider_identifier || result?.url || result?.title || '')
+            .trim()
+            .toLowerCase();
+    },
+
+    linkedLiteratureSourceForResult(result) {
+        const doi = String(result?.doi || '').trim().toLowerCase().replace(/^https?:\/\/(?:dx\.)?doi\.org\//, '');
+        const title = String(result?.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+        return this.literatureSources.find((source) => {
+            const sourceDoi = String(source?.doi || '').trim().toLowerCase().replace(/^https?:\/\/(?:dx\.)?doi\.org\//, '');
+            const sourceTitle = String(source?.title || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+            return (doi && sourceDoi === doi) || (title && sourceTitle === title);
+        }) || null;
+    },
+
+    isSavingSuggestedLiterature(result) {
+        return this.literatureSearchSavingKey === this.literatureResultKey(result);
+    },
+
+    hasUsableSuggestedAbstract(result) {
+        const abstract = String(result?.description || '').trim();
+
+        return abstract.length >= 80 && abstract !== 'No description available from source.';
+    },
+
+    recordLiteratureSearch(query, resultCount) {
+        const entry = {
+            id: `${query}-${Date.now()}`,
+            query,
+            context: this.suggestedLiteratureContextLabels(),
+            resultCount,
+            searchedAt: new Date().toISOString(),
+        };
+        const normalizedQuery = query.toLowerCase();
+
+        this.literatureSearchHistory = [
+            entry,
+            ...this.literatureSearchHistory.filter((history) => history.query.toLowerCase() !== normalizedQuery),
+        ].slice(0, 8);
+        this.$nextTick(() => this.triggerDetailedProposalAutoSave());
+    },
+
+    literatureSearchHistoryLabel(entry) {
+        const context = Array.isArray(entry.context) && entry.context.length
+            ? `from ${entry.context.join(', ')}`
+            : 'custom query';
+        const resultLabel = Number(entry.resultCount) === 1 ? 'result' : 'results';
+
+        return `${entry.resultCount || 0} ${resultLabel} · ${context}`;
+    },
+
+    runLiteratureSearchHistory(entry) {
+        this.literatureSearchQuery = String(entry?.query || '');
+        this.searchSuggestedLiterature();
+    },
+
+    async searchSuggestedLiterature() {
+        const query = this.literatureSearchQuery.trim();
+
+        if (query.length < 3) {
+            this.literatureSearchError = 'Enter at least three characters to search the academic indexes.';
+            return;
+        }
+
+        this.literatureSearchLoading = true;
+        this.literatureSearchError = '';
+        this.literatureSearchNotice = '';
+
+        try {
+            const response = await fetch(config.literatureSearchUrl || '', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ query }),
+            });
+            const payload = await response.json();
+
+            if (!response.ok) throw new Error(payload.message || 'Related literature could not be searched right now.');
+
+            this.literatureSearchResults = Array.isArray(payload.results)
+                ? payload.results.map((result) => {
+                    const linkedSource = this.linkedLiteratureSourceForResult(result);
+
+                    return {
+                        ...result,
+                        _linked: Boolean(linkedSource),
+                        _linkedSource: linkedSource,
+                        _actionNotice: '',
+                    };
+                })
+                : [];
+            this.literatureSearchNotice = payload.provider_notice || (this.literatureSearchResults.length
+                ? 'Review the abstract and source record before linking a paper.'
+                : 'No matching papers were returned. Edit the query or include different proposal details.');
+            this.recordLiteratureSearch(query, this.literatureSearchResults.length);
+        } catch (error) {
+            this.literatureSearchError = error.message || 'Related literature could not be searched right now.';
+        } finally {
+            this.literatureSearchLoading = false;
+        }
+    },
+
+    libraryPayloadForSuggestedResult(result) {
+        return {
+            title: result.title,
+            description: result.description,
+            authors: result.authors,
+            year: result.year,
+            publication_date: result.publication_date,
+            venue: result.venue,
+            volume: result.volume,
+            issue: result.issue,
+            pages: result.pages,
+            publisher: result.publisher,
+            doi: result.doi,
+            url: result.url,
+            full_text_token: result.full_text_token,
+            source: result.source,
+            provider_identifier: result.provider_identifier,
+            citation_count: result.citation_count,
+            is_open_access: result.is_open_access,
+            access_status: result.access_status,
+            type: result.type,
+        };
+    },
+
+    upsertLiteratureSource(source) {
+        const index = this.literatureSources.findIndex((item) => Number(item.id) === Number(source.id));
+
+        if (index === -1) {
+            this.literatureSources = [...this.literatureSources, source];
+        } else {
+            this.literatureSources.splice(index, 1, source);
+        }
+
+        this.literatureSearchResults.forEach((result) => {
+            if (Number(result?._linkedSource?.id) !== Number(source.id)) return;
+
+            result._linked = true;
+            result._linkedSource = source;
+        });
+    },
+
+    async ensureSuggestedLiteratureLinked(result) {
+        if (result?._linkedSource?.id) return result._linkedSource;
+
+        const resultKey = this.literatureResultKey(result);
+
+        if (!resultKey || this.literatureSearchSavingKey) return null;
+
+        this.literatureSearchSavingKey = resultKey;
+        this.literatureSearchError = '';
+
+        try {
+            const saveResponse = await fetch(config.literatureLibrarySaveUrl || '', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(this.libraryPayloadForSuggestedResult(result)),
+            });
+            const savePayload = await saveResponse.json();
+
+            if (!saveResponse.ok || !savePayload.source?.id) {
+                throw new Error(savePayload.message || 'This paper could not be saved to the shared literature library.');
+            }
+
+            const attachUrl = String(config.literatureAttachUrlTemplate || '')
+                .replace('__literature_source__', encodeURIComponent(String(savePayload.source.id)));
+            const attachResponse = await fetch(attachUrl, {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ research_context: this.suggestedLiteratureContextLabels() }),
+            });
+            const attachPayload = await attachResponse.json();
+
+            if (!attachResponse.ok || !attachPayload.source?.id) {
+                throw new Error(attachPayload.message || 'The shared paper was saved but could not be linked to this proposal.');
+            }
+
+            result._linked = true;
+            result._linkedSource = attachPayload.source;
+            this.upsertLiteratureSource(attachPayload.source);
+
+            return attachPayload.source;
+        } catch (error) {
+            this.literatureSearchError = error.message || 'This paper could not be linked to the proposal.';
+
+            return null;
+        } finally {
+            this.literatureSearchSavingKey = '';
+        }
+    },
+
+    async saveSuggestedLiterature(result) {
+        const source = await this.ensureSuggestedLiteratureLinked(result);
+
+        if (source) {
+            result._actionNotice = 'Saved to this proposal library.';
+            this.literatureSearchNotice = result._actionNotice;
+        }
+    },
+
+    async addSuggestedLiteratureReference(result) {
+        const source = await this.ensureSuggestedLiteratureLinked(result);
+
+        if (!source) return;
+
+        const added = this.addLiteratureSourceToReferences(source);
+
+        result._actionNotice = added
+            ? 'Reference added to Section XVI and autosaving.'
+            : 'This reference is already in Section XVI.';
+    },
+
+    async prepareSuggestedLiteratureReview(result) {
+        const source = await this.ensureSuggestedLiteratureLinked(result);
+
+        if (!source) return;
+
+        this.openLiteratureReview({
+            ...source,
+            description: String(source.description || result.description || ''),
+            full_text_token: source.full_text_token || result.full_text_token || null,
+            full_text_url: source.full_text_url || result.full_text_url || null,
+        });
+    },
+
+    prepareLinkedLiteratureReview(source) {
+        if (!source?.id) return;
+
+        this.openLiteratureReview(source);
+    },
+
+    openLiteratureReview(source) {
+        this.literatureReviewSource = source;
+        this.literatureReviewDraft = String(source.rrl_note || '');
+        this.literatureReviewBasis = source.rrl_evidence_basis === 'full_text' ? 'full_text' : 'abstract';
+        this.literatureReviewFullText = '';
+        this.literatureReviewFullTextError = '';
+        this.literatureReviewNotice = '';
+        this.literatureReviewError = '';
+        this.literatureReviewOpen = true;
+        document.body.classList.add('overflow-y-hidden');
+    },
+
+    closeLiteratureReview() {
+        this.literatureReviewOpen = false;
+        this.literatureReviewError = '';
+        document.body.classList.remove('overflow-y-hidden');
+    },
+
+    literatureReviewEvidence() {
+        if (this.literatureReviewBasis === 'full_text' && this.literatureReviewFullText) {
+            return this.literatureReviewFullText;
+        }
+
+        return String(this.literatureReviewSource?.description || '');
+    },
+
+    hasLiteratureReviewEvidence() {
+        const minimumLength = this.literatureReviewBasis === 'full_text' ? 500 : 80;
+
+        return this.literatureReviewEvidence().trim().length >= minimumLength;
+    },
+
+    literatureReviewWordCount() {
+        const text = this.literatureReviewDraft.trim();
+
+        return text ? text.split(/\s+/).length : 0;
+    },
+
+    async loadLiteratureReviewFullText() {
+        const sourceToken = this.literatureReviewSource?.full_text_token;
+
+        if (!sourceToken || this.literatureReviewLoadingFullText) return;
+
+        this.literatureReviewLoadingFullText = true;
+        this.literatureReviewFullTextError = '';
+
+        try {
+            const response = await fetch(config.literatureFullTextPreviewUrl || '', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({ source_token: sourceToken }),
+            });
+            const payload = await response.json();
+
+            if (!response.ok || String(payload.preview_text || '').trim().length < 500) {
+                throw new Error(payload.message || 'The public full text could not be loaded. The indexed abstract remains available.');
+            }
+
+            this.literatureReviewFullText = String(payload.preview_text);
+            this.literatureReviewBasis = 'full_text';
+            this.literatureReviewNotice = payload.notice || 'Public full text loaded only for this review.';
+        } catch (error) {
+            this.literatureReviewFullTextError = error.message || 'The public full text could not be loaded.';
+        } finally {
+            this.literatureReviewLoadingFullText = false;
+        }
+    },
+
+    async generateLiteratureReviewDraft() {
+        if (this.literatureReviewGenerating || !this.hasLiteratureReviewEvidence()) return;
+
+        this.literatureReviewGenerating = true;
+        this.literatureReviewError = '';
+        this.literatureReviewNotice = '';
+
+        try {
+            const response = await fetch(config.literatureSynthesisUrl || '', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    title: this.literatureReviewSource?.title,
+                    authors: this.literatureReviewSource?.authors,
+                    year: this.literatureReviewSource?.year,
+                    abstract: String(this.literatureReviewSource?.description || '').slice(0, 6000),
+                    is_open_access: this.literatureReviewBasis === 'full_text',
+                    evidence_basis: this.literatureReviewBasis,
+                    evidence_text: this.literatureReviewBasis === 'full_text'
+                        ? this.literatureReviewFullText.slice(0, 30000)
+                        : undefined,
+                }),
+            });
+            const payload = await response.json();
+
+            if (!response.ok) throw new Error(payload.message || 'ATHENA could not prepare an RRL draft right now.');
+
+            this.literatureReviewDraft = String(payload.synthesis || '');
+            this.literatureReviewNotice = payload.notice || 'Review the generated paragraph before confirming it.';
+        } catch (error) {
+            this.literatureReviewError = error.message || 'ATHENA could not prepare an RRL draft right now.';
+        } finally {
+            this.literatureReviewGenerating = false;
+        }
+    },
+
+    async saveLiteratureReview(addToRelatedLiterature = false) {
+        const source = this.literatureReviewSource;
+        const draft = this.literatureReviewDraft.trim();
+
+        if (!source?.id || draft.length < 40 || this.literatureReviewSaving) return;
+
+        this.literatureReviewSaving = true;
+        this.literatureReviewError = '';
+
+        try {
+            const updateUrl = String(config.literatureDraftUpdateUrlTemplate || '')
+                .replace('__proposal_literature_source__', encodeURIComponent(String(source.id)));
+            const response = await fetch(updateUrl, {
+                method: 'PUT',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    rrl_note: draft,
+                    rrl_draft_status: addToRelatedLiterature ? 'confirmed' : 'draft',
+                    rrl_evidence_basis: this.literatureReviewBasis,
+                }),
+            });
+            const payload = await response.json();
+
+            if (!response.ok || !payload.source?.id) {
+                throw new Error(payload.message || 'The reviewed RRL paragraph could not be confirmed.');
+            }
+
+            this.upsertLiteratureSource(payload.source);
+
+            if (addToRelatedLiterature) {
+                this.addLiteratureSourceToRrl(payload.source, true);
+                this.literatureSourceNotice = 'RRL paragraph and its reference were added to Sections XI and XVI. Autosaving now.';
+            } else {
+                this.literatureSourceNotice = 'RRL paragraph saved for later review. It has not been added to Section XI.';
+            }
+
+            this.closeLiteratureReview();
+            if (addToRelatedLiterature) this.focusLiteratureDestination('rrl');
+        } catch (error) {
+            this.literatureReviewError = error.message || 'The reviewed RRL paragraph could not be saved.';
+        } finally {
+            this.literatureReviewSaving = false;
+        }
+    },
+
+    plainText(value) {
+        const template = document.createElement('template');
+        template.innerHTML = String(value ?? '').replace(/<(?:br\s*\/?>|\/p|\/div|\/li)>/gi, '\n');
+
+        return (template.content.textContent || '').trim();
+    },
+
+    normalizedObjectives(generalValue, value, legacyValue = '') {
+        let generalObjective = String(generalValue ?? '');
+        let section = this.plainText(generalObjective) ? 'specific' : null;
+        const source = Array.isArray(value) ? value : String(legacyValue || '')
+            .split(/\r?\n/)
+            .map((description) => ({ description }));
+        const specificObjectives = [];
+
+        source.forEach((objective) => {
+            const description = this.plainText(objective?.description)
+                .replace(/^\s*(?:\d+[.)]|[-\u2022])\s*/, '');
+
+            if (!description) return;
+
+            if (/^general objectives?:?$/i.test(description)) {
+                section = 'general';
+
+                return;
+            }
+
+            if (/^specific objectives?:?$/i.test(description)) {
+                section = 'specific';
+
+                return;
+            }
+
+            if (section === 'general' && !this.plainText(generalObjective)) {
+                generalObjective = description;
+
+                return;
+            }
+
+            specificObjectives.push(this.newSpecificObjective({ description }));
+        });
+
+        return {
+            generalObjective,
+            specificObjectives: specificObjectives.filter((objective) => objective.description.trim()),
+        };
+    },
+
+    normalizedSpecificObjectives(value, legacyValue = '') {
+        const objectives = Array.isArray(value) ? value : String(legacyValue || '')
+            .split(/\r?\n/)
+            .map((description) => ({ description: description.replace(/^\s*(?:\d+[.)]|[-•])\s*/, '') }));
+
+        return objectives
+            .map((objective) => this.newSpecificObjective(objective))
+            .filter((objective) => objective.description.trim());
+    },
+
+    newSpecificObjective(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            description: String(values.description ?? ''),
+        };
+    },
+
+    addSpecificObjective() {
+        this.specificObjectives.push(this.newSpecificObjective());
+    },
+
+    removeSpecificObjective(index) {
+        this.specificObjectives.splice(index, 1);
+    },
+
+    moveSpecificObjective(index, direction) {
+        const target = index + direction;
+
+        if (target < 0 || target >= this.specificObjectives.length) return;
+
+        [this.specificObjectives[index], this.specificObjectives[target]] = [
+            this.specificObjectives[target],
+            this.specificObjectives[index],
+        ];
+    },
+
+    normalizedExpectedOutputs(value) {
+        const entries = Array.isArray(value)
+            ? value
+            : (String(value || '').trim() ? [{ description: value }] : []);
+
+        return entries.map((entry) => this.newExpectedOutput(entry));
+    },
+
+    newExpectedOutput(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            description: this.expectedOutputDescription(values),
+        };
+    },
+
+    expectedOutputDescription(values) {
+        const description = this.plainText(values.description);
+        const quantity = Number(values.quantity);
+        const unit = this.plainText(values.unit);
+
+        if (!Number.isInteger(quantity) || quantity < 1 || !description) return description;
+        if (description.includes(`(${quantity.toLocaleString('en-US')})`)) return description;
+
+        const quantityWords = [
+            '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+            'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen',
+            'Eighteen', 'Nineteen', 'Twenty',
+        ];
+        const label = quantityWords[quantity] || String(quantity);
+
+        return `${label} (${quantity.toLocaleString('en-US')}) ${unit} ${description}`.trim();
+    },
+
+    addExpectedOutput(key) {
+        if (!Array.isArray(this.expectedOutputs[key])) this.expectedOutputs[key] = [];
+
+        this.expectedOutputs[key].push(this.newExpectedOutput());
+    },
+
+    removeExpectedOutput(key, index) {
+        this.expectedOutputs[key]?.splice(index, 1);
+    },
+
+    startDetailedProposalAutoSave() {
+        const form = this.detailedProposalAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedDetailedProposal = this.autoSaveInitialContent
+            ? ''
+            : this.detailedProposalFingerprint(form);
+
+        form.addEventListener('input', () => this.triggerDetailedProposalAutoSave());
+        form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
+
+        if (this.autoSaveInitialContent) this.triggerDetailedProposalAutoSave();
+    },
+
+    detailedProposalAutoSaveForm() {
+        return this.$refs.form;
+    },
+
+    detailedProposalFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name))
+            .map(([name, value]) => [name, value instanceof File
+                ? {
+                    name: value.name,
+                    size: value.size,
+                    type: value.type,
+                    lastModified: value.lastModified,
+                }
+                : value]));
+    },
+
+    detailedProposalAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerDetailedProposalAutoSave() {
+        this.autoSaveRevision += 1;
+        this.scheduleDetailedProposalAutoSave();
+    },
+
+    scheduleDetailedProposalAutoSave() {
+        if (this.autoSaveBlocked) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.detailedProposalAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (this.detailedProposalFingerprint(form) === this.lastSavedDetailedProposal) return;
+
+        this.detailedProposalAutoSaveStatus('Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveDetailedProposal(), 1200);
+    },
+
+    saveDetailedProposalNow() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.saveDetailedProposal();
+    },
+
+    detailedProposalShouldSaveAsDraft() {
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+    },
+
+    async saveDetailedProposal() {
+        const form = this.detailedProposalAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
+
+        const fingerprint = this.detailedProposalFingerprint(form);
+
+        if (fingerprint === this.lastSavedDetailedProposal) return;
+
+        const saveMode = form.querySelector('[data-paper-save-mode]');
+
+        if (saveMode instanceof HTMLInputElement) {
+            saveMode.value = this.detailedProposalShouldSaveAsDraft() ? '1' : '0';
+        }
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.detailedProposalAutoSaveStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(config.updateUrl || form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': config.csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+            const payload = await response.json();
+
+            if (response.status === 422) {
+                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                    || 'Please review the Detailed Research Proposal information.';
+                this.detailedProposalAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
+
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'The Detailed Research Proposal could not be saved.');
+            }
+
+            const documentVersion = form.querySelector('[name="document_version"]');
+            const draftVersion = form.querySelector('[name="draft_version"]');
+
+            if (documentVersion instanceof HTMLInputElement) documentVersion.value = String(payload.document_version);
+            if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
+
+            this.applySavedMethodologyImages(payload.methodology_images || []);
+            this.lastSavedDetailedProposal = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision) {
+                this.scheduleDetailedProposalAutoSave();
+
+                return;
+            }
+
+            this.lastSavedDetailedProposal = this.detailedProposalFingerprint(form);
+            this.$el.dataset.paperDirty = 'false';
+            this.validationMessage = '';
+            this.detailedProposalAutoSaveStatus(
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                'saved',
+            );
+        } catch (error) {
+            this.$el.dataset.paperDirty = 'true';
+
+            if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
+                this.autoSaveBlocked = true;
+                this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                this.detailedProposalAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+
+                return;
+            }
+
+            this.detailedProposalAutoSaveStatus('Could not save. Check your connection, then continue editing.', 'error');
+        } finally {
+            this.autoSaveInFlight = false;
+        }
+    },
+
+    applySavedMethodologyImages(savedImages) {
+        const imagesByClientId = new Map(
+            savedImages
+                .filter((image) => image && image.client_id && image.id && image.url)
+                .map((image) => [String(image.client_id), image]),
+        );
+
+        this.methodologyImages.forEach((image) => {
+            const savedImage = imagesByClientId.get(String(image.clientId));
+
+            if (!savedImage) return;
+
+            if (image.previewUrl.startsWith('blob:')) URL.revokeObjectURL(image.previewUrl);
+            image.id = String(savedImage.id);
+            image.previewUrl = String(savedImage.url);
+            image.currentFile = null;
+        });
+
+        this.$nextTick(() => {
+            this.methodologyImages.forEach((image) => {
+                const input = document.getElementById(`methodology-image-file-${image.clientId}`);
+
+                if (input instanceof HTMLInputElement) input.value = '';
+            });
+        });
     },
 
     focusLiteratureDestination(action) {
@@ -5281,51 +8074,68 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             if (!field) return;
 
-            const destination = field.closest('section') || field;
+            const focusTarget = field._semanticEditor instanceof HTMLElement ? field._semanticEditor : field;
+            const destination = focusTarget.closest('section') || focusTarget;
             const destinationTop = destination.getBoundingClientRect().top + window.scrollY - 144;
 
             window.scrollTo({ top: Math.max(0, destinationTop), behavior: 'smooth' });
-            field.focus({ preventScroll: true });
+            focusTarget.focus({ preventScroll: true });
         }, 400);
     },
 
     addLiteratureSourceToRrl(source, quiet = false) {
         const note = String(source?.rrl_note || '').trim();
-        const citation = String(source?.rrl_citation || '').trim();
-        const citedNote = citation && !note.includes(citation) ? `${note} ${citation}` : note;
-        const title = String(source?.title || '').trim();
 
         if (!note || source?.rrl_draft_status !== 'confirmed') {
             if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Return to the RRL Finder to review and confirm this draft first.';
             return false;
         }
 
-        if ((citation && this.relatedLiterature.includes(citation)) || (title && this.relatedLiterature.toLowerCase().includes(title.toLowerCase()))) {
+        const normalizedNote = this.plainText(note).toLowerCase().replace(/\s+/g, ' ');
+        const normalizedRelatedLiterature = this.plainText(this.relatedLiterature).toLowerCase().replace(/\s+/g, ' ');
+
+        if (normalizedNote && normalizedRelatedLiterature.includes(normalizedNote)) {
             if (!quiet) this.literatureSourceNotice = 'That source already appears in the Related Studies and Literature field.';
             return false;
         }
 
+        const referenceNumber = this.recordLiteratureCitation(source, 'related_literature', note);
+        const marker = `<span data-proposal-citation="${Number(source.id)}"> [${referenceNumber}]</span>`;
+        const citedNote = note.includes(`[${referenceNumber}]`) ? note : `${note}${marker}`;
+
         this.relatedLiterature = this.appendLiteratureText(this.relatedLiterature, citedNote);
+        this.synchronizeLiteratureCitations();
         this.notifyLiteratureFieldChanged('related-literature');
-        if (!quiet) this.literatureSourceNotice = 'Reviewed RRL paragraph added to Section XI. Revise it as needed before submission.';
+        if (!quiet) {
+            this.literatureSourceNotice = 'RRL paragraph and its reference were added to Sections XI and XVI. Autosaving now.';
+            this.focusLiteratureDestination('rrl');
+        }
 
         return true;
     },
 
     addLiteratureSourceToReferences(source, quiet = false) {
         const reference = String(source?.reference || '').trim();
-        const identity = String(source?.doi || source?.title || '').trim().toLowerCase();
 
-        if (!reference || (identity && this.references.toLowerCase().includes(identity))) {
-            if (!quiet) this.literatureSourceNotice = 'That source already appears in the References field.';
+        if (!reference) {
+            if (!quiet) this.literatureSourceNotice = 'ATHENA could not prepare a reference because this source has incomplete citation metadata.';
             return false;
         }
 
-        this.references = this.appendLiteratureText(this.references, reference);
-        this.notifyLiteratureFieldChanged('references');
+        const wasAlreadyReferenced = this.citationReferenceNumber(source) !== null;
+        const referenceNumber = this.recordLiteratureCitation(source, 'references');
+        this.synchronizeLiteratureCitations();
+
+        if (wasAlreadyReferenced) {
+            if (!quiet) this.literatureSourceNotice = 'That source already appears in the References field.';
+
+            return false;
+        }
+
         if (!quiet) this.literatureSourceNotice = source.reference_incomplete
             ? 'IEEE reference added to Section XVI. Some source metadata was unavailable, so review the incomplete fields.'
-            : 'IEEE reference added to Section XVI with its synchronized number.';
+            : `IEEE reference [${referenceNumber}] added to Section XVI.`;
+        if (!quiet) this.focusLiteratureDestination('reference');
 
         return true;
     },
@@ -5351,7 +8161,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     notifyLiteratureFieldChanged(fieldId) {
         window.setTimeout(() => {
-            document.getElementById(fieldId)?.dispatchEvent(new Event('input', { bubbles: true }));
+            const field = document.getElementById(fieldId);
+
+            if (!field) return;
+
+            if (typeof field._syncSemanticEditor === 'function') field._syncSemanticEditor();
+            field.dispatchEvent(new Event('input', { bubbles: true }));
         });
     },
 
@@ -5456,6 +8271,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         this.$nextTick(() => {
             newImages.forEach((image) => this.assignMethodologyImageFile(image, image.currentFile));
+            this.triggerDetailedProposalAutoSave();
         });
     },
 
@@ -5485,6 +8301,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         image.currentFile = file;
         image.originalFilename = file.name;
         this.validationMessage = '';
+        this.triggerDetailedProposalAutoSave();
     },
 
     startMethodologyImageDrag(clientId) {
@@ -5517,6 +8334,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const lastSectionImage = sectionImages.at(-1);
         const targetIndex = lastSectionImage ? this.methodologyImageIndex(lastSectionImage) + 1 : this.methodologyImages.length;
         this.methodologyImages.splice(targetIndex, 0, image);
+        this.triggerDetailedProposalAutoSave();
     },
 
     moveMethodologyImage(image, direction) {
@@ -5530,12 +8348,14 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const destinationIndex = this.methodologyImageIndex(destination);
         this.methodologyImages.splice(imageIndex, 1);
         this.methodologyImages.splice(destinationIndex, 0, image);
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeMethodologyImage(image) {
         if (image.previewUrl.startsWith('blob:')) URL.revokeObjectURL(image.previewUrl);
 
         this.methodologyImages.splice(this.methodologyImageIndex(image), 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     normalizeContactNumber(value) {
@@ -5583,10 +8403,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.selectedWorkspacePerson = '';
         this.workspacePersonQuery = '';
         this.workspacePickerOpen = false;
+        this.triggerDetailedProposalAutoSave();
     },
 
     addStaff() {
         this.staff.push(this.newStaff());
+        this.triggerDetailedProposalAutoSave();
     },
 
     syncStaff(member) {
@@ -5624,22 +8446,26 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     removeStaff(index) {
         this.staff.splice(index, 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     addResponsibility() {
         this.responsibilities.push(this.newResponsibility());
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeResponsibility(index) {
         if (this.responsibilities.length === 1) return;
 
         this.responsibilities.splice(index, 1);
+        this.triggerDetailedProposalAutoSave();
     },
 
     isComplete() {
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
         return this.sdgs.length > 0
+            && Object.values(this.expectedOutputs).some((output) => String(output).trim() !== '')
             && fields.every((field) => field.disabled || field.checkValidity());
     },
 
@@ -5763,6 +8589,9 @@ initializeResearchCallImageExtractors();
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
+document.addEventListener('livewire:navigated', initializeSemanticEditors);
+document.addEventListener('alpine:initialized', initializeSemanticEditors);
 if (typeof window.livewireScriptConfig !== 'undefined') {
     Livewire.start();
 }
+window.requestAnimationFrame(initializeSemanticEditors);

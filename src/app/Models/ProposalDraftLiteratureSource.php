@@ -44,6 +44,7 @@ class ProposalDraftLiteratureSource extends Model
         'rrl_word_count',
         'rrl_generated_at',
         'reference_text',
+        'research_context',
     ];
 
     protected $attributes = [
@@ -60,6 +61,7 @@ class ProposalDraftLiteratureSource extends Model
             'is_open_access' => 'boolean',
             'rrl_word_count' => 'integer',
             'rrl_generated_at' => 'datetime',
+            'research_context' => 'array',
         ];
     }
 
@@ -141,6 +143,7 @@ class ProposalDraftLiteratureSource extends Model
             'rrl_citation' => $referenceNumber !== null ? "[{$referenceNumber}]" : null,
             'reference' => $this->referenceDraft($referenceNumber),
             'reference_incomplete' => IeeeReferenceFormatter::isIncomplete($this),
+            'research_context' => $this->research_context ?? [],
         ];
     }
 

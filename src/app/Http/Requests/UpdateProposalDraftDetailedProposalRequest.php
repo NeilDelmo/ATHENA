@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftLiteratureSource;
 use App\Support\DetailedProposalRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -83,6 +84,11 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         $merged['project_leader'] = Str::of((string) ($merged['project_leader'] ?? $draft->project_leader))
             ->squish()
             ->toString();
+        $merged = $this->normalizeStructuredProposalFields($merged);
+        $merged['literature_citations'] = $this->normalizeLiteratureCitations(
+            $draft,
+            $merged['literature_citations'] ?? '[]',
+        );
 
         $this->replace([
             ...$merged,
@@ -137,5 +143,95 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     {
         return $this->routeIs('faculty.proposal-drafts.detailed-proposal.preview')
             || ($this->routeIs('faculty.proposal-drafts.detailed-proposal.update') && $this->boolean('save_as_draft'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function normalizeStructuredProposalFields(array $data): array
+    {
+        if (! is_array($data['specific_objectives'] ?? null)) {
+            $data['specific_objectives'] = collect(preg_split('/\R+/u', (string) ($data['objectives'] ?? '')) ?: [])
+                ->map(fn (string $objective): string => preg_replace('/^\s*(?:\d+[.)]|[-•])\s*/u', '', $objective) ?: '')
+                ->filter()
+                ->map(fn (string $description): array => ['description' => $description])
+                ->values()
+                ->all();
+        }
+
+        $data['expected_outputs'] = collect(config('detailed_proposal.expected_outputs'))
+            ->mapWithKeys(function (string $label, string $key) use ($data): array {
+                $value = $data['expected_outputs'][$key] ?? [];
+
+                if (is_string($value)) {
+                    $value = $value === '' ? [] : [[
+                        'quantity' => null,
+                        'unit' => '',
+                        'description' => $value,
+                    ]];
+                }
+
+                return [$key => is_array($value) ? $value : []];
+            })
+            ->all();
+
+        return $data;
+    }
+
+    private function normalizeLiteratureCitations(ProposalDraft $draft, mixed $value): string
+    {
+        try {
+            $citations = is_string($value) ? json_decode($value, true, 512, JSON_THROW_ON_ERROR) : $value;
+        } catch (\JsonException) {
+            $citations = [];
+        }
+
+        if (! is_array($citations)) {
+            return '[]';
+        }
+
+        $sourceIds = $draft->literatureSources()
+            ->get(['id', 'literature_source_id'])
+            ->mapWithKeys(fn (ProposalDraftLiteratureSource $source): array => [$source->getKey() => $source->literature_source_id]);
+
+        $normalized = collect($citations)
+            ->filter(fn (mixed $citation): bool => is_array($citation))
+            ->map(function (array $citation) use ($sourceIds): ?array {
+                $sourceLinkId = (int) ($citation['source_link_id'] ?? 0);
+                $literatureSourceId = $sourceIds->get($sourceLinkId);
+                $field = $citation['field'] ?? null;
+                $selectedText = Str::squish((string) ($citation['selected_text'] ?? ''));
+
+                if ($literatureSourceId === null
+                    || ! in_array($field, ['related_literature', 'references'], true)
+                    || ($field === 'related_literature' && $selectedText === '')) {
+                    return null;
+                }
+
+                $identifier = Str::limit(trim((string) ($citation['id'] ?? '')), 80, '');
+
+                return [
+                    'id' => $identifier !== '' ? $identifier : Str::uuid()->toString(),
+                    'source_link_id' => $sourceLinkId,
+                    'literature_source_id' => $literatureSourceId,
+                    'field' => $field,
+                    'selected_text' => Str::limit($selectedText, 2000, ''),
+                    'locator' => Str::limit(Str::squish((string) ($citation['locator'] ?? '')), 100, ''),
+                    'created_at' => Str::limit(trim((string) ($citation['created_at'] ?? '')), 40, ''),
+                ];
+            })
+            ->filter()
+            ->unique(fn (array $citation): string => implode('|', [
+                $citation['source_link_id'],
+                $citation['field'],
+                Str::lower($citation['selected_text']),
+                Str::lower($citation['locator']),
+            ]))
+            ->take(100)
+            ->values()
+            ->all();
+
+        return json_encode($normalized, JSON_THROW_ON_ERROR);
     }
 }

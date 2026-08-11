@@ -1,9 +1,5 @@
 @php
-    $paragraphs = fn (string $text): array => collect(preg_split('/\R+/u', $text) ?: [])
-        ->map(fn (string $line): string => trim($line))
-        ->filter()
-        ->values()
-        ->all();
+    $richText = app(\App\Support\ProposalRichText::class);
     $signatoryName = fn (string $key): string => \Illuminate\Support\Str::upper($detailedProposal[$key] ?: 'NAME');
     $sdgs = config('detailed_proposal.sdgs');
 @endphp
@@ -85,25 +81,28 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">VII. Executive Brief:</p>
-                            @foreach ($paragraphs($detailedProposal['executive_brief']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            {!! $richText->sanitize($detailedProposal['executive_brief']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p><span class="detailed-proposal-section-heading">VIII. Rationale:</span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
-                            @foreach ($paragraphs($detailedProposal['rationale']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            {!! $richText->sanitize($detailedProposal['rationale']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">IX. Objectives of the Project:</p>
-                            @foreach ($paragraphs($detailedProposal['objectives']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            @if (filled($detailedProposal['general_objective']))
+                                <p><strong>General Objective:</strong></p>
+                                {!! $richText->sanitize($detailedProposal['general_objective']) !!}
+                            @endif
+                            <p><strong>Specific Objectives:</strong></p>
+                            <ol class="detailed-proposal-output-list">
+                                @foreach ($detailedProposal['specific_objectives'] as $objective)
+                                    <li>{!! $richText->sanitize($objective['description']) !!}</li>
+                                @endforeach
+                            </ol>
                         </td>
                     </tr>
                     <tr>
@@ -111,7 +110,9 @@
                             <p><span class="detailed-proposal-section-heading">X. Expected Output of the Project:</span> <span class="detailed-proposal-section-note is-plain">(based on expanded 6Ps &amp; 2Is of research)</span></p>
                             <ol class="detailed-proposal-output-list">
                                 @foreach (config('detailed_proposal.expected_outputs') as $key => $label)
-                                    <li>{{ $label }}: {{ $detailedProposal['expected_outputs'][$key] }}</li>
+                                    @foreach ($detailedProposal['expected_outputs'][$key] as $output)
+                                        <li><strong>{{ $label }}:</strong> {{ $output['description'] }}</li>
+                                    @endforeach
                                 @endforeach
                             </ol>
                         </td>
@@ -119,13 +120,9 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XI. Introduction:</p>
-                            @foreach ($paragraphs($detailedProposal['introduction']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            {!! $richText->sanitize($detailedProposal['introduction']) !!}
                             <p><span class="detailed-proposal-section-heading">Related Studies and Literature:</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
-                            @foreach ($paragraphs($detailedProposal['related_literature']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            {!! $richText->sanitize($detailedProposal['related_literature']) !!}
                         </td>
                     </tr>
                     <tr>
@@ -146,9 +143,7 @@
                                                 <p class="detailed-proposal-methodology-caption is-{{ $image['alignment'] }}">{{ 'Figure '.$figureNumber.'.'.($image['caption'] ? ' '.$image['caption'] : '') }}</p>
                                             @endforeach
                                         @endif
-                                        @foreach ($paragraphs($detailedProposal['methodology'][$key]) as $paragraph)
-                                            <p>{{ $paragraph }}</p>
-                                        @endforeach
+                                        {!! $richText->sanitize($detailedProposal['methodology'][$key]) !!}
                                     </li>
                                 @endforeach
                             </ul>
@@ -159,9 +154,7 @@
                             <p class="detailed-proposal-section-heading">XIII. Duties and Responsibilities of each member:</p>
                             @foreach ($detailedProposal['responsibilities'] as $responsibility)
                                 <p class="detailed-proposal-responsibility-name">{{ $loop->first ? 'Project Leader' : 'Project Staff (s)' }}: <span>{{ \Illuminate\Support\Str::upper($responsibility['name']) }} ({{ $responsibility['percentage'] }}%)</span></p>
-                                @foreach ($paragraphs($responsibility['duties']) as $paragraph)
-                                    <p>{{ $paragraph }}</p>
-                                @endforeach
+                                {!! $richText->sanitize($responsibility['duties']) !!}
                             @endforeach
                         </td>
                     </tr>
@@ -184,9 +177,7 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XVI. References:</p>
-                            @foreach ($paragraphs($detailedProposal['references']) as $paragraph)
-                                <p>{{ $paragraph }}</p>
-                            @endforeach
+                            {!! $richText->sanitize($detailedProposal['references']) !!}
                         </td>
                     </tr>
                     <tr>
