@@ -117,16 +117,19 @@ beforeEach(function () {
         'cooperating_agency' => '',
         'executive_brief' => 'This project restores priority coastal habitats through evidence-based community action.',
         'rationale' => 'Coastal habitat degradation threatens biodiversity and local livelihoods.',
-        'objectives' => 'Document baseline conditions and validate a community restoration model.',
+        'general_objective' => 'Document baseline conditions and validate a community restoration model.',
+        'specific_objectives' => [[
+            'description' => 'Document baseline conditions and validate a community restoration model.',
+        ]],
         'expected_outputs' => [
-            'publication' => 'One peer-reviewed publication',
-            'patent' => '',
-            'product' => 'Validated restoration model',
-            'people_service' => 'Community training',
-            'place_partnership' => 'University-LGU partnership',
-            'policy' => 'Restoration protocol',
-            'social_impact' => 'Improved participation',
-            'economic_impact' => 'Protected livelihoods',
+            'publication' => [['description' => 'One peer-reviewed publication']],
+            'patent' => [],
+            'product' => [['description' => 'Validated restoration model']],
+            'people_service' => [['description' => 'Community training']],
+            'place_partnership' => [['description' => 'University-LGU partnership']],
+            'policy' => [['description' => 'Restoration protocol']],
+            'social_impact' => [['description' => 'Improved participation']],
+            'economic_impact' => [['description' => 'Protected livelihoods']],
         ],
         'introduction' => 'The project responds to coastal habitat degradation through community research.',
         'related_literature' => 'Recent literature supports participatory coastal habitat restoration.',
@@ -262,6 +265,40 @@ test('faculty can create and resume multiple proposal drafts through the compati
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('First Coastal Study');
+});
+
+test('faculty can track submitted proposal statuses from the proposal workspace', function () {
+    $revisionProposal = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Revised Coastal Study',
+        'status' => 'revision_requested',
+    ]);
+    $approvedProposal = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Approved Mangrove Study',
+        'status' => 'approved',
+    ]);
+    TopicProposal::create([
+        'user_id' => $this->otherFaculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Another Faculty Proposal',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.index'))
+        ->assertOk()
+        ->assertSee('Draft packages')
+        ->assertSee('Submitted proposals')
+        ->assertSee('Revised Coastal Study')
+        ->assertSee('Revision required')
+        ->assertSee('Approved Mangrove Study')
+        ->assertSee('Approved project')
+        ->assertSee(route('topics.show', $revisionProposal), false)
+        ->assertSee(route('topics.show', $approvedProposal), false)
+        ->assertDontSee('Another Faculty Proposal');
 });
 
 test('the new proposal page presents open research calls as visual selectable cards', function () {
@@ -423,8 +460,8 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('role="tab"', false)
         ->assertSee('activeProposalTab', false)
         ->assertSee('lg:grid-cols-[minmax(0,1fr)_18rem]', false)
-        ->assertSee('data-paper-shortcuts-trigger', false)
-        ->assertSee('data-paper-shortcuts-dropdown', false)
+        ->assertDontSee('data-paper-shortcuts-trigger', false)
+        ->assertDontSee('data-paper-shortcuts-dropdown', false)
         ->assertSee('data-project-details-autosave="true"', false)
         ->assertSee('data-project-details-autosave-form', false)
         ->assertDontSee('Upload PDF')
@@ -475,11 +512,11 @@ test('upload-only papers use the protected editor exit and one upload and exit a
         ->assertSee('export or save it as a PDF')
         ->assertSee('Choose completed PDF')
         ->assertSee('How this paper works')
-        ->assertSee('Editor shortcuts')
-        ->assertSee('Ctrl + S')
+        ->assertDontSee('Editor shortcuts')
+        ->assertDontSee('Ctrl + S')
         ->assertSee('Exit editor')
         ->assertSee('Upload PDF and exit')
-        ->assertSee('data-paper-shortcuts-trigger', false)
+        ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertSee('data-paper-editor', false)
         ->assertSee('data-paper-form', false)
         ->assertSee('data-paper-cancel-exit', false)
@@ -514,8 +551,8 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Exit editor')
         ->assertSee('Changes save automatically.')
         ->assertDontSee('Save and stay')
-        ->assertSee('Ctrl + S')
-        ->assertSee('Ctrl + Enter')
+        ->assertDontSee('Ctrl + S')
+        ->assertDontSee('Ctrl + Enter')
         ->assertSee('data-paper-submit-status', false)
         ->assertSee('data-detailed-proposal-autosave="true"', false)
         ->assertDontSee('data-paper-save-exit', false);
@@ -652,7 +689,7 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         ->assertSee('Faculty Owner')
         ->assertSee('There are no answers to enter')
         ->assertDontSee('Mark paper ready')
-        ->assertSee('data-paper-shortcuts-trigger', false)
+        ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
         ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('data-paper-save', false)
@@ -752,7 +789,7 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('The Research Head handles any evaluation outside the system')
-        ->assertSee('data-paper-shortcuts-trigger', false)
+        ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
         ->assertDontSee('data-paper-save', false)
         ->assertDontSee('name="project_title"', false)
@@ -976,6 +1013,30 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         ->assertDownload('coastal-habitat-restoration-work-plan.docx');
 });
 
+test('valid saved detailed proposal content is complete even when a legacy completion flag is missing', function () {
+    $draft = ($this->createDraft)();
+    $draft->update(($this->projectDetails)());
+    $draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => ($this->detailedProposal)(),
+        'completed_at' => null,
+    ]);
+
+    $item = app(ProposalDraftReadiness::class)
+        ->checklist($draft->fresh(['documents']))
+        ->get('detailed-proposal');
+
+    expect($item['complete'])->toBeTrue()
+        ->and($item['status'])->toBe('Complete');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('Detailed Research Proposal')
+        ->assertSee('Complete');
+});
+
 test('generated papers can save partial source data as in-progress drafts', function () {
     $draft = ($this->createDraft)();
     $draft->update(($this->projectDetails)());
@@ -1133,6 +1194,10 @@ test('budget mismatches are identified in the interface and prevent final submis
             'amounts' => [
                 'telephone_expenses' => 4200,
             ],
+            'custom_mooe_items' => [[
+                'particular' => 'Attachment B-only adjustment',
+                'amount' => 600,
+            ]],
         ],
     ]);
 
@@ -1189,6 +1254,7 @@ test('budget mismatches are identified in the interface and prevent final submis
             'amounts' => [
                 'telephone_expenses' => 3600,
             ],
+            'custom_mooe_items' => [],
         ],
     ]);
     $resolvedChecklist = app(ProposalDraftReadiness::class)->checklist($draft->fresh());
@@ -1311,6 +1377,7 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
 
     $updatedSource = $expenseBreakdown->source_data;
     $updatedSource['items'][0]['purpose'] = 'Updated purpose after reviewing the prepared PDF.';
+    $updatedSource['items'][0]['unit_cost'] = 500;
     app(SaveProposalDraftDocument::class)->handle(
         $draft,
         $this->faculty,
@@ -1332,7 +1399,14 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
         ->assertSessionHasNoErrors()
         ->assertSessionHas('success', 'Seven PDF attachments prepared. Review or replace them before turning in.');
 
-    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
+    $refreshedLineItemBudget = $draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole();
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue()
+        ->and($refreshedLineItemBudget->source_data['amounts']['telephone_expenses'])->toEqual(6000.0)
+        ->and($refreshedLineItemBudget->source_data['co_total'])->toEqual(0.0)
+        ->and($refreshedLineItemBudget->source_data['project_total'])->toEqual(6000.0);
 });
 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
@@ -1421,27 +1495,28 @@ test('final submission creates one immutable package then rejects a duplicate re
         fn (ProposalDraftDocumentVersion $history): bool => $history->hasStoredFile(),
     );
 
-    expect($archivedHistory)->toHaveCount(7)
+    expect($archivedHistory)->toHaveCount(14)
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->proposal_draft_document_id === null))->toBeTrue()
         ->and($archivedHistory->every(fn (ProposalDraftDocumentVersion $history): bool => $history->is_current === false))->toBeTrue()
-        ->and($archivedFileVersion)->not->toBeNull();
+        ->and($archivedFileVersion)->not->toBeNull()
+        ->and($archivedHistory->where('action', ProposalDraftDocumentVersion::ACTION_SUBMITTED))->toHaveCount(7);
 
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Draft history (7)');
+        ->assertSee('Draft history (14)');
     $this->actingAs($this->faculty)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk()
-        ->assertSee('Archived draft history')
+        ->assertSee('Submitted draft record')
         ->assertSee('Ready for Turn in.');
     $this->actingAs($this->head)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk();
     $this->actingAs($this->otherFaculty)
         ->get(route('topics.draft-history.index', $topic))
-        ->assertForbidden();
+        ->assertOk();
 
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
     Notification::assertSentTo(
@@ -1633,6 +1708,13 @@ test('an rrl backed proposal completes submission revision approval notice and m
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
         ->assertSessionHasNoErrors();
 
+    $this->actingAs($this->head)
+        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $topic), [
+            'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
+        ])
+        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed')
+        ->assertSessionHasNoErrors();
+
     $topic->refresh();
     $this->faculty->refresh();
 
@@ -1642,7 +1724,7 @@ test('an rrl backed proposal completes submission revision approval notice and m
     Notification::assertSentTo(
         $this->faculty,
         ProposalActivityNotification::class,
-        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Notice to Proceed issued',
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Signed Notice to Proceed issued',
     );
 
     $monitoringPayload = [

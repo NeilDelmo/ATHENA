@@ -145,7 +145,7 @@ test('issuing a Notice to Proceed promotes a faculty researcher without duplicat
         'title' => 'A promotable topic',
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,
-        'status' => 'pending',
+        'status' => 'approved',
     ]);
 
     $head = User::factory()->create();
@@ -165,13 +165,6 @@ test('issuing a Notice to Proceed promotes a faculty researcher without duplicat
         'estimated_duration_months' => $topic->estimated_duration_months,
     ]);
 
-    $this->actingAs($head)
-        ->patch(route('research_head.topics.updateStatus', $topic), [
-            'status' => 'approved',
-            'evaluation_document' => UploadedFile::fake()->create('evaluation.pdf', 100, 'application/pdf'),
-        ])
-        ->assertRedirect();
-
     expect($owner->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 
     $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
@@ -181,6 +174,12 @@ test('issuing a Notice to Proceed promotes a faculty researcher without duplicat
 
     $this->actingAs($head)
         ->post(route('research_head.topics.notice-to-proceed.store', $topic), $notice)
+        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
+
+    $this->actingAs($head)
+        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $topic), [
+            'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
+        ])
         ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
 
     $owner->refresh();

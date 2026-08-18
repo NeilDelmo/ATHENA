@@ -142,7 +142,7 @@
         id="app-sidebar-navigation"
         :class="sidebarOpen
             ? 'px-4'
-            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
+            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>form>button]:justify-center [&>form>button]:gap-0 [&>form>button]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
         class="relative z-10 grow space-y-1 overflow-x-hidden overflow-y-auto py-4
                scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300
                dark:scrollbar-thumb-slate-700"
@@ -182,39 +182,45 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Directory</span>
             </a>
 
-            <a
-                wire:navigate
-                href="{{ route('research_head.proposal-submissions.index') }}"
-                aria-label="Proposal Submissions"
-                title="Proposal Submissions"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.proposal-submissions.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4.5 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Submissions</span>
-            </a>
+            <form method="POST" action="{{ route('sidebar-attention.open', 'proposal_submissions') }}">
+                @csrf
+                <button
+                    type="submit"
+                    aria-label="Proposal Submissions"
+                    title="Proposal Submissions"
+                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
+                           transition-all duration-200 ease-out hover:translate-x-0.5
+                           {{ request()->routeIs('research_head.proposal-submissions.*')
+                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
+                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4.5 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                    <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Submissions</span>
+                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_submissions'] ?? 0" />
+                </button>
+            </form>
 
-            <a
-                wire:navigate
-                href="{{ route('research_head.projects.index') }}"
-                aria-label="Project Monitoring"
-                title="Project Monitoring"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.projects.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Project Monitoring</span>
-            </a>
+            <form method="POST" action="{{ route('sidebar-attention.open', 'project_monitoring') }}">
+                @csrf
+                <button
+                    type="submit"
+                    aria-label="Project Monitoring"
+                    title="Project Monitoring"
+                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
+                           transition-all duration-200 ease-out hover:translate-x-0.5
+                           {{ request()->routeIs('research_head.projects.*')
+                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
+                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
+                    </svg>
+                    <span x-show="sidebarOpen" class="whitespace-nowrap">Project Monitoring</span>
+                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['project_monitoring'] ?? 0" />
+                </button>
+            </form>
 
             <a
                 wire:navigate
@@ -313,22 +319,47 @@
             </a>
 
             @if (! $usingResearchWorkspace)
-            <a
-                wire:navigate
-                href="{{ route('faculty.proposal-drafts.index') }}"
-                aria-label="Proposal Workspace"
-                title="Proposal Workspace"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('faculty.proposal-drafts.*', 'faculty.topics.create')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5h10.5A2.25 2.25 0 0019.5 17.25V6.75A2.25 2.25 0 0017.25 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Workspace</span>
-            </a>
+            <form method="POST" action="{{ route('sidebar-attention.open', 'proposal_workspace') }}">
+                @csrf
+                <button
+                    type="submit"
+                    aria-label="Proposal Workspace"
+                    title="Proposal Workspace"
+                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
+                           transition-all duration-200 ease-out hover:translate-x-0.5
+                           {{ request()->routeIs('faculty.proposal-drafts.*', 'faculty.topics.create')
+                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
+                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5h10.5A2.25 2.25 0 0019.5 17.25V6.75A2.25 2.25 0 0017.25 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Workspace</span>
+                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_workspace'] ?? 0" />
+                </button>
+            </form>
+            @endif
+
+            @if (Auth::user()->canUseWorkspace(\App\Models\User::WORKSPACE_FACULTY_RESEARCHER))
+                <form method="POST" action="{{ route('sidebar-attention.open', 'my_projects') }}">
+                    @csrf
+                    <button
+                        type="submit"
+                        aria-label="My Projects"
+                        title="My Projects"
+                        class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
+                               transition-all duration-200 ease-out hover:translate-x-0.5
+                               {{ request()->routeIs('research.index', 'research.show')
+                                    ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
+                                    : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                    >
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
+                        </svg>
+                        <span x-show="sidebarOpen" class="whitespace-nowrap">My Projects</span>
+                        <x-sidebar-attention-badge :count="$sidebarAttentionCounts['my_projects'] ?? 0" />
+                    </button>
+                </form>
             @endif
 
             <div

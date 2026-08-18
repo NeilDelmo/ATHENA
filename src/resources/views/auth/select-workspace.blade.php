@@ -41,6 +41,10 @@
             </header>
 
             <div class="p-6 sm:p-9">
+                <div class="mb-5">
+                    <x-back-link href="{{ route('dashboard') }}">Back to current workspace</x-back-link>
+                </div>
+
                 @error('workspace')
                     <div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300">{{ $message }}</div>
                 @enderror
@@ -73,7 +77,7 @@
 
                 <footer class="mt-7 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                     <p>Your assigned system roles are unchanged. You can switch workspaces again from your account menu.</p>
-                    <form method="POST" action="{{ route('logout') }}">
+                    <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Are you sure you want to log out?')">
                         @csrf
                         <button type="submit" class="font-bold text-red-700 hover:text-red-800 focus:outline-none focus:underline dark:text-red-300 dark:hover:text-red-200">Sign out</button>
                     </form>

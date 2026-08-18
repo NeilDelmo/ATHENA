@@ -29,8 +29,10 @@ class SaveProposalDraftDocument
         ?string $changeNote = null,
         string $action = 'saved',
         ?ProposalDraftDocumentVersion $restoredFrom = null,
+        bool $forceCheckpoint = false,
+        bool $preserveCurrentWorkingCopy = false,
     ): ProposalDraftDocument {
-        return DB::transaction(function () use ($draft, $actor, $documentType, $position, $expectedVersion, $attributes, $changeNote, $action, $restoredFrom): ProposalDraftDocument {
+        return DB::transaction(function () use ($draft, $actor, $documentType, $position, $expectedVersion, $attributes, $changeNote, $action, $restoredFrom, $forceCheckpoint, $preserveCurrentWorkingCopy): ProposalDraftDocument {
             $lockedDraft = ProposalDraft::query()
                 ->whereKey($draft->getKey())
                 ->lockForUpdate()
@@ -54,7 +56,11 @@ class SaveProposalDraftDocument
             }
 
             if ($document && ! $document->versions()->exists()) {
-                $this->recordDocumentVersion->handle($document, null, action: 'captured');
+                $this->recordDocumentVersion->handle(
+                    $document,
+                    null,
+                    action: ProposalDraftDocumentVersion::ACTION_CAPTURED,
+                );
             }
 
             $safeAttributes = Arr::except($attributes, [
@@ -87,6 +93,15 @@ class SaveProposalDraftDocument
                 return $document->refresh();
             }
 
+            if ($document && $preserveCurrentWorkingCopy
+                && ! $this->recordDocumentVersion->hasRecoveryPointForWorkingDraft($document)) {
+                $this->recordDocumentVersion->handle(
+                    $document,
+                    $actor,
+                    action: ProposalDraftDocumentVersion::ACTION_PRE_RESTORE,
+                );
+            }
+
             if ($document) {
                 $document->update([
                     ...$safeAttributes,
@@ -99,12 +114,13 @@ class SaveProposalDraftDocument
                     $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
                 }
 
-                $this->recordDocumentVersion->handle(
+                $this->recordRecoveryPoint(
                     $savedDocument,
                     $actor,
                     $changeNote,
                     $action,
                     $restoredFrom,
+                    $forceCheckpoint,
                 );
 
                 return $savedDocument;
@@ -121,16 +137,40 @@ class SaveProposalDraftDocument
                 $this->invalidateOtherPreparedFiles($lockedDraft, $savedDocument);
             }
 
-            $this->recordDocumentVersion->handle(
+            $this->recordRecoveryPoint(
                 $savedDocument,
                 $actor,
                 $changeNote,
                 $action,
                 $restoredFrom,
+                $forceCheckpoint,
             );
 
             return $savedDocument;
         }, 3);
+    }
+
+    private function recordRecoveryPoint(
+        ProposalDraftDocument $document,
+        User $actor,
+        ?string $changeNote,
+        string $action,
+        ?ProposalDraftDocumentVersion $restoredFrom,
+        bool $forceCheckpoint,
+    ): void {
+        if (! $forceCheckpoint) {
+            $this->recordDocumentVersion->captureAutomaticRecoveryPoint($document, $actor);
+
+            return;
+        }
+
+        $this->recordDocumentVersion->handle(
+            $document,
+            $actor,
+            $changeNote,
+            $action,
+            $restoredFrom,
+        );
     }
 
     private function invalidateOtherPreparedFiles(

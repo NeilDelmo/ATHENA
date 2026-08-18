@@ -17,6 +17,8 @@ class ResearchAssistantConversation extends Model
         'title',
         'messages',
         'context',
+        'summary',
+        'summarized_message_count',
     ];
 
     protected function casts(): array
@@ -24,6 +26,7 @@ class ResearchAssistantConversation extends Model
         return [
             'messages' => 'array',
             'context' => 'array',
+            'summarized_message_count' => 'integer',
         ];
     }
 

@@ -90,6 +90,15 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->assertSee('Unit Cost (Php)')
         ->assertSee('Select an official account')
         ->assertSee('Total estimated budget')
+        ->assertSee('data-expense-item-primary', false)
+        ->assertSee('itemSummary(item)', false)
+        ->assertSee('itemGroupingSummary(item)', false)
+        ->assertSee('isItemExpanded(item)', false)
+        ->assertSee('Collapse')
+        ->assertSee('>Edit<', false)
+        ->assertSee('Institutional budget limit')
+        ->assertSee('150,000.00')
+        ->assertSee('Budget limit exceeded')
         ->assertSee('border-red-200 bg-red-50', false)
         ->assertSee('Preview paper')
         ->assertSee('Download PDF')
@@ -137,6 +146,34 @@ test('the Estimated Expense Breakdown auto-save returns the current version with
 
     expect($document->fresh()->lock_version)->toBe(1)
         ->and($document->versions()->count())->toBe(1);
+});
+
+test('saving a smaller expense item list removes the deleted item from the working copy', function () {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            ...$this->payload,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 1);
+
+    $remainingItems = $this->payload['items'];
+    unset($remainingItems[1]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            'document_version' => 1,
+            'items' => array_values($remainingItems),
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 2);
+
+    $document = $this->draft->documents()->sole()->fresh();
+
+    expect($document->source_data['items'])->toHaveCount(2)
+        ->and(collect($document->source_data['items'])->pluck('particulars')->all())
+        ->not->toContain('Back End Developer');
 });
 
 test('expense items are validated saved resumed and marked ready', function () {
@@ -197,10 +234,31 @@ test('the preview follows the supplied official table and calculates grouped tot
         ->assertSee('Online Research Journal')
         ->assertSee('Descriptions/Specifications/Details')
         ->assertSee('Total for Telephone Expenses')
+        ->assertSee('rowspan="2"', false)
+        ->assertSee('class="expense-breakdown-sub-account-total">', false)
+        ->assertSee('<th colspan="6" scope="row">Total for Telephone Expenses</th>', false)
         ->assertSee('TOTAL MOOE:')
         ->assertSee('TOTAL CAPITAL OUTLAY:')
         ->assertSee('TOTAL MOOE and CAPITAL OUTLAY:')
         ->assertSee('106,364.00');
+});
+
+test('the preview stylesheet mirrors the official title weight, border hierarchy, and total-row formatting', function () {
+    $stylesheet = file_get_contents(resource_path('css/expense-breakdown-print.css'));
+
+    expect($stylesheet)
+        ->toContain('.expense-breakdown-project-title {')
+        ->toContain('font-weight: 700;')
+        ->toContain('border: 2px solid #111;')
+        ->toContain('border-width: 1px 2px;')
+        ->toContain('.expense-breakdown-account-total th,')
+        ->toContain('.expense-breakdown-section-total th,')
+        ->toContain('.expense-breakdown-grand-total th {')
+        ->toContain('text-align: center;')
+        ->toContain('.expense-breakdown-sub-account-total td,')
+        ->toContain('.expense-breakdown-account-total td,')
+        ->toContain('.expense-breakdown-section-total td,')
+        ->toContain('.expense-breakdown-grand-total td {');
 });
 
 test('an incomplete expense breakdown can be previewed but not downloaded', function () {
@@ -212,6 +270,32 @@ test('an incomplete expense breakdown can be previewed but not downloaded', func
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.expense-breakdown.download', $this->draft), [])
         ->assertSessionHasErrors();
+});
+
+test('over-budget expense breakdowns remain drafts and can be previewed for printing', function () {
+    $overBudgetPayload = $this->payload;
+    $overBudgetPayload['items'][2]['unit_cost'] = 100000;
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            ...$overBudgetPayload,
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.expense-breakdown.preview', $this->draft), $overBudgetPayload)
+        ->assertOk()
+        ->assertSee('Estimated Breakdown and Details of Expenses')
+        ->assertSee('156,364.00');
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), $overBudgetPayload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'items' => 'The total estimated budget cannot exceed the research call budget of Php 150,000.00.',
+        ]);
 });
 
 test('the generated Excel file preserves the supplied workbook layout styles and formulas', function () {

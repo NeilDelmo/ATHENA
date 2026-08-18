@@ -69,27 +69,70 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Research team CV package</h3>
-                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Workspace account names and institutional emails are filled automatically. You can still add a blank CV for an unlisted person.</p>
+                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Add an account from this proposal workspace to fill in their name and institutional email automatically, or create a blank CV for an unlisted person.</p>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">View sample</a>@endif
-                    <button type="button" x-on:click="addPerson" class="inline-flex rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Add blank CV</button>
+                @if ($sampleAvailable)<a href="{{ route('proposal-samples.show', $paper['sample_slug']) }}" target="_blank" rel="noopener" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">View sample</a>@endif
+            </div>
+
+            <div class="mt-5 grid gap-4 border-t border-gray-100 pt-5 lg:grid-cols-[minmax(0,1fr)_17rem]">
+                <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 sm:p-5">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-wider text-red-700">Proposal workspace</p>
+                            <h4 class="mt-1 text-sm font-black text-gray-900">Add a workspace member</h4>
+                            <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and collaborators. Members with an existing CV are hidden.</p>
+                        </div>
+                        <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200" x-text="`${availableWorkspacePeople().length} available`"></span>
+                    </div>
+
+                    <div class="relative mt-4" x-on:click.outside="workspacePickerOpen = false">
+                        <label for="workspace-cv-person-search" class="sr-only">Search proposal workspace members</label>
+                        <div class="relative">
+                            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.474 9.765l3.63 3.63a.75.75 0 0 0 1.06-1.06l-3.629-3.63A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
+                            <input id="workspace-cv-person-search" type="search" autocomplete="off" placeholder="Search workspace members" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-cv-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                        </div>
+                        <div id="workspace-cv-person-options" x-show="workspacePickerOpen" x-transition.origin.top x-cloak role="listbox" class="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-900/10">
+                            <template x-for="person in filteredWorkspacePeople()" :key="person.key">
+                                <button type="button" role="option" x-on:click="addWorkspacePerson(person.key)" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-red-50 focus:bg-red-50 focus:outline-none">
+                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700 ring-1 ring-red-200">
+                                        <img x-show="person.avatar" x-bind:src="person.avatar" x-bind:alt="personDisplayName(person.name)" x-on:error="person.avatar = ''" class="h-full w-full object-cover">
+                                        <span x-show="!person.avatar" x-text="personInitials(person.name)"></span>
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <span class="block truncate text-sm font-bold uppercase text-gray-900" x-text="personDisplayName(person.name)"></span>
+                                        <span class="block truncate text-xs text-gray-500" x-text="person.email"></span>
+                                    </span>
+                                    <svg class="h-4 w-4 shrink-0 text-red-600" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                </button>
+                            </template>
+                            <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
+                                <p class="text-sm font-bold text-gray-700">No available workspace member matches your search.</p>
+                                <p class="mt-1 text-xs leading-5 text-gray-500">Members already included in this CV package do not appear here.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col justify-between rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 sm:p-5">
+                    <div>
+                        <p class="text-xs font-black uppercase tracking-wider text-gray-600">External team member</p>
+                        <h4 class="mt-1 text-sm font-black text-gray-900">Create a blank CV</h4>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">Use this for a person who is not yet in the proposal workspace.</p>
+                    </div>
+                    <button type="button" x-on:click="addPerson" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        Add blank CV
+                    </button>
                 </div>
             </div>
-            <div class="mt-5 grid gap-3 border-t border-gray-100 pt-5 sm:grid-cols-[1fr_auto] sm:items-end">
-                <div>
-                    <label for="workspace-cv-member" class="block text-[10px] font-black uppercase tracking-wider text-gray-600">Add from proposal workspace</label>
-                    <select id="workspace-cv-member" x-model="selectedWorkspacePerson" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
-                        <option value="">Choose a member</option>
-                        <template x-for="member in workspacePeople" :key="member.key"><option :value="member.key" x-text="`${member.name} — ${member.email}`"></option></template>
-                    </select>
-                </div>
-                <button type="button" x-on:click="addWorkspacePerson" x-bind:disabled="!selectedWorkspacePerson" class="inline-flex w-full items-center justify-center rounded-xl bg-blue-700 px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Add workspace member CV</button>
-            </div>
-            <div class="mt-5 flex flex-wrap gap-2 border-t border-gray-100 pt-5">
+
+            <div class="mt-5 border-t border-gray-100 pt-5">
+                <div class="flex items-center justify-between gap-3"><p class="text-[10px] font-black uppercase tracking-wider text-gray-600">CVs in this package</p><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600" x-text="`${people.length} ${people.length === 1 ? 'member' : 'members'}`"></span></div>
+                <div class="mt-3 flex flex-wrap gap-2">
                 <template x-for="(person, index) in people" :key="person.id">
-                    <button type="button" x-on:click="focusPerson(index)" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
+                    <button type="button" x-on:click="focusPerson(index)" class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="`${index + 1}. ${personLabel(person)}`"></button>
                 </template>
+                </div>
             </div>
         </section>
 
@@ -176,8 +219,6 @@
                     @endforeach
                 </article>
             </template>
-
-            @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview package</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>

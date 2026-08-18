@@ -119,7 +119,7 @@ class ProposalDraftPaperController extends Controller
 
         return redirect()
             ->route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
-            ->with('success', $paper['label'].' file removed. Previous versions remain available in history.');
+            ->with('success', $paper['label'].' file removed. Earlier recovery points remain available.');
     }
 
     public function download(
@@ -262,6 +262,7 @@ class ProposalDraftPaperController extends Controller
                     'completed_at' => now(),
                 ],
                 changeNote: $changeNote,
+                forceCheckpoint: true,
             );
 
             if ($savedDocument->file_path !== $storedFile['file_path']) {

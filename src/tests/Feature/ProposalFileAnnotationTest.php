@@ -73,13 +73,18 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertOk()
         ->assertSee('Annotation mode')
         ->assertSee('Select text')
-        ->assertSee('Draw area')
+        ->assertSee('Precise area')
+        ->assertSee('Recommended')
         ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
-        ->assertSee('Highlight &amp; comment', false)
+        ->assertSee('Use exact selection')
         ->assertSee('What should the faculty revise?')
+        ->assertSee('Remove highlight')
         ->assertSee('data-annotation-tools-guide', false)
-        ->assertSee(route('topics.show', $this->topic).'#proposal-review', false)
+        ->assertSee(route('topics.show', $this->topic).'#file-review-card-'.$this->file->id, false)
         ->assertSee('Return to file checklist')
+        ->assertSee('Expand paper')
+        ->assertSee('Focused PDF review workspace')
+        ->assertDontSee('Zoom out')
         ->assertDontSee('Edit in proposal workspace');
 
     $response = $this->actingAs($this->head)->postJson(
@@ -111,12 +116,32 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('x-data="{ needsRevision: true }"', false)
-        ->assertSee('1 saved highlight(s)');
+        ->assertSee('savedHighlightCount: 1', false);
 
     $this->actingAs($this->faculty)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertNotFound();
+});
+
+test('research head can remove an unsent highlight', function () {
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Remove this draft comment.',
+    ]);
+
+    $this->actingAs($this->head)
+        ->deleteJson(route('topics.versions.files.annotations.destroy', [
+            $this->topic,
+            $this->version,
+            $this->file,
+            $annotation,
+        ]))
+        ->assertNoContent();
+
+    $this->assertDatabaseMissing('proposal_file_annotations', ['id' => $annotation->id]);
 });
 
 test('research head can draft highlights while a legacy review is in progress', function () {
@@ -128,7 +153,7 @@ test('research head can draft highlights while a legacy review is in progress', 
         ->assertSee('Annotation mode')
         ->assertSee('Your highlights and comments are saved as drafts')
         ->assertSee('Select text')
-        ->assertSee('Draw area')
+        ->assertSee('Precise area')
         ->assertDontSee('Send revision request');
 
     $this->actingAs($this->head)

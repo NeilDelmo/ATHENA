@@ -10,6 +10,14 @@ class ProposalActivityNotification extends Notification
 {
     use Queueable;
 
+    public const SIDEBAR_AREA_PROPOSAL_SUBMISSIONS = 'proposal_submissions';
+
+    public const SIDEBAR_AREA_PROJECT_MONITORING = 'project_monitoring';
+
+    public const SIDEBAR_AREA_PROPOSAL_WORKSPACE = 'proposal_workspace';
+
+    public const SIDEBAR_AREA_MY_PROJECTS = 'my_projects';
+
     /**
      * @param  list<string>|string|null  $workspace
      */
@@ -22,6 +30,7 @@ class ProposalActivityNotification extends Notification
         public ?string $actionUrl = null,
         public array $actionData = [],
         public string|array|null $workspace = null,
+        public ?string $sidebarArea = null,
     ) {}
 
     /**
@@ -46,6 +55,7 @@ class ProposalActivityNotification extends Notification
             'action_url' => $this->actionUrl,
             'action_data' => $this->actionData,
             'workspace' => $this->workspace,
+            'sidebar_area' => $this->sidebarArea,
         ];
     }
 

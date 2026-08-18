@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\ProjectMonitoringDraft;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchAssistantConversation;
@@ -7,7 +9,11 @@ use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -57,6 +63,57 @@ function createAssistantTopicFor(User $user, array $overrides = []): TopicPropos
     return $topic;
 }
 
+/** @return list<int> */
+function assistantContextIds(TestResponse $response): array
+{
+    $matched = preg_match(
+        "/window\\.athenaResearchAssistantContexts = JSON\\.parse\\('([^']*)'\\);/",
+        $response->getContent(),
+        $matches,
+    );
+
+    expect($matched)->toBe(1);
+
+    $serializedContexts = json_decode('"'.$matches[1].'"', flags: JSON_THROW_ON_ERROR);
+    $contexts = json_decode($serializedContexts, true, flags: JSON_THROW_ON_ERROR);
+
+    return collect($contexts)
+        ->pluck('id')
+        ->map(fn (mixed $id): int => (int) $id)
+        ->values()
+        ->all();
+}
+
+function assistantDocxContents(string $text): string
+{
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-docx-');
+    $archive = new ZipArchive;
+    $escapedText = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+
+    expect($temporaryPath)->not->toBeFalse();
+    expect($archive->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE))->toBeTrue();
+
+    $archive->addFromString('[Content_Types].xml', <<<'XML'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+            <Default Extension="xml" ContentType="application/xml"/>
+        </Types>
+        XML);
+    $archive->addFromString('word/document.xml', <<<XML
+        <?xml version="1.0" encoding="UTF-8"?>
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+            <w:body><w:p><w:r><w:t>{$escapedText}</w:t></w:r></w:p></w:body>
+        </w:document>
+        XML);
+    $archive->close();
+    $contents = file_get_contents($temporaryPath);
+    unlink($temporaryPath);
+
+    expect($contents)->not->toBeFalse();
+
+    return $contents;
+}
+
 test('faculty and faculty researchers can open the research help facility', function (string $role) {
     $researcher = User::factory()->create();
     $researcher->assignRole($role);
@@ -104,6 +161,9 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('Chat history')
         ->assertSee('Search history')
         ->assertSee('Chats are saved to your ATHENA account.')
+        ->assertSee('Analyze document')
+        ->assertSee('Only the selected PDF or DOCX is sent to Athena for this request.')
+        ->assertSee('data-research-assistant-documents-url="'.route('research-support.documents').'"', false)
         ->assertDontSee('Research prompt groups')
         ->assertDontSee('Planning')
         ->assertDontSee('Methods')
@@ -206,6 +266,119 @@ test('proposal draft editors expose the current paper and proposal to athena', f
         ->assertSee('Uses saved detailed-proposal values and paper relationships');
 });
 
+test('research heads can launch athena with an authorized proposal selected', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $researchHead = User::factory()->create();
+    $researchHead->assignRole('research_head');
+    $topic = createAssistantTopicFor($faculty, [
+        'title' => 'Research Head context proposal',
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($researchHead)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('window.athenaResearchAssistantActiveContextId = '.$topic->id, false)
+        ->assertSee('Research Head context proposal')
+        ->assertSee('Check proposal next steps')
+        ->assertSee('Make a revision plan');
+});
+
+test('the current authorized record stays selected when it is older than the recent context limit', function (string $access) {
+    $this->withoutVite();
+
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty');
+    $viewer = $owner;
+    $workspace = User::WORKSPACE_FACULTY;
+    $status = 'revision_requested';
+
+    if ($access === 'collaborator draft') {
+        $viewer = User::factory()->create();
+        $viewer->assignRole('faculty');
+    } elseif ($access === 'faculty researcher') {
+        $viewer = User::factory()->create();
+        $viewer->assignRole('faculty_researcher');
+        $owner = $viewer;
+        $workspace = User::WORKSPACE_FACULTY_RESEARCHER;
+        $status = 'approved';
+    } elseif ($access === 'research head') {
+        $viewer = User::factory()->create();
+        $viewer->assignRole('research_head');
+        $workspace = User::WORKSPACE_RESEARCH_HEAD;
+    }
+
+    $currentTopic = createAssistantTopicFor($owner, [
+        'title' => 'Older current context for '.$access,
+        'status' => $status,
+    ]);
+    $currentTopic->forceFill([
+        'created_at' => now()->subDays(2),
+        'updated_at' => now()->subDays(2),
+    ])->saveQuietly();
+
+    $route = route(
+        $access === 'faculty researcher' ? 'research.show' : 'topics.show',
+        $currentTopic,
+    );
+
+    if ($access === 'collaborator draft') {
+        $currentTopic->collaborators()->create([
+            'user_id' => $viewer->id,
+            'name' => $viewer->name,
+            'email' => $viewer->email,
+            'accepted_at' => now(),
+        ]);
+        $draft = ProposalDraft::create([
+            'user_id' => $owner->id,
+            'research_call_id' => $currentTopic->research_call_id,
+            'topic_id' => $currentTopic->id,
+            'project_title' => $currentTopic->title,
+            'duration_months' => 12,
+            'planned_start' => now()->startOfMonth(),
+            'planned_end' => now()->startOfMonth()->addMonths(11)->endOfMonth(),
+            'project_leader' => $owner->name,
+        ]);
+        $draft->members()->create([
+            'user_id' => $viewer->id,
+            'name' => $viewer->name,
+            'email' => $viewer->email,
+            'accepted_at' => now(),
+        ]);
+        $route = route('faculty.proposal-drafts.details.edit', $draft);
+    }
+
+    foreach (range(1, 8) as $number) {
+        createAssistantTopicFor($access === 'research head' ? $owner : $viewer, [
+            'title' => "Newer context {$number} for {$access}",
+            'status' => $status,
+        ]);
+    }
+
+    $response = $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace,
+    ])->actingAs($viewer)
+        ->get($route)
+        ->assertOk()
+        ->assertSee('window.athenaResearchAssistantActiveContextId = '.$currentTopic->id, false);
+
+    $contextIds = assistantContextIds($response);
+
+    expect($contextIds)
+        ->toHaveCount(8)
+        ->and($contextIds[0])->toBe($currentTopic->id)
+        ->and($contextIds)->toContain($currentTopic->id);
+})->with([
+    'proposal owner' => 'owner',
+    'proposal collaborator editing a draft' => 'collaborator draft',
+    'faculty researcher project' => 'faculty researcher',
+    'research head proposal' => 'research head',
+]);
+
 test('authenticated users can receive a gemini research response', function (string $role) {
     config([
         'services.gemini.key' => 'test-key',
@@ -241,9 +414,273 @@ test('authenticated users can receive a gemini research response', function (str
         && $request['messages'][0]['role'] === 'system'
         && str_contains($request['messages'][0]['content'], 'Display name: "Athena Researcher"')
         && str_contains($request['messages'][0]['content'], 'Athena role(s): '.str_replace('_', ' ', $role))
-        && str_contains($request['messages'][0]['content'], 'Ctrl + S: Save the current paper and keep the editor open.')
-        && str_contains($request['messages'][0]['content'], 'Ctrl + Enter: Save the current paper, then exit the editor.'));
+        && str_contains($request['messages'][0]['content'], 'Proposal-paper changes save automatically.'));
 })->with(['faculty', 'faculty_researcher', 'research_head']);
+
+test('assistant recognizes the authenticated account without relying on the AI provider', function (string $question) {
+    Http::preventStrayRequests();
+
+    $researcher = User::factory()->create(['name' => 'Athena Researcher']);
+    $researcher->assignRole('faculty_researcher');
+
+    $this->actingAs($researcher)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [[
+                'role' => 'user',
+                'content' => $question,
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', "You're Athena Researcher, signed in to ATHENA as Faculty Researcher.")
+        ->assertJsonPath('model', 'athena-account-context')
+        ->assertJsonPath('sources', []);
+
+    Http::assertNothingSent();
+})->with([
+    'Who am I?',
+    'Do you know me?',
+    'What is my name?',
+    'Which account am I using?',
+]);
+
+test('users can explicitly analyze one selected PDF or DOCX', function (string $format) {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+    Storage::fake('local');
+    Process::preventStrayProcesses();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = createAssistantTopicFor($faculty, ['title' => 'Explicit document analysis']);
+    $uniqueDocumentText = 'SELECTED DOCUMENT EVIDENCE: quarterly water sampling requires twelve verified stations.';
+    $path = 'proposals/assistant-selected-document.'.$format;
+    $contents = $format === 'docx'
+        ? assistantDocxContents($uniqueDocumentText)
+        : "%PDF-1.7\nselected document fixture";
+
+    Storage::disk('local')->put($path, $contents);
+    $topic->latestVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $path,
+        'original_filename' => 'selected-proposal.'.$format,
+        'mime_type' => $format === 'pdf'
+            ? 'application/pdf'
+            : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => strlen($contents),
+        'checksum' => hash('sha256', $contents),
+    ]);
+
+    if ($format === 'pdf') {
+        Process::fake([
+            '*' => Process::result(output: $uniqueDocumentText),
+        ]);
+    }
+
+    $documents = $this->actingAs($faculty)
+        ->getJson(route('research-support.documents', ['topic_id' => $topic->id]))
+        ->assertOk()
+        ->assertJsonCount(1, 'documents')
+        ->assertJsonPath('documents.0.format', strtoupper($format));
+    $documentToken = $documents->json('documents.0.token');
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'The selected document uses quarterly sampling across twelve stations.'],
+            ]],
+        ]),
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'Analyze the selected document.',
+            ]],
+            'context' => ['topic_id' => $topic->id],
+            'action' => [
+                'type' => 'analyze_document',
+                'document_token' => $documentToken,
+            ],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'The selected document uses quarterly sampling across twelve stations.');
+
+    Http::assertSent(function ($request) use ($uniqueDocumentText): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return $request['max_completion_tokens'] === 1400
+            && str_contains($prompt, 'ATHENA explicitly selected document')
+            && str_contains($prompt, $uniqueDocumentText);
+    });
+
+    if ($format === 'pdf') {
+        Process::assertRan(fn (PendingProcess $process): bool => is_array($process->command)
+            && in_array('-l', $process->command, true)
+            && in_array('40', $process->command, true));
+    }
+})->with([
+    'PDF document' => 'pdf',
+    'DOCX document' => 'docx',
+]);
+
+test('uploaded document contents are not transmitted during ordinary chat', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+    Storage::fake('local');
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = createAssistantTopicFor($faculty);
+    $uniqueDocumentText = 'PRIVATE DOCUMENT BODY THAT MUST NOT BE SENT AUTOMATICALLY';
+    $contents = assistantDocxContents($uniqueDocumentText);
+    $path = 'proposals/private-proposal.docx';
+    Storage::disk('local')->put($path, $contents);
+    $topic->latestVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $path,
+        'original_filename' => 'private-proposal.docx',
+        'file_size' => strlen($contents),
+    ]);
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [['message' => ['content' => 'Your saved proposal context is available.']]],
+        ]),
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'What is the current proposal status?']],
+            'context' => ['topic_id' => $topic->id],
+        ])
+        ->assertOk();
+
+    Http::assertSent(function ($request) use ($uniqueDocumentText): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return $request['max_completion_tokens'] === 1400
+            && ! str_contains($prompt, $uniqueDocumentText)
+            && ! str_contains($prompt, 'ATHENA explicitly selected document');
+    });
+});
+
+test('document analysis tokens are reauthorized for the current account', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+    Storage::fake('local');
+
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty');
+    $topic = createAssistantTopicFor($owner);
+    $contents = assistantDocxContents('Owner-only proposal document with enough readable research details.');
+    $path = 'proposals/owner-only.docx';
+    Storage::disk('local')->put($path, $contents);
+    $topic->latestVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $path,
+        'original_filename' => 'owner-only.docx',
+        'file_size' => strlen($contents),
+    ]);
+    $documentToken = $this->actingAs($owner)
+        ->getJson(route('research-support.documents', ['topic_id' => $topic->id]))
+        ->assertOk()
+        ->json('documents.0.token');
+
+    $otherFaculty = User::factory()->create();
+    $otherFaculty->assignRole('faculty');
+    Http::preventStrayRequests();
+
+    $this->actingAs($otherFaculty)
+        ->postJson(route('research-support.chat'), [
+            'messages' => [['role' => 'user', 'content' => 'Analyze this document.']],
+            'action' => [
+                'type' => 'analyze_document',
+                'document_token' => $documentToken,
+            ],
+        ])
+        ->assertForbidden()
+        ->assertJsonPath('message', 'That document is unavailable for your account.');
+
+    Http::assertNothingSent();
+});
+
+test('athena carries a compact memory beyond the eight recent messages without replacing full history', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $savedMessages = [
+        ['role' => 'user', 'content' => 'Remember our decision: use quarterly sampling and keep the twelve-station design.'],
+        ['role' => 'assistant', 'content' => 'I will keep that decision in mind.'],
+        ['role' => 'user', 'content' => 'Draft the background.'],
+        ['role' => 'assistant', 'content' => 'Here is a background outline.'],
+        ['role' => 'user', 'content' => 'Keep it concise.'],
+        ['role' => 'assistant', 'content' => 'Understood.'],
+        ['role' => 'user', 'content' => 'Now check the objectives.'],
+        ['role' => 'assistant', 'content' => 'The objectives are measurable.'],
+        ['role' => 'user', 'content' => 'What earlier sampling decision did we make?'],
+    ];
+    $conversation = ResearchAssistantConversation::factory()->create([
+        'user_id' => $faculty->id,
+        'messages' => $savedMessages,
+        'summary' => null,
+        'summarized_message_count' => 0,
+    ]);
+    $requestNumber = 0;
+
+    Http::fake(function () use (&$requestNumber) {
+        $requestNumber++;
+
+        return $requestNumber === 1
+            ? Http::response([
+                'choices' => [['message' => ['content' => 'Decisions and corrections: Use quarterly sampling with a twelve-station design.']]],
+            ])
+            : Http::response([
+                'choices' => [['message' => ['content' => 'You chose quarterly sampling across twelve stations.']]],
+            ]);
+    });
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'conversation_id' => $conversation->id,
+            'messages' => array_slice($savedMessages, -8),
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'You chose quarterly sampling across twelve stations.');
+
+    Http::assertSentCount(2);
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return $request['max_completion_tokens'] === 1400
+            && str_contains($prompt, 'ATHENA earlier conversation memory')
+            && str_contains($prompt, 'quarterly sampling with a twelve-station design');
+    });
+
+    $conversation->refresh();
+
+    expect($conversation->summary)
+        ->toBe('Decisions and corrections: Use quarterly sampling with a twelve-station design.')
+        ->and($conversation->summarized_message_count)->toBe(1)
+        ->and($conversation->messages)->toHaveCount(9)
+        ->and($conversation->messages)->toBe($savedMessages);
+});
 
 test('assistant accepts a compacted research-results prompt longer than the manual composer limit', function () {
     config([
@@ -337,10 +774,34 @@ test('users can attach their own proposal context to a chat request', function (
     $faculty->assignRole('faculty');
     $topic = createAssistantTopicFor($faculty);
     $reviewer = User::factory()->create(['name' => 'Dr. Reviewer']);
-    $topic->reviews()->create([
+    $review = $topic->reviews()->create([
         'reviewer_id' => $reviewer->id,
         'decision' => 'revision_requested',
         'comment' => 'Clarify the sampling frame and target respondents.',
+    ]);
+    $versionFile = $topic->latestVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => 'proposals/detailed-proposal.pdf',
+        'original_filename' => 'detailed-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+    ]);
+    $fileRevision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $versionFile->id,
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'original_filename' => 'detailed-proposal.pdf',
+        'revision_note' => 'Replace the unsupported sample-size claim.',
+    ]);
+    $versionFile->annotations()->create([
+        'reviewer_id' => $reviewer->id,
+        'topic_review_file_revision_id' => $fileRevision->id,
+        'annotation_type' => 'text',
+        'page_number' => 4,
+        'selected_text' => 'A sample of 20 is sufficient.',
+        'rectangles' => [],
+        'comment' => 'Provide a defensible sample-size basis.',
     ]);
     $topic->progressReports()->create([
         'submitted_by' => $faculty->id,
@@ -354,7 +815,10 @@ test('users can attach their own proposal context to a chat request', function (
 
     $this->actingAs($faculty)
         ->postJson(route('research-support.chat'), [
-            'context' => ['topic_id' => $topic->id],
+            'context' => [
+                'topic_id' => $topic->id,
+                'workflow_scope' => 'review',
+            ],
             'messages' => [[
                 'role' => 'user',
                 'content' => 'Help me plan my revisions.',
@@ -367,13 +831,353 @@ test('users can attach their own proposal context to a chat request', function (
         fn (array $message) => $message['role'] === 'system'
             && str_contains($message['content'], 'Community-based mangrove monitoring')
             && str_contains($message['content'], 'Clarify the sampling frame')
-            && str_contains($message['content'], 'Completed the first round of coastal observations')
-            && str_contains($message['content'], 'Field visits were delayed by severe weather')
-            && str_contains($message['content'], 'Add the revised fieldwork schedule')
+            && str_contains($message['content'], 'Replace the unsupported sample-size claim.')
+            && str_contains($message['content'], 'A sample of 20 is sufficient.')
+            && str_contains($message['content'], 'Provide a defensible sample-size basis.')
+            && str_contains($message['content'], 'unresolved_required_revisions')
+            && ! str_contains($message['content'], 'Completed the first round of coastal observations')
+            && ! str_contains($message['content'], 'Add the revised fieldwork schedule')
     ));
 });
 
-test('athena receives a safe application context packet with live row values and saved budget mismatches', function () {
+test('assistant receives Notice to Proceed and post-approval reporting context', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'The signed notice and reporting records are available in context.'],
+            ]],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create(['name' => 'Project Owner']);
+    $faculty->assignRole('faculty_researcher');
+    $researchHead = User::factory()->create(['name' => 'Research Head']);
+    $researchHead->assignRole('research_head');
+    $topic = createAssistantTopicFor($faculty, [
+        'title' => 'Post-approval coastal project',
+        'status' => 'approved',
+    ]);
+    $topic->update([
+        'signed_approval_path' => 'approvals/signed.pdf',
+        'notice_to_proceed_issued_by' => $researchHead->id,
+        'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_data' => [
+            'notice_date' => '2026-08-20',
+            'researcher_names' => 'Project Owner and Research Partner',
+            'campus_line' => 'ARASOF-Nasugbu Campus',
+            'project_title' => 'Post-approval coastal project',
+            'resolution_number' => 'LREC-2026-014',
+            'resolution_year' => '2026',
+            'approved_start_date' => '2026-09-01',
+            'approved_end_date' => '2027-08-31',
+            'approved_duration_months' => 12,
+            'approved_budget' => '75000.00',
+            'issuing_officer_name' => 'Dr. Issuing Officer',
+            'issuing_officer_title' => 'Vice Chancellor',
+            'issuing_officer_committee_role' => 'LREC Vice Chair',
+            'verifying_officer_name' => 'Dr. Verifying Officer',
+            'verifying_officer_title' => 'Research Director',
+            'verifying_officer_committee_role' => 'LREC Chair',
+        ],
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
+    ]);
+    $topic->progressReports()->create([
+        'submitted_by' => $faculty->id,
+        'reporting_date' => '2026-12-31',
+        'tracking_number' => 'PM-2026-001',
+        'progress_percentage' => 55,
+        'accomplishments' => 'Completed the baseline shoreline survey.',
+        'issues' => 'Two field visits were rescheduled.',
+        'work_plan' => [['activity' => 'Coastal survey', 'status' => 'completed']],
+        'budget_utilization' => [['item' => 'Field supplies', 'amount' => 12500]],
+        'research_head_remarks' => 'Continue documenting the rescheduled visits.',
+    ]);
+    $topic->narrativeReports()->create([
+        'submitted_by' => $faculty->id,
+        'submission_date' => '2027-01-05',
+        'tracking_number' => 'NR-2027-001',
+        'researchers' => $faculty->name,
+        'implementation_start' => '2026-09-01',
+        'implementation_end' => '2026-12-31',
+        'budget' => '75000.00',
+        'funding_agency' => 'Batangas State University',
+        'accomplishment_summary' => 'Baseline monitoring was completed.',
+        'introduction' => 'The project monitors coastal habitat recovery.',
+        'objectives' => 'Measure shoreline habitat conditions.',
+        'methodology' => 'Quarterly transect observations were conducted.',
+        'results_discussion' => 'Initial observations show improving vegetation cover.',
+        'photos' => [],
+        'research_head_remarks' => 'Connect the results to the approved objectives.',
+    ]);
+    ProjectMonitoringDraft::create([
+        'topic_id' => $topic->id,
+        'user_id' => $faculty->id,
+        'source_key' => 'new',
+        'source_data' => [
+            'reporting_date' => '2027-03-31',
+            'tracking_number' => 'PRIVATE-MONITORING-DRAFT',
+            'work_plan' => [['activity' => 'Validate the shoreline dataset']],
+        ],
+    ]);
+    ProjectNarrativeReportDraft::create([
+        'topic_id' => $topic->id,
+        'user_id' => $faculty->id,
+        'source_data' => [
+            'submission_date' => '2027-04-05',
+            'tracking_number' => 'PRIVATE-NARRATIVE-DRAFT',
+            'accomplishment_summary' => 'Draft summary awaiting final field validation.',
+        ],
+    ]);
+    $otherUser = User::factory()->create();
+    ProjectMonitoringDraft::create([
+        'topic_id' => $topic->id,
+        'user_id' => $otherUser->id,
+        'source_key' => 'new',
+        'source_data' => ['tracking_number' => 'OTHER-USERS-PRIVATE-DRAFT'],
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'context' => [
+                'topic_id' => $topic->id,
+                'workflow_scope' => 'notice',
+                'form' => [
+                    'section' => 'Notice details',
+                    'values' => [[
+                        'field' => 'resolution_number',
+                        'label' => 'LREC Resolution Number',
+                        'value' => 'LREC-2026-015 unsaved correction',
+                    ]],
+                ],
+            ],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'Summarize what happened after this proposal was approved.',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'The signed notice and reporting records are available in context.');
+
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, 'LREC-2026-014')
+            && str_contains($prompt, 'LREC-2026-015 unsaved correction')
+            && str_contains($prompt, 'Dr. Issuing Officer')
+            && str_contains($prompt, 'LREC Chair')
+            && str_contains($prompt, '2026-09-01')
+            && str_contains($prompt, '75000.00')
+            && str_contains($prompt, 'PM-2026-001')
+            && str_contains($prompt, 'Coastal survey')
+            && str_contains($prompt, 'Field supplies')
+            && str_contains($prompt, 'NR-2027-001')
+            && str_contains($prompt, 'Quarterly transect observations were conducted.')
+            && str_contains($prompt, 'Initial observations show improving vegetation cover.')
+            && str_contains($prompt, 'Continue documenting the rescheduled visits.')
+            && str_contains($prompt, 'Connect the results to the approved objectives.')
+            && str_contains($prompt, 'PRIVATE-MONITORING-DRAFT')
+            && str_contains($prompt, 'PRIVATE-NARRATIVE-DRAFT')
+            && ! str_contains($prompt, 'OTHER-USERS-PRIVATE-DRAFT');
+    });
+});
+
+test('assistant receives project completion status completed reports and remaining record items', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'The completion record is available.'],
+            ]],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty_researcher');
+    $topic = createAssistantTopicFor($faculty, [
+        'title' => 'Completed shoreline project',
+        'status' => 'approved',
+    ]);
+    $topic->update([
+        'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED,
+        'notice_to_proceed_issued_at' => now()->subYear(),
+        'notice_to_proceed_data' => ['resolution_number' => 'LREC-COMPLETE-01'],
+    ]);
+    $topic->progressReports()->create([
+        'submitted_by' => $faculty->id,
+        'reporting_date' => '2027-06-30',
+        'tracking_number' => 'COMPLETED-MONITORING-01',
+        'progress_percentage' => 100,
+        'accomplishments' => 'All shoreline stations were assessed.',
+        'review_status' => 'reviewed',
+        'research_head_remarks' => 'Monitoring report accepted.',
+    ]);
+    $topic->narrativeReports()->create([
+        'submitted_by' => $faculty->id,
+        'submission_date' => '2027-07-05',
+        'tracking_number' => 'NARRATIVE-REVISION-01',
+        'researchers' => $faculty->name,
+        'implementation_start' => '2026-08-01',
+        'implementation_end' => '2027-06-30',
+        'budget' => '75000.00',
+        'funding_agency' => 'Batangas State University',
+        'accomplishment_summary' => 'The field work is complete.',
+        'introduction' => 'Completion narrative.',
+        'objectives' => 'Assess shoreline conditions.',
+        'methodology' => 'Repeated field observations.',
+        'results_discussion' => 'All stations were assessed.',
+        'photos' => [],
+        'review_status' => 'revision_requested',
+        'research_head_remarks' => 'Add the dissemination outcome.',
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
+    ])->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'context' => [
+                'topic_id' => $topic->id,
+                'workflow_scope' => 'completion',
+            ],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'What is the final status and what record items remain?',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'The completion record is available.');
+
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, 'project_completion')
+            && str_contains($prompt, '"project_status": "completed"')
+            && str_contains($prompt, '"monitoring_reviewed": 1')
+            && str_contains($prompt, 'COMPLETED-MONITORING-01')
+            && str_contains($prompt, 'Monitoring report accepted.')
+            && str_contains($prompt, 'NARRATIVE-REVISION-01')
+            && str_contains($prompt, 'One or more submitted reports still have a revision request.')
+            && str_contains($prompt, 'do not describe it as an institutional requirement');
+    });
+});
+
+test('research heads can use authorized faculty proposals as assistant context', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'I can use the authorized proposal record.'],
+            ]],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $researchHead = User::factory()->create();
+    $researchHead->assignRole('research_head');
+    $topic = createAssistantTopicFor($faculty, [
+        'title' => 'Faculty proposal visible to Research Head',
+    ]);
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($researchHead)
+        ->postJson(route('research-support.chat'), [
+            'context' => ['topic_id' => $topic->id],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'What is the current proposal status?',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'I can use the authorized proposal record.');
+
+    Http::assertSent(fn ($request): bool => collect($request['messages'])
+        ->pluck('content')
+        ->contains(fn (string $message): bool => str_contains($message, 'Faculty proposal visible to Research Head')));
+});
+
+test('assistant prioritizes the focused saved field even when it appears late in a large paper', function () {
+    config([
+        'services.gemini.key' => 'test-key',
+        'services.gemini.model' => 'gemini-3.5-flash',
+        'services.gemini.base_url' => 'https://generativelanguage.googleapis.com/v1beta/openai',
+    ]);
+
+    Http::fake([
+        'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
+            'choices' => [[
+                'message' => ['content' => 'I can read the focused saved methodology.'],
+            ]],
+        ]),
+    ]);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = createAssistantTopicFor($faculty);
+    $draft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $topic->research_call_id,
+        'topic_id' => $topic->id,
+        'project_title' => 'Large detailed proposal',
+        'duration_months' => 12,
+        'planned_start' => '2026-08-01',
+        'planned_end' => '2027-07-31',
+        'project_leader' => $faculty->name,
+    ]);
+    $draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => [
+            'early_values' => collect(range(1, 40))
+                ->mapWithKeys(fn (int $number): array => ['field_'.$number => 'Value '.$number])
+                ->all(),
+            'methodology' => 'Late saved methodology using quarterly field observations.',
+        ],
+        'completed_at' => now(),
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-support.chat'), [
+            'context' => [
+                'proposal_draft_id' => $draft->id,
+                'paper_slug' => 'detailed-proposal',
+                'field' => 'methodology',
+            ],
+            'messages' => [[
+                'role' => 'user',
+                'content' => 'Review the saved methodology field.',
+            ]],
+        ])
+        ->assertOk()
+        ->assertJsonPath('reply', 'I can read the focused saved methodology.');
+
+    Http::assertSent(function ($request): bool {
+        $prompt = collect($request['messages'])->pluck('content')->join("\n");
+
+        return str_contains($prompt, '"field": "methodology"')
+            && str_contains($prompt, 'Late saved methodology using quarterly field observations.');
+    });
+});
+
+test('athena receives a safe application context packet with live row values and saved budget consistency', function () {
     config([
         'services.gemini.key' => 'test-key',
         'services.gemini.model' => 'gemini-3.5-flash',
@@ -450,7 +1254,7 @@ test('athena receives a safe application context packet with live row values and
             ],
             'messages' => [[
                 'role' => 'user',
-                'content' => 'What should I put here, and why do my totals differ?',
+                'content' => 'Review my saved proposal package. What should I put here, is it ready, and why do my totals differ?',
             ]],
         ])
         ->assertOk()
@@ -462,12 +1266,16 @@ test('athena receives a safe application context packet with live row values and
         return str_contains($prompt, 'ATHENA application context packet')
             && str_contains($prompt, 'Context packet budget study')
             && str_contains($prompt, 'saved_current_paper')
+            && str_contains($prompt, 'saved_connected_papers')
+            && str_contains($prompt, 'proposal_readiness')
+            && str_contains($prompt, 'papers_needing_attention')
             && str_contains($prompt, 'Saved paper values are saved data')
             && str_contains($prompt, '"current_section": "Expense items / MOOE"')
             && str_contains($prompt, 'Bond Paper')
-            && str_contains($prompt, '"line_item_budget": 4200')
+            && str_contains($prompt, '"consistent": true')
+            && str_contains($prompt, '"line_item_budget": 3600')
             && str_contains($prompt, '"expense_breakdown": 3600')
-            && str_contains($prompt, '"difference": 600')
+            && str_contains($prompt, '"difference": 0')
             && str_contains($prompt, '[redacted sensitive value]')
             && str_contains($prompt, 'unsaved, stale, incomplete, or user-edited')
             && ! str_contains($prompt, 'person@example.edu');

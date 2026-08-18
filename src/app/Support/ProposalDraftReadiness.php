@@ -74,6 +74,21 @@ class ProposalDraftReadiness
         return $this->checklist($draft)->every('complete');
     }
 
+    public function detailedProposalIsComplete(
+        ProposalDraft $draft,
+        ?ProposalDraftDocument $document,
+    ): bool {
+        if (! $document instanceof ProposalDraftDocument || ! is_array($document->source_data)) {
+            return false;
+        }
+
+        return DetailedProposalRules::passesComplete([
+            ...$document->source_data,
+            'project_title' => $draft->project_title,
+            'project_leader' => $draft->project_leader,
+        ]);
+    }
+
     public function isReady(ProposalDraft $draft): bool
     {
         return $this->projectDetailsAreComplete($draft)
@@ -120,12 +135,22 @@ class ProposalDraftReadiness
             }
         }
 
-        foreach ($this->proposalBudgetConsistency->compare($draft)['mismatches'] as $mismatch) {
+        $budgetComparison = $this->proposalBudgetConsistency->compare($draft);
+
+        foreach ($budgetComparison['mismatches'] as $mismatch) {
             $errors['budget_consistency.'.$mismatch['key']] = sprintf(
                 '%s does not match: Attachment B is Php %s while the Estimated Expense Breakdown is Php %s.',
                 $mismatch['label'],
                 number_format($mismatch['line_item_budget'], 2),
                 number_format($mismatch['expense_breakdown'], 2),
+            );
+        }
+
+        if ($budgetComparison['over_budget']) {
+            $errors['budget_limit'] = sprintf(
+                'The project budget exceeds the research call limit of Php %s by Php %s.',
+                number_format($budgetComparison['budget_ceiling'], 2),
+                number_format($budgetComparison['overage'], 2),
             );
         }
 
@@ -160,18 +185,19 @@ class ProposalDraftReadiness
             $document = $documents->first();
 
             if (! $document instanceof ProposalDraftDocument
-                || $document->completed_at === null
                 || ! is_array($document->source_data)) {
                 return false;
             }
 
+            if ($paper['slug'] === 'detailed-proposal') {
+                return $this->detailedProposalIsComplete($draft, $document);
+            }
+
+            if ($document->completed_at === null) {
+                return false;
+            }
+
             return match ($paper['slug']) {
-                'detailed-proposal' => filled($document->source_data['research_agenda'] ?? null)
-                    && is_array($document->source_data['sdgs'] ?? null)
-                    && $document->source_data['sdgs'] !== []
-                    && filled($document->source_data['executive_brief'] ?? null)
-                    && is_array($document->source_data['responsibilities'] ?? null)
-                    && $document->source_data['responsibilities'] !== [],
                 'work-plan' => is_array($document->source_data['entries'] ?? null)
                     && $document->source_data['entries'] !== [],
                 'expense-breakdown' => is_array($document->source_data['items'] ?? null)

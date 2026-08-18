@@ -155,6 +155,13 @@ class TopicProposal extends Model
             && $this->notice_to_proceed_issued_at !== null;
     }
 
+    public function hasPreparedNoticeToProceed(): bool
+    {
+        return $this->status === 'approved'
+            && $this->notice_to_proceed_issued_at === null
+            && filled($this->notice_to_proceed_data);
+    }
+
     public function isAwaitingNoticeToProceed(): bool
     {
         return $this->status === 'approved'

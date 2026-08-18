@@ -47,6 +47,8 @@ class LineItemBudgetRules
             'approval_body' => ['nullable', Rule::in(['research_council', 'lrec'])],
             'resolution_number' => ['nullable', 'string', 'max:50'],
             'resolution_year' => ['nullable', 'string', 'max:10'],
+            'certified_by' => ['nullable', 'string', 'max:120'],
+            'certified_role' => ['nullable', 'string', 'max:120'],
         ];
     }
 
@@ -110,6 +112,8 @@ class LineItemBudgetRules
             'approval_body' => 'approving body',
             'resolution_number' => 'resolution number',
             'resolution_year' => 'resolution year',
+            'certified_by' => 'certifying person',
+            'certified_role' => 'certifying person role',
         ];
     }
 }

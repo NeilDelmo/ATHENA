@@ -14,13 +14,30 @@ import {
 } from './proposal-people';
 import {
     mirrorSemanticEditorHtml,
+    orderedCitationSourceIds,
     synchronizeCitationMarkerLabels,
 } from './proposal-semantic-editor';
+import {
+    buildLiteratureSearchQuery,
+    literatureSearchHistoryTitle,
+} from './proposal-literature-search';
 import {
     escapeAssistantHtml,
     formatAssistantMarkdown,
     stripAssistantGroundingFooter,
 } from './research-assistant-markdown';
+import {
+    assistantDocumentAction,
+    assistantDocumentQuery,
+    assistantWorkflowScope,
+    defaultAssistantContextId,
+    redactAssistantText,
+} from './research-assistant-context';
+import {
+    activeProposalPaperAutoSave,
+    finishProposalPaperAutoSave,
+    saveProposalPaperWithDraftFallback,
+} from './proposal-paper-autosave';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -88,6 +105,17 @@ function initializeThemeToggles() {
     });
 
     updateThemeToggleLabels();
+}
+
+function focusNewFormEntry(form, selector) {
+    const field = form?.querySelector(selector);
+
+    if (!(field instanceof HTMLElement)) return;
+
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+
+    field.closest('[data-repeatable-entry]')?.scrollIntoView({ behavior, block: 'nearest' });
+    field.focus({ preventScroll: true });
 }
 
 themeMediaQuery.addEventListener('change', () => {
@@ -403,6 +431,48 @@ function paperEditorHasUnsavedChanges(editor) {
     return editor?.dataset.paperDirty === 'true';
 }
 
+function autoSaveMethodForPaperEditor(editor) {
+    return activeProposalPaperAutoSave(editor?.dataset)?.saveMethod || null;
+}
+
+async function finishPaperEditorAutoSave(editor) {
+    const configuration = activeProposalPaperAutoSave(editor?.dataset);
+    const state = window.Alpine?.$data?.(editor);
+    const form = editor?.querySelector('[data-paper-form]');
+
+    if (!(form instanceof HTMLFormElement)) return false;
+
+    const saved = await finishProposalPaperAutoSave({ state, form, configuration });
+
+    if (saved) editor.dataset.paperDirty = 'false';
+
+    return saved;
+}
+
+async function finishProjectReportAutoSave() {
+    const configurations = [
+        {
+            selector: '[data-monitoring-tool-autosave]',
+            method: 'finishMonitoringDraftAutoSave',
+        },
+        {
+            selector: '[data-narrative-progress-autosave]',
+            method: 'finishNarrativeDraftAutoSave',
+        },
+    ];
+
+    for (const configuration of configurations) {
+        const root = document.querySelector(configuration.selector);
+        const state = root ? window.Alpine?.$data?.(root) : null;
+
+        if (typeof state?.[configuration.method] !== 'function') continue;
+
+        return state[configuration.method]();
+    }
+
+    return true;
+}
+
 function proposalDialogTheme() {
     const isDark = document.documentElement.classList.contains('dark');
 
@@ -673,6 +743,43 @@ function showProposalSubmissionLoadingScreen(form) {
     }
 }
 
+function showProposalPdfPreparationLoadingScreen(form) {
+    const loadingScreen = form.querySelector('[data-proposal-pdf-preparation-loading]');
+    const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+
+    form.dataset.proposalPreparing = 'true';
+    form.setAttribute('aria-busy', 'true');
+
+    if (loadingScreen instanceof HTMLElement) {
+        loadingScreen.hidden = false;
+        loadingScreen.setAttribute('aria-hidden', 'false');
+    }
+
+    if (submitButton instanceof HTMLElement) {
+        submitButton.setAttribute('aria-disabled', 'true');
+        submitButton.classList.add('cursor-wait', 'opacity-70');
+
+        if (submitButton instanceof HTMLButtonElement) {
+            submitButton.textContent = 'Generating PDFs…';
+        }
+    }
+}
+
+document.addEventListener('submit', (event) => {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+
+    if (!form?.matches('[data-proposal-package-prepare]')) return;
+
+    event.preventDefault();
+
+    if (form.dataset.proposalPreparing === 'true') return;
+
+    showProposalPdfPreparationLoadingScreen(form);
+    window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => HTMLFormElement.prototype.submit.call(form));
+    });
+});
+
 document.addEventListener('submit', async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
 
@@ -899,6 +1006,40 @@ document.addEventListener('submit', async (event) => {
     showPaperEditorSubmitStatus(editor, event.submitter);
 });
 
+document.addEventListener('submit', async (event) => {
+    const form = event.target instanceof HTMLFormElement ? event.target : null;
+
+    if (!form || event.defaultPrevented) return;
+
+    const actionPath = new URL(form.action, window.location.href).pathname;
+
+    if (!actionPath.endsWith('/logout')) return;
+
+    const reportForm = document.querySelector(
+        '[data-monitoring-tool-autosave], [data-narrative-progress-autosave]',
+    );
+
+    if (!reportForm) return;
+
+    event.preventDefault();
+
+    if (await finishProjectReportAutoSave()) {
+        HTMLFormElement.prototype.submit.call(form);
+
+        return;
+    }
+
+    const leaveWithoutSaving = await showProposalConfirmation({
+        title: 'Latest changes were not saved',
+        text: 'ATHENA could not finish saving your latest monitoring or progress-report changes. Stay on this page to try again, or leave without saving them.',
+        confirmButtonText: 'Leave without saving',
+        cancelButtonText: 'Stay here',
+        icon: 'warning',
+    });
+
+    if (leaveWithoutSaving) HTMLFormElement.prototype.submit.call(form);
+});
+
 document.addEventListener('click', async (event) => {
     const action = event.target instanceof Element
         ? event.target.closest('[data-paper-discard], [data-paper-cancel-exit], [data-proposal-load-latest]')
@@ -909,6 +1050,27 @@ document.addEventListener('click', async (event) => {
     const editor = action.closest('[data-paper-editor]') ?? currentPaperEditor();
 
     if (!paperEditorHasUnsavedChanges(editor)) return;
+
+    if (action.matches('[data-paper-cancel-exit]') && autoSaveMethodForPaperEditor(editor)) {
+        event.preventDefault();
+
+        if (await finishPaperEditorAutoSave(editor)) {
+            window.location.assign(action.href);
+
+            return;
+        }
+
+        const leaveWithoutSaving = await showProposalConfirmation({
+            title: 'Changes were not saved',
+            text: 'ATHENA could not finish saving your latest changes. Stay on this page to resolve the issue, or leave without saving them.',
+            confirmButtonText: 'Leave without saving',
+            cancelButtonText: 'Stay here',
+        });
+
+        if (leaveWithoutSaving) window.location.assign(action.href);
+
+        return;
+    }
 
     const message = action.matches('[data-paper-discard], [data-proposal-load-latest]')
         ? 'Your changes to this paper will be lost when the saved version is reloaded.'
@@ -921,130 +1083,11 @@ document.addEventListener('click', async (event) => {
     }
 });
 
-document.addEventListener('keydown', (event) => {
-    const editor = currentPaperEditor();
-
-    if (!editor || event.defaultPrevented || event.isComposing || event.repeat) return;
-
-    const commandKey = event.ctrlKey || event.metaKey;
-    const key = event.key.toLowerCase();
-
-    if (commandKey && !event.altKey && !event.shiftKey && key === 's') {
-        event.preventDefault();
-
-        if (editor.dataset.detailedProposalAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveDetailedProposalNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.workPlanAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveWorkPlanNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.lineItemBudgetAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveLineItemBudgetNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.expenseBreakdownAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveExpenseBreakdownNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.curriculumVitaeAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveCurriculumVitaeNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.projectDetailsAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveProjectDetailsNow?.();
-
-            return;
-        }
-
-        submitPaperEditor(editor, '[data-paper-save]');
-
-        return;
-    }
-
-    if (commandKey && !event.altKey && !event.shiftKey && key === 'enter') {
-        event.preventDefault();
-
-        if (editor.dataset.detailedProposalAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveDetailedProposalNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.workPlanAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveWorkPlanNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.lineItemBudgetAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveLineItemBudgetNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.expenseBreakdownAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveExpenseBreakdownNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.curriculumVitaeAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveCurriculumVitaeNow?.();
-
-            return;
-        }
-
-        if (editor.dataset.projectDetailsAutosave === 'true') {
-            window.Alpine?.$data?.(editor)?.saveProjectDetailsNow?.();
-
-            return;
-        }
-
-        submitPaperEditor(editor, '[data-paper-save-exit]');
-
-        return;
-    }
-
-    if (commandKey && event.altKey && !event.shiftKey && key === 'r') {
-        event.preventDefault();
-        void navigateFromPaperEditor(
-            editor,
-            editor.dataset.paperEditUrl,
-            'Your changes to this paper will be lost when the saved version is reloaded.',
-        );
-
-        return;
-    }
-
-    if (commandKey && event.altKey && !event.shiftKey && key === 'x') {
-        event.preventDefault();
-        void navigateFromPaperEditor(
-            editor,
-            editor.dataset.paperExitUrl,
-            'Your changes to this paper will be lost when you return to the proposal package.',
-        );
-    }
-});
-
 const assistantContexts = Array.isArray(window.athenaResearchAssistantContexts)
     ? window.athenaResearchAssistantContexts
     : [];
 const activeAssistantContextId = window.athenaResearchAssistantActiveContextId ?? null;
-const defaultAssistantContextId = assistantContexts.some((context) => Number(context.id) === Number(activeAssistantContextId))
-    ? Number(activeAssistantContextId)
-    : Number(assistantContexts[0]?.id || 0);
+const resolvedAssistantContextId = defaultAssistantContextId(assistantContexts, activeAssistantContextId);
 const assistantHistory = Array.isArray(window.athenaResearchAssistantHistory)
     ? window.athenaResearchAssistantHistory
     : [];
@@ -1058,6 +1101,7 @@ const assistantPaperContext = document.body?.dataset.researchAssistantPaperSlug
     }
     : null;
 const assistantProposalDraftId = Number(document.body?.dataset.researchAssistantProposalDraftId || 0);
+const assistantLiveFormContextEnabled = Boolean(assistantPaperContext || activeAssistantContextId);
 const researchAssistantMessageLimit = 8000;
 
 function compactAssistantText(value, maxLength = 280) {
@@ -1099,16 +1143,15 @@ function assistantIsSensitiveField(field, label) {
         .test(`${field} ${label}`);
 }
 
-function assistantSafeValue(field, label, rawValue) {
-    if (assistantIsSensitiveField(field, label)) return '[redacted sensitive value]';
+function assistantSafeValue(field, label, rawValue, allowNoticeIdentity = false) {
+    const allowedNoticeName = allowNoticeIdentity
+        && /^(?:researcher_names\[\d+\]|issuing_officer_name|verifying_officer_name)$/.test(field);
 
-    return compactAssistantText(String(rawValue || '').replace(
-        /[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/gi,
-        '[redacted email]',
-    ).replace(
-        /(^|\D)\+?\d[\d\s().-]{6,}\d(?=\D|$)/g,
-        '$1[redacted number]',
-    ), 400) || '(blank)';
+    if (assistantIsSensitiveField(field, label) && !allowedNoticeName) {
+        return '[redacted sensitive value]';
+    }
+
+    return compactAssistantText(redactAssistantText(rawValue), 400) || '(blank)';
 }
 
 function assistantControlValue(control) {
@@ -1169,15 +1212,7 @@ function assistantSectionLabel(control) {
 }
 
 function assistantPageScope() {
-    if (['#proposal-review', '#submit-revision'].includes(window.location.hash)) {
-        return 'review';
-    }
-
-    if (window.location.hash === '#project-monitoring') {
-        return 'monitoring';
-    }
-
-    return 'details';
+    return assistantWorkflowScope(window.location.hash);
 }
 
 function escapeAssistantRegExp(value) {
@@ -1225,9 +1260,10 @@ Alpine.store('researchAssistant', {
     nextMessageId: 2,
     contextOptions: assistantContexts,
     contextEnabled: Boolean(activeAssistantContextId),
-    selectedContextId: defaultAssistantContextId,
+    selectedContextId: resolvedAssistantContextId,
     paperContext: assistantPaperContext,
     proposalDraftId: assistantProposalDraftId,
+    liveFormContextEnabled: assistantLiveFormContextEnabled,
     activePaperField: null,
     pageActions: assistantPageActions,
     pageScope: assistantPageScope(),
@@ -1240,6 +1276,12 @@ Alpine.store('researchAssistant', {
     historySearchTimer: null,
     historySearchSequence: 0,
     historySavePromise: null,
+    documentPickerOpen: false,
+    documentOptions: [],
+    selectedDocumentToken: '',
+    documentLoading: false,
+    documentError: '',
+    retryAction: null,
     messages: [],
 
     init() {
@@ -1328,7 +1370,7 @@ Alpine.store('researchAssistant', {
 
     starterPrompts() {
         const formContext = this.formContext();
-        const focusedFieldAction = this.paperContext && this.activePaperField
+        const focusedFieldAction = this.liveFormContextEnabled && this.activePaperField
             ? [{
                 label: formContext?.validation?.length ? 'Fix focused field' : 'Review focused field',
                 description: formContext?.validation?.length
@@ -1366,7 +1408,7 @@ Alpine.store('researchAssistant', {
     },
 
     capturePaperField(target) {
-        if (!this.paperContext || !(target instanceof HTMLElement)) return;
+        if (!this.liveFormContextEnabled || !(target instanceof HTMLElement)) return;
         if (!target.matches('input:not([type="hidden"]):not([type="file"]), select, textarea')) return;
         if (target.matches('[data-assistant-composer]') || target.closest('[data-assistant-workspace], #research-assistant-panel')) return;
 
@@ -1391,16 +1433,24 @@ Alpine.store('researchAssistant', {
     },
 
     formContext() {
-        const currentControl = this.currentPaperFieldElement();
-        if (!this.paperContext || !currentControl) return null;
+        const noticeForm = this.currentPageScope() === 'notice'
+            ? document.querySelector('[data-notice-to-proceed-autosave-form]')
+            : null;
+        const currentControl = this.currentPaperFieldElement()
+            || noticeForm?.querySelector('input:not([type="hidden"]):not([type="file"]), select, textarea');
+        if (!this.liveFormContextEnabled || !currentControl) return null;
 
         const fieldIdentifier = String(currentControl.getAttribute('name') || currentControl.id || '');
         const rowPrefix = assistantRepeatedRowPrefix(fieldIdentifier);
-        const formScope = currentControl.form || document;
-        const sectionRegion = currentControl.closest('[data-assistant-section], fieldset, section, article');
+        const formScope = noticeForm || currentControl.form || document;
+        const sectionRegion = noticeForm
+            || currentControl.closest('[data-assistant-section], fieldset, section, article');
         const allControls = Array.from(formScope.querySelectorAll('input:not([type="hidden"]):not([type="file"]):not([type="password"]), select, textarea'))
-            .filter((control) => !control.matches('[data-assistant-composer]'));
-        const scopedControls = rowPrefix
+            .filter((control) => !control.matches('[data-assistant-composer]')
+                && !control.closest('[role="dialog"]'));
+        const scopedControls = noticeForm
+            ? allControls
+            : rowPrefix
             ? allControls.filter((control) => String(control.getAttribute('name') || '').startsWith(`${rowPrefix}[`))
             : sectionRegion
                 ? allControls.filter((control) => sectionRegion.contains(control))
@@ -1415,7 +1465,12 @@ Alpine.store('researchAssistant', {
             return {
                 field,
                 label,
-                value: assistantSafeValue(field, label, assistantControlValue(control)),
+                value: assistantSafeValue(
+                    field,
+                    label,
+                    assistantControlValue(control),
+                    Boolean(noticeForm),
+                ),
             };
         });
         const constraints = [];
@@ -1519,9 +1574,9 @@ Alpine.store('researchAssistant', {
         });
     },
 
-    async sendPrompt(prompt) {
+    async sendPrompt(prompt, action = null) {
         this.draft = prompt;
-        await this.send();
+        await this.send(action);
     },
 
     hasContextOptions() {
@@ -1551,6 +1606,10 @@ Alpine.store('researchAssistant', {
             context.field = this.activePaperField.field;
         }
 
+        if (this.proposalDraftId || (this.contextEnabled && this.selectedContextId)) {
+            context.workflow_scope = this.paperContext ? 'proposal' : this.currentPageScope();
+        }
+
         if (includeForm) {
             const form = this.formContext();
 
@@ -1558,6 +1617,91 @@ Alpine.store('researchAssistant', {
         }
 
         return Object.keys(context).length ? context : null;
+    },
+
+    documentsUrl() {
+        return document.body.dataset.researchAssistantDocumentsUrl || '';
+    },
+
+    canSelectDocuments() {
+        return Object.keys(assistantDocumentQuery(this.contextPayload(false))).length > 0;
+    },
+
+    async toggleDocumentPicker() {
+        if (this.documentPickerOpen) {
+            this.closeDocumentPicker();
+            return;
+        }
+
+        this.documentPickerOpen = true;
+        await this.loadDocumentOptions();
+    },
+
+    closeDocumentPicker() {
+        this.documentPickerOpen = false;
+        this.documentError = '';
+    },
+
+    async loadDocumentOptions() {
+        const baseUrl = this.documentsUrl();
+        const query = assistantDocumentQuery(this.contextPayload(false));
+
+        this.documentLoading = true;
+        this.documentError = '';
+        this.documentOptions = [];
+        this.selectedDocumentToken = '';
+
+        if (!baseUrl || Object.keys(query).length === 0) {
+            this.documentError = 'Choose a proposal context before selecting a document.';
+            this.documentLoading = false;
+            return;
+        }
+
+        try {
+            const url = new URL(baseUrl, window.location.origin);
+            Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+            const response = await fetch(url, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(payload.message || 'Documents could not be loaded.');
+            }
+
+            this.documentOptions = (Array.isArray(payload.documents) ? payload.documents : [])
+                .filter((documentOption) => String(documentOption?.token || '').trim());
+            this.selectedDocumentToken = String(this.documentOptions[0]?.token || '');
+
+            if (this.documentOptions.length === 0) {
+                this.documentError = 'No PDF or DOCX is available for this proposal.';
+            }
+        } catch (error) {
+            this.documentError = error instanceof Error
+                ? error.message
+                : 'Documents could not be loaded.';
+        } finally {
+            this.documentLoading = false;
+        }
+    },
+
+    async analyzeSelectedDocument() {
+        if (this.isLoading || !this.selectedDocumentToken) return;
+
+        const documentOption = this.documentOptions.find(
+            (option) => option.token === this.selectedDocumentToken,
+        );
+
+        if (!documentOption) return;
+
+        const action = assistantDocumentAction(documentOption.token);
+        const filename = String(documentOption.filename || documentOption.label || 'selected document');
+        this.closeDocumentPicker();
+        await this.sendPrompt(
+            `Analyze the selected document “${filename}”. Summarize its purpose and key points, then identify incomplete, inconsistent, or unclear parts that need attention. Base the answer only on readable content from this document.`,
+            action,
+        );
     },
 
     historyUrl() {
@@ -1748,6 +1892,8 @@ Alpine.store('researchAssistant', {
                     sources: Array.isArray(message.sources) ? message.sources : [],
                 }));
             this.currentConversationId = conversation.id;
+            this.retryAction = null;
+            this.closeDocumentPicker();
             const contextId = Number(conversation.context?.topic_id || 0);
             this.contextEnabled = Boolean(contextId && this.contextOptions.some((context) => Number(context.id) === contextId));
             if (this.contextEnabled) this.selectedContextId = contextId;
@@ -1770,10 +1916,11 @@ Alpine.store('researchAssistant', {
         this.error = message;
     },
 
-    async send() {
+    async send(action = null) {
         const content = this.draft.trim().slice(0, researchAssistantMessageLimit);
         if (!content || this.isLoading || this.retryAfter > 0) return;
 
+        this.retryAction = action;
         this.messages.push({ id: this.nextMessageId++, role: 'user', content });
         this.draft = '';
         this.resetComposers();
@@ -1782,10 +1929,10 @@ Alpine.store('researchAssistant', {
         this.scrollToLatest();
 
         await this.saveConversation();
-        await this.requestReply();
+        await this.requestReply(action);
     },
 
-    async requestReply() {
+    async requestReply(action = this.retryAction) {
         const chatUrl = document.body.dataset.researchAssistantUrl;
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
@@ -1821,6 +1968,8 @@ Alpine.store('researchAssistant', {
                 body: JSON.stringify({
                     messages: this.contextMessages(),
                     context: this.contextPayload(),
+                    conversation_id: this.currentConversationId,
+                    action,
                 }),
             });
 
@@ -1870,6 +2019,7 @@ Alpine.store('researchAssistant', {
                 sources: Array.isArray(payload.sources) ? payload.sources : [],
             });
             this.copiedConversation = false;
+            this.retryAction = null;
         } catch (error) {
             if (error.name !== 'AbortError') {
                 this.setError('Network interrupted', error instanceof Error && error.message
@@ -1898,7 +2048,7 @@ Alpine.store('researchAssistant', {
 
     async retry() {
         if (this.isLoading || this.retryAfter > 0 || !this.contextMessages().length) return;
-        await this.requestReply();
+        await this.requestReply(this.retryAction);
     },
 
     stop() {
@@ -2005,6 +2155,12 @@ Alpine.store('researchAssistant', {
         this.error = '';
         this.errorTitle = '';
         this.retryAfter = 0;
+        this.retryAction = null;
+        this.documentPickerOpen = false;
+        this.documentOptions = [];
+        this.selectedDocumentToken = '';
+        this.documentLoading = false;
+        this.documentError = '';
         this.copiedMessageId = null;
         this.copiedConversation = false;
         this.scrollToLatest();
@@ -3289,7 +3445,8 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
 
     saveProjectDetailsNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveProjectDetails();
+
+        return this.saveProjectDetails();
     },
 
     async saveProjectDetails() {
@@ -4308,6 +4465,43 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         this.autoSaveTimer = window.setTimeout(() => this.saveMonitoringDraft(), 1200);
     },
 
+    async finishMonitoringDraftAutoSave() {
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.monitoringDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return true;
+
+        const deadline = Date.now() + 15000;
+        let lastAttemptedFingerprint = null;
+
+        while (Date.now() < deadline) {
+            if (this.autoSaveBlocked) return false;
+
+            if (this.autoSaveInFlight) {
+                await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+                continue;
+            }
+
+            const fingerprint = this.monitoringDraftFingerprint(form);
+
+            if (fingerprint === this.lastSavedMonitoringDraft) return true;
+
+            if (fingerprint === lastAttemptedFingerprint) {
+                await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+                continue;
+            }
+
+            lastAttemptedFingerprint = fingerprint;
+            await this.saveMonitoringDraft();
+        }
+
+        return !this.autoSaveInFlight
+            && this.monitoringDraftFingerprint(form) === this.lastSavedMonitoringDraft;
+    },
+
     async saveMonitoringDraft() {
         const form = this.monitoringDraftAutoSaveForm();
 
@@ -4457,6 +4651,43 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         this.autoSaveTimer = window.setTimeout(() => this.saveNarrativeDraft(), 1200);
     },
 
+    async finishNarrativeDraftAutoSave() {
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.narrativeDraftAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return true;
+
+        const deadline = Date.now() + 15000;
+        let lastAttemptedFingerprint = null;
+
+        while (Date.now() < deadline) {
+            if (this.autoSaveBlocked) return false;
+
+            if (this.autoSaveInFlight) {
+                await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+                continue;
+            }
+
+            const fingerprint = this.narrativeDraftFingerprint(form);
+
+            if (fingerprint === this.lastSavedNarrativeDraft) return true;
+
+            if (fingerprint === lastAttemptedFingerprint) {
+                await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+                continue;
+            }
+
+            lastAttemptedFingerprint = fingerprint;
+            await this.saveNarrativeDraft();
+        }
+
+        return !this.autoSaveInFlight
+            && this.narrativeDraftFingerprint(form) === this.lastSavedNarrativeDraft;
+    },
+
     async saveNarrativeDraft() {
         const form = this.narrativeDraftAutoSaveForm();
 
@@ -4529,6 +4760,141 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
     previewDocumentUrl: '',
     previewError: '',
     previewLoading: false,
+    autoSaveTimer: null,
+    autoSaveInFlight: false,
+    autoSaveBlocked: false,
+    autoSaveRevision: 0,
+    lastSavedNoticeDetails: '',
+
+    init() {
+        this.$nextTick(() => this.startNoticeDetailsAutoSave());
+    },
+
+    startNoticeDetailsAutoSave() {
+        const form = this.noticeDetailsAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        this.lastSavedNoticeDetails = this.noticeDetailsFingerprint(form);
+
+        form.addEventListener('input', () => this.triggerNoticeDetailsAutoSave());
+        form.addEventListener('change', () => this.triggerNoticeDetailsAutoSave(true));
+    },
+
+    noticeDetailsAutoSaveForm() {
+        return this.$el.querySelector('[data-notice-to-proceed-autosave-form]');
+    },
+
+    noticeDetailsFingerprint(form) {
+        return JSON.stringify([...new FormData(form).entries()]
+            .filter(([name]) => name !== '_token'));
+    },
+
+    noticeDetailsAutoSaveStatus(message, state = 'idle') {
+        const status = this.$el.querySelector('[data-proposal-autosave-status]');
+        const messageElement = status?.querySelector('[data-proposal-autosave-message]');
+        const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
+
+        if (messageElement instanceof HTMLElement) messageElement.textContent = message;
+
+        if (indicator instanceof HTMLElement) {
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.add({
+                saving: 'bg-amber-500',
+                saved: 'bg-green-600',
+                error: 'bg-red-600',
+            }[state] ?? 'bg-gray-400');
+        }
+    },
+
+    triggerNoticeDetailsAutoSave(saveImmediately = false) {
+        this.autoSaveRevision += 1;
+        this.scheduleNoticeDetailsAutoSave(saveImmediately ? 0 : 1200);
+    },
+
+    scheduleNoticeDetailsAutoSave(delay = 1200) {
+        if (this.autoSaveBlocked || this.submitting) return;
+
+        window.clearTimeout(this.autoSaveTimer);
+
+        const form = this.noticeDetailsAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement)) return;
+
+        if (!form.checkValidity()) {
+            this.noticeDetailsAutoSaveStatus('Finish the required fields to save automatically.');
+
+            return;
+        }
+
+        if (this.noticeDetailsFingerprint(form) === this.lastSavedNoticeDetails) return;
+
+        this.noticeDetailsAutoSaveStatus(delay === 0 ? 'Saving changes…' : 'Saving changes soon…');
+        this.autoSaveTimer = window.setTimeout(() => this.saveNoticeDetails(), delay);
+    },
+
+    async saveNoticeDetails() {
+        const form = this.noticeDetailsAutoSaveForm();
+
+        if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked || this.submitting) return;
+
+        if (!form.checkValidity()) {
+            this.noticeDetailsAutoSaveStatus('Finish the required fields to save automatically.');
+
+            return;
+        }
+
+        const fingerprint = this.noticeDetailsFingerprint(form);
+
+        if (fingerprint === this.lastSavedNoticeDetails) return;
+
+        const savedRevision = this.autoSaveRevision;
+        this.autoSaveInFlight = true;
+        this.noticeDetailsAutoSaveStatus('Saving changes…', 'saving');
+
+        try {
+            const response = await fetch(form.action, {
+                method: form.method,
+                body: new FormData(form),
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                keepalive: true,
+            });
+            const payload = await response.json();
+
+            if (!response.ok) {
+                const message = Object.values(payload.errors || {}).flat().join(' ')
+                    || payload.message
+                    || 'The Notice to Proceed details could not be saved.';
+
+                throw new Error(message);
+            }
+
+            this.lastSavedNoticeDetails = fingerprint;
+
+            if (this.autoSaveRevision !== savedRevision || this.noticeDetailsFingerprint(form) !== fingerprint) {
+                this.scheduleNoticeDetailsAutoSave(0);
+
+                return;
+            }
+
+            this.noticeDetailsAutoSaveStatus(payload.message || 'Notice details saved just now.', 'saved');
+        } catch (error) {
+            this.noticeDetailsAutoSaveStatus(
+                error instanceof Error ? error.message : 'Could not save. Check your connection, then continue editing.',
+                'error',
+            );
+        } finally {
+            this.autoSaveInFlight = false;
+        }
+    },
+
+    submitNoticeDetails() {
+        window.clearTimeout(this.autoSaveTimer);
+        this.submitting = true;
+    },
 
     clearPreview() {
         if (this.previewDocumentUrl) URL.revokeObjectURL(this.previewDocumentUrl);
@@ -4547,7 +4913,7 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
             const response = await fetch(config.previewUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/pdf, application/json',
+                    Accept: 'text/html, application/json',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: new FormData(this.$refs.form),
@@ -4565,12 +4931,13 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
                 throw new Error('The Notice to Proceed preview could not be generated. Please try again.');
             }
 
-            const preview = await response.blob();
+            const previewHtml = await response.text();
 
-            if (preview.type !== 'application/pdf') {
+            if (!response.headers.get('content-type')?.includes('text/html') || !previewHtml.trim()) {
                 throw new Error('The Notice to Proceed preview could not be generated. Please try again.');
             }
 
+            const preview = new Blob([previewHtml], { type: 'text/html' });
             this.previewDocumentUrl = URL.createObjectURL(preview);
             this.$nextTick(() => {
                 const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
@@ -4591,6 +4958,7 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
     },
 
     destroy() {
+        window.clearTimeout(this.autoSaveTimer);
         this.clearPreview();
     },
 }));
@@ -4888,6 +5256,7 @@ Alpine.data('workPlanWizard', (config = {}) => ({
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     nextEntryId: 0,
     entries: [],
+    expandedEntryId: null,
     maxEntries: Number(config.maxEntries || 20),
     durationMonths: Number(config.durationMonths || 12),
     months: Array.from(
@@ -4915,6 +5284,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.entries = initialEntries.length > 0
             ? initialEntries.slice(0, this.maxEntries).map((entry) => this.newEntry(entry))
             : [this.newEntry()];
+        this.expandedEntryId = this.entries.at(-1)?.id ?? null;
         this.limitMonthsToDuration();
 
         this.$nextTick(() => this.startWorkPlanAutoSave());
@@ -4937,16 +5307,24 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     addEntry() {
         if (!this.canAddEntry()) return;
 
-        this.entries.push(this.newEntry());
+        const entry = this.newEntry();
+        this.entries.push(entry);
+        this.expandedEntryId = entry.id;
         this.monthErrorIndexes = [];
         this.monthConflictIndexes = [];
-        this.$nextTick(() => this.triggerWorkPlanAutoSave());
+        this.$nextTick(() => {
+            focusNewFormEntry(this.$refs.form, `[data-work-plan-objective-input="${entry.id}"]`);
+            this.triggerWorkPlanAutoSave();
+        });
     },
 
     removeEntry(index) {
         if (this.entries.length === 1) return;
 
-        this.entries.splice(index, 1);
+        const [removedEntry] = this.entries.splice(index, 1);
+        if (this.expandedEntryId === removedEntry?.id) {
+            this.expandedEntryId = this.entries.at(-1)?.id ?? null;
+        }
         this.monthErrorIndexes = [];
         this.monthConflictIndexes = [];
         this.$nextTick(() => this.triggerWorkPlanAutoSave());
@@ -4958,6 +5336,35 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.monthErrorIndexes = this.monthErrorIndexes.filter((entryIndex) => entryIndex !== index);
         this.monthConflictIndexes = [];
         this.validationMessage = '';
+    },
+
+    isEntryExpanded(entry) {
+        return this.expandedEntryId === entry.id;
+    },
+
+    toggleEntry(entry) {
+        this.expandedEntryId = this.isEntryExpanded(entry) ? null : entry.id;
+    },
+
+    entrySummary(entry) {
+        return String(entry.objective || '').trim()
+            || String(entry.expectedOutput || '').trim()
+            || 'New objective';
+    },
+
+    entryScheduleSummary(entry) {
+        const monthCount = entry.months.length;
+
+        return monthCount === 0
+            ? 'No months selected'
+            : `${monthCount} ${monthCount === 1 ? 'month' : 'months'} scheduled`;
+    },
+
+    expandEntryForField(field) {
+        const match = String(field.name || '').match(/^entries\[(\d+)]/);
+        const entry = this.entries[Number(match?.[1])];
+
+        if (entry) this.expandedEntryId = entry.id;
     },
 
     get yearGroups() {
@@ -5078,8 +5485,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         const invalidField = fields.find((field) => !field.checkValidity());
 
         if (invalidField) {
-            invalidField.reportValidity();
-            invalidField.focus();
+            this.expandEntryForField(invalidField);
+            this.$nextTick(() => {
+                invalidField.reportValidity();
+                invalidField.focus();
+            });
 
             return false;
         }
@@ -5088,6 +5498,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         if (invalidEntryIndex !== -1) {
             this.monthErrorIndexes = [invalidEntryIndex];
+            this.expandedEntryId = this.entries[invalidEntryIndex]?.id ?? null;
             this.validationMessage = 'Select at least one scheduled month for every objective.';
             this.$nextTick(() => {
                 this.$refs.form
@@ -5109,6 +5520,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         const firstConflict = conflicts[0];
         this.monthConflictIndexes = [...new Set(conflicts.map((conflict) => conflict.entryIndex))];
+        this.expandedEntryId = this.entries[firstConflict.entryIndex]?.id ?? null;
         this.validationMessage = `${this.monthScheduleLabel(firstConflict.month)} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
         this.$nextTick(() => {
             this.$refs.form
@@ -5185,7 +5597,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
     saveWorkPlanNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveWorkPlan();
+
+        return this.saveWorkPlan();
     },
 
     workPlanShouldSaveAsDraft() {
@@ -5483,12 +5896,15 @@ Alpine.data('proposalDraftMembers', (config = {}) => ({
 Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     nextId: 0,
     staff: [],
+    budgetCeiling: Number(config.budgetCeiling || 0),
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     customMooeItems: [],
     customCoItems: [],
     amounts: {},
     leaderCampus: '',
     leaderCollege: '',
+    certifiedBy: '',
+    certifiedRole: '',
     overrideMooe: false,
     overrideCo: false,
     overrideProject: false,
@@ -5514,12 +5930,14 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
-        this.leaderCampus = String(data.leader_campus ?? config.defaultCampus ?? 'BatStateU The NEU ARASOF-Nasugbu Campus');
+        this.leaderCampus = String(data.leader_campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu');
         this.leaderCollege = String(data.leader_college ?? '');
+        this.certifiedBy = String(data.certified_by ?? '').toUpperCase();
+        this.certifiedRole = String(data.certified_role ?? '');
         this.amounts = data.amounts && typeof data.amounts === 'object' ? { ...data.amounts } : {};
         this.staff = Array.isArray(data.staff) && data.staff.length
             ? data.staff.map((member) => this.newStaff(member))
-            : [this.newStaff()];
+            : [];
         this.customMooeItems = Array.isArray(data.custom_mooe_items)
             ? data.custom_mooe_items.map((item) => this.newBudgetItem(item))
             : [];
@@ -5546,7 +5964,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         return {
             id: this.nextId,
             name: String(values.name ?? ''),
-            campus: String(values.campus ?? config.defaultCampus ?? 'BatStateU The NEU ARASOF-Nasugbu Campus'),
+            campus: String(values.campus ?? config.defaultCampus ?? 'ARASOF-Nasugbu'),
             college: String(values.college ?? ''),
         };
     },
@@ -5586,15 +6004,17 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     removeStaff(index) {
         this.staff.splice(index, 1);
 
-        if (this.staff.length === 0) this.staff.push(this.newStaff());
-
         this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
     },
 
     addCustomItem(section) {
         const property = section === 'mooe' ? 'customMooeItems' : 'customCoItems';
-        this[property].push(this.newBudgetItem());
-        this.$nextTick(() => this.triggerLineItemBudgetAutoSave());
+        const item = this.newBudgetItem();
+        this[property].push(item);
+        this.$nextTick(() => {
+            focusNewFormEntry(this.$refs.form, `[data-line-item-budget-custom-input="${item.id}"]`);
+            this.triggerLineItemBudgetAutoSave();
+        });
     },
 
     removeCustomItem(section, index) {
@@ -5634,6 +6054,18 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         return this.overrideProject
             ? this.numeric(this.projectOverride)
             : this.sectionTotal('mooe') + this.sectionTotal('co');
+    },
+
+    budgetOverage() {
+        return Math.max(0, this.projectTotal() - this.budgetCeiling);
+    },
+
+    isOverBudget() {
+        return this.budgetCeiling > 0 && this.budgetOverage() > 0.005;
+    },
+
+    budgetLimitMessage() {
+        return `The total project cost of Php ${this.formatMoney(this.projectTotal())} cannot exceed the research call budget of Php ${this.formatMoney(this.budgetCeiling)}.`;
     },
 
     formatMoney(value) {
@@ -5727,11 +6159,14 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 
     saveLineItemBudgetNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveLineItemBudget();
+
+        return this.saveLineItemBudget();
     },
 
     lineItemBudgetShouldSaveAsDraft() {
-        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true'
+            || !this.isComplete()
+            || this.isOverBudget();
     },
 
     async saveLineItemBudget() {
@@ -5846,7 +6281,11 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     },
 
     async downloadDocument() {
-        if (!this.validateForm()) return;
+        if (!this.validateForm() || this.isOverBudget()) {
+            if (this.isOverBudget()) this.validationMessage = this.budgetLimitMessage();
+
+            return;
+        }
 
         this.downloadError = '';
         this.downloadLoading = true;
@@ -5855,7 +6294,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/pdf',
+                    Accept: 'application/json, application/pdf',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -5901,6 +6340,8 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     nextId: 0,
     items: [],
+    expandedItemId: null,
+    budgetCeiling: Number(config.budgetCeiling || 0),
     accountCatalog: config.accountCatalog && typeof config.accountCatalog === 'object'
         ? config.accountCatalog
         : {},
@@ -5923,6 +6364,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.items = initialItems.length > 0
             ? initialItems.map((item) => this.newItem(item))
             : [this.newItem()];
+        this.expandedItemId = this.items.at(-1)?.id ?? null;
 
         this.$nextTick(() => this.startExpenseBreakdownAutoSave());
     },
@@ -6003,13 +6445,55 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         const item = this.newItem(grouping);
         this.syncGrouping(item);
         this.items.push(item);
+        this.expandedItemId = item.id;
+        this.$el.dataset.paperDirty = 'true';
+        this.$nextTick(() => {
+            focusNewFormEntry(this.$refs.form, `[data-expense-item-primary="${item.id}"]`);
+            this.triggerExpenseBreakdownAutoSave();
+        });
     },
 
     removeItem(index) {
         if (this.items.length === 1) return;
 
-        this.items.splice(index, 1);
-        this.$nextTick(() => this.triggerExpenseBreakdownAutoSave());
+        const [removedItem] = this.items.splice(index, 1);
+        if (this.expandedItemId === removedItem?.id) {
+            this.expandedItemId = this.items.at(-1)?.id ?? null;
+        }
+        this.$el.dataset.paperDirty = 'true';
+        this.triggerExpenseBreakdownAutoSave();
+        void this.saveExpenseBreakdownNow();
+    },
+
+    isItemExpanded(item) {
+        return this.expandedItemId === item.id;
+    },
+
+    toggleItem(item) {
+        this.expandedItemId = this.isItemExpanded(item) ? null : item.id;
+    },
+
+    itemSummary(item) {
+        if (this.isContingency(item)) {
+            return String(item.purpose || '').trim() || 'Contingency expense';
+        }
+
+        return String(item.particulars || '').trim()
+            || String(item.account || '').trim()
+            || 'New expense item';
+    },
+
+    itemGroupingSummary(item) {
+        const category = item.category === 'capital_outlay' ? 'Capital outlay' : 'MOOE';
+
+        return [category, item.account, item.sub_account].filter(Boolean).join(' · ');
+    },
+
+    expandItemForField(field) {
+        const match = String(field.name || '').match(/^items\[(\d+)]/);
+        const item = this.items[Number(match?.[1])];
+
+        if (item) this.expandedItemId = item.id;
     },
 
     numeric(value) {
@@ -6032,6 +6516,18 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         return this.items.reduce((total, item) => total + this.itemTotal(item), 0);
     },
 
+    budgetOverage() {
+        return Math.max(0, this.grandTotal() - this.budgetCeiling);
+    },
+
+    isOverBudget() {
+        return this.budgetCeiling > 0 && this.budgetOverage() > 0.005;
+    },
+
+    budgetLimitMessage() {
+        return `The total estimated budget of Php ${this.formatMoney(this.grandTotal())} cannot exceed the research call budget of Php ${this.formatMoney(this.budgetCeiling)}.`;
+    },
+
     formatMoney(value) {
         return new Intl.NumberFormat('en-PH', {
             minimumFractionDigits: 2,
@@ -6052,15 +6548,44 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!invalidField) return true;
 
-        invalidField.reportValidity();
-        invalidField.focus();
+        this.expandItemForField(invalidField);
+        this.$nextTick(() => {
+            invalidField.reportValidity();
+            invalidField.focus();
+        });
 
         return false;
     },
 
     formData() {
-        const formData = new FormData(this.$refs.form);
+        const formData = this.expenseBreakdownFormData();
         formData.delete('_method');
+
+        return formData;
+    },
+
+    expenseBreakdownFormData() {
+        const formData = new FormData(this.$refs.form);
+        const itemFieldNames = [...new Set([...formData.keys()]
+            .filter((name) => name.startsWith('items[')))];
+
+        itemFieldNames.forEach((name) => formData.delete(name));
+
+        this.items.forEach((item, index) => {
+            [
+                'category',
+                'account',
+                'sub_account',
+                'particulars',
+                'details',
+                'purpose',
+                'unit',
+                'quantity',
+                'unit_cost',
+            ].forEach((field) => {
+                formData.append(`items[${index}][${field}]`, item[field]);
+            });
+        });
 
         return formData;
     },
@@ -6070,7 +6595,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement)) return;
 
-        this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint(form);
+        this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint();
         form.addEventListener('input', () => this.triggerExpenseBreakdownAutoSave());
         form.addEventListener('change', () => this.triggerExpenseBreakdownAutoSave());
     },
@@ -6079,8 +6604,8 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         return this.$refs.form;
     },
 
-    expenseBreakdownFingerprint(form) {
-        return JSON.stringify([...new FormData(form).entries()]
+    expenseBreakdownFingerprint() {
+        return JSON.stringify([...this.expenseBreakdownFormData().entries()]
             .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name)));
     },
 
@@ -6115,7 +6640,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement)) return;
 
-        if (this.expenseBreakdownFingerprint(form) === this.lastSavedExpenseBreakdown) return;
+        if (this.expenseBreakdownFingerprint() === this.lastSavedExpenseBreakdown) return;
 
         this.expenseBreakdownAutoSaveStatus('Saving changes soon…');
         this.autoSaveTimer = window.setTimeout(() => this.saveExpenseBreakdown(), 1200);
@@ -6123,11 +6648,14 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
     saveExpenseBreakdownNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveExpenseBreakdown();
+
+        return this.saveExpenseBreakdown();
     },
 
     expenseBreakdownShouldSaveAsDraft() {
-        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true'
+            || !this.isComplete()
+            || this.isOverBudget();
     },
 
     async saveExpenseBreakdown() {
@@ -6135,7 +6663,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement) || this.autoSaveInFlight || this.autoSaveBlocked) return;
 
-        const fingerprint = this.expenseBreakdownFingerprint(form);
+        const fingerprint = this.expenseBreakdownFingerprint();
 
         if (fingerprint === this.lastSavedExpenseBreakdown) return;
 
@@ -6152,7 +6680,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         try {
             const response = await fetch(config.updateUrl || form.action, {
                 method: form.method,
-                body: new FormData(form),
+                body: this.expenseBreakdownFormData(),
                 headers: {
                     Accept: 'application/json',
                     'X-CSRF-TOKEN': config.csrfToken,
@@ -6185,7 +6713,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
                 return;
             }
 
-            this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint(form);
+            this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint();
             this.$el.dataset.paperDirty = 'false';
             this.validationMessage = '';
             this.expenseBreakdownAutoSaveStatus(
@@ -6242,7 +6770,11 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     },
 
     async downloadDocument() {
-        if (!this.validateForm()) return;
+        if (!this.validateForm() || this.isOverBudget()) {
+            if (this.isOverBudget()) this.validationMessage = this.budgetLimitMessage();
+
+            return;
+        }
 
         this.downloadError = '';
         this.downloadLoading = true;
@@ -6251,7 +6783,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    Accept: 'application/json, application/pdf',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -6298,7 +6830,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
     nextId: 0,
     people: [],
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
-    selectedWorkspacePerson: '',
+    workspacePersonQuery: '',
+    workspacePickerOpen: false,
     validationMessage: '',
     previewHtml: '',
     previewError: '',
@@ -6402,26 +6935,55 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         });
     },
 
-    addWorkspacePerson() {
+    availableWorkspacePeople() {
+        return this.workspacePeople.filter((workspacePerson) => !this.workspacePersonHasCv(workspacePerson));
+    },
+
+    filteredWorkspacePeople() {
+        return filterWorkspacePeople(this.availableWorkspacePeople(), this.workspacePersonQuery);
+    },
+
+    personDisplayName(name) {
+        return formatPersonName(name);
+    },
+
+    personInitials(name) {
+        return personInitials(name);
+    },
+
+    workspacePersonHasCv(workspacePerson) {
+        const workspaceEmail = String(workspacePerson.email || '').trim().toLowerCase();
+        const workspaceName = formatPersonName(workspacePerson.name).toLowerCase();
+
+        return this.people.some((person) => {
+            const cvEmail = String(person.email || '').trim().toLowerCase();
+            const cvName = formatPersonName([
+                person.first_name,
+                person.middle_name,
+                person.last_name,
+            ].filter(Boolean).join(' ')).toLowerCase();
+
+            return (workspaceEmail && cvEmail === workspaceEmail)
+                || (workspaceName && cvName === workspaceName);
+        });
+    },
+
+    addWorkspacePerson(personKey) {
         const workspacePerson = this.workspacePeople.find(
-            (person) => String(person.key) === String(this.selectedWorkspacePerson),
+            (person) => String(person.key) === String(personKey),
         );
 
         if (!workspacePerson) return;
 
-        const alreadyAdded = this.people.some((person) => (
-            String(person.email || '').trim().toLowerCase()
-            === String(workspacePerson.email || '').trim().toLowerCase()
-        ));
-
-        if (alreadyAdded) {
+        if (this.workspacePersonHasCv(workspacePerson)) {
             this.validationMessage = `${workspacePerson.name} already has a CV in this package.`;
             return;
         }
 
         this.validationMessage = '';
         this.people.push(this.newPerson(workspacePerson.cv || {}));
-        this.selectedWorkspacePerson = '';
+        this.workspacePersonQuery = '';
+        this.workspacePickerOpen = false;
         this.$nextTick(() => {
             this.focusPerson(this.people.length - 1);
             this.triggerCurriculumVitaeAutoSave();
@@ -6548,7 +7110,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 
     saveCurriculumVitaeNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveCurriculumVitae();
+
+        return this.saveCurriculumVitae();
     },
 
     curriculumVitaeShouldSaveAsDraft() {
@@ -6741,6 +7304,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     rationale: '',
     generalObjective: '',
     specificObjectives: [],
+    specificMethodGroups: [],
     expectedOutputs: {},
     introduction: '',
     relatedLiterature: '',
@@ -6770,6 +7334,9 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     literatureSearchError: '',
     literatureSearchNotice: '',
     literatureSearchSavingKey: '',
+    literatureWorkspaceOpen: false,
+    literatureWorkspaceTab: 'search',
+    literatureWorkspaceView: 'browse',
     literatureReviewOpen: false,
     literatureReviewSource: null,
     literatureReviewDraft: '',
@@ -6806,6 +7373,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     autoSaveRevision: 0,
     lastSavedDetailedProposal: '',
     autoSaveInitialContent: false,
+    recheckCompletion: Boolean(config.recheckCompletion),
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -6832,6 +7400,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         );
         this.generalObjective = objectives.generalObjective;
         this.specificObjectives = objectives.specificObjectives;
+        this.specificMethodGroups = this.normalizedSpecificMethodGroups(
+            data.specific_method_objectives,
+            data.methodology?.specific_methods,
+        );
         this.expectedOutputs = Object.fromEntries(
             (config.expectedOutputKeys || []).map((key) => [key, this.normalizedExpectedOutputs(data.expected_outputs?.[key])]),
         );
@@ -6862,19 +7434,39 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.refreshSuggestedLiteratureQuery();
         this.applyInitialLiteratureSource();
         this.$nextTick(() => {
-            this.moveLiteratureWorkspace();
             this.synchronizeLiteratureCitations();
             this.startDetailedProposalAutoSave();
         });
     },
 
-    moveLiteratureWorkspace() {
-        const workspace = this.$refs.literatureWorkspace;
-        const introduction = this.$refs.introductionSection;
+    openLiteratureWorkspace(tab = 'search') {
+        this.literatureWorkspaceTab = tab === 'sources' ? 'sources' : 'search';
+        this.literatureWorkspaceView = 'browse';
+        this.literatureWorkspaceOpen = true;
+        document.body.classList.add('overflow-y-hidden');
+    },
 
-        if (workspace instanceof HTMLElement && introduction instanceof HTMLElement) {
-            introduction.after(workspace);
-        }
+    closeLiteratureWorkspace() {
+        this.literatureWorkspaceOpen = false;
+        this.literatureWorkspaceView = 'browse';
+        this.literatureReviewOpen = false;
+        this.literatureReviewError = '';
+        document.body.classList.remove('overflow-y-hidden');
+    },
+
+    setLiteratureWorkspaceTab(tab) {
+        this.literatureWorkspaceTab = tab === 'sources' ? 'sources' : 'search';
+        this.literatureWorkspaceView = 'browse';
+    },
+
+    returnToLiteratureResults() {
+        this.literatureWorkspaceView = 'browse';
+        this.literatureReviewOpen = false;
+        this.literatureReviewError = '';
+    },
+
+    literatureWorkspaceCitedSourcesCount() {
+        return this.literatureSources.filter((source) => this.citationReferenceNumber(source) !== null).length;
     },
 
     applyInitialLiteratureSource() {
@@ -6886,18 +7478,18 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         let applied = false;
 
-        if (action === 'rrl') applied = this.addLiteratureSourceToRrl(source, true);
-        if (action === 'reference') applied = this.addLiteratureSourceToReferences(source, true);
-        if (action === 'both') applied = this.addLiteratureSourceToBoth(source, true);
+        if (action === 'rrl' || action === 'both') applied = this.addLiteratureSourceToRrl(source, true);
 
         if (applied) {
             this.autoSaveInitialContent = true;
             this.literatureSourceNotice = 'The selected source is staged in this proposal. Review the inserted text, then save the draft to keep it.';
+        } else if (action === 'reference') {
+            this.literatureSourceNotice = 'The source is saved to this proposal library. Highlight the RRL text it supports, then choose Cite from library; ATHENA will add the matching IEEE reference automatically.';
         } else {
             this.literatureSourceNotice = 'The selected source already appears in the requested proposal section.';
         }
 
-        this.focusLiteratureDestination(action);
+        this.focusLiteratureDestination(action === 'reference' ? 'rrl' : action);
     },
 
     parseLiteratureSearchHistory(value) {
@@ -6911,6 +7503,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                 .map((entry, index) => ({
                     id: String(entry.id || `${entry.query}-${entry.searched_at || index}`),
                     query: String(entry.query || '').trim(),
+                    label: String(entry.label || '').trim(),
                     context: Array.isArray(entry.context)
                         ? entry.context.filter((label) => typeof label === 'string' && label.trim()).slice(0, 5)
                         : [],
@@ -6969,8 +7562,30 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return this.literatureCitations.filter((citation) => citation.source_link_id === sourceLinkId);
     },
 
+    citationMarkerSourceIds() {
+        const template = document.createElement('template');
+        template.innerHTML = String(this.relatedLiterature || '');
+
+        return [...template.content.querySelectorAll('[data-proposal-citation]')]
+            .map((marker) => marker.getAttribute('data-proposal-citation'));
+    },
+
+    activeRelatedLiteratureCitations() {
+        const relatedLiteratureText = this.plainText(this.relatedLiterature)
+            .toLowerCase()
+            .replace(/\s+/g, ' ');
+
+        if (!relatedLiteratureText) return [];
+
+        return this.literatureCitations.filter((citation) => (
+            citation.field === 'related_literature'
+            && citation.selected_text
+            && relatedLiteratureText.includes(this.plainText(citation.selected_text).toLowerCase().replace(/\s+/g, ' '))
+        ));
+    },
+
     citationReferenceSourceIds() {
-        return [...new Set(this.literatureCitations.map((citation) => citation.source_link_id))];
+        return orderedCitationSourceIds(this.citationMarkerSourceIds(), this.activeRelatedLiteratureCitations());
     },
 
     citationReferenceSources() {
@@ -6983,6 +7598,18 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const index = this.citationReferenceSourceIds().indexOf(Number(source?.id));
 
         return index === -1 ? null : index + 1;
+    },
+
+    citationReferenceNumberIncluding(source) {
+        const sourceLinkId = Number(source?.id);
+
+        if (!Number.isInteger(sourceLinkId) || sourceLinkId < 1) return null;
+
+        const sourceIds = this.citationReferenceSourceIds();
+
+        if (!sourceIds.includes(sourceLinkId)) sourceIds.push(sourceLinkId);
+
+        return sourceIds.indexOf(sourceLinkId) + 1;
     },
 
     citationReferenceNumbers() {
@@ -7004,7 +7631,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return {
             linked: sourceLinkId > 0,
             usedInRrl,
-            addedToReferences: citations.length > 0,
+            addedToReferences: this.citationReferenceNumber(source) !== null,
             referenceNumber: this.citationReferenceNumber(source),
         };
     },
@@ -7031,16 +7658,29 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     removeManagedReferenceBlocks(value) {
         const template = document.createElement('template');
         template.innerHTML = String(value || '');
-        const identities = this.citationReferenceSources().flatMap((source) => [source.doi, source.title])
-            .map((identity) => String(identity || '').trim().toLowerCase())
-            .filter(Boolean);
+        const normalize = (text) => this.plainText(text)
+            .replace(/^\s*\[\d+\]\s*/, '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+        const identities = this.literatureSources
+            .flatMap((source) => [source.doi, source.title])
+            .map((identity) => normalize(identity))
+            .filter((identity) => identity.length >= 8);
+        const seenManualReferences = new Set();
 
-        if (!identities.length) return String(value || '');
+        [...template.content.querySelectorAll('[data-proposal-managed-reference], p, li')].forEach((block) => {
+            const text = normalize(block.textContent || '');
+            const isManagedReference = block.hasAttribute('data-proposal-managed-reference')
+                || identities.some((identity) => text.includes(identity));
 
-        [...template.content.children].forEach((block) => {
-            const text = String(block.textContent || '').toLowerCase();
+            if (isManagedReference || (text && seenManualReferences.has(text))) {
+                block.remove();
 
-            if (identities.some((identity) => text.includes(identity))) block.remove();
+                return;
+            }
+
+            if (text) seenManualReferences.add(text);
         });
 
         return template.innerHTML.trim();
@@ -7048,9 +7688,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     synchronizeLiteratureCitations() {
         const references = this.citationReferenceSources()
-            .map((source, index) => this.referenceTextForCitationSource(source, index + 1))
-            .filter(Boolean)
-            .map((reference) => `<p>${this.escapeLiteratureHtml(reference)}</p>`)
+            .map((source, index) => ({
+                source,
+                reference: this.referenceTextForCitationSource(source, index + 1),
+            }))
+            .filter(({ reference }) => Boolean(reference))
+            .map(({ source, reference }) => `<p data-proposal-managed-reference="${Number(source.id)}">${this.escapeLiteratureHtml(reference)}</p>`)
             .join('');
         const manualReferences = this.removeManagedReferenceBlocks(this.references);
 
@@ -7075,10 +7718,6 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (!sourceLinkId) return null;
 
-        if (field === 'references' && this.literatureCitations.some((citation) => citation.source_link_id === sourceLinkId)) {
-            return this.citationReferenceNumber(source);
-        }
-
         const duplicate = this.literatureCitations.find((citation) => (
             citation.source_link_id === sourceLinkId
             && citation.field === field
@@ -7086,7 +7725,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             && citation.locator === normalizedLocator
         ));
 
-        if (duplicate) return this.citationReferenceNumber(source);
+        if (duplicate) return this.citationReferenceNumber(source) ?? this.citationReferenceNumberIncluding(source);
 
         this.literatureCitations.push({
             id: window.crypto?.randomUUID?.() || `citation-${Date.now()}-${sourceLinkId}`,
@@ -7098,21 +7737,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             created_at: new Date().toISOString(),
         });
 
-        return this.citationReferenceNumber(source);
-    },
-
-    moveCitationReference(source, direction) {
-        const sourceLinkId = Number(source?.id);
-        const sourceIds = this.citationReferenceSourceIds();
-        const index = sourceIds.indexOf(sourceLinkId);
-        const destinationIndex = index + direction;
-
-        if (index < 0 || destinationIndex < 0 || destinationIndex >= sourceIds.length) return;
-
-        [sourceIds[index], sourceIds[destinationIndex]] = [sourceIds[destinationIndex], sourceIds[index]];
-        this.literatureCitations = sourceIds.flatMap((id) => this.literatureCitations.filter((citation) => citation.source_link_id === id));
-        this.synchronizeLiteratureCitations();
-        this.literatureSourceNotice = 'Reference order updated. Citation markers and Section XVI now use the new numbering.';
+        return this.citationReferenceNumber(source) ?? this.citationReferenceNumberIncluding(source);
     },
 
     removeCitationSource(source) {
@@ -7312,19 +7937,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     buildSuggestedLiteratureQuery() {
-        const words = this.suggestedLiteratureContext()
-            .flatMap((context) => context.excerpt.split(' '))
-            .filter(Boolean)
-            .slice(0, 180);
-        let query = '';
-
-        words.forEach((word) => {
-            const candidate = `${query} ${word}`.trim();
-
-            if (candidate.length <= 180) query = candidate;
-        });
-
-        return query;
+        return buildLiteratureSearchQuery(this.suggestedLiteratureContext());
     },
 
     refreshSuggestedLiteratureQuery() {
@@ -7367,6 +7980,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const entry = {
             id: `${query}-${Date.now()}`,
             query,
+            label: literatureSearchHistoryTitle(query, this.proposalTitle),
             context: this.suggestedLiteratureContextLabels(),
             resultCount,
             searchedAt: new Date().toISOString(),
@@ -7387,6 +8001,19 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const resultLabel = Number(entry.resultCount) === 1 ? 'result' : 'results';
 
         return `${entry.resultCount || 0} ${resultLabel} · ${context}`;
+    },
+
+    literatureSearchHistoryTitle(entry) {
+        return String(entry?.label || literatureSearchHistoryTitle(entry?.query, this.proposalTitle) || 'Literature search');
+    },
+
+    literatureSearchHistorySummary(entry) {
+        const count = Number(entry?.resultCount) || 0;
+        const context = Array.isArray(entry?.context) && entry.context.length
+            ? entry.context.join(', ')
+            : 'custom query';
+
+        return `${count === 0 ? 'No matches' : `${count} ${count === 1 ? 'result' : 'results'}`} · ${context}`;
     },
 
     runLiteratureSearchHistory(entry) {
@@ -7558,11 +8185,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (!source) return;
 
-        const added = this.addLiteratureSourceToReferences(source);
-
-        result._actionNotice = added
-            ? 'Reference added to Section XVI and autosaving.'
-            : 'This reference is already in Section XVI.';
+        result._actionNotice = 'Saved to this proposal library. Cite the RRL text it supports and ATHENA will add the IEEE reference automatically.';
     },
 
     async prepareSuggestedLiteratureReview(result) {
@@ -7593,13 +8216,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.literatureReviewNotice = '';
         this.literatureReviewError = '';
         this.literatureReviewOpen = true;
+        this.literatureWorkspaceOpen = true;
+        this.literatureWorkspaceView = 'review';
         document.body.classList.add('overflow-y-hidden');
     },
 
     closeLiteratureReview() {
         this.literatureReviewOpen = false;
         this.literatureReviewError = '';
-        document.body.classList.remove('overflow-y-hidden');
+        this.closeLiteratureWorkspace();
     },
 
     literatureReviewEvidence() {
@@ -7834,6 +8459,133 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         ];
     },
 
+    newSpecificMethod(values = {}) {
+        this.nextId += 1;
+
+        return {
+            id: this.nextId,
+            description: this.plainText(typeof values === 'string' ? values : values.description ?? ''),
+        };
+    },
+
+    normalizedSpecificMethodRows(value) {
+        return (Array.isArray(value) ? value : [])
+            .map((method) => this.newSpecificMethod(method))
+            .filter((method) => method.description.trim());
+    },
+
+    normalizedSpecificMethodGroups(value, legacyValue = '') {
+        const savedGroups = Array.isArray(value) ? value : [];
+        const legacyGroups = savedGroups.length ? [] : this.legacySpecificMethodGroups(legacyValue);
+        const groups = (savedGroups.length ? savedGroups : legacyGroups)
+            .map((group) => this.newSpecificMethodGroup(group))
+            .filter((group) => group.heading || group.methods.some((method) => method.description));
+
+        return groups.length ? groups : [this.newSpecificMethodGroup()];
+    },
+
+    legacySpecificMethodGroups(value) {
+        const groups = [];
+        let currentGroup = 0;
+
+        this.plainText(value)
+            .split(/\n+/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .forEach((line) => {
+                const objectiveHeading = line.match(/^([A-Z])\.\s+.+$/);
+
+                if (objectiveHeading) {
+                    currentGroup = objectiveHeading[1].charCodeAt(0) - 65;
+                    groups[currentGroup] ??= { heading: '', methods: [] };
+                    groups[currentGroup].heading = line.replace(/^[A-Z]\.\s+/, '');
+
+                    return;
+                }
+
+                const method = line.replace(/^\d+[.)]\s*/, '').trim();
+
+                if (!method) return;
+
+                groups[currentGroup] ??= { heading: '', methods: [] };
+                groups[currentGroup].methods.push({ description: method });
+            });
+
+        return groups;
+    },
+
+    newSpecificMethodGroup(values = {}) {
+        this.nextId += 1;
+        const methods = this.normalizedSpecificMethodRows(values.methods);
+
+        return {
+            id: this.nextId,
+            heading: this.plainText(values.heading ?? ''),
+            methods: methods.length ? methods : [this.newSpecificMethod()],
+        };
+    },
+
+    addSpecificMethodGroup() {
+        this.specificMethodGroups.push(this.newSpecificMethodGroup());
+    },
+
+    removeSpecificMethodGroup(index) {
+        this.specificMethodGroups.splice(index, 1);
+    },
+
+    addSpecificMethod(objective) {
+        objective.methods.push(this.newSpecificMethod());
+    },
+
+    removeSpecificMethod(objective, index) {
+        objective.methods.splice(index, 1);
+    },
+
+    specificMethodGroupLetter(index) {
+        let value = Number(index) + 1;
+        let letter = '';
+
+        while (value > 0) {
+            value -= 1;
+            letter = String.fromCharCode(65 + (value % 26)) + letter;
+            value = Math.floor(value / 26);
+        }
+
+        return letter;
+    },
+
+    escapeSpecificMethodHtml(value) {
+        return String(value || '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
+    },
+
+    specificMethodsDocumentText() {
+        const groups = this.specificMethodGroups
+            .map((group, index) => ({
+                heading: this.plainText(group.heading),
+                methods: group.methods
+                    .map((method) => this.plainText(method.description))
+                    .filter(Boolean),
+                letter: this.specificMethodGroupLetter(index),
+            }))
+            .filter((group) => group.heading);
+
+        if (!groups.length || groups.some((group) => !group.methods.length)) return '';
+
+        return groups.map((group) => {
+            const heading = this.escapeSpecificMethodHtml(`${group.letter}. ${group.heading}`);
+            const methods = group.methods
+                .map((method) => `<li>${this.escapeSpecificMethodHtml(method).replace(/\r?\n/g, '<br>')}</li>`)
+                .join('');
+
+            return `<p><strong>${heading}</strong></p><ol>${methods}</ol>`;
+        }).join('');
+    },
+
     normalizedExpectedOutputs(value) {
         const entries = Array.isArray(value)
             ? value
@@ -7884,14 +8636,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (!(form instanceof HTMLFormElement)) return;
 
-        this.lastSavedDetailedProposal = this.autoSaveInitialContent
+        const shouldRecheckCompletion = this.autoSaveInitialContent || this.recheckCompletion;
+        this.lastSavedDetailedProposal = shouldRecheckCompletion
             ? ''
             : this.detailedProposalFingerprint(form);
 
         form.addEventListener('input', () => this.triggerDetailedProposalAutoSave());
         form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
 
-        if (this.autoSaveInitialContent) this.triggerDetailedProposalAutoSave();
+        if (shouldRecheckCompletion) this.triggerDetailedProposalAutoSave();
     },
 
     detailedProposalAutoSaveForm() {
@@ -7950,11 +8703,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     saveDetailedProposalNow() {
         window.clearTimeout(this.autoSaveTimer);
-        this.saveDetailedProposal();
+
+        return this.saveDetailedProposal();
     },
 
     detailedProposalShouldSaveAsDraft() {
-        return this.$el.dataset.paperProjectDetailsComplete !== 'true' || !this.isComplete();
+        return this.$el.dataset.paperProjectDetailsComplete !== 'true';
     },
 
     async saveDetailedProposal() {
@@ -7968,28 +8722,48 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         const saveMode = form.querySelector('[data-paper-save-mode]');
 
-        if (saveMode instanceof HTMLInputElement) {
-            saveMode.value = this.detailedProposalShouldSaveAsDraft() ? '1' : '0';
-        }
-
         const savedRevision = this.autoSaveRevision;
         this.autoSaveInFlight = true;
         this.detailedProposalAutoSaveStatus('Saving changes…', 'saving');
 
         try {
-            const response = await fetch(config.updateUrl || form.action, {
-                method: form.method,
-                body: new FormData(form),
-                headers: {
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': config.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
+            const { response, payload } = await saveProposalPaperWithDraftFallback({
+                saveAsDraft: this.detailedProposalShouldSaveAsDraft(),
+                save: async (saveAsDraft) => {
+                    if (saveMode instanceof HTMLInputElement) {
+                        saveMode.value = saveAsDraft ? '1' : '0';
+                    }
+
+                    const response = await fetch(config.updateUrl || form.action, {
+                        method: form.method,
+                        body: new FormData(form),
+                        headers: {
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': config.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    return { response, payload: await response.json() };
                 },
             });
-            const payload = await response.json();
 
             if (response.status === 422) {
-                this.validationMessage = Object.values(payload.errors || {}).flat().join(' ')
+                const validationErrors = Object.values(payload.errors || {}).flat();
+                const staleDocumentError = Array.isArray(payload.errors?.document_version)
+                    ? payload.errors.document_version[0]
+                    : null;
+
+                if (staleDocumentError) {
+                    this.autoSaveBlocked = true;
+                    this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
+                    this.validationMessage = staleDocumentError;
+                    this.detailedProposalAutoSaveStatus('A newer saved version is available. Load it before saving.', 'error');
+
+                    return;
+                }
+
+                this.validationMessage = validationErrors.join(' ')
                     || 'Please review the Detailed Research Proposal information.';
                 this.detailedProposalAutoSaveStatus('Correct the highlighted information before it can be saved.', 'error');
 
@@ -8115,41 +8889,36 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     addLiteratureSourceToReferences(source, quiet = false) {
-        const reference = String(source?.reference || '').trim();
+        const referenceNumber = this.citationReferenceNumber(source);
 
-        if (!reference) {
-            if (!quiet) this.literatureSourceNotice = 'ATHENA could not prepare a reference because this source has incomplete citation metadata.';
+        if (referenceNumber === null) {
+            if (!quiet) {
+                this.literatureSourceNotice = 'Save the paper to this proposal library, then cite the RRL text it supports. ATHENA adds Section XVI only when the paper is actually cited.';
+                this.focusLiteratureDestination('rrl');
+            }
+
             return false;
         }
 
-        const wasAlreadyReferenced = this.citationReferenceNumber(source) !== null;
-        const referenceNumber = this.recordLiteratureCitation(source, 'references');
         this.synchronizeLiteratureCitations();
 
-        if (wasAlreadyReferenced) {
-            if (!quiet) this.literatureSourceNotice = 'That source already appears in the References field.';
-
-            return false;
+        if (!quiet) {
+            this.literatureSourceNotice = `IEEE reference [${referenceNumber}] already follows its citation in Section XI.`;
+            this.focusLiteratureDestination('reference');
         }
-
-        if (!quiet) this.literatureSourceNotice = source.reference_incomplete
-            ? 'IEEE reference added to Section XVI. Some source metadata was unavailable, so review the incomplete fields.'
-            : `IEEE reference [${referenceNumber}] added to Section XVI.`;
-        if (!quiet) this.focusLiteratureDestination('reference');
 
         return true;
     },
 
     addLiteratureSourceToBoth(source, quiet = false) {
         const addedToRrl = this.addLiteratureSourceToRrl(source, true);
-        const addedToReferences = this.addLiteratureSourceToReferences(source, true);
 
-        if (addedToRrl || addedToReferences) {
-            if (!quiet) this.literatureSourceNotice = 'Source added to the applicable Detailed Proposal sections. Verify the paper, synthesis, and reference format before submission.';
+        if (addedToRrl) {
+            if (!quiet) this.literatureSourceNotice = 'The RRL paragraph, citation, and matching IEEE reference were added. Verify the paper, synthesis, and reference format before submission.';
             return true;
         }
 
-        if (!quiet) this.literatureSourceNotice = 'That source already appears in both Detailed Proposal sections.';
+        if (!quiet) this.literatureSourceNotice = 'That source already appears in the Related Studies and Literature field.';
         return false;
     },
 

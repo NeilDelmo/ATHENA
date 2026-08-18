@@ -41,6 +41,7 @@
             revisionAttachmentLabel: @js($paper['label']),
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('topics.show', $proposalDraft->topic_id).'#review-and-submit' : null),
             accountCatalog: @js(config('expense_breakdown.accounts')),
+            budgetCeiling: @js($budgetCeiling),
         })"
     >
         @if (session('success'))
@@ -86,9 +87,15 @@
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit details</a>
                 </div>
             </div>
-            <dl class="mt-5 border-t border-gray-100 pt-5">
-                <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt>
-                <dd class="mt-1 text-sm text-gray-900">{{ $proposalDraft->project_title ?: 'Not provided' }}</dd>
+            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                    <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt>
+                    <dd class="mt-1 text-sm text-gray-900">{{ $proposalDraft->project_title ?: 'Not provided' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt>
+                    <dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($budgetCeiling, 2) }}</dd>
+                </div>
             </dl>
         </section>
 
@@ -110,16 +117,25 @@
 
                 <div class="mt-5 space-y-4">
                     <template x-for="(item, index) in items" :key="item.id">
-                        <article class="rounded-2xl border border-gray-200 bg-gray-50 p-4 sm:p-5">
-                            <div class="flex items-center justify-between gap-3">
-                                <div>
+                        <article x-bind:data-repeatable-entry="`expense-item-${item.id}`" x-bind:class="isItemExpanded(item) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-4 shadow-sm transition-colors sm:p-5">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div class="min-w-0">
                                     <p class="text-xs font-black uppercase tracking-wider text-gray-500">Expense item <span x-text="index + 1"></span></p>
+                                    <h4 class="mt-1 truncate text-sm font-black text-gray-900" x-text="itemSummary(item)"></h4>
+                                    <p class="mt-1 text-xs text-gray-500" x-text="itemGroupingSummary(item)"></p>
                                     <p class="mt-1 text-sm font-black text-gray-900">Php <span x-text="formatMoney(itemTotal(item))"></span></p>
                                 </div>
-                                <button type="button" x-on:click="removeItem(index)" x-bind:disabled="items.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
+                                <div class="flex shrink-0 items-center gap-2">
+                                    <button type="button" x-on:click="toggleItem(item)" x-bind:aria-expanded="isItemExpanded(item)" x-bind:aria-controls="`expense-item-editor-${item.id}`" class="rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">
+                                        <span x-show="isItemExpanded(item)">Collapse</span>
+                                        <span x-show="!isItemExpanded(item)" x-cloak>Edit</span>
+                                    </button>
+                                    <button type="button" x-on:click="removeItem(index)" x-bind:disabled="items.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
+                                </div>
                             </div>
 
-                            <div class="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                            <div x-bind:id="`expense-item-editor-${item.id}`" x-show="isItemExpanded(item)" x-cloak x-transition class="mt-4">
+                                <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 <div>
                                     <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-category-${item.id}`">Expense type <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
                                     <select :id="`expense-category-${item.id}`" :name="`items[${index}][category]`" x-model="item.category" x-on:change="$nextTick(() => syncGrouping(item, true))" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
@@ -155,7 +171,7 @@
                                     <div class="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_11rem]">
                                         <div>
                                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-particulars-${item.id}`">Particular/s <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
-                                            <input :id="`expense-particulars-${item.id}`" :name="`items[${index}][particulars]`" type="text" maxlength="255" x-model="item.particulars" required placeholder="e.g. Prepaid Card" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                            <input :id="`expense-particulars-${item.id}`" :name="`items[${index}][particulars]`" x-bind:data-expense-item-primary="item.id" type="text" maxlength="255" x-model="item.particulars" required placeholder="e.g. Prepaid Card" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                         </div>
                                         <div>
                                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-${item.id}`">Unit <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
@@ -184,7 +200,7 @@
                                 </div>
                             </template>
 
-                            <template x-if="isContingency(item)">
+                                <template x-if="isContingency(item)">
                                 <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_14rem]">
                                     <input type="hidden" :name="`items[${index}][particulars]`" value="N/A">
                                     <input type="hidden" :name="`items[${index}][details]`" value="N/A">
@@ -192,14 +208,15 @@
                                     <input type="hidden" :name="`items[${index}][quantity]`" value="1">
                                     <div>
                                         <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-purpose-${item.id}`">Purpose in the project <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
-                                        <textarea :id="`expense-purpose-${item.id}`" :name="`items[${index}][purpose]`" rows="3" maxlength="500" x-model="item.purpose" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                        <textarea :id="`expense-purpose-${item.id}`" :name="`items[${index}][purpose]`" x-bind:data-expense-item-primary="item.id" rows="3" maxlength="500" x-model="item.purpose" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-[10px] font-black uppercase tracking-wider text-gray-600" :for="`expense-unit-cost-${item.id}`">Contingency amount (Php) <span class="text-red-600" title="Required" aria-label="Required">*</span></label>
                                         <input :id="`expense-unit-cost-${item.id}`" :name="`items[${index}][unit_cost]`" type="number" min="0.01" max="{{ config('expense_breakdown.maximum_unit_cost') }}" step="0.01" x-model="item.unit_cost" required class="mt-1.5 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                     </div>
                                 </div>
-                            </template>
+                                </template>
+                            </div>
                         </article>
                     </template>
                 </div>
@@ -216,11 +233,14 @@
                 </div>
             </section>
 
-            @include('faculty.proposal-drafts.partials.change-note')
+            <div x-show="isOverBudget()" x-cloak role="alert" class="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
+                <p class="font-black">Budget limit exceeded</p>
+                <p class="mt-1 leading-6">The estimated expense breakdown is over the research call limit by <strong>Php <span x-text="formatMoney(budgetOverage())"></span></strong>. You can still preview and print this working copy, and the values will be retained as a draft. Reduce the total to <strong>Php <span x-text="formatMoney(budgetCeiling)"></span></strong> or less before downloading or completing the paper.</p>
+            </div>
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
-                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download PDF</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
+                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete() || isOverBudget()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download PDF</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
                 <noscript>
                     <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save Expense Breakdown</button>
                 </noscript>

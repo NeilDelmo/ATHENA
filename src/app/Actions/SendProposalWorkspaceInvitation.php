@@ -29,6 +29,7 @@ class SendProposalWorkspaceInvitation
                         'proposal_title' => $proposalDraft->project_title,
                         'inviter_name' => $proposalDraft->owner->name,
                     ],
+                    sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
                 ));
             } catch (Throwable $exception) {
                 report($exception);

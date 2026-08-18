@@ -11,7 +11,10 @@
                 </div>
             </div>
             <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-auto">History{{ $historyCount > 0 ? ' ('.$historyCount.')' : '' }}</a>
+                <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-11" aria-label="Open recovery history{{ $historyCount > 0 ? ' ('.$historyCount.' points)' : '' }}" title="Recovery history">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    <span class="sr-only">Recovery history</span>
+                </a>
                 <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-gray-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:bg-white dark:text-gray-950 dark:hover:bg-red-600 dark:hover:text-white sm:w-auto">Review &amp; turn in</button>
             </div>
         </div>
@@ -180,7 +183,7 @@
                         <div aria-labelledby="recent-activity-heading" class="border-t border-gray-200 p-4 dark:border-slate-800">
                         <div class="flex items-start justify-between gap-2">
                             <h4 id="recent-activity-heading" class="text-sm font-black text-gray-950 dark:text-white">Recent activity</h4>
-                            <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="shrink-0 text-[10px] font-black text-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">View history</a>
+                            <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 dark:hover:bg-red-950/50" aria-label="Open recovery history" title="Recovery history"><svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></a>
                         </div>
                         <div class="mt-3 divide-y divide-gray-100 border-y border-gray-100 dark:divide-slate-800 dark:border-slate-800">
                             @forelse ($recentActivity as $activity)

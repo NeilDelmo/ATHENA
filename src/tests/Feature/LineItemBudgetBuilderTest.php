@@ -5,6 +5,8 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Support\ProposalBudgetConsistency;
+use App\Support\ProposalDraftReadiness;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -55,6 +57,8 @@ beforeEach(function () {
         'approval_body' => 'lrec',
         'resolution_number' => '1',
         'resolution_year' => '2026',
+        'certified_by' => 'Maribel Santos',
+        'certified_role' => 'Research Coordinator',
         ...$overrides,
     ];
 
@@ -82,6 +86,8 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->and($document->source_data['staff'])->toHaveCount(2)
         ->and($document->source_data['amounts']['travelling_expenses'])->toBe('10000.00')
         ->and($document->source_data['project_total_override'])->toBe('23000.00')
+        ->and($document->source_data['certified_by'])->toBe('Maribel Santos')
+        ->and($document->source_data['certified_role'])->toBe('Research Coordinator')
         ->and($document->source_data)->not->toHaveKeys(['project_title', 'planned_start', 'planned_end', 'project_leader']);
 
     $this->actingAs($this->faculty)
@@ -89,8 +95,10 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertOk()
         ->assertSee('Researcher One')
         ->assertSee('Community consultation supplies')
+        ->assertSee('Add another category or sub-category')
+        ->assertSee('data-line-item-budget-custom-input', false)
         ->assertSee('Program Title stays empty')
-        ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
+        ->assertSee('ARASOF-Nasugbu')
         ->assertSee('value="CICS"', false)
         ->assertSee('value="CTE"', false)
         ->assertSee('value="CABEIHM"', false)
@@ -102,7 +110,7 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('>Project leader college</label>', false)
         ->assertDontSee('Project leader campus <span', false)
         ->assertDontSee('Project leader college <span', false)
-        ->assertSee('Ctrl + S')
+        ->assertDontSee('Ctrl + S')
         ->assertSee('Exit editor')
         ->assertSee('#required-pdf-attachments', false)
         ->assertSee('Changes save automatically.')
@@ -125,6 +133,81 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertOk()
         ->assertSee('activeProposalTab:', false)
         ->assertSee('attachments', false);
+});
+
+test('the line-item budget uses short profile defaults and omits an empty project staff row', function () {
+    $this->faculty->update(['college' => User::COLLEGES['CICS']]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('ARASOF-Nasugbu')
+        ->assertSee('CICS')
+        ->assertSee('name="certified_by"', false)
+        ->assertSee('name="certified_role"', false);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([
+            'staff' => [],
+        ]))
+        ->assertOk()
+        ->assertDontSee('Project Staff:');
+});
+
+test('matching over-budget papers show a shared warning and both need attention', function () {
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'source_data' => [
+            'amounts' => ['travelling_expenses' => 100001],
+        ],
+        'completed_at' => now(),
+        'lock_version' => 1,
+    ]);
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'source_data' => [
+            'items' => [[
+                'category' => 'mooe',
+                'account' => 'Travelling Expenses',
+                'sub_account' => 'Local',
+                'quantity' => 1,
+                'unit_cost' => 100001,
+            ]],
+        ],
+        'completed_at' => now(),
+        'lock_version' => 1,
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Budget limit exceeded')
+        ->assertSee('Submission blocked')
+        ->assertSeeTextInOrder([
+            'Attachment B: Line-Item Budget',
+            'Needs attention',
+            'Estimated Expense Breakdown',
+            'Needs attention',
+        ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Budget limit exceeded')
+        ->assertSee('Needs attention');
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Budget limit exceeded')
+        ->assertSee('Needs attention');
+
+    $checklist = app(ProposalDraftReadiness::class)->checklist($this->draft->fresh());
+
+    expect($checklist['line-item-budget']['status'])->toBe('Needs attention')
+        ->and($checklist['expense-breakdown']['status'])->toBe('Needs attention');
 });
 
 test('the Line-Item Budget auto-save returns the current version without duplicating unchanged versions', function () {
@@ -215,7 +298,135 @@ test('the line item budget pre-fills matching amounts from an expense breakdown 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Budget amounts prefilled');
+        ->assertSee('Budget amounts synchronized');
+});
+
+test('the line item budget refreshes standard amounts after the expense breakdown changes', function () {
+    $expenseBreakdown = $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'source_data' => [
+            'items' => [[
+                'category' => 'mooe',
+                'account' => 'Communication Expenses',
+                'sub_account' => 'Telephone Expenses',
+                'quantity' => 12,
+                'unit_cost' => 300,
+            ]],
+        ],
+        'completed_at' => null,
+        'lock_version' => 1,
+    ]);
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'source_data' => [
+            'amounts' => [
+                'telephone_expenses' => 3600,
+                'ict_equipment' => 50000,
+            ],
+        ],
+        'completed_at' => null,
+        'lock_version' => 1,
+    ]);
+
+    $expenseBreakdown->update([
+        'source_data' => [
+            'items' => [[
+                'category' => 'mooe',
+                'account' => 'Communication Expenses',
+                'sub_account' => 'Telephone Expenses',
+                'quantity' => 12,
+                'unit_cost' => 500,
+            ]],
+        ],
+    ]);
+
+    $comparison = app(ProposalBudgetConsistency::class)->compare($this->draft->fresh());
+    $capitalOutlay = collect($comparison['totals'])->firstWhere('key', 'co_total');
+    $projectTotal = collect($comparison['totals'])->firstWhere('key', 'project_total');
+
+    expect($comparison['consistent'])->toBeTrue()
+        ->and($comparison['over_budget'])->toBeFalse()
+        ->and($capitalOutlay['line_item_budget'])->toEqual(0.0)
+        ->and($capitalOutlay['expense_breakdown'])->toEqual(0.0)
+        ->and($projectTotal['line_item_budget'])->toEqual(6000.0)
+        ->and($projectTotal['expense_breakdown'])->toEqual(6000.0);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertDontSee('Budget totals do not match')
+        ->assertDontSee('Budget limit exceeded');
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), [
+            ...($this->payload)(),
+            'document_version' => 1,
+            'amounts' => [
+                'telephone_expenses' => 3600,
+                'ict_equipment' => 50000,
+            ],
+            'save_as_draft' => true,
+        ], ['Accept' => 'application/json'])
+        ->assertOk()
+        ->assertJsonPath('document_version', 2);
+
+    $lineItemBudget = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole()
+        ->fresh();
+
+    expect($lineItemBudget->source_data['amounts']['telephone_expenses'])->toEqual(6000.0)
+        ->and($lineItemBudget->source_data['amounts']['ict_equipment'])->toBeNull();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Budget amounts synchronized')
+        ->assertSee('whenever this paper opens, previews, or saves.');
+});
+
+test('an empty saved expense breakdown clears stale line item amounts from the warning', function () {
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'source_data' => [
+            'amounts' => [
+                'ict_equipment' => 61000,
+            ],
+        ],
+        'completed_at' => null,
+        'lock_version' => 1,
+    ]);
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'position' => 0,
+        'source_data' => [
+            'items' => [],
+        ],
+        'completed_at' => null,
+        'lock_version' => 1,
+    ]);
+
+    $comparison = app(ProposalBudgetConsistency::class)->compare($this->draft->fresh());
+    $capitalOutlay = collect($comparison['totals'])->firstWhere('key', 'co_total');
+    $projectTotal = collect($comparison['totals'])->firstWhere('key', 'project_total');
+
+    expect($comparison['available'])->toBeTrue()
+        ->and($comparison['consistent'])->toBeTrue()
+        ->and($comparison['over_budget'])->toBeFalse()
+        ->and($capitalOutlay['line_item_budget'])->toEqual(0.0)
+        ->and($capitalOutlay['expense_breakdown'])->toEqual(0.0)
+        ->and($projectTotal['line_item_budget'])->toEqual(0.0)
+        ->and($projectTotal['expense_breakdown'])->toEqual(0.0);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertDontSee('Budget totals do not match')
+        ->assertDontSee('Budget limit exceeded')
+        ->assertDontSee('Php 61,000.00');
 });
 
 test('empty optional fields are accepted while totals remain automatic', function () {
@@ -225,12 +436,12 @@ test('empty optional fields are accepted while totals remain automatic', functio
         ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
         ->assertOk()
         ->assertSee('Community Coastal Research')
-        ->assertSee('BatStateU The NEU ARASOF-Nasugbu Campus')
+        ->assertSee('ARASOF-Nasugbu')
         ->assertSee('Sheena Lei Delmo')
         ->assertDontSee('SHEENA LEI DELMO')
         ->assertSee('0.00')
-        ->assertSee('DJOANNA MARIE V. SALAC')
-        ->assertSee('Head, Research');
+        ->assertDontSee('DJOANNA MARIE V. SALAC')
+        ->assertDontSee('Head, Research');
 });
 
 test('the line-item preview remains available when shared project details are incomplete', function () {
@@ -323,10 +534,13 @@ test('the generated Line-Item Budget preserves the official structure and fills 
             ->and($documentXml)->toContain('Community consultation supplies')
             ->and($documentXml)->toContain('Field measurement device')
             ->and(trim((string) $xpath->evaluate('string(.)', $findRow('Total for Maintenance'))))->toContain('16,000.00')
+            ->and($xpath->evaluate('string(.//w:tc[1]//w:jc/@w:val)', $findRow('Total for Maintenance')))->toBe('right')
             ->and(trim((string) $xpath->evaluate('string(.)', $findRow('Total for Capital'))))->toContain('5,000.00')
+            ->and($xpath->evaluate('string(.//w:tc[1]//w:jc/@w:val)', $findRow('Total for Capital')))->toBe('right')
             ->and(trim((string) $xpath->evaluate('string(.)', $findRow('TOTAL PROJECT COST'))))->toContain('21,000.00')
-            ->and($documentXml)->toContain('DJOANNA MARIE V. SALAC')
-            ->and($documentXml)->toContain('Head, Research')
+            ->and($xpath->evaluate('string(.//w:tc[1]//w:jc/@w:val)', $findRow('TOTAL PROJECT COST')))->toBe('center')
+            ->and($documentXml)->toContain('MARIBEL SANTOS')
+            ->and($documentXml)->toContain('Research Coordinator')
             ->and($documentXml)->not->toContain('Vice President for Research, Development and Extension Services')
             ->and($documentXml)->not->toContain('Vice Chairperson, Research Council **')
             ->and($documentXml)->toContain('Approved by the Local Research Evaluation Committee as per LREC Resolution No. 1, S. 2026')
@@ -343,24 +557,47 @@ test('the generated Line-Item Budget preserves the official structure and fills 
     }
 });
 
-test('contingency and the research call budget ceiling are validated', function () {
-    $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([
-            'amounts' => ['travelling_expenses' => 1000, 'contingency' => 1000],
-        ]))
-        ->assertSessionHasErrors('amounts.contingency');
+test('contingency and the research call budget ceiling are enforced when finalizing, not previewing', function () {
+    $contingencyPayload = ($this->payload)([
+        'amounts' => ['travelling_expenses' => 1000, 'contingency' => 1000],
+    ]);
 
     $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([
-            'project_total_override' => 100001,
-        ]))
-        ->assertSessionHasErrors('project_total_override');
+        ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), $contingencyPayload)
+        ->assertOk()
+        ->assertSee('LINE-ITEM BUDGET');
 
     $this->actingAs($this->faculty)
-        ->post(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([
+        ->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $contingencyPayload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('amounts.contingency');
+
+    $overBudgetPayload = ($this->payload)(['project_total_override' => 100001]);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), $overBudgetPayload)
+        ->assertOk()
+        ->assertSee('TOTAL PROJECT COST');
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $overBudgetPayload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('project_total_override');
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), [
+            ...$overBudgetPayload,
+            'save_as_draft' => true,
+        ])
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), ($this->payload)([
             'project_total_override' => 22000,
         ]))
-        ->assertSessionHasErrors([
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([
             'project_total_override' => 'The Total Project Cost must equal MOOE plus Capital Outlay (Php 21,000.00).',
         ]);
 });

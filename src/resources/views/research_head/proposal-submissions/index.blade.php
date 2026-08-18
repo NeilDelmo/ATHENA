@@ -2,14 +2,15 @@
     <x-slot name="header">
         <div>
             <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Proposal Submissions</h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">View every initial proposal package and revision received by the Research Head.</p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Receive active proposal packages, review their current status, and retain every submitted version.</p>
         </div>
     </x-slot>
 
     <div class="space-y-6" data-proposal-submissions>
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             @foreach ([
-                ['Submitted proposals', $summary['proposals'], 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300'],
+                ['Proposal records', $summary['proposals'], 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300'],
+                ['Active queue', $summary['active'], 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'],
                 ['All submissions', $summary['total'], 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200'],
                 ['Initial packages', $summary['initial'], 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300'],
                 ['Revisions received', $summary['revision'], 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'],
@@ -20,6 +21,72 @@
                 </div>
             @endforeach
         </div>
+
+        <section aria-labelledby="active-proposal-queue-heading">
+            <div class="mb-4 flex items-end justify-between gap-4">
+                <div>
+                    <h3 id="active-proposal-queue-heading" class="text-lg font-black text-gray-900 dark:text-white">Active proposal queue</h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current record per proposal. Approved projects continue in Project Monitoring.</p>
+                </div>
+                <span class="text-xs font-bold text-gray-500 dark:text-slate-400">{{ $activeProposals->total() }} active {{ Str::plural('proposal', $activeProposals->total()) }}</span>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                @forelse ($activeProposals as $proposal)
+                    @php
+                        [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
+                            'expert_review' => ['Under expert review', 'The assigned expert is evaluating this package.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
+                            'for_final_decision' => ['Awaiting decision', 'The review stage is complete and the proposal needs a Research Head decision.', 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200'],
+                            'revision_requested' => ['Revision requested', 'The faculty member is preparing the requested corrections.', 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200'],
+                            'resubmitted' => ['Resubmitted', 'A revised package was received and needs another review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
+                            'ready_for_signature' => ['Final signing', 'Selected final papers are awaiting signed copies.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                            default => ['New submission', 'A proposal package was received and is ready to enter review.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
+                        };
+                        $latestSubmission = $proposal->latestVersion;
+                        $receivedAt = $latestSubmission?->created_at ?? $proposal->created_at;
+                    @endphp
+
+                    <article class="flex min-h-64 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <div class="flex items-start justify-between gap-3">
+                            <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
+                            <time datetime="{{ $receivedAt?->toIso8601String() }}" class="shrink-0 text-[11px] text-gray-500 dark:text-slate-400">{{ $receivedAt?->diffForHumans() }}</time>
+                        </div>
+
+                        <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-900 dark:text-white">{{ $proposal->title }}</h4>
+                        <p class="mt-2 text-xs font-semibold text-gray-600 dark:text-slate-300">{{ $proposal->user->name }}</p>
+                        <p class="mt-1 text-[11px] text-gray-500 dark:text-slate-400">{{ $proposal->researchCall?->title ?? 'Research call unavailable' }}</p>
+                        @if ($proposal->researchCall?->academic_year)
+                            <p class="mt-1 text-[11px] font-semibold text-gray-500 dark:text-slate-400">AY {{ $proposal->researchCall->academic_year }}</p>
+                        @endif
+
+                        <p class="mt-4 text-xs leading-5 text-gray-600 dark:text-slate-300">{{ $statusDescription }}</p>
+
+                        <div class="mt-4 rounded-xl bg-gray-50 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:bg-slate-950 dark:text-slate-300">
+                            @if ($latestSubmission)
+                                Version {{ $latestSubmission->version_number }} · {{ $latestSubmission->submission_type === 'revision' ? 'Latest submission is a revision' : 'Initial package received' }}
+                            @else
+                                Submitted proposal record
+                            @endif
+                        </div>
+
+                        <div class="mt-auto pt-6">
+                            <a href="{{ route('topics.show', $proposal) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-500 dark:focus:ring-offset-slate-900">
+                                {{ $proposal->status === 'revision_requested' ? 'Open revision record' : 'Open for review' }}
+                            </a>
+                        </div>
+                    </article>
+                @empty
+                    <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-slate-700 dark:bg-slate-900 md:col-span-2 xl:col-span-3">
+                        <h4 class="text-base font-black text-gray-900 dark:text-white">No active proposals in the queue</h4>
+                        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400">New and revised packages will appear here when they are received. Approved projects remain in Project Monitoring.</p>
+                    </div>
+                @endforelse
+            </div>
+
+            @if ($activeProposals->hasPages())
+                <div class="mt-6">{{ $activeProposals->links() }}</div>
+            @endif
+        </section>
 
         <form method="GET" action="{{ route('research_head.proposal-submissions.index') }}" class="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[minmax(0,1fr)_190px_210px_auto]">
             <label class="sr-only" for="proposal-submission-search">Search proposal submissions</label>
@@ -59,7 +126,7 @@
 
         <section aria-labelledby="proposal-submission-records-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800">
-                <h3 id="proposal-submission-records-heading" class="text-base font-black text-gray-900 dark:text-white">Submission records</h3>
+                <h3 id="proposal-submission-records-heading" class="text-base font-black text-gray-900 dark:text-white">Submission history</h3>
                 <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Records are ordered by the most recently received package.</p>
             </div>
 

@@ -135,7 +135,7 @@
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <h3 class="text-xs font-black uppercase tracking-wider text-gray-400">Institutional account</h3>
                 <p class="mt-3 text-xs leading-5 text-gray-600">Your name, email, password, and account recovery are managed by Batangas State University. Google profile changes synchronize the next time you sign in.</p>
-                <form method="POST" action="{{ route('logout') }}" class="mt-4">
+                <form method="POST" action="{{ route('logout') }}" class="mt-4" onsubmit="return confirm('Are you sure you want to log out?')">
                     @csrf
                     <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-600 transition hover:bg-red-50">Sign out securely</button>
                 </form>

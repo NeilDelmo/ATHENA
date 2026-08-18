@@ -7,6 +7,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftLineItemBudgetRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ResearchCall;
 use App\Services\LineItemBudgetDocumentService;
 use App\Support\LineItemBudgetData;
 use App\Support\ProposalBudgetConsistency;
@@ -37,6 +38,8 @@ class ProposalDraftLineItemBudgetController extends Controller
         'approval_body',
         'resolution_number',
         'resolution_year',
+        'certified_by',
+        'certified_role',
     ];
 
     public function edit(
@@ -55,25 +58,32 @@ class ProposalDraftLineItemBudgetController extends Controller
             ->first();
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
         $expenseBreakdownItems = is_array($expenseBreakdownDocument?->source_data)
-            ? ($expenseBreakdownDocument->source_data['items'] ?? [])
-            : [];
-        $savedAmounts = collect($sourceData['amounts'] ?? [])
-            ->filter(fn (mixed $amount): bool => $amount !== null && $amount !== '')
-            ->all();
-        $sourceData['amounts'] = array_replace(
-            LineItemBudgetData::amountsFromExpenseBreakdown(is_array($expenseBreakdownItems) ? $expenseBreakdownItems : []),
-            $savedAmounts,
+            && is_array($expenseBreakdownDocument->source_data['items'] ?? null)
+            ? $expenseBreakdownDocument->source_data['items']
+            : null;
+        $sourceData = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+            $sourceData,
+            $expenseBreakdownItems,
         );
-        if (blank($sourceData['leader_college'] ?? null)) {
-            $sourceData['leader_college'] = (string) ($proposalDraft->owner?->college ?? '');
-        }
+        $sourceData['leader_campus'] = LineItemBudgetData::campusLabel($sourceData['leader_campus'] ?? null);
+        $sourceData['leader_college'] = LineItemBudgetData::collegeAbbreviation(
+            filled($sourceData['leader_college'] ?? null)
+                ? $sourceData['leader_college']
+                : $proposalDraft->owner?->college,
+        );
         // Note: unlike the detailed proposal and the CV, the line-item budget
         // does NOT fall back to the currently signed-in user's college. The
         // leader is the proposal owner — if the owner has no college set, the
         // reviewer/editor's own college must not silently replace it, since
         // that would publish the wrong proponent college on the printed PDF.
-        $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
+        $workspacePeople = collect($proposalWorkspacePeople->forDraft($proposalDraft))
+            ->map(fn (array $person): array => [
+                ...$person,
+                'college' => LineItemBudgetData::collegeAbbreviation($person['college']),
+            ])
+            ->all();
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
+        $budgetCeiling = $proposalDraft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
 
         return view('faculty.proposal-drafts.line-item-budget.edit', compact(
             'proposalDraft',
@@ -83,6 +93,7 @@ class ProposalDraftLineItemBudgetController extends Controller
             'sourceData',
             'workspacePeople',
             'budgetConsistency',
+            'budgetCeiling',
         ));
     }
 

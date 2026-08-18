@@ -38,6 +38,7 @@
             initialData: @js($initialData),
             sections: @js($sections),
             defaultCampus: @js(config('line_item_budget.default_campus')),
+            budgetCeiling: @js($budgetCeiling),
             workspacePeople: @js($workspacePeople),
             previewUrl: @js(route('faculty.proposal-drafts.line-item-budget.preview', $proposalDraft)),
             downloadUrl: @js(route('faculty.proposal-drafts.line-item-budget.download', $proposalDraft)),
@@ -83,8 +84,8 @@
 
         @if ($expenseBreakdownHasDraft)
             <div role="status" class="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                <p class="font-black">Budget amounts prefilled</p>
-                <p class="mt-1 leading-6">Matching amounts from the saved Estimated Expense Breakdown are filled into the Line-Item Budget. You can review or adjust them before saving.</p>
+                <p class="font-black">Budget amounts synchronized</p>
+                <p class="mt-1 leading-6">Matching amounts are refreshed from the saved Estimated Expense Breakdown whenever this paper opens, previews, or saves. Use custom rows or total overrides for intentional adjustments.</p>
             </div>
         @endif
 
@@ -104,7 +105,7 @@
                 <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-normal text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
                 <div class="sm:col-span-2"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration on paper <span class="text-red-600" title="Required" aria-label="Required">*</span></dt><dd class="mt-1 text-sm italic text-gray-900">{{ $proposalDraft->planned_start?->format('F j, Y') ?? 'Not provided' }} - {{ $proposalDraft->planned_end?->format('F j, Y') ?? 'Not provided' }}</dd></div>
-                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt><dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($proposalDraft->researchCall->budgetCeiling(), 2) }}</dd></div>
+                <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Institutional budget limit</dt><dd class="mt-1 text-sm font-semibold text-gray-900">PHP {{ number_format($budgetCeiling, 2) }}</dd></div>
             </dl>
         </section>
 
@@ -165,13 +166,15 @@
                         @endforeach
 
                         <template x-for="(item, index) in {{ $customProperty }}" :key="item.id">
-                            <div class="grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-center">
-                                <input :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                            <div x-bind:data-repeatable-entry="`line-item-budget-custom-${item.id}`" class="grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-center">
+                                <input :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" x-bind:data-line-item-budget-custom-input="item.id" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <input :name="`custom_{{ $sectionKey }}_items[${index}][amount]`" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="item.amount" aria-label="Custom {{ strtoupper($sectionKey) }} amount" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <button type="button" x-on:click="removeCustomItem('{{ $sectionKey }}', index)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
                             </div>
                         </template>
                     </div>
+
+                    <button type="button" x-on:click="addCustomItem('{{ $sectionKey }}')" class="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">Add another category or sub-category</button>
 
                     <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -191,6 +194,11 @@
                 <input name="project_total_override" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="projectOverride" x-bind:disabled="!overrideProject" x-show="overrideProject" x-cloak aria-label="Manual project total" class="mt-4 block w-full rounded-xl border-gray-600 bg-gray-800 text-right text-white shadow-sm focus:border-red-500 focus:ring-red-500 sm:max-w-xs sm:ml-auto">
             </section>
 
+            <div x-show="isOverBudget()" x-cloak role="alert" class="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
+                <p class="font-black">Budget limit exceeded</p>
+                <p class="mt-1 leading-6">The Line-Item Budget is over the research call limit by <strong>Php <span x-text="formatMoney(budgetOverage())"></span></strong>. Your changes are retained as a draft, and you can still preview and print this working copy. Reduce the total to <strong>Php <span x-text="formatMoney(budgetCeiling)"></span></strong> or less before downloading or completing the paper.</p>
+            </div>
+
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div><h3 class="text-base font-black text-gray-900">Research Office section</h3><p class="mt-1 text-xs text-gray-500">These fields are optional and may remain blank.</p></div>
                 <div class="mt-5 grid gap-5 sm:grid-cols-2">
@@ -200,18 +208,18 @@
                     <div><label for="resolution-year" class="block text-xs font-black uppercase tracking-wider text-gray-600">Resolution year</label><input id="resolution-year" name="resolution_year" type="text" maxlength="10" x-model="resolutionYear" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
                 <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Certified correct by</p>
-                    <p class="mt-2 font-black text-gray-900">{{ config('work_plan.verifier.name') }}</p>
-                    <p class="text-xs text-gray-600">{{ config('work_plan.verifier.role') }}</p>
-                    <p class="mt-2 text-xs text-gray-500">The signature lines and both Date Signed fields remain blank for handwriting.</p>
+                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Certified correct signatory</p>
+                    <div class="mt-3 grid gap-4 sm:grid-cols-2">
+                        <div><label for="certified-by" class="block text-xs font-bold text-gray-700">Name</label><input id="certified-by" name="certified_by" type="text" maxlength="120" x-model="certifiedBy" x-on:input="certifiedBy = certifiedBy.toUpperCase()" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                        <div><label for="certified-role" class="block text-xs font-bold text-gray-700">Role / position</label><input id="certified-role" name="certified_role" type="text" maxlength="120" x-model="certifiedRole" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    </div>
+                    <p class="mt-3 text-xs text-gray-500">The signatory name prints in uppercase. The signature lines and both Date Signed fields remain blank for handwriting.</p>
                 </div>
             </section>
 
-            @include('faculty.proposal-drafts.partials.change-note')
-
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating&hellip;</span></button>
-                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download PDF</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
+                <button type="button" x-on:click="downloadDocument" x-bind:disabled="!isComplete() || isOverBudget()" @disabled(! $projectDetailsComplete) class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!downloadLoading">Download PDF</span><span x-show="downloadLoading" x-cloak>Preparing&hellip;</span></button>
                 <noscript>
                     <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Save Line-Item Budget</button>
                 </noscript>

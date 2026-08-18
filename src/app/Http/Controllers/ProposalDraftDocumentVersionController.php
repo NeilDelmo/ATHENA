@@ -94,8 +94,8 @@ class ProposalDraftDocumentVersionController extends Controller
             ->with(
                 $result['version_created'] ? 'success' : 'warning',
                 $result['version_created']
-                    ? 'Version '.$version->version_number.' was restored as a new current version.'
-                    : 'That version already matches the current paper, so no duplicate version was created.',
+                    ? 'The selected recovery point was restored. Your previous working draft was preserved in recovery history.'
+                    : 'That recovery point already matches the current working draft, so nothing needed to be restored.',
             );
     }
 

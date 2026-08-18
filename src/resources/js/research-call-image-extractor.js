@@ -87,6 +87,7 @@ function initializeResearchCallImageExtractors() {
         const statusElement = form.querySelector('[data-research-call-image-status]');
         const extractSpinner = form.querySelector('[data-research-call-extract-spinner]');
         const extractLabel = form.querySelector('[data-research-call-extract-label]');
+        const posterReadingLoadingScreen = form.querySelector('[data-research-call-poster-reading-loading]');
         const extractionSummary = form.querySelector('[data-research-call-extraction-summary]');
         const detectedFields = form.querySelector('[data-research-call-detected-fields]');
         const missingFields = form.querySelector('[data-research-call-missing-fields]');
@@ -124,6 +125,8 @@ function initializeResearchCallImageExtractors() {
             extractButton.disabled = isExtracting || !imageInput.files?.[0];
             extractButton.setAttribute('aria-busy', String(isExtracting));
             extractSpinner?.classList.toggle('hidden', !isExtracting);
+            posterReadingLoadingScreen?.toggleAttribute('hidden', !isExtracting);
+            posterReadingLoadingScreen?.setAttribute('aria-hidden', String(!isExtracting));
 
             if (extractLabel instanceof HTMLElement) {
                 extractLabel.textContent = isExtracting ? 'Reading poster...' : 'Read image';

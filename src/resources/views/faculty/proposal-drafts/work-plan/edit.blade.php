@@ -108,59 +108,73 @@
                 </div>
 
                 <template x-for="(entry, index) in entries" :key="entry.id">
-                    <article class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div class="flex items-center justify-between gap-3">
-                            <h4 class="text-sm font-black text-gray-900">Objective <span x-text="index + 1"></span></h4>
-                            <button type="button" x-on:click="removeEntry(index)" x-bind:disabled="entries.length === 1" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
-                        </div>
-
-                        <div class="mt-5 grid gap-5 lg:grid-cols-3">
-                            <div>
-                                <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective <span class="text-red-600">Required</span></label>
-                                <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-model="entry.objective" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                    <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-5 shadow-sm transition-colors sm:p-6">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0">
+                                <p class="text-xs font-black uppercase tracking-wider text-gray-500">Objective <span x-text="index + 1"></span></p>
+                                <h4 class="mt-1 truncate text-sm font-black text-gray-900" x-text="entrySummary(entry)"></h4>
+                                <p x-show="!isEntryExpanded(entry)" x-cloak class="mt-1 text-xs text-gray-500" x-text="entryScheduleSummary(entry)"></p>
                             </div>
-                            <div>
-                                <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <span class="text-red-600">Required</span></label>
-                                <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <span class="text-red-600">Required</span></label>
-                                <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="1500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <button type="button" x-on:click="toggleEntry(entry)" x-bind:aria-expanded="isEntryExpanded(entry)" x-bind:aria-controls="`work-plan-editor-${entry.id}`" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">
+                                    <span x-show="isEntryExpanded(entry)">Collapse</span>
+                                    <span x-show="!isEntryExpanded(entry)" x-cloak>Edit</span>
+                                </button>
+                                <button type="button" x-on:click="removeEntry(index)" x-bind:disabled="entries.length === 1" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
                             </div>
                         </div>
 
-                        <fieldset class="mt-5">
-                            <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <span class="text-red-600">Required</span></legend>
-                            <p class="mt-2 text-xs leading-5 text-gray-500">Each 12-month block becomes a matching Attachment A year sheet. Months assigned to another objective are locked until they are removed from that objective.</p>
-                            <div class="mt-3 grid gap-4">
-                                <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
-                                    <section class="rounded-xl border border-gray-200 bg-gray-50 p-3" x-bind:aria-label="`Year ${yearGroup.year} schedule`">
-                                        <div class="flex flex-wrap items-center justify-between gap-2">
-                                            <p class="text-xs font-black uppercase tracking-wider text-gray-700" x-text="`Y${yearGroup.year}`"></p>
-                                            <p class="text-[10px] font-semibold text-gray-500" x-text="`Project months ${yearGroup.months[0]}-${yearGroup.months[yearGroup.months.length - 1]}`"></p>
-                                        </div>
-                                        <div class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
-                                            <template x-for="month in yearGroup.months" :key="month">
-                                                <label
-                                                    class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
-                                                    x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : (isMonthSelectable(index, month) ? 'border-gray-200 bg-white text-gray-600 hover:border-gray-300' : 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700')"
-                                                    x-bind:title="monthSelectionTitle(index, month)"
-                                                >
-                                                    <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
-                                                    <span x-text="`M${localMonthNumber(month)}`"></span>
-                                                    <span x-show="yearGroup.year > 1" class="mt-0.5 text-[9px] font-semibold text-gray-500" x-text="`Project M${month}`"></span>
-                                                    <span x-show="monthOwnerLabel(index, month)" x-text="monthOwnerLabel(index, month)" class="mt-0.5 text-[9px] font-bold uppercase tracking-wide"></span>
-                                                </label>
-                                            </template>
-                                        </div>
-                                    </section>
-                                </template>
+                        <div x-bind:id="`work-plan-editor-${entry.id}`" x-show="isEntryExpanded(entry)" x-cloak x-transition class="mt-5">
+                            <div class="grid gap-5 lg:grid-cols-3">
+                                <div>
+                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective <span class="text-red-600">Required</span></label>
+                                    <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <span class="text-red-600">Required</span></label>
+                                    <textarea x-bind:id="`output-${entry.id}`" x-bind:name="`entries[${index}][expected_output]`" x-model="entry.expectedOutput" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`activity-${entry.id}`">Activities or Workplan <span class="text-red-600">Required</span></label>
+                                    <textarea x-bind:id="`activity-${entry.id}`" x-bind:name="`entries[${index}][activity]`" x-model="entry.activity" rows="4" maxlength="1500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                </div>
                             </div>
-                            <p x-show="monthErrorIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">Select at least one month for this objective.</p>
-                            <p x-show="monthConflictIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">This objective shares a month with an earlier objective. Remove the duplicate month.</p>
-                        </fieldset>
+
+                            <fieldset class="mt-5">
+                                <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <span class="text-red-600">Required</span></legend>
+                                <p class="mt-2 text-xs leading-5 text-gray-500">Each 12-month block becomes a matching Attachment A year sheet. Months assigned to another objective are locked until they are removed from that objective.</p>
+                                <div class="mt-3 grid gap-4">
+                                    <template x-for="yearGroup in yearGroups" :key="yearGroup.year">
+                                        <section class="rounded-xl border border-gray-200 bg-gray-50 p-3" x-bind:aria-label="`Year ${yearGroup.year} schedule`">
+                                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                                <p class="text-xs font-black uppercase tracking-wider text-gray-700" x-text="`Y${yearGroup.year}`"></p>
+                                                <p class="text-[10px] font-semibold text-gray-500" x-text="`Project months ${yearGroup.months[0]}-${yearGroup.months[yearGroup.months.length - 1]}`"></p>
+                                            </div>
+                                            <div class="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-12">
+                                                <template x-for="month in yearGroup.months" :key="month">
+                                                    <label
+                                                        class="relative flex cursor-pointer flex-col items-center justify-center rounded-xl border px-2 py-2.5 text-xs font-black transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2"
+                                                        x-bind:class="entry.months.includes(month) ? 'border-red-600 bg-red-50 text-red-700' : (isMonthSelectable(index, month) ? 'border-gray-200 bg-white text-gray-600 hover:border-gray-300' : 'cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700')"
+                                                        x-bind:title="monthSelectionTitle(index, month)"
+                                                    >
+                                                        <input type="checkbox" class="sr-only" x-bind:name="`entries[${index}][months][]`" x-bind:value="month" x-model.number="entry.months" x-bind:disabled="!isMonthSelectable(index, month)" x-on:change="clearMonthError(index)">
+                                                        <span x-text="`M${localMonthNumber(month)}`"></span>
+                                                        <span x-show="yearGroup.year > 1" class="mt-0.5 text-[9px] font-semibold text-gray-500" x-text="`Project M${month}`"></span>
+                                                        <span x-show="monthOwnerLabel(index, month)" x-text="monthOwnerLabel(index, month)" class="mt-0.5 text-[9px] font-bold uppercase tracking-wide"></span>
+                                                    </label>
+                                                </template>
+                                            </div>
+                                        </section>
+                                    </template>
+                                </div>
+                                <p x-show="monthErrorIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">Select at least one month for this objective.</p>
+                                <p x-show="monthConflictIndexes.includes(index)" x-cloak class="mt-2 text-xs font-semibold text-red-600">This objective shares a month with an earlier objective. Remove the duplicate month.</p>
+                            </fieldset>
+                        </div>
                     </article>
                 </template>
+
+                <button type="button" x-on:click="addEntry" x-bind:disabled="!canAddEntry()" x-bind:title="canAddEntry() ? 'Add another objective' : 'No unassigned project month is available for another objective.'" class="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50">Add another objective</button>
             </section>
 
             <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
@@ -171,8 +185,6 @@
                     <p class="mt-2 text-xs text-gray-500">Both Date Signed fields remain blank for handwritten signatures.</p>
                 </div>
             </section>
-
-            @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating…</span></button>

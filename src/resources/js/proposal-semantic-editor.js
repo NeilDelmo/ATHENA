@@ -28,3 +28,18 @@ export function synchronizeCitationMarkerLabels(markers, referenceNumbers = {}) 
 
     return changed;
 }
+
+export function orderedCitationSourceIds(markerSourceIds = [], citations = []) {
+    const normalizedMarkerIds = [...markerSourceIds]
+        .map((sourceLinkId) => Number(sourceLinkId))
+        .filter((sourceLinkId) => Number.isInteger(sourceLinkId) && sourceLinkId > 0);
+
+    const sourceIds = normalizedMarkerIds.length > 0
+        ? normalizedMarkerIds
+        : citations
+            .filter((citation) => citation?.field === 'related_literature')
+            .map((citation) => Number(citation.source_link_id))
+            .filter((sourceLinkId) => Number.isInteger(sourceLinkId) && sourceLinkId > 0);
+
+    return [...new Set(sourceIds)];
+}

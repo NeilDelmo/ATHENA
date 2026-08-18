@@ -128,9 +128,17 @@ test('a researcher prepares an official monitoring PDF before submitting it to t
     );
 });
 
-test('the faculty project page shows the official monitoring tool fields', function () {
+test('the faculty project page opens the monitoring tool in a focused form page', function () {
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Monitoring submissions')
+        ->assertSee('Open monitoring tool')
+        ->assertSee(route('project-progress.create', $this->topic), false)
+        ->assertDontSee('data-monitoring-tool-autosave-form', false);
+
+    $this->actingAs($this->researcher)
+        ->get(route('project-progress.create', $this->topic))
         ->assertOk()
         ->assertSee('Submit monitoring tool')
         ->assertSee('Prepare official PDF')
@@ -271,6 +279,10 @@ test('another researcher cannot report progress for a project they do not own', 
     $other->assignRole('faculty_researcher');
 
     $this->actingAs($other)
+        ->get(route('project-progress.create', $this->topic))
+        ->assertForbidden();
+
+    $this->actingAs($other)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertForbidden();
 });
@@ -285,6 +297,10 @@ test('progress cannot be submitted for a proposal that is not approved', functio
 
 test('completed projects cannot preview or submit monitoring tools', function () {
     $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+
+    $this->actingAs($this->researcher)
+        ->get(route('project-progress.create', $this->topic))
+        ->assertNotFound();
 
     $this->actingAs($this->researcher)
         ->post(route('project-progress.preview', $this->topic), ($this->monitoringPayload)())
@@ -313,7 +329,7 @@ test('an accepted collaborator can access the same active project monitoring wor
     $this->actingAs($collaborator)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Submit monitoring tool');
+        ->assertSee('Open monitoring tool');
     $this->actingAs($collaborator)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertRedirect()
@@ -337,7 +353,7 @@ test('a researcher can discard a prepared monitoring tool and its stored PDF', f
     Storage::disk('local')->assertExists($pdfPath);
 
     $this->actingAs($this->researcher)
-        ->get(route('research.show', $this->topic))
+        ->get(route('project-progress.create', $this->topic))
         ->assertOk()
         ->assertSee('Monitoring Tool PDF prepared')
         ->assertSee('Submit to Research Head');
@@ -415,7 +431,7 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
         ->assertSessionHasNoErrors();
 
     $this->actingAs($this->researcher)
-        ->get(route('research.show', ['topic' => $this->topic, 'revise_monitoring_report' => $original->id]))
+        ->get(route('project-progress.create', ['topic' => $this->topic, 'revise_monitoring_report' => $original->id]))
         ->assertOk()
         ->assertSee('Revise '.$original->quarter_label.' Monitoring Tool')
         ->assertSee('Please correct the accomplishment data.');

@@ -8,6 +8,7 @@ use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\SidebarAttentionService;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -25,8 +26,16 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
+    public function boot(SidebarAttentionService $sidebarAttention): void
     {
+        View::composer('layouts.navigation', function ($view) use ($sidebarAttention): void {
+            $user = request()->user();
+
+            $view->with('sidebarAttentionCounts', $user
+                ? $sidebarAttention->countsFor($user)
+                : []);
+        });
+
         View::composer('layouts.app', function ($view): void {
             $user = request()->user();
 
@@ -75,6 +84,7 @@ class AppServiceProvider extends ServiceProvider
             if (! $user || ! $user->isUsingWorkspace([
                 User::WORKSPACE_FACULTY,
                 User::WORKSPACE_FACULTY_RESEARCHER,
+                User::WORKSPACE_RESEARCH_HEAD,
             ])) {
                 $view->with('researchAssistantContexts', collect());
                 $view->with('activeResearchAssistantContextId', null);
@@ -88,8 +98,20 @@ class AppServiceProvider extends ServiceProvider
                 $this->assistantPageActions($user, $activeProposalDraftId, $paperSlug, $routeTopic),
             );
 
-            $contexts = TopicProposal::query()
-                ->accessibleTo($user)
+            $draftTopic = $activeProposalDraftId && $routeDraft instanceof ProposalDraft
+                ? $routeDraft->topic
+                : null;
+            $activeContextTopic = match (true) {
+                $routeTopic instanceof TopicProposal && $user->can('view', $routeTopic) => $routeTopic,
+                $draftTopic instanceof TopicProposal && $user->can('view', $draftTopic) => $draftTopic,
+                default => null,
+            };
+
+            $contextTopics = TopicProposal::query()
+                ->when(
+                    ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD),
+                    fn ($query) => $query->accessibleTo($user),
+                )
                 ->when(
                     $user->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER),
                     fn ($query) => $query->visibleInResearcherWorkspace(),
@@ -97,7 +119,19 @@ class AppServiceProvider extends ServiceProvider
                 ->with(['category', 'researchCall', 'latestVersion'])
                 ->latest()
                 ->limit(8)
-                ->get()
+                ->get();
+
+            if ($activeContextTopic) {
+                $contextTopics->prepend($activeContextTopic);
+            }
+
+            $contextTopics = $contextTopics
+                ->unique(fn (TopicProposal $topic): int => $topic->getKey())
+                ->take(8)
+                ->values();
+            $contextTopics->loadMissing(['category', 'researchCall', 'latestVersion']);
+
+            $contexts = $contextTopics
                 ->map(fn (TopicProposal $topic) => [
                     'id' => $topic->id,
                     'label' => Str::limit($topic->title, 72),
@@ -109,16 +143,8 @@ class AppServiceProvider extends ServiceProvider
                     ])->filter()->join(' · '),
                 ]);
 
-            $activeContextId = match (true) {
-                $routeTopic instanceof TopicProposal && $user->can('view', $routeTopic) => $routeTopic->id,
-                $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
-                    && $routeDraft instanceof ProposalDraft
-                    && $routeDraft->topic?->user_id === $user->id => $routeDraft->topic_id,
-                default => null,
-            };
-
             $view->with('researchAssistantContexts', $contexts);
-            $view->with('activeResearchAssistantContextId', $activeContextId);
+            $view->with('activeResearchAssistantContextId', $activeContextTopic?->getKey());
         });
     }
 
@@ -165,9 +191,9 @@ class AppServiceProvider extends ServiceProvider
             return $actions;
         }
 
-        if (! request()->routeIs('topics.show')
+        if (! request()->routeIs('topics.show', 'research.show')
             || ! $routeTopic instanceof TopicProposal
-            || $routeTopic->user_id !== $user->id) {
+            || ! $user->can('view', $routeTopic)) {
             return [];
         }
 

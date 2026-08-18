@@ -37,6 +37,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 || $request->routeIs(
                     'faculty.proposal-drafts.work-plan.preview',
                     'faculty.proposal-drafts.work-plan.download',
-                ),
+                )
+                || ($request->expectsJson() && $request->routeIs(
+                    'faculty.proposal-drafts.line-item-budget.update',
+                    'faculty.proposal-drafts.line-item-budget.preview',
+                    'faculty.proposal-drafts.line-item-budget.download',
+                    'faculty.proposal-drafts.expense-breakdown.update',
+                    'faculty.proposal-drafts.expense-breakdown.preview',
+                    'faculty.proposal-drafts.expense-breakdown.download',
+                )),
         );
     })->create();

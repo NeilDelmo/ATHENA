@@ -9,7 +9,7 @@
     <body class="expense-breakdown-preview-page">
         <main class="expense-breakdown-sheet" aria-label="Estimated Breakdown and Details of Expenses">
             <h1>Estimated Breakdown and Details of Expenses</h1>
-            <p class="expense-breakdown-project-title"><strong>Project Title:</strong> {{ $expenseBreakdown['project_title'] }}</p>
+            <p class="expense-breakdown-project-title">Project Title: {{ $expenseBreakdown['project_title'] }}</p>
 
             <table class="expense-breakdown-table">
                 <thead>
@@ -39,7 +39,7 @@
                                             <td rowspan="{{ $accountRowspan }}">{{ $account['label'] }}</td>
                                         @endif
                                         @if ($itemIndex === 0)
-                                            <td rowspan="{{ count($subAccount['items']) }}">{{ $subAccount['label'] }}</td>
+                                            <td rowspan="{{ count($subAccount['items']) + 1 }}">{{ $subAccount['label'] }}</td>
                                         @endif
                                         <td>{{ $item['particulars'] }}</td>
                                         <td>{{ $item['details'] }}</td>
@@ -51,7 +51,7 @@
                                     </tr>
                                 @endforeach
                                 <tr class="expense-breakdown-sub-account-total">
-                                    <th colspan="7" scope="row">{{ $subAccount['total_label'] }}</th>
+                                    <th colspan="6" scope="row">{{ $subAccount['total_label'] }}</th>
                                     <td class="expense-breakdown-money">{{ number_format($subAccount['total'], 2) }}</td>
                                 </tr>
                             @endforeach

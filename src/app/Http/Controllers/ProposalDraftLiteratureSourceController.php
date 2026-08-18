@@ -29,19 +29,12 @@ class ProposalDraftLiteratureSourceController extends Controller
             is_array($request->validated('research_context')) ? $request->validated('research_context') : [],
         );
 
-        $referenceNumber = $proposalDraft->literatureSources()
-            ->reorder()
-            ->oldest('created_at')
-            ->oldest('id')
-            ->pluck('id')
-            ->search($result['link']->getKey());
-
         return response()->json([
             'message' => $result['already_linked']
                 ? 'This shared paper is already linked to the selected proposal.'
                 : 'Shared paper linked to the selected proposal.',
             'already_linked' => $result['already_linked'],
-            'source' => $result['link']->toLibraryArray($referenceNumber === false ? null : $referenceNumber + 1),
+            'source' => $result['link']->toLibraryArray(),
         ], $result['already_linked'] ? 200 : 201);
     }
 
@@ -63,7 +56,7 @@ class ProposalDraftLiteratureSourceController extends Controller
             'message' => $validated['rrl_draft_status'] === ProposalDraftLiteratureSource::DRAFT_CONFIRMED
                 ? 'RRL paragraph confirmed and ready to insert into Section XI.'
                 : 'RRL draft saved to this proposal.',
-            'source' => $this->sourcePayload($proposalDraft, $proposalDraftLiteratureSource->fresh()),
+            'source' => $this->sourcePayload($proposalDraftLiteratureSource->fresh()),
         ]);
     }
 
@@ -84,23 +77,16 @@ class ProposalDraftLiteratureSourceController extends Controller
 
         return response()->json([
             'message' => 'The saved RRL draft was discarded. The literature source remains linked to the proposal.',
-            'source' => $this->sourcePayload($proposalDraft, $proposalDraftLiteratureSource->fresh()),
+            'source' => $this->sourcePayload($proposalDraftLiteratureSource->fresh()),
         ]);
     }
 
     /** @return array<string, mixed> */
     private function sourcePayload(
-        ProposalDraft $proposalDraft,
         ProposalDraftLiteratureSource $literatureSource,
     ): array {
         $literatureSource->load(['literatureSource.collections:id,name,slug', 'literatureSource.addedBy:id,name']);
-        $referenceNumber = $proposalDraft->literatureSources()
-            ->reorder()
-            ->oldest('created_at')
-            ->oldest('id')
-            ->pluck('id')
-            ->search($literatureSource->getKey());
 
-        return $literatureSource->toLibraryArray($referenceNumber === false ? null : $referenceNumber + 1);
+        return $literatureSource->toLibraryArray();
     }
 }

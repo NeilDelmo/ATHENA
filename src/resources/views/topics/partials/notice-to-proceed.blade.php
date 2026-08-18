@@ -1,45 +1,42 @@
+@php($noticePreparedForSigning = $topic->hasPreparedNoticeToProceed())
+
 <section id="notice-to-proceed" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
     <div class="relative overflow-hidden bg-gray-950 px-5 py-6 text-white sm:px-7">
         <div class="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-red-700/40 to-transparent"></div>
         <div class="absolute -right-8 -top-14 h-40 w-40 rounded-full border-[24px] border-red-700/20"></div>
 
         <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div class="flex items-start gap-4">
-                <div class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-red-700 text-lg font-black shadow-lg shadow-red-950/30">NTP</div>
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.16em] {{ $topic->hasIssuedNoticeToProceed() ? 'bg-white text-green-800' : 'bg-red-700 text-white' }}">
-                            {{ $topic->hasIssuedNoticeToProceed() ? 'Issued' : 'Ready to generate' }}
-                        </span>
-                        <span class="text-xs font-bold uppercase tracking-widest text-gray-400">Research Office</span>
-                    </div>
-                    <h3 class="mt-3 text-2xl font-black tracking-tight">Notice to Proceed</h3>
+            <div>
+                <h3 class="text-2xl font-black tracking-tight">Notice to Proceed</h3>
 
-                    @if ($topic->hasIssuedNoticeToProceed())
-                        <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-                            Generated and issued {{ $topic->notice_to_proceed_issued_at->format('M j, Y g:i A') }}
-                            @if ($topic->noticeIssuer)
-                                by {{ $topic->noticeIssuer->name }}
-                            @endif.
-                            {{ $topic->isCompletedProject() ? 'This notice remains part of the completed project archive.' : 'Project monitoring is now open.' }}
-                        </p>
-                    @else
-                        <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-                            ATHENA prepares the official PDF from the approved proposal. Review the prefilled researchers, schedule, budget, and resolution before issuing it.
-                        </p>
-                    @endif
-                </div>
+                @if ($topic->hasIssuedNoticeToProceed())
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
+                        Signed copy issued {{ $topic->notice_to_proceed_issued_at->format('M j, Y g:i A') }}
+                        @if ($topic->noticeIssuer)
+                            by {{ $topic->noticeIssuer->name }}
+                        @endif.
+                        {{ $topic->isCompletedProject() ? 'This notice remains part of the completed project archive.' : 'Project monitoring is now open.' }}
+                    </p>
+                @elseif ($noticePreparedForSigning)
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">Download the unsigned PDF, have it signed, then upload the signed copy to release it.</p>
+                @else
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">Review the details and prepare the unsigned PDF for signature.</p>
+                @endif
             </div>
 
             @if ($topic->hasIssuedNoticeToProceed())
                 <div class="relative flex shrink-0 flex-col gap-2 sm:flex-row">
                     <a href="{{ route('topics.notice-to-proceed.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-white">
-                        Download generated PDF
+                        Download signed PDF
                     </a>
                     @if (! $isResearchHead && $topic->user_id === Auth::id())
                         <a href="{{ route('workspace.select') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-600 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20">Open researcher workspace</a>
                     @endif
                 </div>
+            @elseif ($noticePreparedForSigning && $isResearchHead)
+                <a href="{{ route('research_head.topics.notice-to-proceed.download-unsigned', $topic) }}" class="relative inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-black text-gray-950 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white">
+                    Download unsigned PDF
+                </a>
             @endif
         </div>
     </div>
@@ -63,7 +60,7 @@
         </div>
     @endif
 
-    @if ($isResearchHead && $noticeToProceedForm && ! $topic->isCompletedProject())
+    @if ($isResearchHead && $noticeToProceedForm && ! $topic->isCompletedProject() && ! $topic->hasIssuedNoticeToProceed())
         <div
             class="p-5 sm:p-7"
             x-data="noticeToProceedForm({
@@ -71,15 +68,36 @@
                 csrfToken: @js(csrf_token()),
             })"
         >
-            @if ($topic->hasIssuedNoticeToProceed())
-                <details @if ($noticeToProceedErrors) open @endif>
-                    <summary class="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-black text-gray-900 transition hover:border-red-300 hover:bg-red-50">
-                        <span>Review details and regenerate notice</span>
-                        <span class="text-red-700">Edit</span>
+            @if ($noticePreparedForSigning)
+                <section class="rounded-2xl border border-gray-200 bg-white">
+                    <form method="POST" action="{{ route('research_head.topics.notice-to-proceed.upload-signed', $topic) }}" enctype="multipart/form-data" class="p-5">
+                        @csrf
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                            <div class="min-w-0 flex-1">
+                                <x-file-dropzone
+                                    id="signed-notice-to-proceed"
+                                    name="signed_notice_to_proceed"
+                                    label="Signed Notice to Proceed PDF"
+                                    accept=".pdf"
+                                    :required="true"
+                                    :max-bytes="25 * 1024 * 1024"
+                                />
+                                @error('signed_notice_to_proceed')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
+                            </div>
+                            <button type="submit" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2">Release signed PDF</button>
+                        </div>
+                    </form>
+                </section>
+
+                <details class="mt-6 rounded-2xl border border-gray-200 bg-gray-50" @if ($noticeToProceedErrors) open @endif>
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-black text-gray-900 transition hover:bg-white">
+                        <span>Need to correct the unsigned notice before signing?</span>
+                        <span class="text-red-700">Edit details</span>
                     </summary>
+                    <div class="border-t border-gray-200 bg-white p-5">
             @endif
 
-            <form x-ref="form" method="POST" action="{{ route('research_head.topics.notice-to-proceed.store', $topic) }}" class="{{ $topic->hasIssuedNoticeToProceed() ? 'mt-5' : '' }} space-y-6" @submit="submitting = true">
+            <form x-ref="form" data-notice-to-proceed-autosave-form method="POST" action="{{ route('research_head.topics.notice-to-proceed.store', $topic) }}" class="space-y-6" @submit="submitNoticeDetails">
                 @csrf
 
                 @error('notice_to_proceed')
@@ -225,8 +243,8 @@
 
                 <div class="flex flex-col gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <p class="text-sm font-black text-gray-950">Preview the official PDF before issuing it.</p>
-                        <p class="mt-1 text-xs leading-5 text-gray-600">Previewing does not save, issue, or open monitoring. Issuing grants Faculty Researcher access and opens project monitoring.</p>
+                        <p class="text-sm font-black text-gray-950">Preview the unsigned PDF before preparing it for signatures.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-600">Previewing does not release anything. Faculty access and project monitoring remain locked until the signed PDF is uploaded.</p>
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2">
                         <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="inline-flex items-center justify-center rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-black text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
@@ -234,8 +252,8 @@
                             <span x-show="previewLoading" x-cloak>Generating preview...</span>
                         </button>
                         <button type="submit" :disabled="submitting || previewLoading" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
-                            <span x-show="!submitting">{{ $topic->hasIssuedNoticeToProceed() ? 'Regenerate and reissue PDF' : 'Generate notice and open monitoring' }}</span>
-                            <span x-show="submitting" x-cloak>Issuing notice...</span>
+                            <span x-show="!submitting">{{ $noticePreparedForSigning ? 'Save corrected details' : 'Save notice details' }}</span>
+                            <span x-show="submitting" x-cloak>Saving details...</span>
                         </button>
                     </div>
                 </div>
@@ -246,24 +264,25 @@
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p class="text-sm font-black text-gray-900">Notice to Proceed preview</p>
-                            <p class="text-xs text-gray-500">This is the official PDF generated from the current form values. It has not been issued.</p>
+                            <p class="text-xs text-gray-500">This unsigned notice is generated from the current form values. It has not been released to the faculty researcher.</p>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <a :href="previewDocumentUrl" target="_blank" rel="noopener" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Open preview</a>
                             <button type="button" @click="printPreview" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Print preview</button>
                         </div>
                     </div>
-                    <iframe x-ref="previewFrame" :src="previewDocumentUrl" title="Notice to Proceed PDF preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
+                    <iframe x-ref="previewFrame" :src="previewDocumentUrl" title="Notice to Proceed document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
                 </section>
             </form>
 
-            @if ($topic->hasIssuedNoticeToProceed())
+            @if ($noticePreparedForSigning)
+                    </div>
                 </details>
             @endif
         </div>
     @elseif (! $topic->hasIssuedNoticeToProceed())
         <div class="px-5 py-5 text-sm text-gray-600 sm:px-7">
-            The approved proposal is waiting for the Research Head to generate and issue its Notice to Proceed.
+            The approved proposal is waiting for the Research Head to prepare, sign, and release its official Notice to Proceed.
         </div>
     @endif
 </section>

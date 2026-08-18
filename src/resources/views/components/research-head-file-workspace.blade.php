@@ -22,7 +22,7 @@
 @endphp
 
 <div data-research-head-file-workspace {{ $attributes->merge(['class' => 'space-y-5']) }}>
-    @if ($showFacultyFiles || $isSigningStage)
+    @if ($showFacultyFiles)
     <section class="rounded-2xl border border-red-200 bg-white p-5 shadow-sm dark:border-red-950 dark:bg-gray-950 sm:p-6">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-3xl">
@@ -66,35 +66,85 @@
                         $activeSignedCopy = $activeSignedCopiesBySource->get($requiredSignatureFile->id, collect())->first();
                         $supersededSignedCopies = $supersededSignedCopiesBySource->get($requiredSignatureFile->id, collect());
                     @endphp
-                    <article class="grid gap-4 bg-white p-4 dark:bg-gray-950 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)] lg:items-end">
+                    <article x-data="{ previewOpen: false }" class="grid gap-4 bg-white p-4 dark:bg-gray-950 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:items-start">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h4 class="text-base font-black text-gray-950 dark:text-white">{{ $requiredSignatureFile->label() }}</h4>
-                                <span class="rounded-full {{ $hasSignedCopy ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-xs font-black">
+                                <span class="rounded-full {{ $hasSignedCopy ? 'bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-xs font-black">
                                     {{ $hasSignedCopy ? 'Signed PDF uploaded' : 'Waiting for signed PDF' }}
                                 </span>
                             </div>
+                            <p class="mt-2 text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Required faculty paper</p>
                             <p class="mt-2 break-all text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $requiredSignatureFile->original_filename }}</p>
                         </div>
 
-                        @if ($isSigningStage)
-                            <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                                @csrf
-                                <input type="hidden" name="source_file_id" value="{{ $requiredSignatureFile->id }}">
-                                <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED }}">
-                                <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
-                                    Signed final PDF
-                                    <input name="review_file" type="file" accept=".pdf" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white">
-                                </label>
-                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto">
-                                    {{ $hasSignedCopy ? 'Replace PDF' : 'Upload PDF' }}
-                                </button>
-                            </form>
-                        @elseif ($activeSignedCopy)
-                            <div class="flex flex-wrap gap-2">
-                                <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white">View signed copy</a>
-                                <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $activeSignedCopy]) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950">Download signed copy</a>
-                            </div>
+                        <div class="space-y-3">
+                            @if ($activeSignedCopy)
+                                <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/70 dark:bg-emerald-950/25" aria-label="Uploaded signed PDF">
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-sm dark:bg-emerald-500 dark:text-emerald-950" aria-hidden="true">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4.25 4.25L19 6.5" /></svg>
+                                        </span>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-black text-emerald-950 dark:text-emerald-100">Uploaded signed copy</p>
+                                            <p class="mt-1 break-all text-sm font-semibold text-emerald-900 dark:text-emerald-200">{{ $activeSignedCopy->original_filename }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                        <div class="rounded-xl bg-white/80 px-3 py-2.5 dark:bg-gray-950/70">
+                                            <p class="font-bold text-emerald-800 dark:text-emerald-300">File size</p>
+                                            <p class="mt-1 font-black text-emerald-950 dark:text-emerald-100">{{ $activeSignedCopy->file_size ? \Illuminate\Support\Number::fileSize($activeSignedCopy->file_size) : 'Size unavailable' }}</p>
+                                        </div>
+                                        <div class="rounded-xl bg-white/80 px-3 py-2.5 dark:bg-gray-950/70">
+                                            <p class="font-bold text-emerald-800 dark:text-emerald-300">Uploaded</p>
+                                            <p class="mt-1 font-black text-emerald-950 dark:text-emerald-100">{{ $activeSignedCopy->created_at->diffForHumans() }}</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 flex flex-wrap gap-2">
+                                        <button type="button" @click="previewOpen = ! previewOpen" :aria-expanded="previewOpen" class="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3 py-2.5 text-sm font-black text-emerald-900 transition hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2 dark:border-emerald-800 dark:bg-gray-950 dark:text-emerald-200 dark:hover:bg-emerald-950 dark:focus:ring-emerald-400 dark:focus:ring-offset-gray-950">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                            <span x-text="previewOpen ? 'Close preview' : 'Preview signed PDF'">Preview signed PDF</span>
+                                        </button>
+                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $activeSignedCopy]) }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3 py-2.5 text-sm font-black text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:ring-offset-2 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-400 dark:focus:ring-emerald-400 dark:focus:ring-offset-gray-950">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4m-4 6.75v1.5A2.25 2.25 0 0 0 6.25 21h11.5A2.25 2.25 0 0 0 20 18.75v-1.5" /></svg>
+                                            Download
+                                        </a>
+                                    </div>
+                                </section>
+                            @endif
+
+                            @if ($isSigningStage)
+                                <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50">
+                                    @csrf
+                                    <input type="hidden" name="source_file_id" value="{{ $requiredSignatureFile->id }}">
+                                    <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED }}">
+                                    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                                        <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
+                                            {{ $hasSignedCopy ? 'Replace signed final PDF' : 'Signed final PDF' }}
+                                            <span class="mt-1 block text-xs font-medium leading-5 text-gray-500 dark:text-gray-400">{{ $hasSignedCopy ? 'Use this only if the uploaded copy needs to be replaced.' : 'PDF only. The uploaded copy will appear here for preview.' }}</span>
+                                            <input name="review_file" type="file" accept=".pdf" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 focus:border-red-700 focus:outline-none focus:ring-2 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white dark:focus:border-red-400 dark:focus:ring-red-400">
+                                        </label>
+                                        <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto dark:focus:ring-offset-gray-950">
+                                            {{ $hasSignedCopy ? 'Replace PDF' : 'Upload PDF' }}
+                                        </button>
+                                    </div>
+                                </form>
+                            @endif
+                        </div>
+
+                        @if ($activeSignedCopy)
+                            <section x-show="previewOpen" x-cloak x-transition.opacity class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50 lg:col-span-2" aria-label="Signed PDF preview">
+                                <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
+                                    <div>
+                                        <p class="text-sm font-black text-gray-950 dark:text-white">Signed PDF preview</p>
+                                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Check the uploaded copy here before finalizing approval.</p>
+                                    </div>
+                                    <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-800 dark:focus:ring-gray-400 dark:focus:ring-offset-gray-950">Open in new tab</a>
+                                </div>
+                                <iframe data-signed-copy-preview src="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" title="Preview of {{ $activeSignedCopy->original_filename }}" class="h-[34rem] w-full rounded-xl border border-gray-300 bg-white shadow-inner dark:border-gray-700"></iframe>
+                            </section>
                         @endif
                     </article>
                     @if ($supersededSignedCopies->isNotEmpty())
@@ -213,6 +263,7 @@
     </section>
     @endif
 
+    @if (! $isSigningStage)
     <details class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
             <div>
@@ -279,6 +330,7 @@
                 @endforeach
             </div>
         </section>
+    @endif
     @endif
 
     @if ($showFacultyFiles)

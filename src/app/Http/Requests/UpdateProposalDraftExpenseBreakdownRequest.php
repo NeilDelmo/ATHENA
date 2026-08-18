@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
+use App\Models\ResearchCall;
 use App\Support\ExpenseBreakdownRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -45,6 +46,21 @@ class UpdateProposalDraftExpenseBreakdownRequest extends FormRequest
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /** @return list<callable> */
+    public function after(): array
+    {
+        $draft = $this->route('proposalDraft');
+        $maximumBudget = $draft instanceof ProposalDraft
+            ? ($draft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET)
+            : 0;
+
+        return ExpenseBreakdownRules::afterCallbacks(
+            $maximumBudget,
+            $this->routeIs('faculty.proposal-drafts.expense-breakdown.preview')
+                || ($this->routeIs('faculty.proposal-drafts.expense-breakdown.update') && $this->boolean('save_as_draft')),
+        );
     }
 
     /** @return array<string, string> */

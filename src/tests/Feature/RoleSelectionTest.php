@@ -25,7 +25,10 @@ test('dual role users are asked which workspace they want to use', function () {
         ->assertSee('Choose your workspace')
         ->assertSee('Continue as Faculty')
         ->assertSee('Continue as Research Coordinator')
-        ->assertSee('Open workspace');
+        ->assertSee('Open workspace')
+        ->assertSee('Back to current workspace')
+        ->assertSee(route('dashboard'), false)
+        ->assertSee("onsubmit=\"return confirm('Are you sure you want to log out?')\"", false);
 });
 
 test('dual role users can open workspace switching from the account menu', function () {

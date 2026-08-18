@@ -118,11 +118,13 @@
             </div>
 
             <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2">
-                <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
-                <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
                 </select>
             </div>
+
+            <x-research-assistant-document-action id="drawer" />
 
             <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800">
                 <label for="research-assistant-drawer-message" class="sr-only">Message Athena Research Assistant</label>

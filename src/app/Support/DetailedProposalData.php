@@ -24,6 +24,13 @@ class DetailedProposalData
         $methodology = is_array($validated['methodology'] ?? null)
             ? $validated['methodology']
             : [];
+        $specificMethodObjectives = self::specificMethodObjectives(
+            $validated['specific_method_objectives'] ?? [],
+        );
+        $specificMethods = self::specificMethodsNarrative(
+            $specificMethodObjectives,
+            $methodology['specific_methods'] ?? '',
+        );
         $methodologyImages = self::methodologyImages($validated['methodology_images'] ?? []);
         $projectLeader = self::text($validated['project_leader'] ?? '');
         $leaderTitle = self::text($validated['leader_title'] ?? '');
@@ -63,9 +70,10 @@ class DetailedProposalData
             'related_literature' => self::narrative($validated['related_literature'] ?? ''),
             'methodology' => [
                 'research_design' => self::narrative($methodology['research_design'] ?? ''),
-                'specific_methods' => self::narrative($methodology['specific_methods'] ?? ''),
+                'specific_methods' => $specificMethods,
                 'data_analysis' => self::narrative($methodology['data_analysis'] ?? ''),
             ],
+            'specific_method_objectives' => $specificMethodObjectives,
             'methodology_images' => $methodologyImages,
             'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'percentage', 'duties'], true),
             'checked_verified_by_name' => self::text($validated['checked_verified_by_name'] ?? ''),
@@ -189,6 +197,82 @@ class DetailedProposalData
                     ->all()];
             })
             ->all();
+    }
+
+    /**
+     * @return list<array{heading: string, methods: list<array{description: string}>}>
+     */
+    private static function specificMethodObjectives(mixed $value): array
+    {
+        return collect(is_array($value) ? $value : [])
+            ->filter(fn (mixed $group): bool => is_array($group))
+            ->map(fn (array $group): array => [
+                'heading' => self::plainText((string) ($group['heading'] ?? '')),
+                'methods' => collect(is_array($group['methods'] ?? null) ? $group['methods'] : [])
+                    ->filter(fn (mixed $method): bool => is_array($method))
+                    ->map(fn (array $method): array => [
+                        'description' => self::plainText((string) ($method['description'] ?? '')),
+                    ])
+                    ->filter(fn (array $method): bool => $method['description'] !== '')
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  list<array{heading: string, methods: list<array{description: string}>}>  $specificMethodObjectives
+     */
+    private static function specificMethodsNarrative(
+        array $specificMethodObjectives,
+        mixed $legacyValue,
+    ): string {
+        $hasStructuredMethods = collect($specificMethodObjectives)
+            ->contains(fn (array $group): bool => $group['methods'] !== []);
+
+        if (! $hasStructuredMethods) {
+            return self::narrative((string) $legacyValue);
+        }
+
+        $html = collect($specificMethodObjectives)
+            ->map(function (array $group, int $index): string {
+                $headingDescription = $group['heading'];
+                $methods = $group['methods'];
+
+                if ($headingDescription === '' || $methods === []) {
+                    return '';
+                }
+
+                $heading = htmlspecialchars(self::alphabeticLabel($index).'. '.$headingDescription, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $items = collect($methods)
+                    ->map(function (array $method): string {
+                        $description = htmlspecialchars($method['description'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+                        return '<li>'.str_replace(["\r\n", "\r", "\n"], '<br>', $description).'</li>';
+                    })
+                    ->implode('');
+
+                return '<p><strong>'.$heading.'</strong></p><ol>'.$items.'</ol>';
+            })
+            ->filter()
+            ->implode('');
+
+        return self::narrative($html);
+    }
+
+    private static function alphabeticLabel(int $index): string
+    {
+        $value = $index + 1;
+        $label = '';
+
+        while ($value > 0) {
+            $value--;
+            $label = chr(65 + ($value % 26)).$label;
+            $value = intdiv($value, 26);
+        }
+
+        return $label;
     }
 
     /** @param array<string, mixed> $entry */

@@ -156,9 +156,17 @@ test('completed projects cannot preview or submit progress reports', function ()
     expect(ProjectNarrativeReport::count())->toBe(0);
 });
 
-test('the faculty monitoring page shows the separate progress report form', function () {
+test('the faculty monitoring page opens the progress report in a focused form page', function () {
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Monitoring submissions')
+        ->assertSee('Open progress report')
+        ->assertSee(route('project-narrative-reports.create', $this->topic), false)
+        ->assertDontSee('data-narrative-progress-autosave-form', false);
+
+    $this->actingAs($this->researcher)
+        ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
         ->assertSee('Submit progress report')
         ->assertSee('Prepare official PDF')
@@ -323,7 +331,7 @@ test('a researcher can discard a prepared progress report and its stored files',
     Storage::disk('local')->assertExists([$pdfPath, $photoPath]);
 
     $this->actingAs($this->researcher)
-        ->get(route('research.show', $this->topic))
+        ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
         ->assertSee('Progress Report PDF prepared')
         ->assertSee('Submit to Research Head');

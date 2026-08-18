@@ -104,6 +104,8 @@ test('the proposal workflow generates and stores Attachment A with the submitted
 });
 
 test('research heads can close and reopen calls while faculty cannot change call status', function () {
+    $imageExtractor = file_get_contents(resource_path('js/research-call-image-extractor.js'));
+
     $this->actingAs($this->head)
         ->get(route('research-calls.index'))
         ->assertOk()
@@ -119,10 +121,18 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertSee('Ctrl+V also works')
         ->assertSee('<button type="button" data-research-call-extract disabled', false)
         ->assertSee('data-research-call-extract-spinner', false)
+        ->assertSee('data-research-call-poster-reading-loading', false)
+        ->assertSee('Reading research call poster')
+        ->assertSee('ATHENA is identifying the call details from the poster image.')
         ->assertSee('data-research-call-extraction-summary', false)
         ->assertSee('data-research-call-clear-schedule', false)
         ->assertSee('data-research-call-expired-schedule-section', false)
         ->assertSee('Choosing a poster only previews it.');
+
+    expect($imageExtractor)
+        ->toContain("form.querySelector('[data-research-call-poster-reading-loading]')")
+        ->toContain("posterReadingLoadingScreen?.toggleAttribute('hidden', !isExtracting)")
+        ->toContain("posterReadingLoadingScreen?.setAttribute('aria-hidden', String(!isExtracting))");
 
     $this->actingAs($this->head)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'closed'])
@@ -579,7 +589,7 @@ test('faculty research workload is limited to two concurrent approved projects a
 
         $path = 'proposals/workload-'.$topic->id.'.pdf';
         Storage::disk('local')->put($path, 'proposal');
-        $topic->versions()->create([
+        $version = $topic->versions()->create([
             'submitted_by' => $this->faculty->id,
             'version_number' => 1,
             'submission_type' => 'initial',
@@ -593,7 +603,37 @@ test('faculty research workload is limited to two concurrent approved projects a
             'estimated_duration_months' => 12,
         ]);
 
+        $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => 'proposal.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 8,
+            'checksum' => hash('sha256', 'proposal'),
+            'is_carried_forward' => false,
+        ]);
+
         return $topic;
+    };
+
+    $prepareForFinalApproval = function (TopicProposal $proposal): void {
+        $signatureFile = $proposal->latestVersion()->with('files')->firstOrFail()->files->sole();
+
+        $this->actingAs($this->head)
+            ->patch(route('research_head.topics.updateStatus', $proposal), [
+                'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+                'signature_file_ids' => [$signatureFile->id],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $proposal), [
+                'source_file_id' => $signatureFile->id,
+                'review_file' => UploadedFile::fake()->create('signed-proposal.pdf', 100, 'application/pdf'),
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            ])
+            ->assertSessionHasNoErrors();
     };
 
     $createProposal($this->call, 'Approved project one', 'approved');
@@ -604,14 +644,13 @@ test('faculty research workload is limited to two concurrent approved projects a
         $approvalQueries->push($query->sql);
     });
 
+    $prepareForFinalApproval($thirdProposal);
+
     $this->actingAs($this->head)
-        ->patch(route('research_head.topics.updateStatus', $thirdProposal), [
-            'status' => 'approved',
-            'evaluation_document' => UploadedFile::fake()->create('third-evaluation.pdf', 100, 'application/pdf'),
-        ])
+        ->patch(route('research_head.topics.finalizeApproval', $thirdProposal))
         ->assertSessionHasErrors('status');
 
-    expect($thirdProposal->fresh()->status)->toBe('pending');
+    expect($thirdProposal->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE);
     expect($approvalQueries->contains(fn (string $sql): bool => str_contains($sql, 'from `users`')
         && str_contains(strtolower($sql), 'for update')))->toBeTrue();
 
@@ -626,25 +665,21 @@ test('faculty research workload is limited to two concurrent approved projects a
     ]);
     $nextYearProposal = $createProposal($nextYearCall, 'Project for the next academic year', 'pending');
 
+    $prepareForFinalApproval($nextYearProposal);
+
     $this->actingAs($this->head)
-        ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
-            'status' => 'approved',
-            'evaluation_document' => UploadedFile::fake()->create('next-year-evaluation.pdf', 100, 'application/pdf'),
-        ])
+        ->patch(route('research_head.topics.finalizeApproval', $nextYearProposal))
         ->assertSessionHasErrors('status');
 
-    expect($nextYearProposal->fresh()->status)->toBe('pending');
+    expect($nextYearProposal->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE);
 
     TopicProposal::query()
         ->where('title', 'Approved project one')
         ->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
 
     $this->actingAs($this->head)
-        ->patch(route('research_head.topics.updateStatus', $nextYearProposal), [
-            'status' => 'approved',
-            'evaluation_document' => UploadedFile::fake()->create('next-year-evaluation-after-completion.pdf', 100, 'application/pdf'),
-        ])
-        ->assertRedirect(route('research_head.dashboard'));
+        ->patch(route('research_head.topics.finalizeApproval', $nextYearProposal))
+        ->assertRedirect(route('topics.show', $nextYearProposal).'#proposal-review');
 
     expect($nextYearProposal->fresh()->status)->toBe('approved');
 });
@@ -764,7 +799,7 @@ test('faculty can securely download configured proposal templates', function () 
         ->assertRedirect(route('login'));
 });
 
-test('research head records the final decision without an evaluation upload', function () {
+test('research head cannot approve a proposal before final signing', function () {
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'research_call_id' => $this->call->id,
@@ -791,12 +826,16 @@ test('research head records the final decision without an evaluation upload', fu
         'estimated_duration_months' => 18,
     ]);
 
-    $this->actingAs($this->head)->patch("/research-head/topics/{$topic->id}/status", [
-        'status' => 'approved',
-    ])->assertRedirect(route('research_head.dashboard'));
+    $this->actingAs($this->head)
+        ->from(route('research_head.dashboard'))
+        ->patch("/research-head/topics/{$topic->id}/status", [
+            'status' => 'approved',
+        ])
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasErrors('status');
 
     $topic->refresh();
-    expect($topic->status)->toBe('approved')
+    expect($topic->status)->toBe('pending')
         ->and($version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0)
         ->and($topic->project_status)->toBeNull()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();

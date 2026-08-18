@@ -41,12 +41,10 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             ->filter(fn (mixed $amount): bool => $amount !== null && $amount !== '')
             ->all();
         $requestAmounts = $this->input('amounts', []);
-        $syncedAmounts = LineItemBudgetData::amountsFromExpenseBreakdown(
-            is_array($expenseBreakdownSource) && is_array($expenseBreakdownSource['items'] ?? null)
-                ? $expenseBreakdownSource['items']
-                : [],
-        );
-
+        $expenseBreakdownItems = is_array($expenseBreakdownSource)
+            && is_array($expenseBreakdownSource['items'] ?? null)
+            ? $expenseBreakdownSource['items']
+            : null;
         $merged = [
             ...(is_array($savedSource) ? array_replace($savedSource, $this->all()) : []),
             'project_title' => $draft->project_title,
@@ -54,15 +52,18 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             'planned_end' => $draft->planned_end?->toDateString(),
             'project_leader' => $draft->project_leader,
             'amounts' => array_replace(
-                $syncedAmounts,
                 $savedAmounts,
                 is_array($requestAmounts) ? $requestAmounts : [],
             ),
         ];
+        $merged = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($merged, $expenseBreakdownItems);
 
         if (blank($merged['leader_college'] ?? null)) {
             $merged['leader_college'] = (string) ($draft->owner?->college ?? $this->user()?->college ?? '');
         }
+
+        $merged['leader_campus'] = LineItemBudgetData::campusLabel($merged['leader_campus'] ?? null);
+        $merged['leader_college'] = LineItemBudgetData::collegeAbbreviation($merged['leader_college'] ?? null);
 
         $this->merge($merged);
     }
@@ -88,7 +89,8 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
 
         return LineItemBudgetRules::afterCallbacks(
             $maximumBudget,
-            $this->routeIs('faculty.proposal-drafts.line-item-budget.update') && $this->boolean('save_as_draft'),
+            $this->routeIs('faculty.proposal-drafts.line-item-budget.preview')
+                || ($this->routeIs('faculty.proposal-drafts.line-item-budget.update') && $this->boolean('save_as_draft')),
         );
     }
 

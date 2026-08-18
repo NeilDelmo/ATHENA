@@ -46,7 +46,7 @@ class RemoveProposalDraftDocument
             $this->recordDocumentVersion->handle(
                 $lockedDocument,
                 $actor,
-                action: 'removed',
+                action: ProposalDraftDocumentVersion::ACTION_REMOVED,
             );
 
             ProposalDraftDocumentVersion::query()

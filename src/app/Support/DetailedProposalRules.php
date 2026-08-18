@@ -3,12 +3,25 @@
 namespace App\Support;
 
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Validator;
 
 class DetailedProposalRules
 {
+    /** @param array<string, mixed> $data */
+    public static function passesComplete(array $data): bool
+    {
+        $validator = ValidatorFacade::make($data, self::rules());
+
+        foreach (self::afterCallbacks() as $callback) {
+            $validator->after($callback);
+        }
+
+        return $validator->passes();
+    }
+
     /** @return array<string, mixed> */
     public static function rules(bool $allowDraft = false): array
     {
@@ -58,6 +71,12 @@ class DetailedProposalRules
             'methodology' => [$presenceRule, 'array'],
             'methodology.research_design' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'methodology.specific_methods' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
+            'specific_method_objectives' => ['nullable', 'array', 'max:20'],
+            'specific_method_objectives.*' => ['array:heading,methods'],
+            'specific_method_objectives.*.heading' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
+            'specific_method_objectives.*.methods' => ['nullable', 'array', 'max:20'],
+            'specific_method_objectives.*.methods.*' => ['array:description'],
+            'specific_method_objectives.*.methods.*.description' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
             'methodology.data_analysis' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
             'methodology_images' => ['nullable', 'array', 'max:20'],
             'methodology_images.*.id' => ['nullable', 'uuid'],
@@ -158,6 +177,7 @@ class DetailedProposalRules
             'related_literature' => 'related studies and literature',
             'methodology.research_design' => 'research design',
             'methodology.specific_methods' => 'specific methods',
+            'specific_method_objectives.*.methods.*.description' => 'specific method',
             'methodology.data_analysis' => 'data analysis',
             'methodology_images.*.image' => 'methodology image',
             'responsibilities.*.name' => 'member name',

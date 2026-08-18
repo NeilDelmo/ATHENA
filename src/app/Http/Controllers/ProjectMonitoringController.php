@@ -16,11 +16,13 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
+use App\Services\ProjectMonitoringFormDataService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -29,6 +31,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectMonitoringController extends Controller
 {
+    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View
+    {
+        $this->ensureResearcherCanPrepareReport($request, $topic);
+
+        return view('faculty.monitoring-tools.create', [
+            'topic' => $topic,
+            ...$formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report')),
+        ]);
+    }
+
     public function index(Request $request)
     {
         $status = $request->string('status')->toString();
@@ -91,6 +103,13 @@ class ProjectMonitoringController extends Controller
             ->withQueryString();
 
         return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
+    }
+
+    private function ensureResearcherCanPrepareReport(Request $request, TopicProposal $topic): void
+    {
+        Gate::forUser($request->user())->authorize('view', $topic);
+
+        abort_unless($topic->isMonitoringAvailable() && $topic->isAccessibleTo($request->user()), 404);
     }
 
     public function prepare(
@@ -216,6 +235,7 @@ class ProjectMonitoringController extends Controller
             level: 'info',
             topicId: $topic->id,
             workspace: 'research_head',
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
         return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
@@ -268,6 +288,8 @@ class ProjectMonitoringController extends Controller
             route('topics.show', $topic).'#project-monitoring',
             'info',
             $topic->id,
+            workspace: User::WORKSPACE_RESEARCH_HEAD,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
         return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
@@ -323,6 +345,7 @@ class ProjectMonitoringController extends Controller
             level: $validated['review_status'] === 'reviewed' ? 'success' : 'warning',
             topicId: $report->topic_id,
             workspace: 'faculty_researcher',
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
         return back()->with('success', 'Monitoring tool review saved.');
@@ -348,6 +371,8 @@ class ProjectMonitoringController extends Controller
             route('topics.show', $topic).'#project-monitoring',
             $validated['project_status'] === 'completed' ? 'success' : 'info',
             $topic->id,
+            workspace: User::WORKSPACE_FACULTY_RESEARCHER,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
         return back()->with('success', 'Project monitoring status updated.');

@@ -22,11 +22,20 @@ class ProposalDocumentVersionDiff
             'mime_type',
             'file_size',
             'checksum',
+            'completed_at',
         ] as $attribute) {
             $incomingValue = array_key_exists($attribute, $attributes)
                 ? $attributes[$attribute]
                 : $document->getAttribute($attribute);
             $storedValue = $document->getAttribute($attribute);
+
+            if ($attribute === 'completed_at') {
+                if (($storedValue === null) !== ($incomingValue === null)) {
+                    return false;
+                }
+
+                continue;
+            }
 
             if ($attribute === 'source_data') {
                 if ($this->canonicalize($storedValue) !== $this->canonicalize($incomingValue)) {
@@ -122,15 +131,23 @@ class ProposalDocumentVersionDiff
         $label = $this->catalog->label($document->document_type)
             ?? Str::headline($document->document_type);
 
-        if ($action === 'restored' && $restoredFrom !== null) {
-            return 'Restored '.$label.' from version '.$restoredFrom->version_number.'.';
+        if ($action === ProposalDraftDocumentVersion::ACTION_RESTORED && $restoredFrom !== null) {
+            return 'Restored '.$label.' from the selected recovery point.';
         }
 
-        if ($action === 'captured') {
-            return 'Captured the existing '.$label.' as version history.';
+        if ($action === ProposalDraftDocumentVersion::ACTION_PRE_RESTORE) {
+            return 'Preserved the working draft before a restore.';
         }
 
-        if ($action === 'removed') {
+        if ($action === ProposalDraftDocumentVersion::ACTION_SUBMITTED) {
+            return 'Saved '.$label.' with the submitted proposal.';
+        }
+
+        if ($action === ProposalDraftDocumentVersion::ACTION_CAPTURED) {
+            return 'Captured the existing '.$label.' as a recovery point.';
+        }
+
+        if ($action === ProposalDraftDocumentVersion::ACTION_REMOVED) {
             return 'Removed '.$label.' from the proposal draft.';
         }
 
@@ -142,6 +159,10 @@ class ProposalDocumentVersionDiff
 
         if ($document->completed_at === null) {
             return 'Saved '.$label.' as a draft.';
+        }
+
+        if ($previous?->completed_at === null) {
+            return 'Completed '.$label.'.';
         }
 
         if ($previous === null) {

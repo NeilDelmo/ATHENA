@@ -25,6 +25,15 @@ class ResearchHeadProposalSubmissionController extends Controller
 
     private const SUBMISSION_TYPES = ['initial', 'revision'];
 
+    private const ACTIVE_STATUSES = [
+        'pending',
+        'expert_review',
+        'for_final_decision',
+        'revision_requested',
+        'resubmitted',
+        TopicProposal::STATUS_READY_FOR_SIGNATURE,
+    ];
+
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', TopicProposal::class);
@@ -35,10 +44,39 @@ class ResearchHeadProposalSubmissionController extends Controller
 
         $summary = [
             'proposals' => ProposalVersion::query()->distinct()->count('topic_id'),
+            'active' => TopicProposal::query()->whereIn('status', self::ACTIVE_STATUSES)->count(),
             'total' => ProposalVersion::query()->count(),
             'initial' => ProposalVersion::query()->where('submission_type', 'initial')->count(),
             'revision' => ProposalVersion::query()->where('submission_type', 'revision')->count(),
         ];
+
+        $activeProposals = TopicProposal::query()
+            ->select([
+                'id',
+                'user_id',
+                'research_call_id',
+                'title',
+                'status',
+                'created_at',
+                'updated_at',
+            ])
+            ->whereIn('status', self::ACTIVE_STATUSES)
+            ->with([
+                'user:id,name,email,college',
+                'researchCall:id,title,academic_year',
+                'latestVersion',
+            ])
+            ->when(in_array($status, self::STATUSES, true), fn (Builder $query): Builder => $query->where('status', $status))
+            ->when($search !== '', function (Builder $query) use ($search): void {
+                $query->where(function (Builder $query) use ($search): void {
+                    $query->where('title', 'like', "%{$search}%")
+                        ->orWhereHas('user', fn (Builder $query): Builder => $query->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('researchCall', fn (Builder $query): Builder => $query->where('title', 'like', "%{$search}%"));
+                });
+            })
+            ->latest()
+            ->paginate(12, ['*'], 'queue-page')
+            ->withQueryString();
 
         $submissions = ProposalVersion::query()
             ->select([
@@ -81,6 +119,7 @@ class ResearchHeadProposalSubmissionController extends Controller
             'search',
             'status',
             'submissionType',
+            'activeProposals',
             'submissions',
             'summary',
         ));

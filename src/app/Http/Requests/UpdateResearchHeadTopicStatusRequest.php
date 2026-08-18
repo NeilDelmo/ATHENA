@@ -22,7 +22,6 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
     {
         return [
             'status' => ['required', Rule::in([
-                'approved',
                 TopicProposal::STATUS_READY_FOR_SIGNATURE,
                 'revision_requested',
                 'rejected',
@@ -41,6 +40,16 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
             ],
             'revision_file_notes' => ['nullable', 'array'],
             'revision_file_notes.*' => ['nullable', 'string', 'max:2000'],
+            'rejection_reason' => [
+                'exclude_unless:status,rejected',
+                'required',
+                'string',
+                'max:2000',
+            ],
+            'rejection_confirmed' => [
+                'exclude_unless:status,rejected',
+                'accepted',
+            ],
             'signature_file_ids' => [
                 'nullable',
                 'required_if:status,'.TopicProposal::STATUS_READY_FOR_SIGNATURE,
@@ -66,6 +75,8 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
         return [
             'signature_file_ids.required_if' => 'Select at least one paper that actually needs a signed final PDF.',
             'signature_file_ids.min' => 'Select at least one paper that actually needs a signed final PDF.',
+            'rejection_reason.required' => 'Provide a clear rejection reason before finalizing this decision.',
+            'rejection_confirmed.accepted' => 'Confirm that this rejection is final before continuing.',
         ];
     }
 }

@@ -26,7 +26,7 @@ class WorkPlanDocumentService
      */
     public function generate(array $workPlan): string
     {
-        $templatePath = (string) config('work_plan.template_path');
+        $templatePath = $this->templatePath($workPlan);
 
         if (! is_file($templatePath)) {
             throw new RuntimeException('The official Work Plan template is unavailable.');
@@ -107,9 +107,12 @@ class WorkPlanDocumentService
         $insertionPoint = $this->nextElementSibling($table)
             ?? $this->firstElement($xpath, './w:sectPr', $body);
         $yearCount = max(1, (int) ($workPlan['year_count'] ?? ceil($workPlan['total_duration_months'] / 12)));
+        $yearGroups = $yearCount > 1
+            ? array_chunk(range(1, $yearCount), 2)
+            : [[1]];
 
-        for ($year = 1; $year <= $yearCount; $year++) {
-            if ($year === 1) {
+        foreach ($yearGroups as $sheetIndex => $years) {
+            if ($sheetIndex === 0) {
                 $yearTable = $table;
             } else {
                 $body->insertBefore($this->createPageBreakParagraph($document), $insertionPoint);
@@ -127,8 +130,14 @@ class WorkPlanDocumentService
                 $body->insertBefore($yearTable, $insertionPoint);
             }
 
-            $this->renderYearTable($xpath, $yearTable, $workPlan, $year);
+            if ($yearCount > 1) {
+                $this->renderExtendedYearTable($xpath, $yearTable, $workPlan, $years);
+            } else {
+                $this->renderYearTable($xpath, $yearTable, $workPlan, $years[0]);
+            }
         }
+
+        $this->removeTrailingEmptyParagraphs($xpath, $body);
 
         $renderedXml = $document->saveXML();
 
@@ -156,8 +165,66 @@ class WorkPlanDocumentService
 
         $this->fillMetadata($xpath, $rows, $workPlan);
         $this->fillYearHeading($xpath, $rows[3], $year);
-        $this->replaceObjectiveRows($xpath, $table, $rows, $workPlan['entries'], $year);
+        $this->replaceObjectiveRows(
+            $xpath,
+            $table,
+            array_slice($rows, 5, 6),
+            $rows[5],
+            $rows[11],
+            $workPlan['entries_by_year'][$year] ?? [],
+            $year,
+        );
         $this->fillSignatures($xpath, $rows[11], $workPlan);
+    }
+
+    /**
+     * @param  array<string, mixed>  $workPlan
+     * @param  array<int, int>  $years
+     */
+    private function renderExtendedYearTable(
+        DOMXPath $xpath,
+        DOMElement $table,
+        array $workPlan,
+        array $years,
+    ): void {
+        $rows = $this->elements($xpath, './w:tr', $table);
+
+        if (count($rows) < 16) {
+            throw new RuntimeException('The extended Work Plan template table structure is incomplete.');
+        }
+
+        $signatureRow = $rows[15];
+
+        $this->fillMetadata($xpath, $rows, $workPlan);
+        $this->fillYearHeading($xpath, $rows[3], $years[0]);
+        $this->replaceObjectiveRows(
+            $xpath,
+            $table,
+            array_slice($rows, 5, 4),
+            $rows[5],
+            $rows[9],
+            $workPlan['entries_by_year'][$years[0]] ?? [],
+            $years[0],
+        );
+
+        if (isset($years[1])) {
+            $this->fillYearHeading($xpath, $rows[9], $years[1]);
+            $this->replaceObjectiveRows(
+                $xpath,
+                $table,
+                array_slice($rows, 11, 4),
+                $rows[11],
+                $signatureRow,
+                $workPlan['entries_by_year'][$years[1]] ?? [],
+                $years[1],
+            );
+        } else {
+            foreach (array_slice($rows, 9, 6) as $unusedYearRow) {
+                $table->removeChild($unusedYearRow);
+            }
+        }
+
+        $this->fillSignatures($xpath, $signatureRow, $workPlan);
     }
 
     /**
@@ -198,20 +265,19 @@ class WorkPlanDocumentService
     }
 
     /**
+     * @param  array<int, DOMElement>  $placeholderRows
      * @param  array<int, array<string, mixed>>  $entries
-     * @param  array<int, DOMElement>  $sourceRows
      */
     private function replaceObjectiveRows(
         DOMXPath $xpath,
         DOMElement $table,
-        array $sourceRows,
+        array $placeholderRows,
+        DOMElement $rowTemplate,
+        DOMElement $insertionPoint,
         array $entries,
         int $year,
     ): void {
-        $rowTemplate = $sourceRows[5]->cloneNode(true);
-        $signatureRow = $sourceRows[11];
-
-        foreach (array_slice($sourceRows, 5, 6) as $placeholderRow) {
+        foreach ($placeholderRows as $placeholderRow) {
             $table->removeChild($placeholderRow);
         }
 
@@ -223,6 +289,7 @@ class WorkPlanDocumentService
             }
 
             $this->removeWordIdentityAttributes($xpath, $row);
+            $this->preventRowSplit($xpath, $row);
             $cells = $this->elements($xpath, './w:tc', $row);
 
             if (count($cells) !== 15) {
@@ -242,7 +309,56 @@ class WorkPlanDocumentService
                 );
             }
 
-            $table->insertBefore($row, $signatureRow);
+            $table->insertBefore($row, $insertionPoint);
+        }
+    }
+
+    private function preventRowSplit(DOMXPath $xpath, DOMElement $row): void
+    {
+        $rowProperties = $this->elements($xpath, './w:trPr', $row)[0] ?? null;
+
+        if (! $rowProperties instanceof DOMElement) {
+            $rowProperties = $row->ownerDocument->createElementNS(self::WORD_NAMESPACE, 'w:trPr');
+            $row->insertBefore($rowProperties, $row->firstChild);
+        }
+
+        if ($this->elements($xpath, './w:cantSplit', $rowProperties) === []) {
+            $rowProperties->appendChild(
+                $row->ownerDocument->createElementNS(self::WORD_NAMESPACE, 'w:cantSplit'),
+            );
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $workPlan
+     */
+    private function templatePath(array $workPlan): string
+    {
+        $durationMonths = (int) ($workPlan['total_duration_months'] ?? 0);
+
+        return (string) config(
+            $durationMonths > 12
+                ? 'work_plan.extended_template_path'
+                : 'work_plan.template_path',
+        );
+    }
+
+    private function removeTrailingEmptyParagraphs(DOMXPath $xpath, DOMElement $body): void
+    {
+        $sectionProperties = $this->firstElement($xpath, './w:sectPr', $body);
+
+        for ($node = $sectionProperties->previousSibling; $node !== null; $node = $previousNode) {
+            $previousNode = $node->previousSibling;
+
+            if (! $node instanceof DOMElement) {
+                continue;
+            }
+
+            if ($node->localName !== 'p' || $xpath->query('.//w:t[normalize-space(.) != ""] | .//w:br | .//w:drawing | .//w:fldChar', $node)->length > 0) {
+                break;
+            }
+
+            $body->removeChild($node);
         }
     }
 

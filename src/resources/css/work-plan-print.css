@@ -163,6 +163,13 @@ body {
     white-space: pre-wrap;
 }
 
+.work-plan-sheet.is-extended-work-plan .work-plan-entry-row td {
+    height: 0.34in;
+    padding: 2pt 3pt;
+    font-size: 9pt;
+    line-height: 1.05;
+}
+
 .work-plan-entry-row .work-plan-objective-cell,
 .work-plan-entry-row .work-plan-output-cell {
     text-align: center;

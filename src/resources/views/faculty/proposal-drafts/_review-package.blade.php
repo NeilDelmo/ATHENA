@@ -183,9 +183,10 @@
                     <x-proposal-submission-loading-screen />
                 </form>
             @else
-                <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" x-data="{ preparing: false }" x-on:submit="preparing = true">
+                <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare>
                     @csrf
-                    <button type="submit" :disabled="preparing" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto"><span x-show="!preparing">Prepare seven PDFs</span><span x-show="preparing" x-cloak>Generating PDFs&hellip;</span></button>
+                    <button type="submit" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
+                    <x-proposal-pdf-preparation-loading-screen />
                 </form>
             @endif
         @else

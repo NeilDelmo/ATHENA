@@ -14,9 +14,11 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProgressReportDocumentService;
+use App\Services\ProjectMonitoringFormDataService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -26,6 +28,18 @@ use Throwable;
 
 class ProjectNarrativeReportController extends Controller
 {
+    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View
+    {
+        Gate::forUser($request->user())->authorize('view', $topic);
+
+        abort_unless($topic->isMonitoringAvailable() && $topic->isAccessibleTo($request->user()), 404);
+
+        return view('faculty.progress-reports.create', [
+            'topic' => $topic,
+            ...$formData->narrativeProgress($request->user(), $topic),
+        ]);
+    }
+
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
         $validated = $request->validated();
@@ -147,6 +161,7 @@ class ProjectNarrativeReportController extends Controller
             'info',
             $topic->id,
             workspace: User::WORKSPACE_RESEARCH_HEAD,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
         return back()->with('success', 'Official progress report submitted for Research Head review.');
@@ -220,6 +235,7 @@ class ProjectNarrativeReportController extends Controller
             'info',
             $topic->id,
             workspace: User::WORKSPACE_RESEARCH_HEAD,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
         return back()->with('success', 'Official progress report submitted for Research Head review.');
@@ -253,6 +269,8 @@ class ProjectNarrativeReportController extends Controller
             route('topics.show', $report->topic).'#project-monitoring',
             $validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED ? 'success' : 'warning',
             $report->topic_id,
+            workspace: User::WORKSPACE_FACULTY_RESEARCHER,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
         return back()->with('success', 'Progress report review saved.');

@@ -64,6 +64,14 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('Attachment A: Work Plan')
         ->assertSee('Objectives and Gantt schedule')
         ->assertSee('Add another objective')
+        ->assertSee('data-repeatable-entry', false)
+        ->assertSee('data-work-plan-objective-input', false)
+        ->assertSee('entrySummary(entry)', false)
+        ->assertSee('entryScheduleSummary(entry)', false)
+        ->assertSee('isEntryExpanded(entry)', false)
+        ->assertSee('Collapse')
+        ->assertSee('>Edit<', false)
+        ->assertSee('border-dashed border-gray-300', false)
         ->assertSee('Each month can belong to only one objective.')
         ->assertSee('automatically expands each row')
         ->assertSee('DJOANNA MARIE V. SALAC')
@@ -309,7 +317,7 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->toContain('box-shadow: inset 0 0 0 1.25pt #737373;');
 });
 
-test('the preview reuses Attachment A for every 12-month project year', function () {
+test('the preview stacks two project years in one extended Attachment A sheet', function () {
     $payload = ($this->validWorkPlan)();
     $payload['total_duration_months'] = 18;
     $payload['planned_end'] = '2028-01-31';
@@ -338,11 +346,16 @@ test('the preview reuses Attachment A for every 12-month project year', function
         ->assertSee('data-scheduled-month="13"', false)
         ->assertSee('data-scheduled-month="18"', false);
 
-    expect(substr_count($response->getContent(), 'data-work-plan-year'))->toBe(2)
-        ->and(substr_count($response->getContent(), 'data-work-plan-entry-row'))->toBe(4)
+    expect(substr_count($response->getContent(), 'data-work-plan-sheet'))->toBe(1)
+        ->and(substr_count($response->getContent(), 'data-work-plan-year'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-work-plan-entry-row'))->toBe(3)
+        ->and(substr_count($response->getContent(), 'data-work-plan-entry-year="1"'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-work-plan-entry-year="2"'))->toBe(1)
+        ->and(substr_count($response->getContent(), 'Complete the multi-year habitat study'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'Complete the first-year community review'))->toBe(1)
         ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(4)
-        ->and(substr_count($response->getContent(), 'Attachment A-BatStateU-FO-RES-02'))->toBe(2)
-        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(4);
+        ->and(substr_count($response->getContent(), 'Attachment A-BatStateU-FO-RES-02'))->toBe(1)
+        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(2);
 });
 
 test('the Word download patches the official template body and adds page numbering', function () {
@@ -391,6 +404,7 @@ test('the Word download patches the official template body and adds page numberi
 
         expect($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(13)
             ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[position() >= 6 and position() <= 12]/w:trPr/w:trHeight')->length)->toBe(0)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[position() >= 6 and position() <= 12]/w:trPr/w:cantSplit')->length)->toBe(7)
             ->and(trim((string) $xpath->evaluate('string(.)', $titleCells->item(1))))->toBe('')
             ->and(trim((string) $xpath->evaluate('string(.)', $projectTitleCells->item(1))))->toBe('Community-led Coastal Habitat Restoration')
             ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $projectTitleCells->item(1)))->toBe('center')
@@ -484,7 +498,7 @@ test('the Word download patches the official template body and adds page numberi
     }
 });
 
-test('the Word download clones the official Attachment A sheet for projects above 12 months', function () {
+test('the Word download uses the extended template for projects above 12 months', function () {
     $payload = ($this->validWorkPlan)();
     $payload['total_duration_months'] = 18;
     $payload['planned_end'] = '2028-01-31';
@@ -516,7 +530,56 @@ test('the Word download clones the official Attachment A sheet for projects abov
 
     try {
         expect($generatedArchive->open($temporaryPath))->toBeTrue()
-            ->and($templateArchive->open(config('work_plan.template_path')))->toBeTrue();
+            ->and($templateArchive->open(config('work_plan.extended_template_path')))->toBeTrue();
+
+        $documentXml = $generatedArchive->getFromName('word/document.xml');
+        $document = new DOMDocument;
+        $document->loadXML($documentXml, LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($xpath->query('//w:body/w:tbl')->length)->toBe(1)
+            ->and($xpath->query('//w:body/w:p[normalize-space(.) = "MAJOR ACTIVITIES/WORK PLAN"]')->length)->toBe(1)
+            ->and($xpath->query('//w:body/w:p/w:r/w:br[@w:type = "page"]')->length)->toBe(0)
+            ->and($xpath->query('//w:body/w:p[not(normalize-space(.)) and not(.//w:br)]')->length)->toBe(0)
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[4]/w:tc[last()])')))->toBe('Y1')
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[8]/w:tc[last()])')))->toBe('Y2')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(11)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[6]/w:trPr/w:cantSplit | (//w:body/w:tbl[1]/w:tr)[7]/w:trPr/w:cantSplit | (//w:body/w:tbl[1]/w:tr)[10]/w:trPr/w:cantSplit')->length)->toBe(3)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[position() >= 6 and position() <= 7]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
+            ->and($xpath->query('(//w:body/w:tbl[1]/w:tr)[10]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
+            ->and(substr_count($documentXml, 'Complete the multi-year habitat study'))->toBe(2)
+            ->and(substr_count($documentXml, 'Complete the first-year community review'))->toBe(1)
+            ->and(substr_count($documentXml, 'Community-led Coastal Habitat Restoration'))->toBe(1)
+            ->and(substr_count($documentXml, 'Faculty Project Leader'))->toBe(1)
+            ->and($generatedArchive->getFromName('word/header2.xml'))->toBe($templateArchive->getFromName('word/header2.xml'))
+            ->and($generatedArchive->getFromName('word/styles.xml'))->toBe($templateArchive->getFromName('word/styles.xml'));
+    } finally {
+        $generatedArchive->close();
+        $templateArchive->close();
+
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
+test('the Word download groups later project years into two-year sheets', function () {
+    $payload = ($this->validWorkPlan)();
+    $payload['total_duration_months'] = 30;
+    $payload['planned_end'] = '2029-01-31';
+    $payload['entries'][0]['months'] = [1, 13, 25, 30];
+
+    $response = $this->actingAs($this->faculty)
+        ->post(route('faculty.work-plans.download'), $payload)
+        ->assertOk();
+
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'grouped-work-plan-test-');
+    file_put_contents($temporaryPath, $response->streamedContent());
+    $generatedArchive = new ZipArchive;
+
+    try {
+        expect($generatedArchive->open($temporaryPath))->toBeTrue();
 
         $documentXml = $generatedArchive->getFromName('word/document.xml');
         $document = new DOMDocument;
@@ -528,18 +591,15 @@ test('the Word download clones the official Attachment A sheet for projects abov
             ->and($xpath->query('//w:body/w:p[normalize-space(.) = "MAJOR ACTIVITIES/WORK PLAN"]')->length)->toBe(2)
             ->and($xpath->query('//w:body/w:p/w:r/w:br[@w:type = "page"]')->length)->toBe(1)
             ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[4]/w:tc[last()])')))->toBe('Y1')
-            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[2]/w:tr)[4]/w:tc[last()])')))->toBe('Y2')
-            ->and($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(8)
-            ->and($xpath->query('//w:body/w:tbl[2]/w:tr')->length)->toBe(8)
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[1]/w:tr)[7]/w:tc[last()])')))->toBe('Y2')
+            ->and(trim((string) $xpath->evaluate('string((//w:body/w:tbl[2]/w:tr)[4]/w:tc[last()])')))->toBe('Y3')
+            ->and($documentXml)->not->toContain('Y4')
+            ->and($xpath->query('//w:body/w:tbl[1]/w:tr')->length)->toBe(10)
+            ->and($xpath->query('//w:body/w:tbl[2]/w:tr')->length)->toBe(7)
             ->and($xpath->query('//w:body/w:tbl[1]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
-            ->and($xpath->query('//w:body/w:tbl[2]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2)
-            ->and(substr_count($documentXml, 'Community-led Coastal Habitat Restoration'))->toBe(2)
-            ->and(substr_count($documentXml, 'Faculty Project Leader'))->toBe(2)
-            ->and($generatedArchive->getFromName('word/header2.xml'))->toBe($templateArchive->getFromName('word/header2.xml'))
-            ->and($generatedArchive->getFromName('word/styles.xml'))->toBe($templateArchive->getFromName('word/styles.xml'));
+            ->and($xpath->query('//w:body/w:tbl[2]//w:shd[@w:fill = "E7E6E6"]')->length)->toBe(2);
     } finally {
         $generatedArchive->close();
-        $templateArchive->close();
 
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);

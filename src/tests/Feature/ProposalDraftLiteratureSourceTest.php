@@ -437,14 +437,59 @@ test('only papers linked to a proposal appear in that detailed proposal', functi
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Literature linked to this proposal')
-        ->assertSee('Literature Assistant')
-        ->assertSee('Search related literature')
+        ->assertSee('Sources for this proposal')
+        ->assertSee('Open literature workspace')
+        ->assertSee('Literature workspace')
+        ->assertSee('Search literature')
+        ->assertSee('Saved sources')
         ->assertSee('Community Participation in Mangrove Monitoring')
-        ->assertSee('Review RRL')
-        ->assertSee('Add to Section XVI')
-        ->assertSee('Reference options')
+        ->assertSee('Review evidence')
+        ->assertSee('Save source')
+        ->assertDontSee('Add to Section XVI')
+        ->assertDontSee('Reference options')
         ->assertDontSee('Use both');
+});
+
+test('linking a shared paper does not reserve an IEEE reference number', function () {
+    $firstSourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()
+        ->json('source.id');
+    $secondSourceId = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            ...$this->sourcePayload,
+            'title' => 'Library Systems and Student Access',
+            'doi' => '10.1234/library.access.2025',
+            'url' => 'https://doi.org/10.1234/library.access.2025',
+        ])
+        ->assertCreated()
+        ->json('source.id');
+
+    $firstSource = LiteratureSource::query()->findOrFail($firstSourceId);
+    $secondSource = LiteratureSource::query()->findOrFail($secondSourceId);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $firstSource]))
+        ->assertCreated()
+        ->assertJsonPath('source.reference_number', null)
+        ->assertJsonPath('source.rrl_citation', null);
+
+    $this->actingAs($this->faculty)
+        ->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $secondSource]))
+        ->assertCreated()
+        ->assertJsonPath('source.reference_number', null)
+        ->assertJsonPath('source.rrl_citation', null);
+
+    $response = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk();
+
+    $literatureSources = $response->viewData('literatureSources');
+
+    expect($literatureSources)
+        ->toHaveCount(2)
+        ->and($literatureSources->pluck('reference_number')->all())->toBe([null, null])
+        ->and($literatureSources->pluck('rrl_citation')->all())->toBe([null, null]);
 });
 
 test('a shared paper can be staged directly in the selected detailed proposal', function () {
@@ -477,7 +522,7 @@ test('staged literature actions focus the matching detailed proposal field', fun
     $appJavaScript = file_get_contents(resource_path('js/app.js'));
 
     expect($appJavaScript)
-        ->toContain('this.focusLiteratureDestination(action);')
+        ->toContain("this.focusLiteratureDestination(action === 'reference' ? 'rrl' : action);")
         ->toContain("const fieldId = action === 'reference' ? 'references' : 'related-literature';")
         ->toContain('const focusTarget = field._semanticEditor instanceof HTMLElement ? field._semanticEditor : field;')
         ->toContain("const destination = focusTarget.closest('section') || focusTarget;")

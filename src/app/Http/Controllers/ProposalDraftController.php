@@ -40,9 +40,29 @@ class ProposalDraftController extends Controller
             ->with(['researchCall', 'documents', 'owner:id,name,email'])
             ->latest()
             ->paginate(12);
+        $submittedProposals = TopicProposal::query()
+            ->accessibleTo($request->user())
+            ->select([
+                'id',
+                'user_id',
+                'research_call_id',
+                'title',
+                'status',
+                'project_status',
+                'notice_to_proceed_issued_at',
+                'created_at',
+                'updated_at',
+            ])
+            ->with([
+                'researchCall:id,title,academic_year',
+                'user:id,name',
+                'latestVersion',
+            ])
+            ->latest()
+            ->paginate(12, ['*'], 'submitted-page');
         $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
-        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'hasOpenResearchCall'));
+        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'submittedProposals', 'hasOpenResearchCall'));
     }
 
     public function create(Request $request): View
@@ -238,6 +258,7 @@ class ProposalDraftController extends Controller
                     'completed_at' => now(),
                 ],
                 changeNote: 'Exact downloaded file staged for revision submission.',
+                forceCheckpoint: true,
             );
         } catch (\Throwable $exception) {
             Storage::disk('local')->delete($storedPath);

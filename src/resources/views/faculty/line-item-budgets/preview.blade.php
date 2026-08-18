@@ -18,11 +18,9 @@
                     <tr><th colspan="3" scope="row">Project Title:</th><td colspan="3" class="project-title">{{ $lineItemBudget['project_title'] }}</td></tr>
                     <tr class="staff-heading"><th colspan="3"></th><th>Name</th><th>Campus</th><th>College</th></tr>
                     <tr><th colspan="3" scope="row">Project Leader:</th><td>{{ $lineItemBudget['project_leader'] }}</td><td>{{ $lineItemBudget['leader_campus'] }}</td><td>{{ $lineItemBudget['leader_college'] }}</td></tr>
-                    @forelse ($lineItemBudget['staff'] as $member)
+                    @foreach ($lineItemBudget['staff'] as $member)
                         <tr><th colspan="3" scope="row">{{ $loop->first ? 'Project Staff:' : '' }}</th><td>{{ $member['name'] }}</td><td>{{ $member['campus'] }}</td><td>{{ $member['college'] }}</td></tr>
-                    @empty
-                        <tr><th colspan="3" scope="row">Project Staff:</th><td></td><td></td><td></td></tr>
-                    @endforelse
+                    @endforeach
                     <tr><th colspan="3" scope="row">Duration:</th><td colspan="3" class="duration"><em>{{ $lineItemBudget['duration'] }}</em></td></tr>
                     <tr class="budget-heading"><th colspan="5">Particulars</th><th>Amount (Php)</th></tr>
                     <tr class="section-heading"><th colspan="5">I. Maintenance and Other Operating Expenses (MOOE)</th><td></td></tr>

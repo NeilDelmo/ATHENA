@@ -100,7 +100,13 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('BatStateU-FO-RES-02 Rev. 04')
         ->assertSee('leader@g.batstate-u.edu.ph')
         ->assertSee('x-ref="introductionSection"', false)
-        ->assertSee('x-ref="literatureWorkspace"', false)
+        ->assertSee('Sources for this proposal')
+        ->assertSee('Open literature workspace')
+        ->assertSee('Literature workspace')
+        ->assertSee('Find literature')
+        ->assertSee('Saved sources')
+        ->assertDontSee('Literature Assistant')
+        ->assertDontSee('Proposal-aware search')
         ->assertSee('Add output')
         ->assertDontSee('+ Add output')
         ->assertDontSee('Quantity and unit are optional.')
@@ -114,10 +120,18 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('XIII. Duties and Responsibilities of Each Member')
         ->assertSee('Add Research Design visual')
         ->assertSee('Images belong to Research Design only')
+        ->assertSee('Write each method heading in your own words')
+        ->assertSee('Write this method heading')
+        ->assertSee('Add method group')
+        ->assertSee('Add method')
         ->assertSee('Related Studies and Literature')
         ->assertSee('Responsibility %')
         ->assertSee('Search workspace members')
         ->assertSee('No available workspace member matches your search.')
+        ->assertSee('Proposal workspace')
+        ->assertSee('Members already on the project staff list are hidden.')
+        ->assertSee('External team member')
+        ->assertSee('No project staff added yet.')
         ->assertSee('Names follow the official uppercase format.')
         ->assertSee('Leave blank when no professional title applies.')
         ->assertSee('Changes also update Project Details and the prepared-by name.')
@@ -126,10 +140,12 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Approval Signatory Names')
         ->assertSee('Faculty may enter the three names shown in the approval blocks.')
         ->assertSee('Download exact Word file')
-        ->assertSee('Ctrl + S')
+        ->assertDontSee('Ctrl + S')
         ->assertSee('Changes save automatically.')
         ->assertSee('data-detailed-proposal-autosave="true"', false)
         ->assertSee('data-detailed-proposal-autosave-form', false);
+
+    expect($response->getContent())->toContain('recheckCompletion: false');
 
     expect($response->getContent())
         ->toContain('id="proponent-department" name="proponent_department" type="text" maxlength="255"')
@@ -227,11 +243,33 @@ test('detailed proposal citations link selected RRL text to one proposal library
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
-        ->assertSee('Review and add RRL')
-        ->assertSee('Add reference only')
-        ->assertSee('Save only')
+        ->assertSee('Review evidence')
+        ->assertSee('Save source')
+        ->assertSee('Add to Section XI')
+        ->assertDontSee('Add reference only')
         ->assertSee('proposal-cite-selection', false)
         ->assertSee('literature_citations', false);
+});
+
+test('a complete detailed proposal autosave is promoted immediately', function () {
+    $payload = ($this->payload)(['save_as_draft' => '1']);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', false);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+
+    expect($document->completed_at)->not->toBeNull();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('Complete')
+        ->assertSee('recheckCompletion: false', false);
 });
 
 test('detailed proposal structures and numbers objectives and quantified expected outputs', function () {
@@ -312,6 +350,127 @@ test('detailed proposal structures and numbers objectives and quantified expecte
             unlink($temporaryPath);
         }
     }
+});
+
+test('detailed proposal supports any number of separately worded specific-method groups', function () {
+    $payload = ($this->payload)([
+        'specific_objectives' => [
+            ['description' => 'Implement an automated book cataloging module.'],
+        ],
+        'specific_method_objectives' => [
+            [
+                'heading' => 'To build the cataloging and search module.',
+                'methods' => [
+                    ['description' => 'Develop an indexed search engine for title, author, ISBN, and shelf-location queries.'],
+                    ['description' => 'Integrate barcode and QR-code scanning for inventory and circulation workflows.'],
+                ]],
+            [
+                'heading' => 'To establish the circulation and user-management module.',
+                'methods' => [
+                    ['description' => 'Build role-based profiles with loan limits, histories, and holds.'],
+                    ['description' => 'Test borrowing, returns, renewals, and overdue fine scenarios.'],
+                ]],
+        ],
+        'methodology' => [
+            'research_design' => 'The project uses an iterative system-development design.',
+            'specific_methods' => 'This hidden value is replaced by the structured method groups.',
+            'data_analysis' => 'The team will summarize functional and usability test results.',
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect($sourceData['specific_method_objectives'])->toMatchArray([
+        [
+            'heading' => 'To build the cataloging and search module.',
+            'methods' => [
+                ['description' => 'Develop an indexed search engine for title, author, ISBN, and shelf-location queries.'],
+                ['description' => 'Integrate barcode and QR-code scanning for inventory and circulation workflows.'],
+            ]],
+        [
+            'heading' => 'To establish the circulation and user-management module.',
+            'methods' => [
+                ['description' => 'Build role-based profiles with loan limits, histories, and holds.'],
+                ['description' => 'Test borrowing, returns, renewals, and overdue fine scenarios.'],
+            ]],
+    ])
+        ->and($sourceData['methodology']['specific_methods'])
+        ->toContain('<strong>A. To build the cataloging and search module.</strong>')
+        ->toContain('<strong>B. To establish the circulation and user-management module.</strong>')
+        ->toContain('<ol><li>Develop an indexed search engine')
+        ->toContain('<li>Test borrowing, returns, renewals, and overdue fine scenarios.</li>');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $payload)
+        ->assertOk()
+        ->assertSee('A. To build the cataloging and search module.')
+        ->assertSee('Develop an indexed search engine for title, author, ISBN, and shelf-location queries.')
+        ->assertSee('B. To establish the circulation and user-management module.')
+        ->assertSee('Test borrowing, returns, renewals, and overdue fine scenarios.');
+
+    $documentResponse = $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $payload)
+        ->assertOk();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'specific-method-objectives-');
+    file_put_contents($temporaryPath, $documentResponse->streamedContent());
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $methodologyText = (string) $xpath->evaluate('string(//w:body/w:tbl[1]/w:tr[23])');
+
+        expect($methodologyText)
+            ->toContain('A. To build the cataloging and search module.')
+            ->toContain('1. Develop an indexed search engine for title, author, ISBN, and shelf-location queries.')
+            ->toContain('B. To establish the circulation and user-management module.')
+            ->toContain('2. Test borrowing, returns, renewals, and overdue fine scenarios.');
+    } finally {
+        $archive->close();
+
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
+test('legacy specific-method text remains available when a structured method group has not been saved yet', function () {
+    $legacyMethods = '<p><strong>A. Implement an automated book cataloging module.</strong></p><ol><li>Develop an indexed search engine.</li><li>Test cataloging workflows.</li></ol>';
+    $payload = ($this->payload)([
+        'specific_objectives' => [
+            ['description' => 'Implement an automated book cataloging module.'],
+        ],
+        'methodology' => [
+            'research_design' => 'The project uses an iterative system-development design.',
+            'specific_methods' => $legacyMethods,
+            'data_analysis' => 'The team will summarize functional and usability test results.',
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $sourceData = $this->draft->documents()
+        ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
+        ->value('source_data');
+
+    expect($sourceData['specific_method_objectives'])->toBe([])
+        ->and($sourceData['methodology']['specific_methods'])
+        ->toContain('<strong>A. Implement an automated book cataloging module.</strong>')
+        ->toContain('<li>Develop an indexed search engine.</li>')
+        ->toContain('<li>Test cataloging workflows.</li>');
 });
 
 test('legacy objective headings and plain output fields never expose rich text markup', function () {
@@ -576,22 +735,22 @@ test('structured detailed proposal data saves, resumes, and observes optimistic 
         ->assertSessionHasErrors('document_version');
 });
 
-test('detailed proposal auto-save returns the current draft version without duplicating unchanged versions', function () {
+test('detailed proposal autosave promotes complete content without duplicating unchanged versions', function () {
     $payload = ($this->payload)(['save_as_draft' => '1']);
 
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
         ->assertOk()
-        ->assertJsonPath('message', 'Detailed Research Proposal saved as a draft.')
+        ->assertJsonPath('message', 'Detailed Research Proposal saved.')
         ->assertJsonPath('document_version', 1)
         ->assertJsonPath('draft_version', 0)
-        ->assertJsonPath('saved_as_draft', true);
+        ->assertJsonPath('saved_as_draft', false);
 
     $document = $this->draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
         ->sole();
 
-    expect($document->completed_at)->toBeNull()
+    expect($document->completed_at)->not->toBeNull()
         ->and($document->lock_version)->toBe(1);
 
     $this->actingAs($this->faculty)
@@ -669,7 +828,7 @@ test('detailed proposal autosave retains structured literature citations', funct
             'literature_citations' => json_encode($submittedCitations, JSON_THROW_ON_ERROR),
         ]))
         ->assertOk()
-        ->assertJsonPath('saved_as_draft', true);
+        ->assertJsonPath('saved_as_draft', false);
 
     $document = $this->draft->documents()
         ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))
@@ -683,7 +842,7 @@ test('detailed proposal autosave retains structured literature citations', funct
         ->toMatchArray($citation);
 });
 
-test('detailed proposal autosave retains a reference added without an rrl paragraph', function () {
+test('detailed proposal autosave preserves legacy reference-only content', function () {
     $sourceId = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), [
             'title' => 'Digital Library Processing',
@@ -721,7 +880,7 @@ test('detailed proposal autosave retains a reference added without an rrl paragr
             'literature_citations' => json_encode($citation, JSON_THROW_ON_ERROR),
         ]))
         ->assertOk()
-        ->assertJsonPath('saved_as_draft', true);
+        ->assertJsonPath('saved_as_draft', false);
 
     $document = $this->draft->documents()
         ->where('document_type', config('proposal_papers.detailed-proposal.document_type'))

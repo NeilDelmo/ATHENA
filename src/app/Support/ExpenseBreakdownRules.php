@@ -5,6 +5,7 @@ namespace App\Support;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class ExpenseBreakdownRules
 {
@@ -37,6 +38,29 @@ class ExpenseBreakdownRules
             'items.*.quantity' => [$presenceRule, 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_quantity')],
             'items.*.unit_cost' => [$presenceRule, 'numeric', 'gt:0', 'max:'.config('expense_breakdown.maximum_unit_cost')],
         ];
+    }
+
+    /** @return list<callable(Validator): void> */
+    public static function afterCallbacks(float $maximumBudget = 0, bool $allowDraft = false): array
+    {
+        if ($allowDraft) {
+            return [];
+        }
+
+        return [function (Validator $validator) use ($maximumBudget): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $expenseBreakdown = ExpenseBreakdownData::fromValidated($validator->validated());
+
+            if ($maximumBudget > 0 && $expenseBreakdown['grand_total'] > $maximumBudget + 0.005) {
+                $validator->errors()->add(
+                    'items',
+                    'The total estimated budget cannot exceed the research call budget of Php '.number_format($maximumBudget, 2).'.',
+                );
+            }
+        }];
     }
 
     /** @param array<string, mixed> $item */

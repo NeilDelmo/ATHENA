@@ -8,6 +8,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProposalDraftDocumentVersion extends Model
 {
+    public const ACTION_CAPTURED = 'captured';
+
+    public const ACTION_CHECKPOINT = 'checkpoint';
+
+    public const ACTION_PRE_RESTORE = 'pre_restore';
+
+    public const ACTION_REMOVED = 'removed';
+
+    public const ACTION_RESTORED = 'restored';
+
+    public const ACTION_SAVED = 'saved';
+
+    public const ACTION_SUBMITTED = 'submitted';
+
     protected $fillable = [
         'proposal_draft_id',
         'topic_id',
@@ -94,5 +108,13 @@ class ProposalDraftDocumentVersion extends Model
     public function isCurrent(): bool
     {
         return $this->is_current && $this->document !== null;
+    }
+
+    public function isAutomaticRecoveryPoint(): bool
+    {
+        return in_array($this->action, [
+            self::ACTION_CHECKPOINT,
+            self::ACTION_PRE_RESTORE,
+        ], true);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalDraftMember;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -52,6 +53,7 @@ class SubmitProposalDraft
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
         private readonly ArchiveProposalDraftDocumentHistory $archiveDocumentHistory,
+        private readonly RecordProposalDraftDocumentVersion $recordDocumentVersion,
         private readonly SyncTopicCollaborators $syncTopicCollaborators,
     ) {}
 
@@ -249,6 +251,15 @@ class SubmitProposalDraft
                     'estimated_duration_months' => $lockedDraft->duration_months,
                 ]);
                 $version->files()->createMany($permanentFiles);
+
+                foreach ($documents as $document) {
+                    $this->recordDocumentVersion->handle(
+                        $document,
+                        $user,
+                        action: ProposalDraftDocumentVersion::ACTION_SUBMITTED,
+                    );
+                }
+
                 $this->archiveDocumentHistory->handle($lockedDraft, $topic, $permanentDirectory);
                 $lockedDraft->delete();
 
@@ -271,6 +282,7 @@ class SubmitProposalDraft
                     url: route('topics.show', $topic),
                     topicId: $topic->id,
                     workspace: User::WORKSPACE_RESEARCH_HEAD,
+                    sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
                 ),
             );
 
@@ -284,6 +296,7 @@ class SubmitProposalDraft
                         message: 'The collaborative proposal “'.$topic->title.'” was submitted for Research Head review.',
                         url: route('faculty.dashboard'),
                         topicId: $topic->id,
+                        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
                     ),
                 );
             }
@@ -373,6 +386,11 @@ class SubmitProposalDraft
             return ['mooe_total' => 0, 'co_total' => 0];
         }
 
+        $sourceData = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+            $sourceData,
+            $this->expenseBreakdownItems($draft),
+        );
+
         $budget = LineItemBudgetData::fromValidated([
             ...$sourceData,
             'project_title' => $draft->project_title,
@@ -423,8 +441,12 @@ class SubmitProposalDraft
         ProposalDraftDocument $document,
         string $permanentDirectory,
     ): array {
+        $lineItemBudgetSource = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+            is_array($document->source_data) ? $document->source_data : [],
+            $this->expenseBreakdownItems($draft),
+        );
         $sourceData = [
-            ...($document->source_data ?? []),
+            ...$lineItemBudgetSource,
             'project_title' => $draft->project_title,
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
@@ -457,6 +479,18 @@ class SubmitProposalDraft
             $draft->project_title,
             $submittedSourceData,
         );
+    }
+
+    /** @return array<int, mixed>|null */
+    private function expenseBreakdownItems(ProposalDraft $draft): ?array
+    {
+        $sourceData = $draft->documents
+            ->firstWhere('document_type', config('proposal_papers.expense-breakdown.document_type'))
+            ?->source_data;
+
+        return is_array($sourceData) && is_array($sourceData['items'] ?? null)
+            ? $sourceData['items']
+            : null;
     }
 
     /** @return array<string, mixed> */

@@ -129,9 +129,8 @@ class LineItemBudgetDocumentService
         $template = $rows[4];
         $anchor = $rows[5];
         $table->removeChild($template);
-        $staffRows = $staff === [] ? [['name' => '', 'campus' => '', 'college' => '']] : $staff;
 
-        foreach ($staffRows as $index => $member) {
+        foreach ($staff as $index => $member) {
             $row = $template->cloneNode(true);
 
             if (! $row instanceof DOMElement) {
@@ -190,9 +189,24 @@ class LineItemBudgetDocumentService
     /** @param array<int, DOMElement> $rows @param array<string, mixed> $budget */
     private function fillTotals(DOMXPath $xpath, array $rows, array $budget): void
     {
+        $this->alignTotalLabel($xpath, $rows[30], 'right');
         $this->fillAmountCell($xpath, $rows[30], $budget['mooe_total'], true);
+        $this->alignTotalLabel($xpath, $rows[37], 'right');
         $this->fillAmountCell($xpath, $rows[37], $budget['co_total'], true);
+        $this->alignTotalLabel($xpath, $rows[39], 'center');
         $this->fillAmountCell($xpath, $rows[39], $budget['project_total'], true);
+    }
+
+    private function alignTotalLabel(DOMXPath $xpath, DOMElement $row, string $alignment): void
+    {
+        $cells = $this->elements($xpath, './w:tc', $row);
+        array_pop($cells);
+
+        foreach ($cells as $cell) {
+            foreach ($this->elements($xpath, './w:p', $cell) as $paragraph) {
+                $this->setParagraphAlignment($paragraph, $alignment);
+            }
+        }
     }
 
     /** @param array<string, mixed> $budget */

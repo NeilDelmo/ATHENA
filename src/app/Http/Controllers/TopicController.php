@@ -6,10 +6,6 @@ use App\Actions\SyncTopicCollaborators;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
-use App\Models\ProjectMonitoringDraft;
-use App\Models\ProjectNarrativeReport;
-use App\Models\ProjectNarrativeReportDraft;
-use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -173,62 +169,7 @@ class TopicController extends Controller
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
         ]);
 
-        $preparedProgressReport = null;
-        $preparedNarrativeReport = null;
-        $revisionProgressReport = null;
-        $monitoringDraft = null;
-        $narrativeReportDraft = null;
-
-        if (! $request->user()->isUsingWorkspace('research_head')
-            && $topic->isMonitoringAvailable()
-            && $topic->isAccessibleTo($request->user())) {
-            $requestedRevisionReportId = $request->integer('revise_monitoring_report');
-
-            if ($requestedRevisionReportId !== 0) {
-                $revisionProgressReport = ProjectProgressReport::query()
-                    ->submitted()
-                    ->whereBelongsTo($topic, 'topic')
-                    ->where('review_status', 'revision_requested')
-                    ->with(['submitter', 'reviewer', 'nextVersion'])
-                    ->findOrFail($requestedRevisionReportId);
-
-                abort_if($revisionProgressReport->nextVersion !== null, 404);
-            }
-
-            $preparedProgressReport = ProjectProgressReport::query()
-                ->prepared()
-                ->whereBelongsTo($topic, 'topic')
-                ->where('submitted_by', $request->user()->id)
-                ->with('nextVersion')
-                ->when(
-                    $revisionProgressReport !== null,
-                    fn ($query) => $query->where('supersedes_report_id', $revisionProgressReport->id),
-                    fn ($query) => $query->whereNull('supersedes_report_id'),
-                )
-                ->latest('prepared_at')
-                ->first();
-            $monitoringDraft = ProjectMonitoringDraft::query()
-                ->whereBelongsTo($topic, 'topic')
-                ->whereBelongsTo($request->user(), 'user')
-                ->forSource($revisionProgressReport)
-                ->first();
-            $narrativeReportDraft = ProjectNarrativeReportDraft::query()
-                ->whereBelongsTo($topic, 'topic')
-                ->whereBelongsTo($request->user(), 'user')
-                ->first();
-            $preparedNarrativeReport = ProjectNarrativeReport::query()
-                ->prepared()
-                ->whereBelongsTo($topic, 'topic')
-                ->where('submitted_by', $request->user()->id)
-                ->latest('prepared_at')
-                ->first();
-        }
-
         $monitoringReports = $topic->progressReports->values();
-
-        if ($preparedProgressReport !== null) {
-            $monitoringReports->push($preparedProgressReport);
-        }
 
         $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports);
 
@@ -326,11 +267,6 @@ class TopicController extends Controller
             'viewableReviewDocumentIds',
             'headUploadWorkspace',
             'noticeToProceedForm',
-            'preparedProgressReport',
-            'monitoringDraft',
-            'narrativeReportDraft',
-            'revisionProgressReport',
-            'preparedNarrativeReport',
             'monitoringQuarterRows',
         ));
     }
@@ -427,6 +363,7 @@ class TopicController extends Controller
                 'info',
                 $topic->id,
                 workspace: User::WORKSPACE_RESEARCH_HEAD,
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
             ),
         );
 
@@ -627,6 +564,7 @@ class TopicController extends Controller
                 'info',
                 $topic->id,
                 workspace: User::WORKSPACE_RESEARCH_HEAD,
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
             ),
         );
 

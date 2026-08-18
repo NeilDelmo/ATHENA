@@ -124,6 +124,16 @@
     background: rgb(107 114 128 / 0.24);
 }
 
+.pdf-annotation-pending-mark {
+    position: absolute;
+    z-index: 2;
+    pointer-events: none;
+    border: 2px solid rgb(185 28 28);
+    border-radius: 0.2rem;
+    background: rgb(254 202 202 / 0.48);
+    box-shadow: 0 0 0 2px rgb(255 255 255 / 0.85);
+}
+
 .pdf-annotation-area-preview {
     position: absolute;
     z-index: 4;

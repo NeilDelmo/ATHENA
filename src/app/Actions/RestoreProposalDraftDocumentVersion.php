@@ -75,8 +75,10 @@ class RestoreProposalDraftDocumentVersion
                     'completed_at' => $version->completed_at,
                 ],
                 $changeNote,
-                'restored',
+                ProposalDraftDocumentVersion::ACTION_RESTORED,
                 $version,
+                forceCheckpoint: true,
+                preserveCurrentWorkingCopy: true,
             );
         } catch (Throwable $exception) {
             if ($restoredPath !== null) {

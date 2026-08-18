@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -57,13 +58,49 @@ class LineItemBudgetData
         return $amounts;
     }
 
+    /**
+     * @param  array<int, mixed>  $items
+     * @return array<string, float|null>
+     */
+    public static function synchronizedAmountsFromExpenseBreakdown(array $items): array
+    {
+        $emptyAmounts = collect(config('line_item_budget.sections'))
+            ->flatMap(fn (array $section): array => $section['items'])
+            ->mapWithKeys(fn (array $item): array => [$item['key'] => null])
+            ->all();
+
+        return array_replace($emptyAmounts, self::amountsFromExpenseBreakdown($items));
+    }
+
+    /**
+     * @param  array<string, mixed>  $sourceData
+     * @param  array<int, mixed>|null  $expenseItems
+     * @return array<string, mixed>
+     */
+    public static function synchronizeSourceWithExpenseBreakdown(array $sourceData, ?array $expenseItems): array
+    {
+        if ($expenseItems === null) {
+            return $sourceData;
+        }
+
+        return [
+            ...$sourceData,
+            'amounts' => self::synchronizedAmountsFromExpenseBreakdown($expenseItems),
+        ];
+    }
+
     /** @param array<string, mixed> $validated @return array<string, mixed> */
     public static function fromValidated(array $validated): array
     {
         $amounts = collect($validated['amounts'] ?? [])
             ->map(fn (mixed $amount): ?float => self::amount($amount))
             ->all();
-        $staff = self::meaningfulRows($validated['staff'] ?? [], ['name', 'campus', 'college']);
+        $staff = collect(self::meaningfulRows($validated['staff'] ?? [], ['name', 'campus', 'college']))
+            ->map(fn (array $member): array => [
+                ...$member,
+                'college' => self::collegeAbbreviation($member['college']),
+            ])
+            ->all();
         $customMooe = self::budgetRows($validated['custom_mooe_items'] ?? []);
         $customCo = self::budgetRows($validated['custom_co_items'] ?? []);
         $mooeKeys = collect(config('line_item_budget.sections.mooe.items'))->pluck('key');
@@ -86,8 +123,8 @@ class LineItemBudgetData
             'planned_end' => self::date($validated['planned_end'] ?? null),
             'duration' => self::date($validated['planned_start'] ?? null).' - '.self::date($validated['planned_end'] ?? null),
             'project_leader' => self::personName((string) ($validated['project_leader'] ?? '')),
-            'leader_campus' => trim((string) ($validated['leader_campus'] ?? config('line_item_budget.default_campus'))),
-            'leader_college' => trim((string) ($validated['leader_college'] ?? '')),
+            'leader_campus' => self::campusLabel($validated['leader_campus'] ?? null),
+            'leader_college' => self::collegeAbbreviation($validated['leader_college'] ?? null),
             'staff' => $staff,
             'amounts' => $amounts,
             'custom_mooe_items' => $customMooe,
@@ -105,9 +142,28 @@ class LineItemBudgetData
             'approval_body' => $validated['approval_body'] ?? null,
             'resolution_number' => trim((string) ($validated['resolution_number'] ?? '')),
             'resolution_year' => trim((string) ($validated['resolution_year'] ?? '')),
-            'certified_by' => (string) config('work_plan.verifier.name'),
-            'certified_role' => (string) config('work_plan.verifier.role'),
+            'certified_by' => Str::upper(Str::squish((string) ($validated['certified_by'] ?? ''))),
+            'certified_role' => Str::squish((string) ($validated['certified_role'] ?? '')),
         ];
+    }
+
+    public static function campusLabel(mixed $campus): string
+    {
+        $campus = Str::squish((string) $campus);
+
+        if ($campus === '' || $campus === 'BatStateU The NEU ARASOF-Nasugbu Campus') {
+            return (string) config('line_item_budget.default_campus');
+        }
+
+        return $campus;
+    }
+
+    public static function collegeAbbreviation(mixed $college): string
+    {
+        $college = Str::squish((string) $college);
+        $abbreviation = array_search($college, User::COLLEGES, true);
+
+        return is_string($abbreviation) ? $abbreviation : $college;
     }
 
     public static function amount(mixed $value): ?float

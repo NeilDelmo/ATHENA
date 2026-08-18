@@ -151,6 +151,7 @@ class ProposalDraftSubmissionController extends Controller
                     'completed_at' => $document->completed_at ?? now(),
                 ],
                 changeNote: 'Replaced the prepared system PDF before Turn in.',
+                forceCheckpoint: true,
             );
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($path);

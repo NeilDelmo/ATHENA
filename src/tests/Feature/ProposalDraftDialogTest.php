@@ -8,7 +8,7 @@ test('proposal draft action forms use SweetAlert2 confirmations', function () {
         'resources/views/faculty/proposal-drafts/index.blade.php' => 'Delete draft',
         'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove collaborator',
         'resources/views/faculty/proposal-drafts/_review-package.blade.php' => 'Turn in proposal',
-        'resources/views/faculty/proposal-drafts/history.blade.php' => 'Restore version',
+        'resources/views/faculty/proposal-drafts/history.blade.php' => 'Restore recovery point',
         'resources/views/faculty/proposal-drafts/papers/edit.blade.php' => 'Remove file',
     ];
 
@@ -46,6 +46,10 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->toContain("confirmButtonText: complete ? 'Save and exit' : 'Save draft'")
         ->toContain('data-paper-save-mode')
         ->toContain("action.closest('[data-paper-editor]') ?? currentPaperEditor()")
+        ->toContain('function finishPaperEditorAutoSave(editor)')
+        ->toContain("if (action.matches('[data-paper-cancel-exit]') && autoSaveMethodForPaperEditor(editor))")
+        ->toContain("title: 'Changes were not saved'")
+        ->toContain("confirmButtonText: 'Leave without saving'")
         ->toContain("if (submitterSelector === '[data-paper-save]')")
         ->not->toContain('paperEditorHasUnsavedChanges(editor) || window.confirm');
 });
@@ -74,6 +78,30 @@ test('turning in a proposal shows a blocking progress screen after confirmation'
         ->toContain("form.matches('[data-proposal-package-submit]')")
         ->toContain('window.requestAnimationFrame(() =>')
         ->toContain('HTMLFormElement.prototype.submit.call(form)');
+});
+
+test('preparing submission PDFs shows a blocking progress screen', function () {
+    $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $loadingScreen = Blade::render('<x-proposal-pdf-preparation-loading-screen />');
+
+    expect($reviewPackage)
+        ->toContain('data-proposal-package-prepare')
+        ->toContain('<x-proposal-pdf-preparation-loading-screen />')
+        ->and($loadingScreen)
+        ->toContain('data-proposal-pdf-preparation-loading')
+        ->toContain('hidden')
+        ->toContain('role="status"')
+        ->toContain('Generating submission PDFs')
+        ->toContain('preparing the seven final PDFs')
+        ->toContain('Please keep this page open')
+        ->and($appJavaScript)
+        ->toContain('showProposalPdfPreparationLoadingScreen(form)')
+        ->toContain("form.dataset.proposalPreparing = 'true'")
+        ->toContain('loadingScreen.hidden = false')
+        ->toContain("matches('[data-proposal-package-prepare]')")
+        ->toContain("if (form.dataset.proposalPreparing === 'true')")
+        ->toContain('submitButton.textContent');
 });
 
 test('generated paper editors support partial drafts and gate download controls', function () {
@@ -108,7 +136,12 @@ test('generated paper editors support partial drafts and gate download controls'
             ->toContain($autoSaveFormMarker)
             ->toContain('novalidate')
             ->toContain('x-bind:disabled="previewLoading"')
-            ->toContain('x-bind:disabled="!isComplete()"')
+            ->toContain(in_array($editorView, [
+                'resources/views/faculty/proposal-drafts/line-item-budget/edit.blade.php',
+                'resources/views/faculty/proposal-drafts/expense-breakdown/edit.blade.php',
+            ], true)
+                ? 'x-bind:disabled="!isComplete() || isOverBudget()"'
+                : 'x-bind:disabled="!isComplete()"')
             ->toContain('<x-proposal-autosave-status />')
             ->not->toContain('data-paper-save-exit');
     }
@@ -199,6 +232,29 @@ test('proposal editors use a protected header exit and save actions that match t
     }
 });
 
+test('repeatable paper editors collapse earlier entries and focus the newly added row', function () {
+    $script = file_get_contents(resource_path('js/app.js'));
+
+    expect($script)
+        ->toContain('function focusNewFormEntry(form, selector)')
+        ->toContain('block: \'nearest\'')
+        ->toContain('field.focus({ preventScroll: true })')
+        ->toContain('expandedEntryId: null')
+        ->toContain('expandedItemId: null')
+        ->toContain('this.expandedEntryId = entry.id')
+        ->toContain('this.expandedItemId = item.id')
+        ->toContain('expandEntryForField(invalidField)')
+        ->toContain('expandItemForField(invalidField)')
+        ->toContain('this.$el.dataset.paperDirty = \'true\';')
+        ->toContain('void this.saveExpenseBreakdownNow();')
+        ->toContain('expenseBreakdownFormData()')
+        ->toContain('itemFieldNames.forEach((name) => formData.delete(name));')
+        ->toContain('body: this.expenseBreakdownFormData()')
+        ->toContain('[data-work-plan-objective-input="${entry.id}"]')
+        ->toContain('[data-expense-item-primary="${item.id}"]')
+        ->toContain('[data-line-item-budget-custom-input="${item.id}"]');
+});
+
 test('the collaboration monitor keeps a persistent save confirmation', function () {
     session()->flash('success', 'Attachment A: Work Plan saved.');
 
@@ -209,11 +265,11 @@ test('the collaboration monitor keeps a persistent save confirmation', function 
     expect($html)
         ->toContain('data-proposal-save-confirmation')
         ->toContain('Attachment A: Work Plan saved.')
-        ->toContain('Saved as version 3.')
-        ->toContain('You stayed on this page and can continue editing.')
+        ->toContain('Saved just now.')
+        ->toContain('You can continue editing.')
         ->toContain('data-proposal-monitor-status');
 
-    session()->flash('success', 'Attachment A: Work Plan file removed. Previous versions remain available in history.');
+    session()->flash('success', 'Attachment A: Work Plan file removed. Earlier recovery points remain available.');
 
     $removedHtml = Blade::render(
         '<x-proposal-collaboration-monitor :loaded-version="0" state-url="/state" reload-url="/edit" label="Work Plan" />',

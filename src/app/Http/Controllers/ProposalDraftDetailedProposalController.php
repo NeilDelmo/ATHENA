@@ -11,7 +11,9 @@ use App\Models\ProposalDraftLiteratureSource;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\DetailedProposalMethodologyImageService;
 use App\Support\DetailedProposalData;
+use App\Support\DetailedProposalRules;
 use App\Support\LineItemBudgetData;
+use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Http\JsonResponse;
@@ -51,6 +53,7 @@ class ProposalDraftDetailedProposalController extends Controller
         'literature_research_history',
         'literature_citations',
         'methodology',
+        'specific_method_objectives',
         'methodology_images',
         'responsibilities',
         'checked_verified_by_name',
@@ -63,12 +66,17 @@ class ProposalDraftDetailedProposalController extends Controller
         Request $request,
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        ProposalDraftReadiness $readiness,
         ProposalWorkspacePeople $proposalWorkspacePeople,
     ): View {
         Gate::authorize('update', $proposalDraft);
         $proposalDraft->load(['researchCall', 'owner:id,name,email,college,contact_number']);
         $paper = $catalog->get('detailed-proposal');
         $detailedProposalDocument = $this->document($proposalDraft);
+        $detailedProposalComplete = $readiness->detailedProposalIsComplete(
+            $proposalDraft,
+            $detailedProposalDocument,
+        );
         $workspacePeople = $proposalWorkspacePeople->forDraft($proposalDraft);
         $sourceData = $detailedProposalDocument?->source_data ?? $this->defaults(
             $proposalDraft,
@@ -89,7 +97,7 @@ class ProposalDraftDetailedProposalController extends Controller
             ->with(['literatureSource.addedBy:id,name', 'literatureSource.collections:id,name,slug'])
             ->get()
             ->values()
-            ->map(fn (ProposalDraftLiteratureSource $source, int $index): array => $source->toLibraryArray($index + 1))
+            ->map(fn (ProposalDraftLiteratureSource $source): array => $source->toLibraryArray())
             ->values();
         $initialLiteratureSourceId = $request->integer('literature_source') ?: null;
         $initialLiteratureAction = $request->string('apply_to')->toString();
@@ -104,6 +112,7 @@ class ProposalDraftDetailedProposalController extends Controller
             'proposalDraft',
             'paper',
             'detailedProposalDocument',
+            'detailedProposalComplete',
             'sourceData',
             'workspacePeople',
             'budgetTotals',
@@ -124,6 +133,8 @@ class ProposalDraftDetailedProposalController extends Controller
         Gate::authorize('update', $proposalDraft);
         $paper = $catalog->get('detailed-proposal');
         $validated = $request->validated();
+        $savedAsDraft = $request->boolean('save_as_draft')
+            && ! DetailedProposalRules::passesComplete($request->all());
         $sourceData = Arr::only($validated, self::SOURCE_FIELDS);
         $normalizedProposal = DetailedProposalData::fromValidated($validated);
 
@@ -136,6 +147,7 @@ class ProposalDraftDetailedProposalController extends Controller
             'introduction',
             'related_literature',
             'methodology',
+            'specific_method_objectives',
             'responsibilities',
             'references',
         ] as $field) {
@@ -147,9 +159,12 @@ class ProposalDraftDetailedProposalController extends Controller
             $sourceData['methodology_images'] ?? [],
             $methodologyImageService,
         );
+        $completedAt = $savedAsDraft
+            ? null
+            : ($this->document($proposalDraft)?->completed_at ?? now());
 
         try {
-            $savedDocument = DB::transaction(function () use ($proposalDraft, $request, $paper, $sourceData, $projectLeader, $saveProposalDraftDetails, $saveProposalDraftDocument): ProposalDraftDocument {
+            $savedDocument = DB::transaction(function () use ($proposalDraft, $request, $paper, $sourceData, $projectLeader, $completedAt, $saveProposalDraftDetails, $saveProposalDraftDocument): ProposalDraftDocument {
                 if ($projectLeader !== $proposalDraft->project_leader) {
                     $saveProposalDraftDetails->handle(
                         $proposalDraft,
@@ -171,7 +186,7 @@ class ProposalDraftDetailedProposalController extends Controller
                         'mime_type' => null,
                         'file_size' => null,
                         'checksum' => null,
-                        'completed_at' => $request->boolean('save_as_draft') ? null : now(),
+                        'completed_at' => $completedAt,
                     ],
                     changeNote: $request->string('change_note')->toString(),
                 );
@@ -184,12 +199,12 @@ class ProposalDraftDetailedProposalController extends Controller
 
         if ($request->expectsJson()) {
             return response()->json([
-                'message' => $request->boolean('save_as_draft')
+                'message' => $savedAsDraft
                     ? 'Detailed Research Proposal saved as a draft.'
                     : 'Detailed Research Proposal saved.',
                 'document_version' => $savedDocument->lock_version,
                 'draft_version' => $proposalDraft->fresh()->lock_version,
-                'saved_as_draft' => $request->boolean('save_as_draft'),
+                'saved_as_draft' => $savedAsDraft,
                 'methodology_images' => $this->methodologyImagesForAutoSave($savedDocument, $request, $proposalDraft),
             ]);
         }
@@ -202,7 +217,7 @@ class ProposalDraftDetailedProposalController extends Controller
                 $proposalDraft,
             )
             ->with('proposal_tab', $request->boolean('exit_after_save') ? 'attachments' : null)
-            ->with('success', $request->boolean('save_as_draft')
+            ->with('success', $savedAsDraft
                 ? 'Detailed Research Proposal saved as a draft.'
                 : 'Detailed Research Proposal saved.');
     }

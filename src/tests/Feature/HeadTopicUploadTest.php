@@ -224,11 +224,36 @@ test('a clean proposal moves to signing before it can be approved', function () 
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
+        ->assertSee('Choose the next step')
+        ->assertSee('Select papers → upload signed PDFs → approval unlocks')
+        ->assertSee('Mark files → add highlights/comments → request revision')
+        ->assertSee("x-show=\"decision === 'revision_requested'\"", false)
+        ->assertSee("x-bind:disabled=\"decision !== 'revision_requested'\"", false)
+        ->assertSee('@submit.prevent="submitDecision"', false)
+        ->assertSee('Continue to final signing?')
+        ->assertSee('Reject this proposal?')
+        ->assertSee("confirmButtonColor: '#dc2626'", false)
+        ->assertDontSee("confirmButtonColor: '#111827'", false)
+        ->assertSee("decision === signingDecision ? 'border-red-700 bg-red-50 shadow-md shadow-red-100", false)
         ->assertSee('Which papers need a signed final PDF?')
         ->assertSee('Nothing is selected automatically.')
+        ->assertDontSee('Approve — no signed copies needed')
+        ->assertSee('Reject proposal')
+        ->assertSee('Why is this proposal being rejected?')
+        ->assertSee('I confirm that this rejection is final.')
         ->assertDontSee('Final signature required')
         ->assertDontSee('No final signature required')
         ->assertDontSee('Record note (optional)');
+
+    $this->actingAs($this->head)
+        ->from(route('topics.show', $this->topic))
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'approved',
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHasErrors('status');
+
+    expect($this->topic->fresh()->status)->toBe('pending');
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
@@ -237,7 +262,7 @@ test('a clean proposal moves to signing before it can be approved', function () 
             'signature_file_ids' => [$workPlan->id, $gadChecklist->id],
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
         ->assertSessionHas('success', 'Review completed. Upload the required signed PDFs, then finalize approval.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
@@ -251,6 +276,12 @@ test('a clean proposal moves to signing before it can be approved', function () 
         ->assertSee('0/2 uploaded')
         ->assertSee('Signed final PDF')
         ->assertSee('Finalize approval')
+        ->assertDontSee('One clear review process')
+        ->assertDontSee('Research Head workspace')
+        ->assertDontSee('Review faculty files')
+        ->assertDontSee('Faculty-submitted files')
+        ->assertDontSee('Administrative and supplemental papers')
+        ->assertDontSee('<details class="group overflow-hidden rounded-2xl border-2 border-amber-300 shadow-lg" open>', false)
         ->assertDontSee('Upload reviewed copy')
         ->assertDontSee('Record note (optional)');
 });
@@ -563,8 +594,18 @@ test('the shared document list records Research Head uploads', function () {
             'note' => 'Co-signed on 2026-07-21.',
         ]);
 
+    $signedWorkPlan = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
+        ->sole();
+
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 
     $response->assertSee('signed-work-plan.pdf')
-        ->assertSee('Work Plan (signed official copy)');
+        ->assertSee('Work Plan (signed official copy)')
+        ->assertSee('Uploaded signed copy')
+        ->assertSee('Preview signed PDF')
+        ->assertSee('Signed PDF preview')
+        ->assertSee('data-signed-copy-preview', false)
+        ->assertSee(route('topics.versions.files.view', [$this->topic, $this->version, $signedWorkPlan]));
 });

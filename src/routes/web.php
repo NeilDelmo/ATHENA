@@ -32,6 +32,7 @@ use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalFileAnnotationController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
+use App\Http\Controllers\ResearchAssistantDocumentController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RoleSelectionController;
+use App\Http\Controllers\SidebarAttentionController;
 use App\Http\Controllers\TopicCommentResponseFormController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\WorkPlanController;
@@ -238,9 +240,15 @@ Route::middleware('auth')->prefix('notifications')->name('notifications.')->grou
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
 
+Route::post('/sidebar-attention/{area}', [SidebarAttentionController::class, 'open'])
+    ->middleware('auth')
+    ->name('sidebar-attention.open');
+
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::get('/research', [TopicController::class, 'researchIndex'])->name('research.index');
     Route::get('/research/{topic}', [TopicController::class, 'researchShow'])->name('research.show');
+    Route::get('/research/{topic}/monitoring-tool', [ProjectMonitoringController::class, 'create'])->name('project-progress.create');
+    Route::get('/research/{topic}/progress-report', [ProjectNarrativeReportController::class, 'create'])->name('project-narrative-reports.create');
     Route::post('/research/{topic}/progress-reports/preview', [ProjectMonitoringController::class, 'preview'])->name('project-progress.preview');
     Route::post('/research/{topic}/progress-reports/draft', [ProjectMonitoringController::class, 'saveDraft'])->name('project-progress.draft');
     Route::post('/research/{topic}/progress-reports/prepare', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.prepare');
@@ -283,6 +291,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/research-support/chat', ResearchAssistantController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.chat');
+    Route::get('/research-support/documents', ResearchAssistantDocumentController::class)
+        ->middleware('throttle:60,1')
+        ->name('research-support.documents');
 });
 
 Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
@@ -333,7 +344,9 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
     Route::post('/research-head/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('research_head.topics.notice-to-proceed.preview');
-    Route::post('/research-head/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'store'])->name('research_head.topics.notice-to-proceed.store');
+    Route::post('/research-head/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'prepare'])->name('research_head.topics.notice-to-proceed.store');
+    Route::get('/research-head/topics/{topic}/notice-to-proceed/unsigned', [NoticeToProceedController::class, 'downloadUnsigned'])->name('research_head.topics.notice-to-proceed.download-unsigned');
+    Route::post('/research-head/topics/{topic}/notice-to-proceed/signed', [NoticeToProceedController::class, 'uploadSigned'])->name('research_head.topics.notice-to-proceed.upload-signed');
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
     Route::patch('/research-head/narrative-progress-reports/{report}', [ProjectNarrativeReportController::class, 'review'])->name('research_head.narrative-progress-reports.review');

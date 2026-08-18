@@ -25,7 +25,10 @@ test('a research head can choose research head or faculty workspaces', function 
         ->assertSee('Continue as Research Head')
         ->assertSee('Continue as Faculty')
         ->assertDontSee('Continue as Faculty Researcher')
-        ->assertDontSee('Continue as Expert Evaluator');
+        ->assertDontSee('Continue as Expert Evaluator')
+        ->assertSee('Back to current workspace')
+        ->assertSee(route('dashboard'), false)
+        ->assertSee("onsubmit=\"return confirm('Are you sure you want to log out?')\"", false);
 });
 
 test('three workspaces use compact cards without shrinking the two-workspace layout', function () {

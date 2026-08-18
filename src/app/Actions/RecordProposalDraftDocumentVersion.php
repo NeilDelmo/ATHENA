@@ -11,7 +11,46 @@ class RecordProposalDraftDocumentVersion
 {
     public function __construct(
         private readonly ProposalDocumentVersionDiff $diff,
+        private readonly PruneProposalDraftDocumentRecoveryHistory $pruneRecoveryHistory,
     ) {}
+
+    public function captureAutomaticRecoveryPoint(
+        ProposalDraftDocument $document,
+        ?User $actor,
+    ): ?ProposalDraftDocumentVersion {
+        $latestCheckpoint = ProposalDraftDocumentVersion::query()
+            ->where('proposal_draft_id', $document->proposal_draft_id)
+            ->where('document_type', $document->document_type)
+            ->where('position', $document->position)
+            ->whereIn('action', [
+                ProposalDraftDocumentVersion::ACTION_CHECKPOINT,
+                ProposalDraftDocumentVersion::ACTION_SAVED,
+            ])
+            ->latest('created_at')
+            ->first();
+        $interval = max(1, (int) config('proposal_recovery.checkpoint_interval_minutes', 30));
+
+        if ($latestCheckpoint?->created_at?->gt(now()->subMinutes($interval))) {
+            return null;
+        }
+
+        return $this->handle(
+            $document,
+            $actor,
+            action: ProposalDraftDocumentVersion::ACTION_CHECKPOINT,
+        );
+    }
+
+    public function hasRecoveryPointForWorkingDraft(ProposalDraftDocument $document): bool
+    {
+        return ProposalDraftDocumentVersion::query()
+            ->where('proposal_draft_id', $document->proposal_draft_id)
+            ->where('proposal_draft_document_id', $document->getKey())
+            ->where('document_type', $document->document_type)
+            ->where('position', $document->position)
+            ->where('version_number', $document->lock_version)
+            ->exists();
+    }
 
     public function handle(
         ProposalDraftDocument $document,
@@ -36,7 +75,7 @@ class RecordProposalDraftDocumentVersion
 
         (clone $versions)->where('is_current', true)->update(['is_current' => false]);
 
-        return ProposalDraftDocumentVersion::create([
+        $version = ProposalDraftDocumentVersion::create([
             'proposal_draft_id' => $document->proposal_draft_id,
             'proposal_draft_document_id' => $document->getKey(),
             'created_by' => $actor?->getKey(),
@@ -63,5 +102,9 @@ class RecordProposalDraftDocumentVersion
             'checksum' => $document->checksum,
             'completed_at' => $document->completed_at,
         ]);
+
+        $this->pruneRecoveryHistory->handle($document);
+
+        return $version;
     }
 }

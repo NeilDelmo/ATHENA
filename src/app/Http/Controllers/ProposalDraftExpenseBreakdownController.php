@@ -7,6 +7,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftExpenseBreakdownRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ResearchCall;
 use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
 use App\Support\ProposalBudgetConsistency;
@@ -27,10 +28,12 @@ class ProposalDraftExpenseBreakdownController extends Controller
         ProposalBudgetConsistency $proposalBudgetConsistency,
     ): View {
         Gate::authorize('update', $proposalDraft);
+        $proposalDraft->loadMissing('researchCall');
         $paper = $catalog->get('expense-breakdown');
         $expenseBreakdownDocument = $this->document($proposalDraft);
         $sourceData = $expenseBreakdownDocument?->source_data ?? ['items' => []];
         $budgetConsistency = $proposalBudgetConsistency->compare($proposalDraft);
+        $budgetCeiling = $proposalDraft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
 
         return view('faculty.proposal-drafts.expense-breakdown.edit', compact(
             'proposalDraft',
@@ -38,6 +41,7 @@ class ProposalDraftExpenseBreakdownController extends Controller
             'expenseBreakdownDocument',
             'sourceData',
             'budgetConsistency',
+            'budgetCeiling',
         ));
     }
 

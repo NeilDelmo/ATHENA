@@ -1,9 +1,13 @@
 <?php
 
+use App\Actions\RecordProposalDraftDocumentVersion;
+use App\Actions\RestoreProposalDraftDocumentVersion;
+use App\Actions\SaveProposalDraftDocument;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ResearchCall;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -56,6 +60,10 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+afterEach(function () {
+    Carbon::setTestNow();
+});
+
 test('replaced and removed PDF uploads remain in collaborator-attributed version history', function () {
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
@@ -93,13 +101,13 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
         ->assertOk()
-        ->assertSee('Version history')
+        ->assertSee('Recovery history')
         ->assertSee('expenses-v1.pdf')
         ->assertSee('expenses-v2.pdf')
         ->assertSee('History Owner')
         ->assertSee('History Collaborator')
-        ->assertSee('Current')
-        ->assertSee('Previous');
+        ->assertSee('Saved')
+        ->assertSee('Recovery is automatic');
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.download', [$this->draft, $firstVersion]))
@@ -114,7 +122,7 @@ test('replaced and removed PDF uploads remain in collaborator-attributed version
             'document_version' => 2,
         ])
         ->assertRedirect()
-        ->assertSessionHas('success', 'Estimated Expense Breakdown file removed. Previous versions remain available in history.');
+        ->assertSessionHas('success', 'Estimated Expense Breakdown file removed. Earlier recovery points remain available.');
 
     $removedVersion = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
@@ -324,11 +332,11 @@ test('generated paper saves are included in the same collaborator history', func
         ->assertSee('History Collaborator');
 });
 
-test('the proposal package links to its chronological history', function () {
+test('the proposal package keeps recovery history behind an unobtrusive control', function () {
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('History')
+        ->assertSee('Recovery history')
         ->assertSee(route('faculty.proposal-drafts.history.index', $this->draft));
 
     $this->actingAs($this->owner)
@@ -337,7 +345,7 @@ test('the proposal package links to its chronological history', function () {
             'paper' => 'expense-breakdown',
         ]))
         ->assertOk()
-        ->assertSee('No saved versions yet');
+        ->assertSee('No recovery points yet');
 });
 
 test('an identical upload does not create a duplicate version or retain an unused file', function () {
@@ -371,7 +379,7 @@ test('an identical upload does not create a duplicate version or retain an unuse
         ->and(Storage::disk('local')->allFiles($this->draft->storageDirectory()))->toHaveCount(1);
 });
 
-test('save notes automatic summaries and meaningful differences appear in history', function () {
+test('manual file changes retain useful recovery details', function () {
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.papers.update', [$this->draft, 'expense-breakdown']), [
             'document_version' => 0,
@@ -390,8 +398,7 @@ test('save notes automatic summaries and meaningful differences appear in histor
 
     $latest = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
-    expect($latest->change_note)->toBe('Recalculated travel and supplies.')
-        ->and($latest->change_summary)->toContain('Replaced Estimated Expense Breakdown')
+    expect($latest->change_summary)->toContain('Replaced Estimated Expense Breakdown')
         ->and(collect($latest->changes)->pluck('label')->all())->toContain(
             'File name',
             'File contents',
@@ -401,22 +408,19 @@ test('save notes automatic summaries and meaningful differences appear in histor
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.history.index', $this->draft))
         ->assertOk()
-        ->assertSee('Recalculated travel and supplies.')
         ->assertSee('See 3 changes')
         ->assertSee('File contents')
-        ->assertSee('Restore this version');
+        ->assertSee('Restore this recovery point');
 
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Recent activity')
-        ->assertSee('Recalculated travel and supplies.');
+        ->assertSee('Recent activity');
 });
 
-test('generated forms skip identical saves and describe changed structured content', function () {
+test('autosaves update the working draft without flooding recovery history', function () {
     $payload = [
         'document_version' => 0,
-        'change_note' => 'Created the initial timeline.',
         'entries' => [[
             'objective' => 'Create the baseline',
             'expected_output' => 'Baseline report',
@@ -433,7 +437,6 @@ test('generated forms skip identical saves and describe changed structured conte
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
             ...$payload,
             'document_version' => 1,
-            'change_note' => 'No actual change.',
         ])
         ->assertRedirect();
 
@@ -442,8 +445,21 @@ test('generated forms skip identical saves and describe changed structured conte
 
     $changedPayload = $payload;
     $changedPayload['document_version'] = 1;
-    $changedPayload['change_note'] = 'Expanded the baseline objective.';
     $changedPayload['entries'][0]['objective'] = 'Create and validate the baseline';
+
+    $this->actingAs($this->owner)
+        ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $changedPayload)
+        ->assertRedirect();
+
+    $document = $this->draft->documents()->sole();
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(1)
+        ->and($document->lock_version)->toBe(2)
+        ->and($document->source_data['entries'][0]['objective'])->toBe('Create and validate the baseline');
+
+    Carbon::setTestNow(now()->addMinutes(30));
+    $changedPayload['document_version'] = 2;
+    $changedPayload['entries'][0]['objective'] = 'Create, validate, and publish the baseline';
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $changedPayload)
@@ -452,9 +468,133 @@ test('generated forms skip identical saves and describe changed structured conte
     $latest = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
     expect(ProposalDraftDocumentVersion::query()->count())->toBe(2)
+        ->and($latest->action)->toBe(ProposalDraftDocumentVersion::ACTION_CHECKPOINT)
         ->and($latest->change_summary)->toBe('Updated Attachment A: Work Plan (1 field changed).')
         ->and($latest->changes)->toHaveCount(1)
         ->and($latest->changes[0]['label'])->toBe('Work-plan entries');
+});
+
+test('a completion-only change updates an unchanged generated document', function () {
+    $saveDocument = app(SaveProposalDraftDocument::class);
+    $sourceData = ['research_agenda' => 'Environment and Climate Change'];
+    $draftDocument = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        'detailed_proposal',
+        0,
+        0,
+        [
+            'source_data' => $sourceData,
+            'completed_at' => null,
+        ],
+    );
+    $completedAt = now();
+    $completedDocument = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        'detailed_proposal',
+        0,
+        $draftDocument->lock_version,
+        [
+            'source_data' => $sourceData,
+            'completed_at' => $completedAt,
+        ],
+    );
+
+    expect($completedDocument->lock_version)->toBe(2)
+        ->and($completedDocument->completed_at)->not->toBeNull();
+
+    $unchangedDocument = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        'detailed_proposal',
+        0,
+        $completedDocument->lock_version,
+        [
+            'source_data' => $sourceData,
+            'completed_at' => now()->addMinute(),
+        ],
+    );
+
+    expect($unchangedDocument->lock_version)->toBe(2);
+});
+
+test('automatic recovery history keeps recent checkpoints and one baseline', function () {
+    config()->set('proposal_recovery.automatic_checkpoint_limit', 2);
+
+    $document = app(SaveProposalDraftDocument::class)->handle(
+        $this->draft,
+        $this->owner,
+        'work_plan',
+        0,
+        0,
+        ['source_data' => ['entries' => []]],
+    );
+    $recordVersion = app(RecordProposalDraftDocumentVersion::class);
+
+    foreach (range(1, 5) as $index) {
+        $recordVersion->handle(
+            $document,
+            $this->owner,
+            action: ProposalDraftDocumentVersion::ACTION_CHECKPOINT,
+        );
+    }
+
+    $checkpoints = ProposalDraftDocumentVersion::query()
+        ->where('action', ProposalDraftDocumentVersion::ACTION_CHECKPOINT)
+        ->orderBy('version_number')
+        ->get();
+
+    expect($checkpoints)->toHaveCount(3)
+        ->and($checkpoints->first()->version_number)->toBe(1)
+        ->and($checkpoints->last()->version_number)->toBe(6);
+});
+
+test('restoring a recovery point preserves autosaved working changes first', function () {
+    $saveDocument = app(SaveProposalDraftDocument::class);
+    $first = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        'work_plan',
+        0,
+        0,
+        ['source_data' => ['entries' => [['objective' => 'Original working plan']]]],
+    );
+    $recoveryPoint = ProposalDraftDocumentVersion::query()->sole();
+    $current = $saveDocument->handle(
+        $this->draft,
+        $this->owner,
+        'work_plan',
+        0,
+        $first->lock_version,
+        ['source_data' => ['entries' => [['objective' => 'Later autosaved working plan']]]],
+    );
+
+    expect(ProposalDraftDocumentVersion::query()->count())->toBe(1)
+        ->and($current->lock_version)->toBe(2);
+
+    app(RestoreProposalDraftDocumentVersion::class)->handle(
+        $this->draft,
+        $recoveryPoint,
+        $this->collaborator,
+        2,
+        null,
+    );
+
+    $actions = ProposalDraftDocumentVersion::query()
+        ->orderBy('version_number')
+        ->get();
+    $restoredDocument = $this->draft->documents()->sole();
+
+    expect($actions)->toHaveCount(3)
+        ->and($actions->pluck('action')->all())->toBe([
+            ProposalDraftDocumentVersion::ACTION_CHECKPOINT,
+            ProposalDraftDocumentVersion::ACTION_PRE_RESTORE,
+            ProposalDraftDocumentVersion::ACTION_RESTORED,
+        ])
+        ->and($actions[1]->source_data['entries'][0]['objective'])->toBe('Later autosaved working plan')
+        ->and($restoredDocument->source_data['entries'][0]['objective'])->toBe('Original working plan')
+        ->and($this->draft->currentDocumentVersion('work_plan', 0, $restoredDocument))->toBe($restoredDocument->lock_version);
 });
 
 test('an earlier PDF can be restored as a new version without overwriting history', function () {

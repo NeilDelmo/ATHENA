@@ -4,7 +4,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalDocument?->completed_at ? 'bg-green-100 text-green-800' : ($detailedProposalDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $detailedProposalDocument?->completed_at ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : ($detailedProposalDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
             </div>
@@ -33,6 +33,7 @@
         x-on:proposal-cite-selection.window="openCitationPicker($event.detail)"
         x-data="proposalDraftDetailedProposal({
             initialData: @js($initialData),
+            recheckCompletion: @js($detailedProposalDocument !== null && $detailedProposalDocument->completed_at === null),
             literatureSources: @js($literatureSources),
             initialLiteratureSourceId: @js($initialLiteratureSourceId),
             initialLiteratureAction: @js($initialLiteratureAction),
@@ -136,33 +137,67 @@
                 </fieldset>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div><h3 class="text-base font-black text-gray-900">IV. Project leader and staff</h3><p class="mt-1 text-xs text-gray-500">Names follow the official uppercase format. Add a professional title such as Asst Prof. or Dr. when applicable.</p></div>
-                    <div class="relative w-full sm:w-80" x-on:click.outside="workspacePickerOpen = false">
-                        <label for="workspace-person-search" class="sr-only">Add a workspace member</label>
-                        <div class="relative">
-                            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.474 9.765l3.63 3.63a.75.75 0 0 0 1.06-1.06l-3.629-3.63A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd"/></svg>
-                            <input id="workspace-person-search" type="search" autocomplete="off" placeholder="Search workspace members" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-person-options" class="block w-full rounded-xl border-gray-300 py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+                <div>
+                    <h3 class="text-base font-black text-gray-900 dark:text-white">IV. Project leader and staff</h3>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Names follow the official uppercase format. Add a professional title such as Asst Prof. or Dr. when applicable.</p>
+                </div>
+
+                <div class="mt-5 grid gap-4 border-t border-gray-100 pt-5 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_17rem]">
+                    <div class="rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-950/80 dark:bg-red-950/20 sm:p-5">
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Proposal workspace</p>
+                                <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add a workspace member</h4>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the available collaborators and add them directly as project staff.</p>
+                            </div>
+                            <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" x-text="`${availableWorkspacePeople().length} available`"></span>
                         </div>
-                        <div id="workspace-person-options" x-show="workspacePickerOpen" x-transition.origin.top.right x-cloak role="listbox" class="absolute right-0 z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl">
-                            <template x-for="person in filteredWorkspacePeople()" :key="person.key">
-                                <button type="button" role="option" x-on:click="addWorkspacePerson(person.key)" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700">
-                                        <img x-show="person.avatar" x-bind:src="person.avatar" x-bind:alt="personDisplayName(person.name)" x-on:error="person.avatar = ''" class="h-full w-full object-cover">
-                                        <span x-show="!person.avatar" x-text="personInitials(person.name)"></span>
-                                    </span>
-                                    <span class="min-w-0">
-                                        <span class="block truncate text-sm font-bold uppercase text-gray-900" x-text="personDisplayName(person.name)"></span>
-                                        <span class="block truncate text-xs text-gray-500" x-text="person.email"></span>
-                                    </span>
-                                </button>
-                            </template>
-                            <p x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center text-xs leading-5 text-gray-500">No available workspace member matches your search.</p>
+
+                        <div class="relative mt-4" x-on:click.outside="workspacePickerOpen = false">
+                            <label for="workspace-person-search" class="sr-only">Search workspace members</label>
+                            <div class="relative">
+                                <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.474 9.765l3.63 3.63a.75.75 0 0 0 1.06-1.06l-3.629-3.63A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd" /></svg>
+                                <input id="workspace-person-search" type="search" autocomplete="off" placeholder="Search workspace members" x-model="workspacePersonQuery" x-on:focus="workspacePickerOpen = true" x-on:input="workspacePickerOpen = true" x-on:keydown.escape="workspacePickerOpen = false" role="combobox" aria-autocomplete="list" x-bind:aria-expanded="workspacePickerOpen" aria-controls="workspace-person-options" class="block w-full rounded-xl border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                            </div>
+                            <div id="workspace-person-options" x-show="workspacePickerOpen" x-transition.origin.top x-cloak role="listbox" class="absolute z-30 mt-2 max-h-72 w-full overflow-y-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-xl shadow-gray-900/10 dark:border-slate-700 dark:bg-slate-800">
+                                <template x-for="person in filteredWorkspacePeople()" :key="person.key">
+                                    <button type="button" role="option" x-on:click="addWorkspacePerson(person.key)" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:hover:bg-red-950/40 dark:focus:bg-red-950/40">
+                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-200 dark:ring-red-900">
+                                            <img x-show="person.avatar" x-bind:src="person.avatar" x-bind:alt="personDisplayName(person.name)" x-on:error="person.avatar = ''" class="h-full w-full object-cover">
+                                            <span x-show="!person.avatar" x-text="personInitials(person.name)"></span>
+                                        </span>
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block truncate text-sm font-bold uppercase text-gray-900 dark:text-white" x-text="personDisplayName(person.name)"></span>
+                                            <span class="block truncate text-xs text-gray-500 dark:text-slate-400" x-text="person.email"></span>
+                                        </span>
+                                        <svg class="h-4 w-4 shrink-0 text-red-600 dark:text-red-300" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                                    </button>
+                                </template>
+                                <div x-show="filteredWorkspacePeople().length === 0" class="px-3 py-5 text-center">
+                                    <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No available workspace member matches your search.</p>
+                                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Members already on the project staff list are hidden.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="flex flex-col justify-between rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:p-5">
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">External team member</p>
+                            <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add someone manually</h4>
+                            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.</p>
+                        </div>
+                        <button type="button" x-on:click="addStaff" class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-700 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                            Add external project staff
+                        </button>
+                    </div>
                 </div>
-                <div class="mt-5 grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)_12rem]">
+
+                <div class="mt-5 rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 sm:p-5">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4"><div><p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project leader</p><p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">This information is used across the proposal papers and prepared-by block.</p></div><span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-red-700 ring-1 ring-red-200 dark:bg-slate-900 dark:text-red-300 dark:ring-red-900">Required</span></div>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)_12rem]">
                     <div class="flex min-w-0 flex-col">
                         <label for="leader-title" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>Professional title</span><span class="rounded-full border border-gray-300 bg-white px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-400">Optional</span></label>
                         <input id="leader-title" name="leader_title" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="leaderTitle" placeholder="e.g. Asst Prof." aria-describedby="leader-title-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
@@ -173,22 +208,24 @@
                         <input id="leader-name" name="project_leader" type="text" required maxlength="120" list="detailed-proposal-member-names" x-model="projectLeader" x-on:change="syncProjectLeader()" placeholder="Type or choose a workspace member" aria-describedby="leader-name-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
                         <p id="leader-name-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Changes also update Project Details and the prepared-by name.</p>
                     </div>
-                    <div class="flex min-w-0 flex-col"><label for="leader-email" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500">Email Address</label><input id="leader-email" name="leader_email" type="email" required maxlength="255" x-model="leaderEmail" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    <div class="flex min-w-0 flex-col"><label for="leader-contact" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500">Contact Number</label><input id="leader-contact" name="leader_contact" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="leaderContact" x-on:input="leaderContact = normalizeContactNumber($event.target.value); $event.target.value = leaderContact" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    <div class="flex min-w-0 flex-col"><label for="leader-email" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300">Email Address</label><input id="leader-email" name="leader_email" type="email" required maxlength="255" x-model="leaderEmail" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></div>
+                    <div class="flex min-w-0 flex-col"><label for="leader-contact" class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300">Contact Number</label><input id="leader-contact" name="leader_contact" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="leaderContact" x-on:input="leaderContact = normalizeContactNumber($event.target.value); $event.target.value = leaderContact" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"></div>
+                    </div>
                 </div>
-                <div class="mt-4 space-y-3">
+
+                <div class="mt-5 border-t border-gray-100 pt-5 dark:border-slate-800">
+                    <div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project staff</p><p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Each staff member can have an optional professional title.</p></div><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600 dark:bg-slate-800 dark:text-slate-300" x-text="`${staff.length} ${staff.length === 1 ? 'member' : 'members'}`"></span></div>
+                    <div class="mt-4 space-y-3">
+                    <p x-show="staff.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">No project staff added yet. Choose a workspace member or add an external person above.</p>
                     <template x-for="(member, index) in staff" :key="member.id">
-                        <div class="grid gap-3 rounded-xl border border-gray-200 p-4 md:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_12rem_auto] lg:items-end">
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-name-${member.id}`">Project Staff</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-email-${member.id}`">Email Address</label><input :id="`staff-email-${member.id}`" :name="`staff[${index}][email]`" type="email" required maxlength="255" x-model="member.email" placeholder="name@example.com" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`staff-contact-${member.id}`">Contact Number</label><input :id="`staff-contact-${member.id}`" :name="`staff[${index}][contact]`" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="member.contact" x-on:input="member.contact = normalizeContactNumber($event.target.value); $event.target.value = member.contact" placeholder="09XXXXXXXXX" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                            <button type="button" x-on:click="removeStaff(index)" class="h-11 rounded-xl px-3 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
+                        <div class="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_12rem_auto] lg:items-end">
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:text-slate-400">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-name-${member.id}`">Project Staff</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-email-${member.id}`">Email Address</label><input :id="`staff-email-${member.id}`" :name="`staff[${index}][email]`" type="email" required maxlength="255" x-model="member.email" placeholder="name@example.com" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-contact-${member.id}`">Contact Number</label><input :id="`staff-contact-${member.id}`" :name="`staff[${index}][contact]`" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="member.contact" x-on:input="member.contact = normalizeContactNumber($event.target.value); $event.target.value = member.contact" placeholder="09XXXXXXXXX" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
+                            <button type="button" x-on:click="removeStaff(index)" class="h-11 rounded-xl px-3 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
                         </div>
                     </template>
-                    <div class="flex flex-col items-start gap-1.5">
-                        <button type="button" x-on:click="addStaff" class="inline-flex rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add external project staff</button>
-                        <p class="text-xs text-gray-500">Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.</p>
                     </div>
                 </div>
                 <datalist id="detailed-proposal-member-names">@foreach ($workspacePeople as $person)<option value="{{ $person['name'] }}">{{ $person['email'] }}</option>@endforeach</datalist>
@@ -277,6 +314,7 @@
                 </div>
             </section>
 
+            @if (false)
             <section x-ref="literatureWorkspace" class="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50/80 via-white to-amber-50/60 p-5 shadow-sm sm:p-6">
                 <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5" aria-labelledby="literature-assistant-heading">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -335,9 +373,9 @@
                                         <div class="flex shrink-0 flex-wrap gap-1.5 text-[9px] font-black">
                                             <span class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="result.relevance_label || 'Potential match'"></span>
                                             <span class="rounded bg-slate-200 px-2 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="result.access_label || 'Access not listed'"></span>
-                                            <span x-show="result._linked" class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Linked</span>
+                                            <span x-show="result._linked" class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Saved to proposal library</span>
                                             <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">RRL added</span>
-                                            <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Reference added</span>
+                                            <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Cited as <span x-text="`[${literatureSourceUsage(result._linkedSource).referenceNumber}]`"></span></span>
                                         </div>
                                     </div>
                                     <p class="mt-3 text-[11px] font-semibold leading-5 text-slate-600 dark:text-slate-300"><span class="font-black text-red-800 dark:text-red-200">Why this matched:</span> <span x-text="result.match_reason || 'Matched the proposal search context.'"></span></p>
@@ -347,15 +385,10 @@
                                     <p x-show="!hasUsableSuggestedAbstract(result)" class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-4 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">This record does not include a usable abstract, so ATHENA will not prepare an RRL paragraph from it.</p>
                                     <div class="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700 sm:flex-row sm:flex-wrap">
                                         <button type="button" x-on:click="prepareSuggestedLiteratureReview(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || !hasUsableSuggestedAbstract(result)" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-red-700 px-3.5 text-[11px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="isSavingSuggestedLiterature(result) ? 'Preparing...' : 'Review and add RRL'"></button>
-                                        <button type="button" x-on:click="addSuggestedLiteratureReference(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || (result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences)" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 text-[11px] font-black text-slate-800 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/30" x-text="result._linkedSource && literatureSourceUsage(result._linkedSource).addedToReferences ? 'Reference added' : (isSavingSuggestedLiterature(result) ? 'Adding...' : 'Add reference only')"></button>
-                                        <details class="group self-start">
-                                            <summary class="inline-flex min-h-10 cursor-pointer list-none items-center justify-center rounded-lg px-3 text-[11px] font-black text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white [&::-webkit-details-marker]:hidden">More</summary>
-                                            <div class="mt-2 flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-950">
-                                                <button type="button" x-on:click="saveSuggestedLiterature(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || result._linked" class="inline-flex min-h-9 items-center justify-center rounded-md px-2.5 text-[10px] font-black text-slate-700 transition hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-200 dark:hover:bg-red-950/30 dark:hover:text-red-200" x-text="result._linked ? 'Saved to proposal library' : 'Save only'"></button>
-                                                <a x-show="result.url" x-bind:href="result.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-9 items-center justify-center rounded-md px-2.5 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
-                                            </div>
-                                        </details>
+                                        <button type="button" x-on:click="saveSuggestedLiterature(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || result._linked" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3.5 text-[11px] font-black text-slate-800 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/30" x-text="result._linked ? 'Saved to proposal library' : (isSavingSuggestedLiterature(result) ? 'Saving...' : 'Save to proposal library')"></button>
+                                        <a x-show="result.url" x-bind:href="result.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-10 items-center justify-center rounded-lg px-3 text-[11px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
                                     </div>
+                                    <p class="mt-2 text-[10px] font-semibold leading-4 text-slate-500 dark:text-slate-400">Saving adds this paper to the shared library and this proposal. Its IEEE reference is added only after you cite the RRL text it supports.</p>
                                     <p x-show="result._actionNotice" x-cloak class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" x-text="result._actionNotice" role="status"></p>
                                 </article>
                             </template>
@@ -363,11 +396,11 @@
                     </div>
 
                     <div x-show="literatureSearchHistory.length" x-cloak class="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
-                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Research trail</p>
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Recent literature searches</p>
                         <div class="mt-2 space-y-2">
                             <template x-for="entry in literatureSearchHistory" :key="entry.id">
                                 <div class="flex flex-col gap-2 rounded-lg bg-slate-50 px-3 py-2.5 dark:bg-slate-950/50 sm:flex-row sm:items-center sm:justify-between">
-                                    <p class="min-w-0 text-[11px] leading-5 text-slate-600 dark:text-slate-300"><span class="font-black text-slate-900 dark:text-white" x-text="entry.query"></span><span class="text-slate-400"> &middot; </span><span x-text="literatureSearchHistoryLabel(entry)"></span></p>
+                                    <p class="min-w-0 text-[11px] leading-5 text-slate-600 dark:text-slate-300" x-bind:title="entry.query"><span class="font-black text-slate-900 dark:text-white" x-text="literatureSearchHistoryTitle(entry)"></span><span class="text-slate-400"> &middot; </span><span x-text="literatureSearchHistorySummary(entry)"></span></p>
                                     <button type="button" x-on:click="runLiteratureSearchHistory(entry)" class="inline-flex min-h-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-2.5 text-[10px] font-black text-slate-700 hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-200">Run again</button>
                                 </div>
                             </template>
@@ -381,7 +414,7 @@
                             <h3 class="text-base font-black text-gray-900">Literature linked to this proposal</h3>
                             <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black text-red-700"><span x-text="literatureSources.length"></span> linked</span>
                         </div>
-                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Papers used in the RRL are automatically kept in the synchronized reference list. You can also add a reference without adding an RRL paragraph.</p>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Saved papers are shared-library records linked to this draft. When you cite an RRL sentence or add a confirmed RRL paragraph, ATHENA adds one synchronized IEEE reference.</p>
                         </div>
                 </div>
 
@@ -389,7 +422,7 @@
 
                 <div x-show="literatureSources.length === 0" class="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/80 px-4 py-6 text-center">
                     <p class="text-sm font-black text-gray-800">No shared literature linked to this proposal yet</p>
-                    <p class="mt-1 text-xs text-gray-500">Search above, then review a paper for the RRL or add it as a reference only.</p>
+                    <p class="mt-1 text-xs text-gray-500">Search above, save a paper to this proposal library, then cite the RRL text it supports.</p>
                 </div>
 
                 <div x-show="literatureSources.length" x-cloak class="mt-5 grid gap-3 lg:grid-cols-2">
@@ -403,32 +436,22 @@
                                 <span class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[9px] font-black text-gray-600" x-text="source.year || 'n.d.'"></span>
                             </div>
                             <div class="mt-3 flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-gray-500">
-                                <span class="rounded bg-slate-900 px-2 py-1 text-white" x-text="source.rrl_citation || '[?]'"></span>
                                 <span class="rounded bg-red-50 px-2 py-1 text-red-700" x-text="source.source"></span>
                                 <span x-show="source.venue" class="max-w-56 truncate rounded bg-gray-50 px-2 py-1" x-text="source.venue"></span>
                                 <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="rounded px-2 py-1 font-black text-red-700 hover:bg-red-50">Verify source</a>
                             </div>
                             <div class="mt-3 flex flex-wrap gap-1.5 text-[9px] font-black">
                                 <span class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Linked to proposal</span>
-                                <span x-show="literatureSourceUsage(source).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Used in RRL</span>
-                                <span x-show="literatureSourceUsage(source).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Added to references <span x-text="`[${literatureSourceUsage(source).referenceNumber}]`"></span></span>
+                                <span x-show="literatureSourceUsage(source).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Used in RRL <span x-text="`[${literatureSourceUsage(source).referenceNumber}]`"></span></span>
+                                <span x-show="literatureSourceUsage(source).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Reference synchronized</span>
                             </div>
                             <p x-show="source.rrl_draft_status && source.rrl_draft_status !== 'none'" class="mt-3 text-[10px] font-bold text-emerald-700" x-text="`${source.rrl_draft_status === 'confirmed' ? 'Confirmed' : 'Saved'} RRL draft · ${source.rrl_evidence_basis === 'full_text' ? 'loaded open-access full text' : 'indexed abstract'} · ${source.rrl_word_count || 0} words`"></p>
                             <p x-show="source.reference_incomplete" class="mt-2 text-[10px] font-bold text-amber-700">IEEE reference has incomplete source metadata; unavailable details were omitted.</p>
                             <div class="mt-auto flex flex-wrap gap-2 pt-4">
                                 <button x-show="!literatureSourceUsage(source).usedInRrl" type="button" x-on:click="source.rrl_draft_status === 'confirmed' ? addLiteratureSourceToRrl(source) : prepareLinkedLiteratureReview(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2" x-text="source.rrl_draft_status === 'confirmed' ? 'Add to Section XI' : (source.rrl_draft_status === 'draft' ? 'Review saved RRL' : 'Review RRL')"></button>
-                                <button x-show="!literatureSourceUsage(source).addedToReferences" type="button" x-on:click="addLiteratureSourceToReferences(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[10px] font-black text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Add to Section XVI</button>
-                                <p x-show="literatureSourceUsage(source).usedInRrl && literatureSourceUsage(source).addedToReferences" class="self-center text-[10px] font-bold text-slate-500">Already added to Sections XI and XVI.</p>
+                                <p x-show="literatureSourceUsage(source).usedInRrl" class="self-center text-[10px] font-bold text-slate-500">Its IEEE reference is synchronized in Section XVI.</p>
                             </div>
-                            <details x-show="literatureSourceUsage(source).addedToReferences" class="mt-2 text-[10px] font-black">
-                                <summary class="inline-flex min-h-8 cursor-pointer list-none items-center rounded-md px-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 [&::-webkit-details-marker]:hidden">Reference options</summary>
-                                <div class="mt-1 flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
-                                    <span class="text-slate-500">Order</span>
-                                    <button type="button" x-on:click="moveCitationReference(source, -1)" x-bind:disabled="literatureSourceUsage(source).referenceNumber === 1" class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Move reference up">↑</button>
-                                    <button type="button" x-on:click="moveCitationReference(source, 1)" x-bind:disabled="literatureSourceUsage(source).referenceNumber === citationReferenceSources().length" class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Move reference down">↓</button>
-                                    <button type="button" x-on:click="removeCitationSource(source)" class="inline-flex h-7 items-center justify-center rounded-md border border-red-200 bg-white px-2.5 text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600">Remove citations</button>
-                                </div>
-                            </details>
+                            <button x-show="literatureSourceUsage(source).usedInRrl" type="button" x-on:click="removeCitationSource(source)" class="mt-3 inline-flex h-8 self-start items-center justify-center rounded-md border border-red-200 bg-white px-2.5 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600">Remove citations</button>
                         </article>
                     </template>
                 </div>
@@ -490,6 +513,10 @@
                     </div>
                 </section>
             </div>
+
+            @endif
+
+            @include('faculty.proposal-drafts.detailed-proposal.partials.literature-workspace')
 
             <div x-show="citationPickerOpen" x-cloak x-on:keydown.escape.window="closeCitationPicker()" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="proposal-citation-picker-title">
                 <button type="button" x-on:click="closeCitationPicker()" class="absolute inset-0 cursor-default bg-slate-950/55" aria-label="Close citation picker"></button>
@@ -562,9 +589,22 @@
                         <label for="introduction" class="block text-xs font-black uppercase tracking-wider text-gray-600">Introduction</label>
                         <textarea id="introduction" name="introduction" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
+                    <aside class="rounded-2xl border border-red-100 bg-red-50/60 p-4 dark:border-red-900/60 dark:bg-red-950/20" aria-labelledby="proposal-sources-heading">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h4 id="proposal-sources-heading" class="text-sm font-black text-slate-950 dark:text-white">Sources for this proposal</h4>
+                                    <span class="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200" x-text="`${literatureSources.length} saved`"></span>
+                                    <span class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black text-white" x-text="`${literatureWorkspaceCitedSourcesCount()} cited`"></span>
+                                </div>
+                                <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">Find verified papers, review evidence, and keep only the sources this draft needs.</p>
+                            </div>
+                            <button type="button" x-on:click="openLiteratureWorkspace()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Open literature workspace</button>
+                        </div>
+                    </aside>
                     <div>
                         <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
-                        <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources.</p>
+                        <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Select supported text, then choose <span class="font-black text-red-800">Cite from library</span>.</p>
                         <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                 </div>
@@ -583,7 +623,11 @@
                 <div class="mt-5 space-y-5">
                     @foreach ($methodologyFields as $key => $label)
                         <div>
-                            <label for="methodology-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600">&bull; {{ $label }} @if ($key === 'data_analysis')<span class="font-normal normal-case text-gray-400">Optional</span>@endif</label>
+                            @if ($key === 'specific_methods')
+                                <h4 class="text-xs font-black uppercase tracking-wider text-gray-600">&bull; {{ $label }}</h4>
+                            @else
+                                <label for="methodology-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600">&bull; {{ $label }} @if ($key === 'data_analysis')<span class="font-normal normal-case text-gray-400">Optional</span>@endif</label>
+                            @endif
                             @if ($key === 'research_design')
                             <div class="mt-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 transition hover:border-red-300 hover:bg-red-50/30" x-on:dragover.prevent x-on:drop.prevent="handleMethodologyDrop($event, '{{ $key }}')">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
@@ -620,7 +664,54 @@
                                 </div>
                             </div>
                             @endif
-                            <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" data-semantic-editor class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            @if ($key === 'specific_methods')
+                                <div class="mt-3">
+                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <p class="text-sm leading-6 text-gray-600">Write each method heading in your own words, then list the numbered methods below it.</p>
+                                        <button type="button" x-on:click="addSpecificMethodGroup()" class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 text-sm font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">
+                                            <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                            Add method group
+                                        </button>
+                                    </div>
+                                    <input type="hidden" name="methodology[specific_methods]" x-bind:value="specificMethodsDocumentText()">
+                                    <div x-show="specificMethodGroups.length" class="mt-4 divide-y divide-gray-200 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                                        <template x-for="(group, groupIndex) in specificMethodGroups" :key="`specific-method-group-${group.id}`">
+                                            <article class="p-4 sm:p-5">
+                                                <div class="flex items-start gap-3">
+                                                    <span class="inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-red-700 px-2 text-sm font-black text-white" x-text="`${specificMethodGroupLetter(groupIndex)}.`"></span>
+                                                    <textarea :name="`specific_method_objectives[${groupIndex}][heading]`" rows="2" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="group.heading" :aria-label="`Method heading ${specificMethodGroupLetter(groupIndex)}`" placeholder="Write this method heading" class="block min-w-0 flex-1 rounded-xl border-gray-300 text-sm font-black leading-6 text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                                    <button x-show="specificMethodGroups.length > 1" type="button" x-on:click="removeSpecificMethodGroup(groupIndex)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-700 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" :aria-label="`Remove method group ${specificMethodGroupLetter(groupIndex)}`" title="Remove method group">
+                                                        <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                        <span class="sr-only">Remove method group</span>
+                                                    </button>
+                                                </div>
+                                                <div class="mt-4 space-y-3">
+                                                    <template x-for="(method, methodIndex) in group.methods" :key="method.id">
+                                                        <div class="flex items-start gap-3">
+                                                            <span class="w-6 shrink-0 pt-3 text-sm font-black text-gray-500" x-text="`${methodIndex + 1}.`"></span>
+                                                            <textarea :name="`specific_method_objectives[${groupIndex}][methods][${methodIndex}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="method.description" :aria-label="`Method ${methodIndex + 1} for group ${specificMethodGroupLetter(groupIndex)}`" placeholder="Describe the method used to attain this heading" class="block min-w-0 flex-1 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                                            <button x-show="group.methods.length > 1" type="button" x-on:click="removeSpecificMethod(group, methodIndex)" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-700 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2" :aria-label="`Remove method ${methodIndex + 1}`" title="Remove method">
+                                                                <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M5 6.5v5M8 6.5v5M11 6.5v5M4 4l.7 10h6.6L12 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                                                <span class="sr-only">Remove</span>
+                                                            </button>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!group.methods.length">
+                                                        <input type="hidden" :name="`specific_method_objectives[${groupIndex}][methods][0][description]`" value="">
+                                                    </template>
+                                                </div>
+                                                <button type="button" x-on:click="addSpecificMethod(group)" class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 text-sm font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">
+                                                    <svg class="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                                                    Add method
+                                                </button>
+                                            </article>
+                                        </template>
+                                    </div>
+                                    <p x-show="!specificMethodGroups.length" class="mt-4 rounded-xl border border-dashed border-gray-300 px-4 py-5 text-sm leading-6 text-gray-600">Add a method group to start outlining the procedures.</p>
+                                </div>
+                            @else
+                                <textarea id="methodology-{{ $key }}" name="methodology[{{ $key }}]" rows="7" @required($key !== 'data_analysis') maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="methodology.{{ $key }}" aria-label="{{ $label }} narrative" data-semantic-editor class="mt-3 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -674,8 +765,6 @@
                 <h3 class="font-black">Sections generated automatically</h3>
                 <p class="mt-1 leading-6">XIV links Attachment A, XV pulls MOOE and Capital Outlay totals from Attachment B, XVII links Attachment C, and the prepared-by name and agency details repeat on the signature page. Approval titles are fixed; the three names come from the fields above.</p>
             </section>
-
-            @include('faculty.proposal-drafts.partials.change-note')
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 disabled:opacity-50 sm:w-auto"><span x-show="previewLoading" x-cloak class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900"></span><span x-text="previewLoading ? 'Generating…' : 'Preview content'"></span></button>

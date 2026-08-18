@@ -9,7 +9,7 @@
                 <p class="mt-1 text-xs text-gray-500">{{ $proposalDraft->project_title }}</p>
             </div>
             <div class="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
-                <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:w-auto">View version history</a>
+                <a href="{{ route('faculty.proposal-drafts.history.index', [$proposalDraft, 'paper' => $paper['slug']]) }}" class="inline-flex h-11 w-full items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-11" aria-label="Open recovery history" title="Recovery history"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></a>
                 <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full sm:w-auto">Exit editor</x-back-link>
             </div>
         </div>
@@ -136,8 +136,6 @@
                                 @error('documents')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                                 @error('documents.*')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
                             </div>
-
-                            @include('faculty.proposal-drafts.partials.change-note')
 
                             <div class="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
                                 <button data-paper-save-exit type="submit" name="exit_after_save" value="1" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $submitLabel }} and exit</button>

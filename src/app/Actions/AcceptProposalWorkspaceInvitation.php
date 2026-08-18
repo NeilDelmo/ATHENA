@@ -9,6 +9,7 @@ use App\Notifications\ProposalActivityNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+
 //accept proposal workspace invitation
 class AcceptProposalWorkspaceInvitation
 {
@@ -38,6 +39,7 @@ class AcceptProposalWorkspaceInvitation
                 title: 'Collaborator accepted invitation',
                 message: $user->name.' accepted your invitation to collaborate on “'.$proposalDraft->project_title.'”.',
                 url: route('faculty.proposal-drafts.show', $proposalDraft),
+                sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
             ));
         } catch (Throwable $exception) {
             report($exception);

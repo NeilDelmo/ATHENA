@@ -29,7 +29,6 @@ class ResearchHeadTopicController extends Controller
     public function updateStatus(
         UpdateResearchHeadTopicStatusRequest $request,
         TopicProposal $topic,
-        FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
         $validated = $request->validated();
         $latestVersion = $topic->latestVersion()->with('files')->first();
@@ -117,7 +116,6 @@ class ResearchHeadTopicController extends Controller
             $latestVersion,
             $selectedRevisionFiles,
             $selectedSignatureFiles,
-            $capacityService,
         ): void {
             $reviewedTopic = TopicProposal::query()
                 ->whereKey($topic->getKey())
@@ -132,10 +130,6 @@ class ResearchHeadTopicController extends Controller
                 throw ValidationException::withMessages([
                     'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
                 ]);
-            }
-
-            if ($validated['status'] === 'approved') {
-                $capacityService->ensureAvailableFor($reviewedTopic);
             }
 
             $reviewedTopic->update(['status' => $validated['status']]);
@@ -174,6 +168,9 @@ class ResearchHeadTopicController extends Controller
             $review = $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => $validated['status'],
+                'comment' => $validated['status'] === 'rejected'
+                    ? $validated['rejection_reason']
+                    : null,
                 'required_signature_file_ids' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
                     ? $selectedSignatureFiles->pluck('id')->all()
                     : [],
@@ -201,7 +198,6 @@ class ResearchHeadTopicController extends Controller
         });
 
         $notificationDetails = match ($validated['status']) {
-            'approved' => ['Proposal approved — awaiting Notice to Proceed', 'Your proposal papers for “'.$topic->title.'” were approved. Wait for the Notice to Proceed before beginning project monitoring.', 'success'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
                 'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
@@ -212,7 +208,11 @@ class ResearchHeadTopicController extends Controller
                 ($selectedRevisionFiles->isNotEmpty() ? $selectedRevisionFiles->count().' proposal file(s) require changes in ' : 'Changes were requested for ').'“'.$topic->title.'”. Review the comments and evaluation document, then submit a new version.',
                 'warning',
             ],
-            'rejected' => ['Proposal rejected', 'Your proposal “'.$topic->title.'” was not approved. Review the decision comments and evaluation document.', 'danger'],
+            'rejected' => [
+                'Proposal rejected',
+                'The Research Head rejected the proposal “'.$topic->title.'”. This proposal is now closed.',
+                'danger',
+            ],
         };
 
         if ($validated['status'] === 'revision_requested') {
@@ -226,10 +226,6 @@ class ResearchHeadTopicController extends Controller
             }
         }
 
-        if ($validated['status'] === 'rejected') {
-            $notificationDetails[1] = 'Your proposal “'.$topic->title.'” was not approved.';
-        }
-
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
             $notificationDetails[0],
             $notificationDetails[1],
@@ -240,10 +236,10 @@ class ResearchHeadTopicController extends Controller
                 User::WORKSPACE_FACULTY_RESEARCHER,
                 User::WORKSPACE_FACULTY,
             ],
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
         ));
 
         $message = match ($validated['status']) {
-            'approved' => 'Proposal approved. The faculty member is now waiting for a Notice to Proceed.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
@@ -251,9 +247,16 @@ class ResearchHeadTopicController extends Controller
             'rejected' => 'Proposal rejected.',
         };
 
-        $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'research_head.dashboard';
+        $redirectUrl = ($validated['redirect_to'] ?? null) === 'topic'
+            ? route('topics.show', $topic)
+            : route('research_head.dashboard');
 
-        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', $message);
+        if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
+            && ($validated['redirect_to'] ?? null) === 'topic') {
+            $redirectUrl .= '#proposal-review';
+        }
+
+        return redirect()->to($redirectUrl)->with('success', $message);
     }
 
     public function finalizeApproval(
@@ -318,6 +321,7 @@ class ResearchHeadTopicController extends Controller
                 User::WORKSPACE_FACULTY_RESEARCHER,
                 User::WORKSPACE_FACULTY,
             ],
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
         ));
 
         return redirect()

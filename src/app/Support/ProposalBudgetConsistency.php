@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\ProposalDraft;
+use App\Models\ResearchCall;
 
 class ProposalBudgetConsistency
 {
@@ -12,13 +13,17 @@ class ProposalBudgetConsistency
      * @return array{
      *     available: bool,
      *     consistent: bool,
+     *     budget_ceiling: float,
+     *     over_budget: bool,
+     *     overage: float,
      *     totals: list<array{key: string, label: string, line_item_budget: float, expense_breakdown: float, difference: float}>,
      *     mismatches: list<array{key: string, label: string, line_item_budget: float, expense_breakdown: float, difference: float}>
      * }
      */
     public function compare(ProposalDraft $draft): array
     {
-        $draft->loadMissing('documents');
+        $draft->loadMissing(['documents', 'researchCall']);
+        $budgetCeiling = $draft->researchCall?->budgetCeiling() ?? ResearchCall::MAXIMUM_BUDGET;
 
         $lineItemBudgetSource = $draft->documents
             ->firstWhere('document_type', config('proposal_papers.line-item-budget.document_type'))
@@ -29,15 +34,22 @@ class ProposalBudgetConsistency
 
         if (! is_array($lineItemBudgetSource)
             || ! is_array($expenseBreakdownSource)
-            || ! is_array($expenseBreakdownSource['items'] ?? null)
-            || $expenseBreakdownSource['items'] === []) {
+            || ! is_array($expenseBreakdownSource['items'] ?? null)) {
             return [
                 'available' => false,
                 'consistent' => true,
+                'budget_ceiling' => $budgetCeiling,
+                'over_budget' => false,
+                'overage' => 0,
                 'totals' => [],
                 'mismatches' => [],
             ];
         }
+
+        $lineItemBudgetSource = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+            $lineItemBudgetSource,
+            $expenseBreakdownSource['items'],
+        );
 
         $lineItemBudget = LineItemBudgetData::fromValidated([
             ...$lineItemBudgetSource,
@@ -83,10 +95,22 @@ class ProposalBudgetConsistency
         $mismatches = $totals
             ->filter(fn (array $total): bool => abs($total['difference']) > self::DIFFERENCE_TOLERANCE)
             ->values();
+        $largestProjectTotal = (float) $totals
+            ->where('key', 'project_total')
+            ->max('line_item_budget');
+        $largestProjectTotal = max(
+            $largestProjectTotal,
+            (float) $totals->where('key', 'project_total')->max('expense_breakdown'),
+        );
+        $overage = max(0, $largestProjectTotal - $budgetCeiling);
+        $overBudget = $budgetCeiling > 0 && $overage > self::DIFFERENCE_TOLERANCE;
 
         return [
             'available' => true,
-            'consistent' => $mismatches->isEmpty(),
+            'consistent' => $mismatches->isEmpty() && ! $overBudget,
+            'budget_ceiling' => $budgetCeiling,
+            'over_budget' => $overBudget,
+            'overage' => round($overage, 2),
             'totals' => $totals->all(),
             'mismatches' => $mismatches->all(),
         ];

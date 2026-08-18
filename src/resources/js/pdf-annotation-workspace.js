@@ -47,6 +47,102 @@ function normalizeRectangle(rectangle, pageBounds) {
     };
 }
 
+function rectangleArea(rectangle) {
+    return rectangle.width * rectangle.height;
+}
+
+function intersectionArea(first, second) {
+    const width = Math.max(0, Math.min(first.x + first.width, second.x + second.width) - Math.max(first.x, second.x));
+    const height = Math.max(0, Math.min(first.y + first.height, second.y + second.height) - Math.max(first.y, second.y));
+
+    return width * height;
+}
+
+export function consolidateTextRectangles(rectangles) {
+    const uniqueRectangles = rectangles
+        .filter((rectangle) => rectangle.width > 0 && rectangle.height > 0)
+        .sort((first, second) => rectangleArea(first) - rectangleArea(second))
+        .reduce((unique, rectangle) => {
+            const area = rectangleArea(rectangle);
+            const overlapsExistingRectangle = unique.some((existing) => {
+                const smallerArea = Math.min(area, rectangleArea(existing));
+
+                return smallerArea > 0 && intersectionArea(rectangle, existing) / smallerArea >= 0.9;
+            });
+
+            if (!overlapsExistingRectangle) unique.push(rectangle);
+
+            return unique;
+        }, [])
+        .sort((first, second) => first.y - second.y || first.x - second.x);
+
+    return uniqueRectangles.reduce((merged, rectangle) => {
+        const previous = merged.at(-1);
+        if (!previous) {
+            merged.push({ ...rectangle });
+
+            return merged;
+        }
+
+        const overlapTop = Math.max(previous.y, rectangle.y);
+        const overlapBottom = Math.min(previous.y + previous.height, rectangle.y + rectangle.height);
+        const verticalOverlap = Math.max(0, overlapBottom - overlapTop);
+        const minimumHeight = Math.min(previous.height, rectangle.height);
+        const horizontalGap = rectangle.x - (previous.x + previous.width);
+        const sameLine = minimumHeight > 0 && verticalOverlap / minimumHeight >= 0.75;
+
+        if (sameLine && horizontalGap >= -0.004 && horizontalGap <= 0.012) {
+            const right = Math.max(previous.x + previous.width, rectangle.x + rectangle.width);
+            const bottom = Math.max(previous.y + previous.height, rectangle.y + rectangle.height);
+            previous.x = Math.min(previous.x, rectangle.x);
+            previous.y = Math.min(previous.y, rectangle.y);
+            previous.width = right - previous.x;
+            previous.height = bottom - previous.y;
+        } else {
+            merged.push({ ...rectangle });
+        }
+
+        return merged;
+    }, []);
+}
+
+function selectedTextClientRectangles(range) {
+    const commonAncestor = range.commonAncestorContainer;
+    const textNodes = [];
+
+    if (commonAncestor.nodeType === Node.TEXT_NODE) {
+        textNodes.push(commonAncestor);
+    } else {
+        const walker = document.createTreeWalker(commonAncestor, NodeFilter.SHOW_TEXT);
+        let textNode = walker.nextNode();
+
+        while (textNode) {
+            if (range.intersectsNode(textNode)) textNodes.push(textNode);
+            textNode = walker.nextNode();
+        }
+    }
+
+    return textNodes.flatMap((textNode) => {
+        const text = textNode.textContent || '';
+        const startOffset = textNode === range.startContainer ? range.startOffset : 0;
+        const endOffset = textNode === range.endContainer ? range.endOffset : text.length;
+
+        if (endOffset <= startOffset || !text.slice(startOffset, endOffset).trim()) return [];
+
+        const textRange = document.createRange();
+        textRange.setStart(textNode, startOffset);
+        textRange.setEnd(textNode, endOffset);
+
+        return Array.from(textRange.getClientRects());
+    });
+}
+
+function closestPageElement(node) {
+    const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+
+    return element?.closest('[data-page-number]') || null;
+}
+
 function validationMessage(payload, fallback) {
     const messages = Object.values(payload?.errors || {}).flat();
 
@@ -59,14 +155,17 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
         let pageElements = new Map();
         let areaPointer = null;
         let renderToken = 0;
+        let paperFocusTrigger = null;
+        let bodyOverflowBeforePaperFocus = '';
 
         return {
             config: {},
             annotations: [],
             revisionCandidates: [],
             canAnnotate: false,
-            mode: 'text',
+            mode: 'area',
             scale: 1.15,
+            paperFocusOpen: false,
             loading: true,
             loadError: '',
             selectionToolbarVisible: false,
@@ -81,8 +180,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 if (!this.canAnnotate) return 'Select a comment in the sidebar to locate its highlight.';
 
                 return this.mode === 'area'
-                    ? 'Drag a box around a table, image, or scanned passage.'
-                    : 'Drag across text, then choose Highlight & comment.';
+                    ? 'Drag a tight box around only the exact passage, table, or image that needs revision.'
+                    : 'Drag across exact words. ATHENA will preview only the captured text before you comment.';
             },
 
             init() {
@@ -100,6 +199,28 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.canAnnotate = Boolean(this.config.canAnnotate);
                 this.focusAnnotationId = this.readFocusAnnotationId();
                 this.loadPdf();
+            },
+
+            openPaperFocus() {
+                if (this.paperFocusOpen) return;
+
+                paperFocusTrigger = document.activeElement;
+                bodyOverflowBeforePaperFocus = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                this.paperFocusOpen = true;
+                this.$nextTick(() => this.$refs.paperFocusClose?.focus());
+            },
+
+            closePaperFocus() {
+                if (!this.paperFocusOpen) return;
+
+                this.paperFocusOpen = false;
+                document.body.style.overflow = bodyOverflowBeforePaperFocus;
+                this.$nextTick(() => {
+                    if (paperFocusTrigger instanceof HTMLElement) {
+                        paperFocusTrigger.focus();
+                    }
+                });
             },
 
             readFocusAnnotationId() {
@@ -217,16 +338,6 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 }
             },
 
-            async changeZoom(amount) {
-                const nextScale = clamp(this.scale + amount, 0.7, 2);
-                if (nextScale === this.scale) return;
-
-                this.scale = Number(nextScale.toFixed(2));
-                this.cancelPendingSelection();
-                this.cancelDraft();
-                await this.renderDocument();
-            },
-
             captureTextSelection() {
                 if (!this.canAnnotate || this.mode !== 'text') return;
 
@@ -234,8 +345,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
 
                 const range = selection.getRangeAt(0);
-                const startPage = range.startContainer.parentElement?.closest('[data-page-number]');
-                const endPage = range.endContainer.parentElement?.closest('[data-page-number]');
+                const startPage = closestPageElement(range.startContainer);
+                const endPage = closestPageElement(range.endContainer);
 
                 if (!startPage || startPage !== endPage) {
                     window.Swal?.fire({
@@ -249,7 +360,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 }
 
                 const pageBounds = startPage.getBoundingClientRect();
-                const rectangles = Array.from(range.getClientRects())
+                const rectangles = consolidateTextRectangles(selectedTextClientRectangles(range)
                     .filter((rectangle) => rectangle.width > 1 && rectangle.height > 1)
                     .filter((rectangle) => {
                         const centerX = rectangle.left + (rectangle.width / 2);
@@ -258,19 +369,22 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         return centerX >= pageBounds.left && centerX <= pageBounds.right
                             && centerY >= pageBounds.top && centerY <= pageBounds.bottom;
                     })
-                    .slice(0, 100)
                     .map((rectangle) => normalizeRectangle(rectangle, pageBounds))
-                    .filter((rectangle) => rectangle.width > 0 && rectangle.height > 0);
+                    .filter((rectangle) => rectangle.width > 0 && rectangle.height > 0))
+                    .slice(0, 100);
 
                 if (rectangles.length === 0) return;
 
                 const lastRectangle = range.getBoundingClientRect();
+                this.clearSelectionPreview();
                 this.pendingSelection = {
                     type: 'text',
                     pageNumber: Number(startPage.dataset.pageNumber),
                     selectedText: selection.toString().trim().slice(0, 5000),
                     rectangles,
                 };
+                this.renderSelectionPreview(this.pendingSelection);
+                selection.removeAllRanges();
                 this.selectionToolbarVisible = true;
                 this.$nextTick(() => {
                     const toolbar = this.$refs.selectionToolbar;
@@ -289,13 +403,35 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.draftSelection = this.pendingSelection;
                 this.pendingSelection = null;
                 this.selectionToolbarVisible = false;
-                window.getSelection()?.removeAllRanges();
                 this.$nextTick(() => this.$refs.commentInput?.focus());
             },
 
             cancelPendingSelection() {
                 this.pendingSelection = null;
                 this.selectionToolbarVisible = false;
+                this.clearSelectionPreview();
+            },
+
+            renderSelectionPreview(selection) {
+                this.clearSelectionPreview();
+
+                const pageElement = pageElements.get(Number(selection?.pageNumber));
+                const overlay = pageElement?.querySelector('.pdf-annotation-overlay');
+                if (!overlay) return;
+
+                selection.rectangles.forEach((rectangle) => {
+                    const preview = document.createElement('span');
+                    preview.className = 'pdf-annotation-pending-mark';
+                    preview.style.left = `${rectangle.x * 100}%`;
+                    preview.style.top = `${rectangle.y * 100}%`;
+                    preview.style.width = `${rectangle.width * 100}%`;
+                    preview.style.height = `${rectangle.height * 100}%`;
+                    overlay.append(preview);
+                });
+            },
+
+            clearSelectionPreview() {
+                this.$el.querySelectorAll('.pdf-annotation-pending-mark').forEach((preview) => preview.remove());
             },
 
             startAreaSelection(event, pageElement) {
@@ -363,6 +499,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                         height: height / bounds.height,
                     }],
                 };
+                this.renderSelectionPreview(this.draftSelection);
                 this.$nextTick(() => this.$refs.commentInput?.focus());
             },
 
@@ -370,6 +507,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 this.draftSelection = null;
                 this.draftComment = '';
                 this.saveError = '';
+                this.clearSelectionPreview();
             },
 
             async saveAnnotation() {
@@ -417,10 +555,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
 
                 const confirmation = await window.Swal.fire({
                     icon: 'warning',
-                    title: 'Delete this highlight?',
-                    text: 'The comment will be removed from this draft revision request.',
+                    title: 'Remove this highlight?',
+                    text: 'This will also remove its comment from your draft revision request.',
                     showCancelButton: true,
-                    confirmButtonText: 'Delete highlight',
+                    confirmButtonText: 'Remove highlight',
                     confirmButtonColor: '#dc2626',
                 });
                 if (!confirmation.isConfirmed) return;
@@ -445,6 +583,9 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 }
 
                 this.annotations = this.annotations.filter((item) => item.id !== annotation.id);
+                if (Number(this.selectedAnnotationId) === Number(annotation.id)) {
+                    this.selectedAnnotationId = null;
+                }
                 this.adjustRevisionCandidate(-1);
                 this.renderAnnotationsForPage(annotation.pageNumber);
             },
