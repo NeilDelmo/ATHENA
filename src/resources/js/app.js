@@ -1049,6 +1049,56 @@ document.addEventListener('click', async (event) => {
 
     const editor = action.closest('[data-paper-editor]') ?? currentPaperEditor();
 
+    if (action.matches('[data-paper-cancel-exit]') && editor?.dataset.detailedProposalAutosave === 'true') {
+        const state = window.Alpine?.$data?.(editor);
+
+        if (typeof state?.validateForm === 'function' && !state.validateForm({ forExit: true })) {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
+    if (action.matches('[data-paper-cancel-exit]') && editor?.dataset.workPlanAutosave === 'true') {
+        const state = window.Alpine?.$data?.(editor);
+
+        if (typeof state?.validateForm === 'function' && !state.validateForm({ forExit: true })) {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
+    if (action.matches('[data-paper-cancel-exit]') && editor?.dataset.lineItemBudgetAutosave === 'true') {
+        const state = window.Alpine?.$data?.(editor);
+
+        if (typeof state?.validateForm === 'function' && !state.validateForm({ forExit: true })) {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
+    if (action.matches('[data-paper-cancel-exit]') && editor?.dataset.expenseBreakdownAutosave === 'true') {
+        const state = window.Alpine?.$data?.(editor);
+
+        if (typeof state?.validateForm === 'function' && !state.validateForm({ forExit: true })) {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
+    if (action.matches('[data-paper-cancel-exit]') && editor?.dataset.curriculumVitaeAutosave === 'true') {
+        const state = window.Alpine?.$data?.(editor);
+
+        if (typeof state?.validateForm === 'function' && !state.validateForm({ forExit: true })) {
+            event.preventDefault();
+
+            return;
+        }
+    }
+
     if (!paperEditorHasUnsavedChanges(editor)) return;
 
     if (action.matches('[data-paper-cancel-exit]') && autoSaveMethodForPaperEditor(editor)) {
@@ -5479,15 +5529,60 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             && this.monthConflicts().length === 0;
     },
 
-    validateForm() {
+    clearWorkPlanValidationHighlights() {
+        this.$refs.form?.querySelectorAll('[data-work-plan-invalid]').forEach((field) => {
+            field.removeAttribute('data-work-plan-invalid');
+            field.removeAttribute('aria-invalid');
+        });
+    },
+
+    highlightWorkPlanField(field) {
+        if (!(field instanceof HTMLElement)) return;
+
+        field.setAttribute('data-work-plan-invalid', 'true');
+        field.setAttribute('aria-invalid', 'true');
+    },
+
+    highlightWorkPlanSchedule(entry) {
+        this.$refs.form
+            ?.querySelector(`[data-work-plan-schedule="${entry.id}"]`)
+            ?.setAttribute('data-work-plan-invalid', 'true');
+    },
+
+    clearWorkPlanFieldHighlight(field) {
+        if (!(field instanceof HTMLElement)) return;
+
+        if ('checkValidity' in field && field.checkValidity()) {
+            field.removeAttribute('data-work-plan-invalid');
+            field.removeAttribute('aria-invalid');
+        }
+
+        const match = String(field.getAttribute('name') || '').match(/^entries\[(\d+)]\[months]/);
+        const entry = this.entries[Number(match?.[1])];
+
+        if (entry?.months.length > 0) {
+            this.$refs.form
+                ?.querySelector(`[data-work-plan-schedule="${entry.id}"]`)
+                ?.removeAttribute('data-work-plan-invalid');
+        }
+    },
+
+    validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
         const invalidField = fields.find((field) => !field.checkValidity());
 
+        this.clearWorkPlanValidationHighlights();
+
         if (invalidField) {
+            this.highlightWorkPlanField(invalidField);
             this.expandEntryForField(invalidField);
+            this.validationMessage = forExit
+                ? 'Complete the highlighted required fields before exiting the editor.'
+                : 'Complete the highlighted required fields.';
             this.$nextTick(() => {
                 invalidField.reportValidity();
+                invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 invalidField.focus();
             });
 
@@ -5499,11 +5594,16 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         if (invalidEntryIndex !== -1) {
             this.monthErrorIndexes = [invalidEntryIndex];
             this.expandedEntryId = this.entries[invalidEntryIndex]?.id ?? null;
-            this.validationMessage = 'Select at least one scheduled month for every objective.';
+            this.highlightWorkPlanSchedule(this.entries[invalidEntryIndex]);
+            this.validationMessage = forExit
+                ? 'Complete the highlighted required fields before exiting the editor.'
+                : 'Select at least one scheduled month for every objective.';
             this.$nextTick(() => {
-                this.$refs.form
-                    ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`)
-                    ?.focus();
+                const field = this.$refs.form
+                    ?.querySelector(`[name="entries[${invalidEntryIndex}][months][]"]`);
+
+                field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                field?.focus();
             });
 
             return false;
@@ -5522,10 +5622,13 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.monthConflictIndexes = [...new Set(conflicts.map((conflict) => conflict.entryIndex))];
         this.expandedEntryId = this.entries[firstConflict.entryIndex]?.id ?? null;
         this.validationMessage = `${this.monthScheduleLabel(firstConflict.month)} is already assigned to Objective ${firstConflict.ownerIndex + 1}. Each month can be assigned to only one objective.`;
+        this.highlightWorkPlanSchedule(this.entries[firstConflict.entryIndex]);
         this.$nextTick(() => {
-            this.$refs.form
-                ?.querySelector(`[name="entries[${firstConflict.entryIndex}][months][]"][value="${firstConflict.month}"]`)
-                ?.focus();
+            const field = this.$refs.form
+                ?.querySelector(`[name="entries[${firstConflict.entryIndex}][months][]"][value="${firstConflict.month}"]`);
+
+            field?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            field?.focus();
         });
 
         return false;
@@ -5547,6 +5650,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.lastSavedWorkPlan = this.workPlanFingerprint(form);
         form.addEventListener('input', () => this.triggerWorkPlanAutoSave());
         form.addEventListener('change', () => this.triggerWorkPlanAutoSave());
+        form.addEventListener('input', (event) => this.clearWorkPlanFieldHighlight(event.target));
+        form.addEventListener('change', (event) => this.clearWorkPlanFieldHighlight(event.target));
     },
 
     workPlanAutoSaveForm() {
@@ -6081,13 +6186,28 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         return fields.every((field) => field.disabled || field.checkValidity());
     },
 
-    validateForm() {
+    clearLineItemBudgetFieldHighlight(field) {
+        if (!(field instanceof HTMLElement)) return;
+
+        if ('checkValidity' in field && field.checkValidity()) {
+            field.removeAttribute('data-line-item-budget-invalid');
+            field.removeAttribute('aria-invalid');
+        }
+    },
+
+    validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
         const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
 
         if (!invalidField) return true;
 
+        invalidField.setAttribute('data-line-item-budget-invalid', 'true');
+        invalidField.setAttribute('aria-invalid', 'true');
+        this.validationMessage = forExit
+            ? 'Correct the highlighted value before exiting the editor.'
+            : 'Correct the highlighted value.';
+        invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
         invalidField.reportValidity();
         invalidField.focus();
 
@@ -6109,6 +6229,8 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         this.lastSavedLineItemBudget = this.lineItemBudgetFingerprint(form);
         form.addEventListener('input', () => this.triggerLineItemBudgetAutoSave());
         form.addEventListener('change', () => this.triggerLineItemBudgetAutoSave());
+        form.addEventListener('input', (event) => this.clearLineItemBudgetFieldHighlight(event.target));
+        form.addEventListener('change', (event) => this.clearLineItemBudgetFieldHighlight(event.target));
     },
 
     lineItemBudgetAutoSaveForm() {
@@ -6541,16 +6663,31 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         return fields.every((field) => field.disabled || field.checkValidity());
     },
 
-    validateForm() {
+    clearExpenseBreakdownFieldHighlight(field) {
+        if (!(field instanceof HTMLElement)) return;
+
+        if ('checkValidity' in field && field.checkValidity()) {
+            field.removeAttribute('data-expense-breakdown-invalid');
+            field.removeAttribute('aria-invalid');
+        }
+    },
+
+    validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
         const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
 
         if (!invalidField) return true;
 
+        invalidField.setAttribute('data-expense-breakdown-invalid', 'true');
+        invalidField.setAttribute('aria-invalid', 'true');
         this.expandItemForField(invalidField);
+        this.validationMessage = forExit
+            ? 'Complete the highlighted required fields before exiting the editor.'
+            : 'Complete the highlighted required fields.';
         this.$nextTick(() => {
             invalidField.reportValidity();
+            invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
             invalidField.focus();
         });
 
@@ -6598,6 +6735,8 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint();
         form.addEventListener('input', () => this.triggerExpenseBreakdownAutoSave());
         form.addEventListener('change', () => this.triggerExpenseBreakdownAutoSave());
+        form.addEventListener('input', (event) => this.clearExpenseBreakdownFieldHighlight(event.target));
+        form.addEventListener('change', (event) => this.clearExpenseBreakdownFieldHighlight(event.target));
     },
 
     expenseBreakdownAutoSaveForm() {
@@ -7031,7 +7170,16 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         this.$nextTick(() => this.triggerCurriculumVitaeAutoSave());
     },
 
-    validateForm() {
+    clearCurriculumVitaeFieldHighlight(field) {
+        if (!(field instanceof HTMLElement)) return;
+
+        if ('checkValidity' in field && field.checkValidity()) {
+            field.removeAttribute('data-curriculum-vitae-invalid');
+            field.removeAttribute('aria-invalid');
+        }
+    },
+
+    validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
         const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
@@ -7039,8 +7187,16 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         if (!invalidField) return true;
 
         invalidField.closest('details')?.setAttribute('open', '');
-        invalidField.focus();
-        invalidField.reportValidity();
+        invalidField.setAttribute('data-curriculum-vitae-invalid', 'true');
+        invalidField.setAttribute('aria-invalid', 'true');
+        this.validationMessage = forExit
+            ? 'Complete the highlighted required fields before exiting the editor.'
+            : 'Complete the highlighted required fields.';
+        this.$nextTick(() => {
+            invalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            invalidField.focus({ preventScroll: true });
+            invalidField.reportValidity();
+        });
 
         return false;
     },
@@ -7060,6 +7216,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
         this.lastSavedCurriculumVitae = this.curriculumVitaeFingerprint(form);
         form.addEventListener('input', () => this.triggerCurriculumVitaeAutoSave());
         form.addEventListener('change', () => this.triggerCurriculumVitaeAutoSave());
+        form.addEventListener('input', (event) => this.clearCurriculumVitaeFieldHighlight(event.target));
+        form.addEventListener('change', (event) => this.clearCurriculumVitaeFieldHighlight(event.target));
     },
 
     curriculumVitaeAutoSaveForm() {
@@ -8643,6 +8801,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         form.addEventListener('input', () => this.triggerDetailedProposalAutoSave());
         form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
+        form.addEventListener('input', (event) => this.clearDetailedProposalFieldHighlight(event.target));
+        form.addEventListener('change', (event) => this.clearDetailedProposalFieldHighlight(event.target));
 
         if (shouldRecheckCompletion) this.triggerDetailedProposalAutoSave();
     },
@@ -9238,23 +9398,121 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             && fields.every((field) => field.disabled || field.checkValidity());
     },
 
-    validateForm() {
+    detailedProposalHighlightTarget(field) {
+        if (!(field instanceof HTMLElement)) return null;
+
+        if (field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement) {
+            return field._semanticEditor.parentElement;
+        }
+
+        return field;
+    },
+
+    clearDetailedProposalFieldHighlight(field) {
+        const target = this.detailedProposalHighlightTarget(field);
+
+        if (!(target instanceof HTMLElement)) return;
+
+        if ('checkValidity' in field && field.checkValidity()) {
+            target.removeAttribute('data-detailed-proposal-invalid');
+            field.removeAttribute('aria-invalid');
+
+            if (field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement) {
+                field._semanticEditor.removeAttribute('aria-invalid');
+            }
+        }
+
+        if (field instanceof HTMLInputElement && field.name === 'sdgs[]' && this.sdgs.length > 0) {
+            this.clearDetailedProposalValidationGroup('sdgs');
+        }
+
+        if (field instanceof HTMLTextAreaElement && field.name.startsWith('expected_outputs[')) {
+            this.clearDetailedProposalValidationGroup('expected-outputs');
+        }
+    },
+
+    highlightDetailedProposalField(field) {
+        const target = this.detailedProposalHighlightTarget(field);
+
+        if (!(target instanceof HTMLElement)) return;
+
+        target.setAttribute('data-detailed-proposal-invalid', 'true');
+        field.setAttribute('aria-invalid', 'true');
+
+        if (field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement) {
+            field._semanticEditor.setAttribute('aria-invalid', 'true');
+        }
+    },
+
+    highlightDetailedProposalValidationGroup(group) {
+        this.$refs.form
+            ?.querySelector(`[data-detailed-proposal-validation-group="${group}"]`)
+            ?.setAttribute('data-detailed-proposal-invalid', 'true');
+    },
+
+    clearDetailedProposalValidationGroup(group) {
+        this.$refs.form
+            ?.querySelector(`[data-detailed-proposal-validation-group="${group}"]`)
+            ?.removeAttribute('data-detailed-proposal-invalid');
+    },
+
+    focusDetailedProposalField(field) {
+        const focusTarget = field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement
+            ? field._semanticEditor
+            : field;
+
+        focusTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        focusTarget.focus({ preventScroll: true });
+    },
+
+    validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
 
-        if (this.sdgs.length === 0) {
-            this.validationMessage = 'Select at least one Sustainable Development Goal.';
-            this.$root.querySelector('[name="sdgs[]"]')?.focus();
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const invalidFields = fields.filter((field) => !field.disabled && !field.checkValidity());
+        const hasSdgs = this.sdgs.length > 0;
+        const hasExpectedOutput = Object.values(this.expectedOutputs).some((output) => String(output).trim() !== '');
+
+        fields.forEach((field) => this.clearDetailedProposalFieldHighlight(field));
+        this.clearDetailedProposalValidationGroup('sdgs');
+        this.clearDetailedProposalValidationGroup('expected-outputs');
+
+        invalidFields.forEach((field) => this.highlightDetailedProposalField(field));
+
+        if (!hasSdgs) this.highlightDetailedProposalValidationGroup('sdgs');
+        if (!hasExpectedOutput) this.highlightDetailedProposalValidationGroup('expected-outputs');
+
+        if (hasSdgs && hasExpectedOutput && invalidFields.length === 0) return true;
+
+        this.validationMessage = forExit
+            ? 'Complete the highlighted required fields before exiting the editor.'
+            : !hasSdgs
+                ? 'Select at least one Sustainable Development Goal.'
+                : !hasExpectedOutput
+                    ? 'Add at least one expected output.'
+                    : 'Complete the highlighted required fields.';
+
+        const firstInvalidField = invalidFields[0];
+
+        if (firstInvalidField) {
+            this.focusDetailedProposalField(firstInvalidField);
+
+            if (!(firstInvalidField instanceof HTMLTextAreaElement
+                && firstInvalidField._semanticEditor instanceof HTMLElement)) {
+                firstInvalidField.reportValidity();
+            }
 
             return false;
         }
 
-        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
-        const invalidField = fields.find((field) => !field.disabled && !field.checkValidity());
+        const group = hasSdgs ? 'expected-outputs' : 'sdgs';
+        const groupField = this.$refs.form?.querySelector(
+            group === 'sdgs'
+                ? '[name="sdgs[]"], [data-detailed-proposal-validation-group="sdgs"]'
+                : '[name^="expected_outputs"], [data-detailed-proposal-validation-group="expected-outputs"]',
+        );
 
-        if (!invalidField) return true;
-
-        invalidField.focus();
-        invalidField.reportValidity();
+        if (groupField instanceof HTMLElement) this.focusDetailedProposalField(groupField);
 
         return false;
     },

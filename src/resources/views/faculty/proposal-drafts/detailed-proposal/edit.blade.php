@@ -124,7 +124,7 @@
                     <label for="research-agenda" class="block text-xs font-black uppercase tracking-wider text-gray-600">II. BatStateU Research Agenda</label>
                     <input id="research-agenda" name="research_agenda" type="text" required maxlength="500" x-model="researchAgenda" placeholder="Type the applicable BatStateU research agenda" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                 </div>
-                <fieldset class="mt-6">
+                <fieldset data-detailed-proposal-validation-group="sdgs" tabindex="-1" class="mt-6">
                     <legend class="text-xs font-black uppercase tracking-wider text-gray-600">III. Sustainable Development Goal <span class="font-normal normal-case text-gray-500">(check all applicable SDGs)</span></legend>
                     <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         @foreach ($sdgs as $number => $label)
@@ -281,7 +281,7 @@
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>

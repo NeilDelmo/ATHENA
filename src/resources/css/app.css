@@ -164,6 +164,66 @@
 }
 
 @layer components {
+    [data-paper-editor][data-detailed-proposal-autosave] [data-detailed-proposal-invalid='true'] {
+        border-color: rgb(220 38 38) !important;
+        background-color: rgb(254 242 242) !important;
+        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+    }
+
+    html.dark [data-paper-editor][data-detailed-proposal-autosave] [data-detailed-proposal-invalid='true'] {
+        border-color: rgb(248 113 113) !important;
+        background-color: rgb(69 10 10 / 0.55) !important;
+        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+    }
+
+    [data-paper-editor][data-work-plan-autosave] [data-work-plan-invalid='true'] {
+        border-color: rgb(220 38 38) !important;
+        background-color: rgb(254 242 242) !important;
+        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+    }
+
+    html.dark [data-paper-editor][data-work-plan-autosave] [data-work-plan-invalid='true'] {
+        border-color: rgb(248 113 113) !important;
+        background-color: rgb(69 10 10 / 0.55) !important;
+        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+    }
+
+    [data-paper-editor][data-line-item-budget-autosave] [data-line-item-budget-invalid='true'] {
+        border-color: rgb(220 38 38) !important;
+        background-color: rgb(254 242 242) !important;
+        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+    }
+
+    html.dark [data-paper-editor][data-line-item-budget-autosave] [data-line-item-budget-invalid='true'] {
+        border-color: rgb(248 113 113) !important;
+        background-color: rgb(69 10 10 / 0.55) !important;
+        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+    }
+
+    [data-paper-editor][data-expense-breakdown-autosave] [data-expense-breakdown-invalid='true'] {
+        border-color: rgb(220 38 38) !important;
+        background-color: rgb(254 242 242) !important;
+        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+    }
+
+    html.dark [data-paper-editor][data-expense-breakdown-autosave] [data-expense-breakdown-invalid='true'] {
+        border-color: rgb(248 113 113) !important;
+        background-color: rgb(69 10 10 / 0.55) !important;
+        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+    }
+
+    [data-paper-editor][data-curriculum-vitae-autosave] [data-curriculum-vitae-invalid='true'] {
+        border-color: rgb(220 38 38) !important;
+        background-color: rgb(254 242 242) !important;
+        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+    }
+
+    html.dark [data-paper-editor][data-curriculum-vitae-autosave] [data-curriculum-vitae-invalid='true'] {
+        border-color: rgb(248 113 113) !important;
+        background-color: rgb(69 10 10 / 0.55) !important;
+        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+    }
+
     .athena-header-actions > button,
     .athena-header-actions > [x-data] > button {
         color: rgb(255 255 255);

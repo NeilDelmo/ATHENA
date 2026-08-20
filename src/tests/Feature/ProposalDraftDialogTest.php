@@ -48,6 +48,9 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->toContain("action.closest('[data-paper-editor]') ?? currentPaperEditor()")
         ->toContain('function finishPaperEditorAutoSave(editor)')
         ->toContain("if (action.matches('[data-paper-cancel-exit]') && autoSaveMethodForPaperEditor(editor))")
+        ->toContain("editor?.dataset.detailedProposalAutosave === 'true'")
+        ->toContain('validateForm({ forExit: true })')
+        ->toContain('data-detailed-proposal-invalid')
         ->toContain("title: 'Changes were not saved'")
         ->toContain("confirmButtonText: 'Leave without saving'")
         ->toContain("if (submitterSelector === '[data-paper-save]')")
@@ -109,6 +112,8 @@ test('generated paper editors support partial drafts and gate download controls'
         'resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php' => [
             'data-detailed-proposal-autosave="true"',
             'data-detailed-proposal-autosave-form',
+            'data-detailed-proposal-validation-group="sdgs"',
+            'data-detailed-proposal-validation-group="expected-outputs"',
         ],
         'resources/views/faculty/proposal-drafts/work-plan/edit.blade.php' => [
             'data-work-plan-autosave="true"',
@@ -145,6 +150,78 @@ test('generated paper editors support partial drafts and gate download controls'
             ->toContain('<x-proposal-autosave-status />')
             ->not->toContain('data-paper-save-exit');
     }
+});
+
+test('the detailed proposal exit validation marks required fields and required groups', function () {
+    $view = file_get_contents(resource_path('views/faculty/proposal-drafts/detailed-proposal/edit.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $appCss = file_get_contents(resource_path('css/app.css'));
+
+    expect($view)
+        ->toContain('data-detailed-proposal-validation-group="sdgs"')
+        ->toContain('data-detailed-proposal-validation-group="expected-outputs"')
+        ->and($appJavaScript)
+        ->toContain('validateForm({ forExit: true })')
+        ->toContain('highlightDetailedProposalField(field)')
+        ->toContain('highlightDetailedProposalValidationGroup')
+        ->toContain('Complete the highlighted required fields before exiting the editor.')
+        ->and($appCss)
+        ->toContain("[data-detailed-proposal-invalid='true']");
+});
+
+test('the Work Plan exit validation marks incomplete fields and schedules', function () {
+    $view = file_get_contents(resource_path('views/faculty/proposal-drafts/work-plan/edit.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $appCss = file_get_contents(resource_path('css/app.css'));
+
+    expect($view)
+        ->toContain('x-bind:data-work-plan-schedule="entry.id"')
+        ->and($appJavaScript)
+        ->toContain("editor?.dataset.workPlanAutosave === 'true'")
+        ->toContain('highlightWorkPlanField(field)')
+        ->toContain('highlightWorkPlanSchedule')
+        ->toContain('Complete the highlighted required fields before exiting the editor.')
+        ->and($appCss)
+        ->toContain("[data-work-plan-invalid='true']");
+});
+
+test('the Line-Item Budget exit validation marks invalid entered values', function () {
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $appCss = file_get_contents(resource_path('css/app.css'));
+
+    expect($appJavaScript)
+        ->toContain("editor?.dataset.lineItemBudgetAutosave === 'true'")
+        ->toContain('clearLineItemBudgetFieldHighlight')
+        ->toContain('Correct the highlighted value before exiting the editor.')
+        ->toContain('data-line-item-budget-invalid')
+        ->and($appCss)
+        ->toContain("[data-line-item-budget-invalid='true']");
+});
+
+test('the Estimated Expense Breakdown exit validation marks incomplete item fields', function () {
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $appCss = file_get_contents(resource_path('css/app.css'));
+
+    expect($appJavaScript)
+        ->toContain("editor?.dataset.expenseBreakdownAutosave === 'true'")
+        ->toContain('clearExpenseBreakdownFieldHighlight')
+        ->toContain('data-expense-breakdown-invalid')
+        ->toContain('Complete the highlighted required fields before exiting the editor.')
+        ->and($appCss)
+        ->toContain("[data-expense-breakdown-invalid='true']");
+});
+
+test('the Curriculum Vitae exit validation marks incomplete person fields', function () {
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $appCss = file_get_contents(resource_path('css/app.css'));
+
+    expect($appJavaScript)
+        ->toContain("editor?.dataset.curriculumVitaeAutosave === 'true'")
+        ->toContain('clearCurriculumVitaeFieldHighlight')
+        ->toContain('data-curriculum-vitae-invalid')
+        ->toContain('Complete the highlighted required fields before exiting the editor.')
+        ->and($appCss)
+        ->toContain("[data-curriculum-vitae-invalid='true']");
 });
 
 test('revision-linked generated paper downloads can be staged in the matching revision attachment', function () {

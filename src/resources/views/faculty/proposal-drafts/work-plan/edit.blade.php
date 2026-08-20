@@ -140,7 +140,7 @@
                                 </div>
                             </div>
 
-                            <fieldset class="mt-5">
+                            <fieldset x-bind:data-work-plan-schedule="entry.id" class="mt-5">
                                 <legend class="text-xs font-black uppercase tracking-wider text-gray-600">Gantt Schedule <span class="text-red-600">Required</span></legend>
                                 <p class="mt-2 text-xs leading-5 text-gray-500">Each 12-month block becomes a matching Attachment A year sheet. Months assigned to another objective are locked until they are removed from that objective.</p>
                                 <div class="mt-3 grid gap-4">
