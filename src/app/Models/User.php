@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -61,6 +62,18 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function scopeAssignedToRole(Builder $query, string $role, ?string $guard = null): Builder
+    {
+        $guard ??= $this->getDefaultGuardName();
+
+        return $query->whereHas(
+            'roles',
+            fn (Builder $roleQuery): Builder => $roleQuery
+                ->where('name', $role)
+                ->where('guard_name', $guard),
+        );
     }
 
     /**

@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
+use App\Http\Requests\AssignProposalDraftResearchCallRequest;
 use App\Http\Requests\SubmitProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Models\ResearchCall;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
@@ -29,6 +31,10 @@ class ProposalDraftSubmissionController extends Controller
         Gate::authorize('view', $proposalDraft);
 
         $proposalDraft->load(['researchCall', 'documents', 'owner', 'members.user']);
+        $availableResearchCalls = ResearchCall::query()
+            ->acceptingSubmissions()
+            ->orderBy('closes_at')
+            ->get();
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
         $readinessErrors = $readiness->errors($proposalDraft);
@@ -39,6 +45,7 @@ class ProposalDraftSubmissionController extends Controller
 
         return view('faculty.proposal-drafts.review', compact(
             'proposalDraft',
+            'availableResearchCalls',
             'checklist',
             'projectDetailsComplete',
             'readinessErrors',
@@ -47,6 +54,21 @@ class ProposalDraftSubmissionController extends Controller
             'readyToSubmit',
             'budgetConsistency',
         ));
+    }
+
+    public function assignResearchCall(
+        AssignProposalDraftResearchCallRequest $request,
+        ProposalDraft $proposalDraft,
+    ): RedirectResponse {
+        Gate::authorize('submit', $proposalDraft);
+
+        $proposalDraft->update([
+            'research_call_id' => $request->integer('research_call_id'),
+        ]);
+
+        return redirect()
+            ->route('faculty.proposal-drafts.review', $proposalDraft)
+            ->with('success', 'Research call selected. You can now prepare and turn in this proposal package.');
     }
 
     public function prepare(

@@ -11,6 +11,18 @@ use Illuminate\Support\Str;
 
 class UpdateProposalDraftDetailedProposalRequest extends FormRequest
 {
+    private const LITERATURE_CITATION_FIELDS = [
+        'executive_brief',
+        'rationale',
+        'general_objective',
+        'introduction',
+        'related_literature',
+        'methodology.research_design',
+        'methodology.specific_methods',
+        'methodology.data_analysis',
+        'references',
+    ];
+
     public function authorize(): bool
     {
         $draft = $this->route('proposalDraft');
@@ -204,8 +216,8 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
                 $selectedText = Str::squish((string) ($citation['selected_text'] ?? ''));
 
                 if ($literatureSourceId === null
-                    || ! in_array($field, ['related_literature', 'references'], true)
-                    || ($field === 'related_literature' && $selectedText === '')) {
+                    || ! in_array($field, self::LITERATURE_CITATION_FIELDS, true)
+                    || ($field !== 'references' && $selectedText === '')) {
                     return null;
                 }
 

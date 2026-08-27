@@ -37,8 +37,39 @@ const paperAutoSaveConfigurations = [
     },
 ];
 
+const backgroundAutoSaveConfigurations = [
+    {
+        attribute: 'monitoringToolAutosave',
+        rootSelector: '[data-monitoring-tool-autosave]',
+        formSelector: '[data-monitoring-tool-autosave-form]',
+        saveMethod: 'saveMonitoringDraft',
+        fingerprintMethod: 'monitoringDraftFingerprint',
+        lastSavedProperty: 'lastSavedMonitoringDraft',
+    },
+    {
+        attribute: 'narrativeProgressAutosave',
+        rootSelector: '[data-narrative-progress-autosave]',
+        formSelector: '[data-narrative-progress-autosave-form]',
+        saveMethod: 'saveNarrativeDraft',
+        fingerprintMethod: 'narrativeDraftFingerprint',
+        lastSavedProperty: 'lastSavedNarrativeDraft',
+    },
+    {
+        attribute: 'noticeToProceedAutosave',
+        rootSelector: '[data-notice-to-proceed-autosave]',
+        formSelector: '[data-notice-to-proceed-autosave-form]',
+        saveMethod: 'saveNoticeDetails',
+        fingerprintMethod: 'noticeDetailsFingerprint',
+        lastSavedProperty: 'lastSavedNoticeDetails',
+    },
+];
+
 export function activeProposalPaperAutoSave(dataset = {}) {
     return paperAutoSaveConfigurations.find(({ attribute }) => dataset[attribute] === 'true') || null;
+}
+
+export function activeBackgroundAutoSave(dataset = {}) {
+    return backgroundAutoSaveConfigurations.find(({ attribute }) => dataset[attribute] === 'true') || null;
 }
 
 export function proposalPaperAutoSaveIsCurrent(state, form, configuration) {
@@ -49,6 +80,12 @@ export function proposalPaperAutoSaveIsCurrent(state, form, configuration) {
     if (typeof fingerprint !== 'function') return false;
 
     return fingerprint.call(state, form) === state[configuration.lastSavedProperty];
+}
+
+export function autoSaveHasPendingChanges(state, form, configuration) {
+    if (!state || !form || !configuration || state.submitting) return false;
+
+    return state.autoSaveInFlight || !proposalPaperAutoSaveIsCurrent(state, form, configuration);
 }
 
 export async function finishProposalPaperAutoSave({
@@ -92,18 +129,29 @@ export async function finishProposalPaperAutoSave({
     return !state.autoSaveInFlight && proposalPaperAutoSaveIsCurrent(state, form, configuration);
 }
 
+export function autoSaveValidationMessage(payload, fallback) {
+    return Object.values(payload?.errors || {}).flat().join(' ')
+        || payload?.message
+        || fallback;
+}
+
+export function autoSaveHasStaleVersionError(payload) {
+    const errors = payload?.errors || {};
+
+    return ['document_version', 'draft_version'].some((field) => (
+        Object.prototype.hasOwnProperty.call(errors, field)
+    ));
+}
+
 export async function saveProposalPaperWithDraftFallback({
     saveAsDraft,
     save,
 }) {
     let result = await save(saveAsDraft);
 
-    const hasStaleDocumentVersionError = Object.prototype.hasOwnProperty.call(
-        result?.payload?.errors || {},
-        'document_version',
-    );
-
-    if (!saveAsDraft && result?.response?.status === 422 && !hasStaleDocumentVersionError) {
+    if (!saveAsDraft
+        && result?.response?.status === 422
+        && !autoSaveHasStaleVersionError(result?.payload)) {
         result = await save(true);
     }
 

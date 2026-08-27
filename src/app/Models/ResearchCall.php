@@ -57,6 +57,11 @@ class ResearchCall extends Model
         return $this->hasMany(TopicProposal::class);
     }
 
+    public function deadlineDismissals(): HasMany
+    {
+        return $this->hasMany(ResearchCallDeadlineDismissal::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

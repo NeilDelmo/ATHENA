@@ -6,7 +6,7 @@
                 <p class="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Proposal workspace</p>
                 <h2 class="mt-1 break-words text-2xl font-black tracking-tight text-gray-950 dark:text-white">{{ $proposalDraft->project_title }}</h2>
                 <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                    <span>{{ $proposalDraft->researchCall->title }} &middot; Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
+                    <span>{{ $proposalDraft->researchCall?->title ?? 'No research call selected yet' }} &middot; Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                     <span class="inline-flex items-center gap-1.5 font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</span>
                 </div>
             </div>
@@ -51,6 +51,10 @@
 
         @if (session('warning'))
             <x-proposal-alert type="warning">{{ session('warning') }}</x-proposal-alert>
+        @endif
+
+        @if (session('workload_warning'))
+            <x-proposal-alert type="warning">{{ session('workload_warning') }}</x-proposal-alert>
         @endif
 
         @if ($errors->any())
@@ -109,7 +113,7 @@
 
                         <div class="mx-5 mt-5 flex flex-col gap-1 border-l-2 border-red-600 bg-gray-50 px-4 py-3 text-sm text-gray-800 dark:bg-slate-800/70 dark:text-slate-200 sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
                             <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">Research call</p>
-                            <p class="font-bold">{{ $proposalDraft->researchCall->title }}</p>
+                            <p class="font-bold">{{ $proposalDraft->researchCall?->title ?? 'Choose a research call when you are ready to turn in.' }}</p>
                         </div>
 
                         <form data-paper-form data-project-details-autosave-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6 px-5 pb-5 pt-6 sm:px-6 sm:pb-6">

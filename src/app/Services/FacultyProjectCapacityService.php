@@ -2,35 +2,140 @@
 
 namespace App\Services;
 
+use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 class FacultyProjectCapacityService
 {
+    /**
+     * @return array{approved: int, pending: int, limit: int}
+     */
+    public function workloadFor(User $faculty, ?ResearchCall $researchCall = null): array
+    {
+        $participatingTopics = $this->participatingTopicsQuery($faculty);
+
+        return [
+            'approved' => (clone $participatingTopics)->occupiesCapacity()->count(),
+            'pending' => (clone $participatingTopics)->awaitingApproval()->count(),
+            'limit' => $this->limitFor($researchCall),
+        ];
+    }
+
+    public function warningForAdditionalParticipation(User $faculty, ?ResearchCall $researchCall = null): ?string
+    {
+        $workload = $this->workloadFor($faculty, $researchCall);
+
+        if (($workload['approved'] + $workload['pending']) < $workload['limit']) {
+            return null;
+        }
+
+        return 'Potential workload conflict: '.$faculty->name
+            .' is currently participating in '.$workload['approved'].' approved active '
+            .str('research project')->plural($workload['approved'])
+            .' and has '.$workload['pending'].' '
+            .str('proposal')->plural($workload['pending']).' pending approval. '
+            .'Approving additional proposals may exceed the maximum allowed active research participation of '
+            .$workload['limit'].'.';
+    }
+
     public function ensureAvailableFor(TopicProposal $topic): void
     {
-        User::query()
-            ->whereKey($topic->user_id)
-            ->lockForUpdate()
-            ->firstOrFail();
+        $participants = $this->participantsFor($topic, lockForUpdate: true);
+        $researchCall = $topic->researchCall()->first();
+        $limit = $this->limitFor($researchCall);
+        $blockedParticipants = [];
 
-        $occupiedSlots = TopicProposal::query()
-            ->where('user_id', $topic->user_id)
-            ->whereKeyNot($topic->getKey())
-            ->occupiesCapacity()
-            ->count();
-        $configuredLimit = (int) ($topic->researchCall()
-            ->value('max_active_research_per_faculty') ?? TopicProposal::MAX_CONCURRENT_APPROVED_PROJECTS);
-        $effectiveLimit = min(
+        foreach ($participants as $participant) {
+            $occupiedSlots = $this->participatingTopicsQuery($participant, $topic)
+                ->occupiesCapacity()
+                ->count();
+
+            if ($occupiedSlots >= $limit) {
+                $blockedParticipants[] = 'Approval cannot continue. '.$participant->name
+                    .' is already participating in the maximum of '.$limit
+                    .' active approved '.str('research project')->plural($limit).'.';
+            }
+        }
+
+        if ($blockedParticipants !== []) {
+            throw ValidationException::withMessages(['status' => $blockedParticipants]);
+        }
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function participantsFor(TopicProposal $topic, bool $lockForUpdate = false): Collection
+    {
+        $topic->loadMissing('collaborators');
+
+        $participantIds = $topic->collaborators
+            ->whereNotNull('accepted_at')
+            ->pluck('user_id')
+            ->filter()
+            ->push($topic->user_id)
+            ->unique()
+            ->sort()
+            ->values();
+        $unlinkedEmails = $topic->collaborators
+            ->whereNotNull('accepted_at')
+            ->whereNull('user_id')
+            ->pluck('email')
+            ->filter()
+            ->map(fn (string $email): string => mb_strtolower(trim($email)))
+            ->unique()
+            ->values();
+
+        $query = User::query()
+            ->where(function (Builder $participants) use ($participantIds, $unlinkedEmails): void {
+                $participants->whereKey($participantIds->all());
+
+                if ($unlinkedEmails->isNotEmpty()) {
+                    $participants->orWhere(function (Builder $matchedEmail) use ($unlinkedEmails): void {
+                        $matchedEmail
+                            ->whereNotNull('email_verified_at')
+                            ->whereIn('email', $unlinkedEmails->all());
+                    });
+                }
+            })
+            ->orderBy('id');
+
+        if ($lockForUpdate) {
+            $query->lockForUpdate();
+        }
+
+        return $query->get();
+    }
+
+    private function participatingTopicsQuery(User $faculty, ?TopicProposal $except = null): Builder
+    {
+        return TopicProposal::query()
+            ->when(
+                $except !== null,
+                fn (Builder $topics): Builder => $topics->whereKeyNot($except->getKey()),
+            )
+            ->where(function (Builder $participatingTopics) use ($faculty): void {
+                $participatingTopics
+                    ->where('user_id', $faculty->getKey())
+                    ->orWhereHas(
+                        'collaborators',
+                        fn (Builder $collaborators): Builder => $collaborators->forUser($faculty),
+                    );
+            });
+    }
+
+    private function limitFor(?ResearchCall $researchCall): int
+    {
+        $configuredLimit = (int) ($researchCall?->max_active_research_per_faculty
+            ?? TopicProposal::MAX_CONCURRENT_APPROVED_PROJECTS);
+
+        return min(
             max($configuredLimit, 1),
             TopicProposal::MAX_CONCURRENT_APPROVED_PROJECTS,
         );
-
-        if ($occupiedSlots >= $effectiveLimit) {
-            throw ValidationException::withMessages([
-                'status' => "This faculty member already has the maximum of {$effectiveLimit} concurrent approved research projects allowed for this call. Complete an active project before approving another one.",
-            ]);
-        }
     }
 }

@@ -10,6 +10,7 @@ use App\Models\ProposalDraftDocument;
 use App\Models\ResearchCall;
 use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
+use App\Support\LineItemBudgetData;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\JsonResponse;
@@ -69,6 +70,27 @@ class ProposalDraftExpenseBreakdownController extends Controller
                 'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
+        );
+        $lineItemBudgetDocument = $this->lineItemBudgetDocument($proposalDraft);
+        $expenseItems = $savedDocument->source_data['items'] ?? [];
+
+        $saveProposalDraftDocument->handle(
+            $proposalDraft,
+            $request->user(),
+            config('proposal_papers.line-item-budget.document_type'),
+            0,
+            $proposalDraft->currentDocumentVersion(
+                config('proposal_papers.line-item-budget.document_type'),
+                0,
+                $lineItemBudgetDocument,
+            ),
+            [
+                'source_data' => LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
+                    is_array($lineItemBudgetDocument?->source_data) ? $lineItemBudgetDocument->source_data : [],
+                    is_array($expenseItems) ? $expenseItems : [],
+                ),
+                'completed_at' => $savedDocument->completed_at,
+            ],
         );
 
         if ($request->expectsJson()) {
@@ -131,6 +153,14 @@ class ProposalDraftExpenseBreakdownController extends Controller
     {
         return $proposalDraft->documents()
             ->where('document_type', config('proposal_papers.expense-breakdown.document_type'))
+            ->where('position', 0)
+            ->first();
+    }
+
+    private function lineItemBudgetDocument(ProposalDraft $proposalDraft): ?ProposalDraftDocument
+    {
+        return $proposalDraft->documents()
+            ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
             ->where('position', 0)
             ->first();
     }

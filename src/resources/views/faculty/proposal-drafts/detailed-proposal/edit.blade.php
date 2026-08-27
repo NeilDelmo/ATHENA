@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
+            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="fixed bottom-4 right-4 z-40 w-auto shrink-0 shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6">Exit editor</x-back-link>
         </div>
     </x-slot>
 
@@ -460,7 +460,7 @@
             <div x-show="literatureReviewOpen" x-cloak x-on:keydown.escape.window="closeLiteratureReview()" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="proposal-literature-review-title">
                 <button type="button" x-on:click="closeLiteratureReview()" class="absolute inset-0 cursor-default bg-slate-950/55" aria-label="Close RRL review"></button>
                 <section class="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                    <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                    <header class="sticky top-0 z-20 flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h3 id="proposal-literature-review-title" class="text-lg font-black text-slate-950 dark:text-white">Review RRL paragraph</h3>
@@ -521,10 +521,10 @@
             <div x-show="citationPickerOpen" x-cloak x-on:keydown.escape.window="closeCitationPicker()" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="proposal-citation-picker-title">
                 <button type="button" x-on:click="closeCitationPicker()" class="absolute inset-0 cursor-default bg-slate-950/55" aria-label="Close citation picker"></button>
                 <section class="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
-                    <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+                    <header class="sticky top-0 z-20 flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900 sm:px-6">
                         <div class="min-w-0">
-                            <h3 id="proposal-citation-picker-title" class="text-lg font-black text-slate-950 dark:text-white">Cite from literature library</h3>
-                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Choose the paper that supports the text you selected. ATHENA will add its citation marker and synchronized IEEE reference.</p>
+                            <h3 id="proposal-citation-picker-title" class="text-lg font-black text-slate-950 dark:text-white">Support this passage with literature</h3>
+                            <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Choose verified evidence for the selected claim. ATHENA will cite it in place and keep Section XVI synchronized.</p>
                         </div>
                         <button type="button" x-on:click="closeCitationPicker()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close citation picker">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -532,9 +532,12 @@
                     </header>
 
                     <div class="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
-                        <div class="rounded-xl border border-red-100 bg-red-50/70 p-3.5 dark:border-red-900/70 dark:bg-red-950/20">
-                            <p class="text-[10px] font-black uppercase tracking-wider text-red-800 dark:text-red-200">Selected text</p>
-                            <p class="mt-2 text-sm leading-6 text-slate-800 dark:text-slate-100" x-text="citationPickerSelection?.selectedText"></p>
+                        <div class="rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 via-white to-slate-50 p-4 shadow-sm dark:border-red-900/70 dark:from-red-950/30 dark:via-slate-950 dark:to-slate-900">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black text-white" x-text="citationPickerSelection?.sectionLabel || 'Proposal section'"></span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Selected claim</span>
+                            </div>
+                            <p class="mt-3 border-l-2 border-red-600 pl-3 text-sm font-semibold leading-6 text-slate-800 dark:text-slate-100" x-text="citationPickerSelection?.selectedText"></p>
                         </div>
 
                         <label class="block text-xs font-black text-slate-700 dark:text-slate-200" for="citation-locator">
@@ -597,14 +600,14 @@
                                     <span class="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 shadow-sm dark:bg-slate-900 dark:text-slate-200" x-text="`${literatureSources.length} saved`"></span>
                                     <span class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black text-white" x-text="`${literatureWorkspaceCitedSourcesCount()} cited`"></span>
                                 </div>
-                                <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">Find verified papers, review evidence, and keep only the sources this draft needs.</p>
+                                <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">Find verified papers, then highlight a claim in any supported narrative section and choose <span class="font-black text-red-800 dark:text-red-200">Support with source</span>.</p>
                             </div>
                             <button type="button" x-on:click="openLiteratureWorkspace()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Open literature workspace</button>
                         </div>
                     </aside>
                     <div>
                         <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
-                        <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Select supported text, then choose <span class="font-black text-red-800">Cite from library</span>.</p>
+                        <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Highlight a supported claim, then choose <span class="font-black text-red-800">Support with source</span>.</p>
                         <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                 </div>

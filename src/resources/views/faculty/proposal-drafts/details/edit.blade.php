@@ -46,7 +46,7 @@
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
             <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                 <p class="font-black">Research call</p>
-                <p class="mt-1">{{ $proposalDraft->researchCall->title }}</p>
+                <p class="mt-1">{{ $proposalDraft->researchCall?->title ?? 'Choose a research call when you are ready to turn in.' }}</p>
             </div>
 
             @if ($errors->any())

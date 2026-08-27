@@ -23,7 +23,7 @@ test('authenticated users can view their Google managed profile', function () {
         ->assertSee('Access and permissions')
         ->assertSee('Recent proposals')
         ->assertSee('Sign out securely')
-        ->assertSee("onsubmit=\"return confirm('Are you sure you want to log out?')\"", false)
+        ->assertSee('data-confirm-title="Log out of ATHENA?"', false)
         ->assertSee('Profile')
         ->assertSee(route('profile.edit'), false);
 });

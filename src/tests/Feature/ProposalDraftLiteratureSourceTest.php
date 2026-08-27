@@ -238,11 +238,17 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
 
     $completeParagraph = 'Santos and Cruz examined how community participation influenced the continuity of mangrove monitoring activities. The study focused on local involvement in environmental observation and considered whether sustained participation helped monitoring efforts continue over time. The reported results showed that consistent community engagement was associated with more regular observation activities and stronger local stewardship. These findings suggest that monitoring programs may benefit when residents have continuing roles in collecting and maintaining environmental information. For a project concerned with community based resource management, the study provides relevant evidence that participation can support operational continuity and shared responsibility. However, the evidence describes an association rather than proving that participation alone caused the improved monitoring outcomes. The source therefore supports cautious consideration of participatory approaches when designing local monitoring processes, assigning responsibilities, and planning activities intended to remain active beyond initial implementation.';
 
+    $providerResponse = json_encode([
+        'relationship' => 'supports',
+        'transition' => 'Similarly,',
+        'synthesis' => "Draft: {$completeParagraph} DOI: 10.1234/paywalled-record https://example.test/full-paper",
+    ], JSON_THROW_ON_ERROR);
+
     Http::fake([
         'generativelanguage.googleapis.com/v1beta/openai/chat/completions' => Http::response([
             'choices' => [[
                 'message' => [
-                    'content' => "Draft: {$completeParagraph} DOI: 10.1234/paywalled-record https://example.test/full-paper",
+                    'content' => $providerResponse,
                 ],
                 'finish_reason' => 'stop',
             ]],
@@ -250,6 +256,7 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
     ]);
 
     $abstract = 'This study examined how community participation influenced the continuity of mangrove monitoring activities. Results showed that sustained local involvement supported more consistent environmental observation and strengthened local stewardship.';
+    $precedingContext = 'Earlier monitoring studies emphasized regular sensor observations but did not examine how sustained local participation affected continuity.';
 
     $response = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-synthesis'), [
@@ -258,9 +265,14 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
             'year' => 2024,
             'abstract' => $abstract,
             'is_open_access' => false,
+            'proposal_title' => 'Community Mangrove Monitoring',
+            'preceding_rrl_context' => $precedingContext,
+            'connection_mode' => 'auto',
         ])
         ->assertOk()
         ->assertJsonPath('basis', 'abstract')
+        ->assertJsonPath('relationship', 'supports')
+        ->assertJsonPath('transition', 'Similarly,')
         ->assertJsonPath('notice', 'Drafted only from the indexed abstract. No restricted or paywalled full text was accessed.')
         ->assertJsonMissingPath('doi')
         ->assertJsonMissingPath('url')
@@ -282,7 +294,10 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
         && $request['max_completion_tokens'] === 2048
         && ! isset($request['temperature'])
         && str_contains($request['messages'][0]['content'], 'Use only claims explicitly supported by the supplied evidence')
-        && str_contains($request['messages'][1]['content'], $abstract));
+        && str_contains($request['messages'][0]['content'], 'Return only valid JSON')
+        && str_contains($request['messages'][1]['content'], $abstract)
+        && str_contains($request['messages'][1]['content'], $precedingContext)
+        && str_contains($request['messages'][1]['content'], 'Community Mangrove Monitoring'));
     Http::assertSentCount(1);
 });
 
@@ -335,7 +350,7 @@ test('rrl synthesis retries a token limited response with a larger completion bu
         ->and($requests[0]['max_completion_tokens'])->toBe(2048)
         ->and($requests[1]['reasoning_effort'])->toBe('low')
         ->and($requests[1]['max_completion_tokens'])->toBe(4096)
-        ->and($requests[1]['messages'][1]['content'])->toContain('This is a retry. Ensure the paragraph is complete');
+        ->and($requests[1]['messages'][1]['content'])->toContain('This is a retry. Return valid JSON and ensure the synthesis paragraph is complete');
 });
 
 test('rrl synthesis refuses records without a usable abstract', function () {

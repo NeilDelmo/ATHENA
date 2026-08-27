@@ -16,7 +16,7 @@ class SendProposalWorkspaceInvitation
         $proposalDraft->loadMissing('owner:id,name');
         $member->loadMissing('user:id,name,email');
 
-        $workspaceUrl = route('faculty.proposal-drafts.show', $proposalDraft);
+        $workspaceUrl = route('notifications.proposal-invitations.show', $member);
 
         if ($member->user && ! $member->isAccepted()) {
             try {

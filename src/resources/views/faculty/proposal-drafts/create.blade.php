@@ -17,11 +17,35 @@
             @endif
 
             @if ($researchCalls->isEmpty())
-                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-amber-900">
-                    <h3 class="font-black">No research call is open</h3>
-                    <p class="mt-2 text-sm leading-6">You can resume existing drafts, but a new draft cannot be created until a call accepts submissions.</p>
-                    <a href="{{ route('faculty.proposal-drafts.index') }}" class="mt-5 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-900 focus:ring-offset-2">Return to saved drafts</a>
-                </div>
+                <form
+                    action="{{ route('faculty.proposal-drafts.store') }}"
+                    method="POST"
+                    x-data="{ submitting: false }"
+                    @submit="submitting = true"
+                    :aria-busy="submitting"
+                    class="space-y-6"
+                >
+                    @csrf
+
+                    <div class="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-950">
+                        <h3 class="font-black">No research calls are open right now</h3>
+                        <p class="mt-2 text-sm leading-6">You can still create a preparation draft and work on the proposal. ATHENA will require an open research call before Review and Turn In.</p>
+                    </div>
+
+                    <div>
+                        <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <span class="text-red-600">Required</span></label>
+                        <input id="project_title" name="project_title" type="text" value="{{ old('project_title') }}" maxlength="255" required autofocus class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter the complete research project title">
+                        @error('project_title')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
+                        <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Cancel</a>
+                        <button type="submit" :disabled="submitting" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-red-300 sm:w-auto">
+                            <span x-show="! submitting">Create preparation draft</span>
+                            <span x-show="submitting" x-cloak>Creating draft...</span>
+                        </button>
+                    </div>
+                </form>
             @else
                 @php($currentResearchCallId = (string) old('research_call_id', $selectedResearchCallId))
                 <form

@@ -23,6 +23,10 @@ class SynthesizeLiteratureRequest extends FormRequest
         if (! $this->filled('evidence_basis')) {
             $this->merge(['evidence_basis' => 'abstract']);
         }
+
+        if (! $this->filled('connection_mode')) {
+            $this->merge(['connection_mode' => 'auto']);
+        }
     }
 
     /**
@@ -40,6 +44,9 @@ class SynthesizeLiteratureRequest extends FormRequest
             'is_open_access' => ['nullable', 'boolean'],
             'evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
             'evidence_text' => ['nullable', 'string', 'min:500', 'max:30000'],
+            'proposal_title' => ['nullable', 'string', 'max:500'],
+            'preceding_rrl_context' => ['nullable', 'string', 'max:2500'],
+            'connection_mode' => ['required', Rule::in(['auto', 'standalone'])],
         ];
     }
 

@@ -173,7 +173,7 @@
                                 </a>
                             @endif
                             
-                            <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Are you sure you want to log out?')">
+                            <form method="POST" action="{{ route('logout') }}" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
                                 @csrf
                                 <button type="submit" class="block w-full cursor-pointer px-4 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
                                     Log Out
@@ -201,6 +201,10 @@
                     </div>
                 </header>
             @endisset
+
+            @auth
+                <x-research-call-deadline-banner :research-call="$researchCallDeadlineNotice ?? null" />
+            @endauth
 
             <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
                 <div class="max-w-7xl mx-auto">

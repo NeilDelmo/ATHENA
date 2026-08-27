@@ -7,6 +7,7 @@ use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ResearchCallPublishedNotification;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -145,13 +146,15 @@ test('research heads can close and reopen calls while faculty cannot change call
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
+        ->assertSee('No research calls are open right now')
+        ->assertSee('Create preparation draft')
         ->assertDontSee($this->call->title);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('No open research call')
-        ->assertDontSee(route('faculty.proposal-drafts.create'), false);
+        ->assertSee(route('faculty.proposal-drafts.create'), false)
+        ->assertDontSee('No open research call');
 
     $this->actingAs($this->faculty)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
@@ -246,6 +249,49 @@ test('only faculty workspace recipients are notified when a draft research call 
     Notification::assertNotSentTo($facultyResearcher, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->head, ResearchCallPublishedNotification::class);
     Notification::assertNotSentTo($this->expert, ResearchCallPublishedNotification::class);
+});
+
+test('a draft research call can be published before the faculty role exists', function () {
+    $draftCall = ResearchCall::create([
+        'title' => 'First Institutional Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'draft',
+        'created_by' => $this->head->id,
+    ]);
+
+    Role::findByName(User::WORKSPACE_FACULTY)->delete();
+    Notification::fake();
+
+    $this->actingAs($this->head)
+        ->patch(route('research-calls.update-status', $draftCall), [
+            'status' => 'open',
+        ])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Research call published. It will accept submissions only during its configured date range.');
+
+    $publishedCall = $draftCall->fresh();
+
+    expect($publishedCall->status)->toBe('open')
+        ->and($publishedCall->faculty_open_notification_sent_at)->not->toBeNull();
+
+    Notification::assertNothingSent();
+});
+
+test('the database seeder initializes every workspace role', function () {
+    Role::query()->delete();
+
+    $this->seed(DatabaseSeeder::class);
+
+    expect(
+        Role::query()
+            ->where('guard_name', 'web')
+            ->pluck('name')
+            ->all(),
+    )->toEqualCanonicalizing(array_keys(User::workspaceDefinitions()));
 });
 
 test('published research calls follow their configured start and end dates automatically', function () {

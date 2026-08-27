@@ -179,6 +179,18 @@ test('a monitoring form auto-saves a private draft without preparing an official
         ->assertJsonPath('draft_version', 1);
 
     expect($draft->fresh()->lock_version)->toBe(1);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.draft', $this->topic), [
+            ...$draft->source_data,
+            'tracking_number' => 'STALE-CHANGE',
+            'draft_version' => 0,
+        ], ['Accept' => 'application/json'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('draft_version');
+
+    expect($draft->fresh()->source_data['tracking_number'])->toBe('REC-2026-001')
+        ->and($draft->fresh()->lock_version)->toBe(1);
 });
 
 test('a researcher can preview the filled monitoring tool without submitting it', function () {

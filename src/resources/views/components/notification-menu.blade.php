@@ -71,17 +71,31 @@
             </template>
 
             <template x-for="item in notifications" :key="item.id">
-                <button @click="openNotification(item)" type="button" class="flex w-full gap-3 border-b border-gray-100 px-4 py-3 text-left transition last:border-0 hover:bg-gray-50 dark:border-slate-800 dark:hover:bg-slate-800/70" :class="item.read_at ? '' : 'bg-red-50/60 dark:bg-red-950/20'">
-                    <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="levelClass(item.data.level)"></span>
+                <button
+                    @click="openNotification(item)"
+                    type="button"
+                    class="flex w-full gap-3 border-b border-gray-100 px-4 py-3 text-left transition last:border-0 dark:border-slate-800"
+                    :class="item.read_at
+                        ? 'bg-gray-100/90 hover:bg-gray-200/90 dark:bg-slate-950/70 dark:hover:bg-slate-800/80'
+                        : 'bg-white shadow-[inset_3px_0_0_0_#dc2626] hover:bg-red-50 dark:bg-slate-900 dark:shadow-[inset_3px_0_0_0_#ef4444] dark:hover:bg-red-950/20'"
+                >
+                    <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" :class="item.read_at ? 'bg-gray-300 dark:bg-slate-600' : levelClass(item.data.level)"></span>
                     <span class="min-w-0 flex-1">
-                        <span class="block text-xs font-black text-gray-800 dark:text-slate-100" x-text="item.data.title"></span>
-                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-text="item.data.message"></span>
-                        <span x-show="item.data.action_url && !item.data.action_completed && !item.read_at" class="mt-1 block text-[10px] font-bold uppercase tracking-wider text-blue-600">Review invitation</span>
+                        <span class="block text-xs" :class="item.read_at ? 'font-bold text-gray-500 dark:text-slate-400' : 'font-black text-gray-900 dark:text-white'" x-text="item.data.title"></span>
+                        <span class="mt-1 block text-xs leading-5" :class="item.read_at ? 'text-gray-400 dark:text-slate-500' : 'text-gray-600 dark:text-slate-300'" x-text="item.data.message"></span>
+                        <span x-show="item.data.action_url && !item.data.action_completed" class="mt-1 block text-[10px] font-bold uppercase tracking-wider text-blue-600">Review invitation</span>
                         <span class="mt-1 block text-[10px] font-semibold text-gray-400" x-text="item.created_at"></span>
                     </span>
-                    <span x-show="!item.read_at" class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-600"></span>
+                    <span x-show="!item.read_at" class="mt-1 flex shrink-0 items-center rounded-full bg-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">New</span>
                 </button>
             </template>
+        </div>
+
+        <div class="border-t border-gray-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+            <a href="{{ route('notifications.index') }}" @click="open = false" class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-black text-gray-800 transition hover:bg-red-50 hover:text-red-700 dark:text-slate-100 dark:hover:bg-red-950/30 dark:hover:text-red-300">
+                <span>View notification inbox</span>
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </a>
         </div>
     </div>
 

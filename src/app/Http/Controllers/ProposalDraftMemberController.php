@@ -6,6 +6,7 @@ use App\Actions\SendProposalWorkspaceInvitation;
 use App\Http\Requests\StoreProposalDraftMemberRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
+use App\Services\FacultyProjectCapacityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -18,6 +19,7 @@ class ProposalDraftMemberController extends Controller
         StoreProposalDraftMemberRequest $request,
         ProposalDraft $proposalDraft,
         SendProposalWorkspaceInvitation $sendInvitation,
+        FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
         $validated = $request->validated();
         $linkedUser = $request->linkedUser();
@@ -42,6 +44,10 @@ class ProposalDraftMemberController extends Controller
             ]);
         }, 3);
 
+        $workloadWarning = $linkedUser
+            ? $capacityService->warningForAdditionalParticipation($linkedUser, $proposalDraft->researchCall)
+            : null;
+
         try {
             $sendInvitation->handle($proposalDraft, $membership);
             $invitationQueued = true;
@@ -53,14 +59,16 @@ class ProposalDraftMemberController extends Controller
         if (! $invitationQueued) {
             return redirect()
                 ->route('faculty.proposal-drafts.show', $proposalDraft)
-                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the collaborator card.');
+                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the collaborator card.')
+                ->with('workload_warning', $workloadWarning);
         }
 
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', $linkedUser
                 ? 'Invitation sent to '.$linkedUser->name.'. They can contribute after accepting it in ATHENA.'
-                : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.');
+                : 'Invitation sent to '.$membership->name.'. Access will activate when they sign in with '.$membership->email.'.')
+            ->with('workload_warning', $workloadWarning);
     }
 
     public function resend(

@@ -301,6 +301,34 @@ test('the line item budget pre-fills matching amounts from an expense breakdown 
         ->assertSee('Budget amounts synchronized');
 });
 
+test('completing the expense breakdown completes the synchronized line-item budget', function () {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), [
+            'document_version' => 0,
+            'items' => [[
+                'category' => 'mooe',
+                'account' => 'Communication Expenses',
+                'sub_account' => 'Telephone Expenses',
+                'particulars' => 'Mobile data',
+                'details' => 'Twelve monthly data plans',
+                'purpose' => 'Coordinate fieldwork',
+                'unit' => 'month',
+                'quantity' => 12,
+                'unit_cost' => 300,
+            ]],
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft));
+
+    $lineItemBudget = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole();
+    $checklist = app(ProposalDraftReadiness::class)->checklist($this->draft->fresh());
+
+    expect($lineItemBudget->completed_at)->not->toBeNull()
+        ->and($lineItemBudget->source_data['amounts']['telephone_expenses'])->toEqual(3600.0)
+        ->and($checklist['line-item-budget']['status'])->toBe('Complete');
+});
+
 test('the line item budget refreshes standard amounts after the expense breakdown changes', function () {
     $expenseBreakdown = $this->draft->documents()->create([
         'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,

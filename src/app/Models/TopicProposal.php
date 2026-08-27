@@ -14,6 +14,15 @@ class TopicProposal extends Model
 
     public const STATUS_READY_FOR_SIGNATURE = 'ready_for_signature';
 
+    public const AWAITING_APPROVAL_STATUSES = [
+        'pending',
+        'expert_review',
+        'for_final_decision',
+        'revision_requested',
+        'resubmitted',
+        self::STATUS_READY_FOR_SIGNATURE,
+    ];
+
     public const PROJECT_STATUS_ONGOING = 'ongoing';
 
     public const PROJECT_STATUS_DELAYED = 'delayed';
@@ -69,6 +78,11 @@ class TopicProposal extends Model
                 $query->whereNull('project_status')
                     ->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED);
             });
+    }
+
+    public function scopeAwaitingApproval(Builder $query): Builder
+    {
+        return $query->whereIn('status', self::AWAITING_APPROVAL_STATUSES);
     }
 
     public function scopeAwaitingNoticeToProceed(Builder $query): Builder

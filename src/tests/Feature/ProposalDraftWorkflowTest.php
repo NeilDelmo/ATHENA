@@ -219,19 +219,28 @@ beforeEach(function () {
     };
 });
 
-test('faculty can create and resume multiple proposal drafts through the compatibility entry point', function () {
+test('faculty choose an open research call from the visual poster picker before creating proposal drafts', function () {
+    $posterPath = 'research-calls/institutional-call.jpg';
+    Storage::disk('local')->put($posterPath, 'poster');
+    $this->call->update(['reference_image_path' => $posterPath]);
+
     $this->actingAs($this->faculty)
         ->get(route('faculty.topics.create'))
         ->assertRedirect(route('faculty.proposal-drafts.index'));
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.index'))
-        ->assertOk();
-
-    $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
+        ->assertDontSee('Draft first, submit later')
+        ->assertSee('Research Call')
+        ->assertSee('data-research-call-picker', false)
+        ->assertSee('role="dialog"', false)
+        ->assertSee('name="research_call_id"', false)
+        ->assertSee('type="radio"', false)
+        ->assertSee('View posters, deadlines, and available budgets.')
         ->assertSee($this->call->title)
+        ->assertSee(route('research-calls.reference-image', $this->call), false)
+        ->assertSee('Change')
         ->assertSee('submitting: false', false)
         ->assertSee(':disabled="submitting"', false)
         ->assertSee('Creating draft...', false);
@@ -239,8 +248,8 @@ test('faculty can create and resume multiple proposal drafts through the compati
     foreach (['First Coastal Study', 'Second Coastal Study'] as $projectTitle) {
         $response = $this->actingAs($this->faculty)
             ->post(route('faculty.proposal-drafts.store'), [
-                'research_call_id' => $this->call->id,
                 'project_title' => $projectTitle,
+                'research_call_id' => $this->call->id,
             ]);
 
         $draft = $this->faculty->proposalDrafts()->where('project_title', $projectTitle)->firstOrFail();
@@ -248,7 +257,16 @@ test('faculty can create and resume multiple proposal drafts through the compati
         $response->assertRedirect(route('faculty.proposal-drafts.show', $draft));
     }
 
-    expect($this->faculty->proposalDrafts()->count())->toBe(2);
+    expect($this->faculty->proposalDrafts()->count())->toBe(2)
+        ->and($this->faculty->proposalDrafts()->pluck('research_call_id')->unique()->all())->toBe([$this->call->id]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), [
+            'project_title' => 'Missing Research Call Study',
+        ])
+        ->assertSessionHasErrors('research_call_id');
+
+    expect($this->faculty->proposalDrafts()->where('project_title', 'Missing Research Call Study')->exists())->toBeFalse();
 
     $draft = $this->faculty->proposalDrafts()->where('project_title', 'First Coastal Study')->firstOrFail();
 
@@ -265,6 +283,25 @@ test('faculty can create and resume multiple proposal drafts through the compati
         ->get(route('faculty.proposal-drafts.show', $draft))
         ->assertOk()
         ->assertSee('First Coastal Study');
+});
+
+test('faculty can create a preparation draft only when no research calls are open', function () {
+    $this->call->update(['status' => 'closed']);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.create'))
+        ->assertOk()
+        ->assertSee('No research calls are open right now')
+        ->assertDontSee('name="research_call_id"', false)
+        ->assertSee('Create preparation draft');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), [
+            'project_title' => 'Prepared Before the Call',
+        ])
+        ->assertRedirect();
+
+    expect($this->faculty->proposalDrafts()->sole()->research_call_id)->toBeNull();
 });
 
 test('faculty can track submitted proposal statuses from the proposal workspace', function () {
@@ -301,44 +338,69 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
         ->assertDontSee('Another Faculty Proposal');
 });
 
-test('the new proposal page presents open research calls as visual selectable cards', function () {
-    Storage::disk('local')->put('research-calls/institutional-call.jpg', 'poster');
-    $this->call->update([
-        'description' => 'Support community-centered institutional research.',
-        'reference_image_path' => 'research-calls/institutional-call.jpg',
-    ]);
+test('the review step lets the owner choose an open research call from the poster picker', function () {
+    $posterPath = 'research-calls/review-picker-call.jpg';
+    Storage::disk('local')->put($posterPath, 'poster');
+    $this->call->update(['reference_image_path' => $posterPath]);
 
-    ResearchCall::create([
-        'title' => 'Open Call Without a Poster',
-        'academic_year' => '2026-2027',
-        'opens_at' => now()->subDay(),
-        'closes_at' => now()->addWeeks(2),
-        'max_active_research_per_faculty' => 2,
-        'maximum_budget' => 75000,
-        'status' => 'open',
-        'created_by' => $this->head->id,
+    $draft = ProposalDraft::create([
+        'user_id' => $this->faculty->id,
+        'project_title' => 'Independent Coastal Study',
     ]);
 
     $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]))
+        ->get(route('faculty.proposal-drafts.review', $draft))
         ->assertOk()
-        ->assertSee('data-research-call-picker', false)
+        ->assertSee('Choose an open research call to turn in')
+        ->assertSee($this->call->title)
+        ->assertSee('data-review-research-call-selector', false)
+        ->assertSee('data-review-research-call-picker', false)
         ->assertSee('role="dialog"', false)
-        ->assertSee('researchCallPickerOpen', false)
-        ->assertSee('@change="researchCallPickerOpen = false;', false)
-        ->assertSee('Change')
+        ->assertSee('name="research_call_id"', false)
+        ->assertSee('type="radio"', false)
         ->assertSee(route('research-calls.reference-image', $this->call), false)
-        ->assertSee('Open Call Without a Poster')
-        ->assertSee('No poster uploaded')
-        ->assertSee('value="'.$this->call->id.'"', false)
-        ->assertSee('checked', false)
-        ->assertDontSee('Support community-centered institutional research.');
+        ->assertSee('View posters, deadlines, and available budgets.')
+        ->assertSee('Change')
+        ->assertSee('Use selected call')
+        ->assertDontSee('<select id="research_call_id"', false)
+        ->assertSee(route('faculty.proposal-drafts.research-call.update', $draft), false);
+
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.research-call.update', $draft), [
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.review', $draft))
+        ->assertSessionHas('success', 'Research call selected. You can now prepare and turn in this proposal package.');
+
+    expect($draft->fresh()->research_call_id)->toBe($this->call->id);
+
+    $unlinkedDraft = ProposalDraft::create([
+        'user_id' => $this->faculty->id,
+        'project_title' => 'Closed Call Study',
+    ]);
+    $this->call->update(['status' => 'closed']);
+
+    $this->actingAs($this->faculty)
+        ->from(route('faculty.proposal-drafts.review', $unlinkedDraft))
+        ->put(route('faculty.proposal-drafts.research-call.update', $unlinkedDraft), [
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.review', $unlinkedDraft))
+        ->assertSessionHasErrors('research_call_id');
+
+    expect($unlinkedDraft->fresh()->research_call_id)->toBeNull();
+
+    $this->actingAs($this->otherFaculty)
+        ->put(route('faculty.proposal-drafts.research-call.update', $draft), [
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertForbidden();
 });
 
 test('rapid repeated create requests reuse the first matching proposal draft', function () {
     $payload = [
-        'research_call_id' => $this->call->id,
         'project_title' => 'Duplicate Click Study',
+        'research_call_id' => $this->call->id,
     ];
 
     $firstResponse = $this->actingAs($this->faculty)

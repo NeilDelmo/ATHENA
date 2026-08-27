@@ -60,8 +60,8 @@
                 <div><p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Submission window</p><h3 class="mt-1 text-lg font-black tracking-tight text-gray-950 dark:text-white">When faculty can submit</h3><p class="mt-1 text-xs leading-5 text-gray-600 dark:text-slate-400">Choose the opening and closing date, then set the time from the same calendar.</p></div>
             </div>
             <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <label class="block"><span class="{{ $labelClass }}">Submission starts</span><x-date-time-picker id="{{ $formId }}-opens-at" name="opens_at" :value="$fieldValue('opens_at')" required class="mt-2" /></label>
-                <label class="block"><span class="{{ $labelClass }}">Submission ends</span><x-date-time-picker id="{{ $formId }}-closes-at" name="closes_at" :value="$fieldValue('closes_at')" required class="mt-2" /></label>
+                <label class="block"><span class="{{ $labelClass }}">Submission starts</span><x-date-time-picker id="{{ $formId }}-opens-at" name="opens_at" :value="$fieldValue('opens_at')" required class="mt-2" /><x-input-error :messages="$errors->get('opens_at')" class="mt-2" /></label>
+                <label class="block"><span class="{{ $labelClass }}">Submission ends</span><x-date-time-picker id="{{ $formId }}-closes-at" name="closes_at" :value="$fieldValue('closes_at')" required class="mt-2" /><x-input-error :messages="$errors->get('closes_at')" class="mt-2" /></label>
             </div>
         </section>
 
@@ -79,8 +79,8 @@
                     <article class="rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/45">
                         <div class="flex gap-3"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-red-700 shadow-sm dark:bg-slate-900 dark:text-red-300">{{ $workflowDate['number'] }}</span><div><h4 class="text-sm font-black text-gray-900 dark:text-white">{{ $workflowDate['title'] }}</h4><p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $workflowDate['description'] }}</p></div></div>
                         <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Starts<x-date-picker id="{{ $formId }}-{{ $workflowDate['start'] }}" name="{{ $workflowDate['start'] }}" :value="$fieldValue($workflowDate['start'])" placeholder="Select date" class="mt-1.5" /></label>
-                            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Ends<x-date-picker id="{{ $formId }}-{{ $workflowDate['end'] }}" name="{{ $workflowDate['end'] }}" :value="$fieldValue($workflowDate['end'])" placeholder="Select date" class="mt-1.5" /></label>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Starts<x-date-picker id="{{ $formId }}-{{ $workflowDate['start'] }}" name="{{ $workflowDate['start'] }}" :value="$fieldValue($workflowDate['start'])" placeholder="Select date" class="mt-1.5" /><x-input-error :messages="$errors->get($workflowDate['start'])" class="mt-2" /></label>
+                            <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Ends<x-date-picker id="{{ $formId }}-{{ $workflowDate['end'] }}" name="{{ $workflowDate['end'] }}" :value="$fieldValue($workflowDate['end'])" placeholder="Select date" class="mt-1.5" /><x-input-error :messages="$errors->get($workflowDate['end'])" class="mt-2" /></label>
                         </div>
                     </article>
                 @endforeach

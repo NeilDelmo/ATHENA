@@ -34,6 +34,7 @@ use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchAssistantDocumentController;
 use App\Http\Controllers\ResearchCallController;
+use App\Http\Controllers\ResearchCallDeadlineDismissalController;
 use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadTopicController;
@@ -145,6 +146,7 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
         Route::delete('/{proposalDraft}/papers/{paper}/{document}', [ProposalDraftPaperController::class, 'remove'])->name('papers.remove');
         Route::get('/{proposalDraft}/review', [ProposalDraftSubmissionController::class, 'show'])->name('review');
+        Route::put('/{proposalDraft}/research-call', [ProposalDraftSubmissionController::class, 'assignResearchCall'])->name('research-call.update');
         Route::post('/{proposalDraft}/submission-files/prepare', [ProposalDraftSubmissionController::class, 'prepare'])->name('submission-files.prepare');
         Route::get('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'download'])->name('submission-files.download');
         Route::put('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'replace'])->name('submission-files.replace');
@@ -234,11 +236,17 @@ Route::get('/announcement-images/{announcementImage}/source', [AnnouncementImage
 Route::middleware('auth')->prefix('notifications')->name('notifications.')->group(function () {
     Route::get('/', [NotificationController::class, 'index'])->name('index');
     Route::patch('/read-all', [NotificationController::class, 'markAllRead'])->name('read-all');
+    Route::get('/proposal-invitations/{proposalDraftMember}', [NotificationController::class, 'showProposalInvitation'])
+        ->name('proposal-invitations.show');
     Route::post('/proposal-invitations/{proposalDraftMember}/accept', [NotificationController::class, 'acceptProposalInvitation'])
-        ->middleware('workspace:faculty')
         ->name('proposal-invitations.accept');
+    Route::post('/{notification}/open', [NotificationController::class, 'open'])->name('open');
     Route::patch('/{notification}/read', [NotificationController::class, 'markRead'])->name('read');
 });
+
+Route::post('/research-calls/{researchCall}/deadline-dismissal', [ResearchCallDeadlineDismissalController::class, 'store'])
+    ->middleware(['auth', 'throttle:30,1'])
+    ->name('research-calls.deadline-dismissal.store');
 
 Route::post('/sidebar-attention/{area}', [SidebarAttentionController::class, 'open'])
     ->middleware('auth')

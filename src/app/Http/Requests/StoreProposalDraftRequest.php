@@ -21,14 +21,12 @@ class StoreProposalDraftRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
             'project_title' => ['required', 'string', 'max:255'],
+            'research_call_id' => ['nullable', 'integer', 'exists:research_calls,id'],
         ];
     }
 
-    /**
-     * @return array<int, callable(Validator): void>
-     */
+    /** @return array<int, callable(Validator): void> */
     public function after(): array
     {
         return [
@@ -37,12 +35,23 @@ class StoreProposalDraftRequest extends FormRequest
                     return;
                 }
 
-                $researchCall = ResearchCall::find($this->integer('research_call_id'));
+                $researchCall = $this->filled('research_call_id')
+                    ? ResearchCall::find($this->integer('research_call_id'))
+                    : null;
 
-                if (! $researchCall?->isAcceptingSubmissions()) {
+                if (ResearchCall::query()->acceptingSubmissions()->exists() && $researchCall === null) {
                     $validator->errors()->add(
                         'research_call_id',
-                        'This research call is not accepting submissions.',
+                        'Choose an open research call before creating this proposal.',
+                    );
+
+                    return;
+                }
+
+                if ($researchCall !== null && ! $researchCall->isAcceptingSubmissions()) {
+                    $validator->errors()->add(
+                        'research_call_id',
+                        'Choose a research call that is currently accepting submissions.',
                     );
                 }
             },
@@ -53,8 +62,8 @@ class StoreProposalDraftRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'research_call_id' => 'research call',
             'project_title' => 'project title',
+            'research_call_id' => 'research call',
         ];
     }
 }

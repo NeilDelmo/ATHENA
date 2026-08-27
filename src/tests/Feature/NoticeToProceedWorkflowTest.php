@@ -290,12 +290,24 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
     expect($this->topic->fresh()->notice_to_proceed_data['resolution_number'])
         ->toBe('LREC-2026-014');
 
+    $payload['resolution_number'] = 'LREC-2026-015';
+
+    $this->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
+    ])->actingAs($this->head)
+        ->postJson(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        ->assertOk()
+        ->assertJsonPath('saved', true);
+
+    expect($this->topic->fresh()->notice_to_proceed_data['resolution_number'])
+        ->toBe('LREC-2026-015');
+
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
     ])->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('value="LREC-2026-014"', false);
+        ->assertSee('value="LREC-2026-015"', false);
 });
 
 test('a signed Notice to Proceed cannot be uploaded until its unsigned notice is prepared', function () {

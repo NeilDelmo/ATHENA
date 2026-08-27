@@ -77,7 +77,7 @@
 
                 <footer class="mt-7 flex flex-col gap-3 border-t border-slate-200 pt-5 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
                     <p>Your assigned system roles are unchanged. You can switch workspaces again from your account menu.</p>
-                    <form method="POST" action="{{ route('logout') }}" onsubmit="return confirm('Are you sure you want to log out?')">
+                    <form method="POST" action="{{ route('logout') }}" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
                         @csrf
                         <button type="submit" class="font-bold text-red-700 hover:text-red-800 focus:outline-none focus:underline dark:text-red-300 dark:hover:text-red-200">Sign out</button>
                     </form>

@@ -28,7 +28,7 @@ test('dual role users are asked which workspace they want to use', function () {
         ->assertSee('Open workspace')
         ->assertSee('Back to current workspace')
         ->assertSee(route('dashboard'), false)
-        ->assertSee("onsubmit=\"return confirm('Are you sure you want to log out?')\"", false);
+        ->assertSee('data-confirm-title="Log out of ATHENA?"', false);
 });
 
 test('dual role users can open workspace switching from the account menu', function () {

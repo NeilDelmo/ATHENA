@@ -4,6 +4,7 @@ use App\Models\ResearchCall;
 use App\Models\User;
 use App\Notifications\ResearchCallUpdatedNotification;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -85,6 +86,29 @@ test('Research Head can edit a research call and replace its poster', function (
         ])
         ->and($this->head->notifications()->exists())->toBeFalse()
         ->and($this->otherUser->notifications()->exists())->toBeFalse();
+});
+
+test('Research Head can edit a published call before the faculty role exists', function () {
+    Role::findByName(User::WORKSPACE_FACULTY)->delete();
+    Notification::fake();
+
+    $this->actingAs($this->head)
+        ->from(route('research-calls.index'))
+        ->put(route('research-calls.update', $this->call), [
+            'title' => 'Updated Without Faculty',
+            'academic_year' => $this->call->academic_year,
+            'term' => $this->call->term,
+            'description' => $this->call->description,
+            'opens_at' => $this->call->opens_at->format('Y-m-d H:i:s'),
+            'closes_at' => $this->call->closes_at->format('Y-m-d H:i:s'),
+            'max_active_research_per_faculty' => 2,
+        ])
+        ->assertRedirect(route('research-calls.index'))
+        ->assertSessionHas('success', 'Research call updated successfully.');
+
+    expect($this->call->fresh()->title)->toBe('Updated Without Faculty');
+
+    Notification::assertNothingSent();
 });
 
 test('Research Head sees edit controls for research calls', function () {

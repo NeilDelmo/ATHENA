@@ -211,6 +211,18 @@ test('a progress report form auto-saves a private draft without preparing an off
         ->assertJsonPath('draft_version', 1);
 
     expect($draft->fresh()->lock_version)->toBe(1);
+
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.draft', $this->topic), [
+            ...$payload,
+            'tracking_number' => 'STALE-CHANGE',
+            'draft_version' => 0,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('draft_version');
+
+    expect($draft->fresh()->source_data['tracking_number'])->toBe('PR-2026-001')
+        ->and($draft->fresh()->lock_version)->toBe(1);
 });
 
 test('a researcher can preview the filled progress report without submitting it', function () {

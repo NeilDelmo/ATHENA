@@ -6,16 +6,10 @@
                 <p class="mt-1 text-xs text-gray-500">Create proposal packages and track every submitted proposal in one place.</p>
             </div>
             <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                @if ($hasOpenResearchCall)
-                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        New Proposal
-                    </a>
-                @else
-                    <span class="inline-flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-200 px-4 py-3 text-sm font-bold text-gray-500 sm:w-auto" aria-disabled="true">
-                        No open research call
-                    </span>
-                @endif
+                <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                    New Proposal
+                </a>
             </div>
         </div>
     </x-slot>
@@ -58,7 +52,7 @@
                             <span class="text-[11px] text-gray-500">Saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                         </div>
                         <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-900">{{ $proposalDraft->project_title }}</h4>
-                        <p class="mt-2 text-xs leading-5 text-gray-500">{{ $proposalDraft->researchCall->title }}</p>
+                        <p class="mt-2 text-xs leading-5 text-gray-500">{{ $proposalDraft->researchCall?->title ?? 'No research call selected yet' }}</p>
                         <p class="mt-1 text-[11px] font-semibold text-gray-500">Workspace owner: {{ $proposalDraft->owner->name }}</p>
 
                         <div class="mt-5" aria-label="{{ $completeCount }} of {{ $draftChecklist->count() }} papers complete">
@@ -93,11 +87,7 @@
                     <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center md:col-span-2 xl:col-span-3">
                         <h4 class="text-base font-black text-gray-900">No saved proposal drafts</h4>
                         <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">Start a proposal package and complete each required paper at your own pace.</p>
-                        @if ($hasOpenResearchCall)
-                            <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-5 inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">New Proposal</a>
-                        @else
-                            <p class="mt-4 text-sm font-bold text-red-700">You can start a draft when the next research call opens.</p>
-                        @endif
+                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-5 inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">New Proposal</a>
                     </div>
                 @endforelse
             </div>

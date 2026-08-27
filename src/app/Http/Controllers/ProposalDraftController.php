@@ -60,9 +60,8 @@ class ProposalDraftController extends Controller
             ])
             ->latest()
             ->paginate(12, ['*'], 'submitted-page');
-        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
-        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'submittedProposals', 'hasOpenResearchCall'));
+        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'submittedProposals'));
     }
 
     public function create(Request $request): View
@@ -73,9 +72,10 @@ class ProposalDraftController extends Controller
             ->acceptingSubmissions()
             ->orderBy('closes_at')
             ->get();
-        $selectedResearchCallId = $researchCalls
-            ->firstWhere('id', $request->integer('research_call_id'))
-            ?->id;
+
+        $requestedResearchCallId = $request->integer('research_call_id');
+        $selectedResearchCallId = $researchCalls->firstWhere('id', $requestedResearchCallId)?->id
+            ?? ($researchCalls->count() === 1 ? $researchCalls->first()->id : null);
 
         return view('faculty.proposal-drafts.create', compact('researchCalls', 'selectedResearchCallId'));
     }
@@ -86,19 +86,24 @@ class ProposalDraftController extends Controller
 
         $validated = $request->validated();
         $validated['project_title'] = trim($validated['project_title']);
+        $researchCallId = $validated['research_call_id'] ?? null;
         $lockKey = 'proposal-draft-create:'.hash('sha256', implode('|', [
             $request->user()->id,
-            $validated['research_call_id'],
             Str::lower($validated['project_title']),
+            $researchCallId ?? 'preparation-draft',
         ]));
 
         try {
             /** @var array{draft: ProposalDraft, created: bool} $result */
-            $result = Cache::lock($lockKey, 10)->block(3, function () use ($request, $validated): array {
+            $result = Cache::lock($lockKey, 10)->block(3, function () use ($request, $validated, $researchCallId): array {
                 $existingDraft = $request->user()->proposalDrafts()
-                    ->where('research_call_id', $validated['research_call_id'])
                     ->where('project_title', $validated['project_title'])
                     ->where('status', ProposalDraft::STATUS_DRAFT)
+                    ->when(
+                        $researchCallId === null,
+                        fn (Builder $query): Builder => $query->whereNull('research_call_id'),
+                        fn (Builder $query): Builder => $query->where('research_call_id', $researchCallId),
+                    )
                     ->where('created_at', '>=', now()->subSeconds(self::DUPLICATE_CREATION_WINDOW_SECONDS))
                     ->latest('id')
                     ->first();

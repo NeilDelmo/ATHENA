@@ -105,6 +105,18 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Literature workspace')
         ->assertSee('Find literature')
         ->assertSee('Saved sources')
+        ->assertSee('Support this passage with literature')
+        ->assertSee('Support with source')
+        ->assertSee('connect it to claims throughout the proposal')
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
+        ->assertSee('data-literature-search-loading', false)
+        ->assertSee('Searching verified literature')
+        ->assertSee('ATHENA is checking academic indexes and ranking possible matches.')
+        ->assertSee('Connection-aware RRL draft')
+        ->assertSee('Connection preview')
+        ->assertSee('Keep standalone')
+        ->assertSee('data-literature-connection-preview', false)
+        ->assertSee('Insert connected paragraph')
         ->assertDontSee('Literature Assistant')
         ->assertDontSee('Proposal-aware search')
         ->assertSee('Add output')
@@ -270,6 +282,74 @@ test('a complete detailed proposal autosave is promoted immediately', function (
         ->assertOk()
         ->assertSee('Complete')
         ->assertSee('recheckCompletion: false', false);
+});
+
+test('autosave keeps a newly added collaborator when their required proposal details are incomplete', function () {
+    $completePayload = ($this->payload)(['save_as_draft' => '1']);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $completePayload)
+        ->assertOk()
+        ->assertJsonPath('document_version', 1)
+        ->assertJsonPath('saved_as_draft', false);
+
+    $collaborator = User::factory()->create([
+        'name' => 'New Proposal Collaborator',
+        'email' => 'new.collaborator@g.batstate-u.edu.ph',
+        'contact_number' => null,
+    ]);
+    $this->draft->members()->create([
+        'user_id' => $collaborator->id,
+        'name' => $collaborator->name,
+        'email' => $collaborator->email,
+        'accepted_at' => now(),
+    ]);
+    $payload = ($this->payload)([
+        'document_version' => 1,
+        'save_as_draft' => '1',
+        'staff' => [
+            ...$completePayload['staff'],
+            [
+                'title' => '',
+                'name' => $collaborator->name,
+                'email' => $collaborator->email,
+                'contact' => '',
+            ],
+        ],
+        'responsibilities' => [
+            ...$completePayload['responsibilities'],
+            [
+                'name' => $collaborator->name,
+                'percentage' => '',
+                'duties' => '',
+            ],
+        ],
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertOk()
+        ->assertJsonPath('document_version', 2)
+        ->assertJsonPath('saved_as_draft', true);
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+    $storedCollaborator = collect($document->source_data['staff'])->firstWhere('email', $collaborator->email);
+    $storedResponsibility = collect($document->source_data['responsibilities'])->firstWhere('name', $collaborator->name);
+
+    expect($document->completed_at)->toBeNull()
+        ->and($storedCollaborator)->toMatchArray([
+            'title' => '',
+            'name' => $collaborator->name,
+            'email' => $collaborator->email,
+            'contact' => '',
+        ])
+        ->and($storedResponsibility)->toMatchArray([
+            'name' => $collaborator->name,
+            'percentage' => '',
+            'duties' => '',
+        ]);
 });
 
 test('detailed proposal structures and numbers objectives and quantified expected outputs', function () {
@@ -816,14 +896,23 @@ test('detailed proposal autosave retains structured literature citations', funct
         'locator' => '',
         'created_at' => now()->toIso8601String(),
     ];
+    $introductionCitation = [
+        ...$citation,
+        'id' => 'introduction-citation',
+        'field' => 'introduction',
+        'selected_text' => 'Coastal monitoring benefits from sustained community participation.',
+        'locator' => 'p. 14',
+    ];
     $submittedCitations = [
         $citation,
         [...$citation, 'id' => 'duplicate-autosave-citation'],
+        $introductionCitation,
     ];
 
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
             'save_as_draft' => '1',
+            'introduction' => '<p>Coastal monitoring benefits from sustained community participation.<span data-proposal-citation="'.$sourceLinkId.'"> [1]</span></p>',
             'related_literature' => '<p>Community involvement supports the continuity of coastal monitoring practices.<span data-proposal-citation="'.$sourceLinkId.'"> [1]</span></p>',
             'literature_citations' => json_encode($submittedCitations, JSON_THROW_ON_ERROR),
         ]))
@@ -837,9 +926,11 @@ test('detailed proposal autosave retains structured literature citations', funct
     $storedCitations = json_decode($document->source_data['literature_citations'], true, flags: JSON_THROW_ON_ERROR);
 
     expect($storedCitations)
-        ->toHaveCount(1)
+        ->toHaveCount(2)
         ->and($storedCitations[0])
-        ->toMatchArray($citation);
+        ->toMatchArray($citation)
+        ->and($storedCitations[1])
+        ->toMatchArray($introductionCitation);
 });
 
 test('detailed proposal autosave preserves legacy reference-only content', function () {

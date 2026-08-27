@@ -28,7 +28,7 @@ test('a research head can choose research head or faculty workspaces', function 
         ->assertDontSee('Continue as Expert Evaluator')
         ->assertSee('Back to current workspace')
         ->assertSee(route('dashboard'), false)
-        ->assertSee("onsubmit=\"return confirm('Are you sure you want to log out?')\"", false);
+        ->assertSee('data-confirm-title="Log out of ATHENA?"', false);
 });
 
 test('three workspaces use compact cards without shrinking the two-workspace layout', function () {

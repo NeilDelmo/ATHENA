@@ -7,6 +7,7 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class DatabaseSeeder extends Seeder
 {
@@ -17,13 +18,19 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $researchHeadRole = Role::firstOrCreate(['name' => 'research_head']);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $workspaceRoles = [];
+
+        foreach (array_keys(User::workspaceDefinitions()) as $workspace) {
+            $workspaceRoles[$workspace] = Role::findOrCreate($workspace, 'web');
+        }
 
         $head = User::updateOrCreate(['email' => '23-78498@g.batstate-u.edu.ph'], [
             'name' => 'Research Head',
             'password' => Hash::make('password'),
             'email_verified_at' => now(),
         ]);
-        $head->syncRoles([$researchHeadRole]);
+        $head->syncRoles([$workspaceRoles[User::WORKSPACE_RESEARCH_HEAD]]);
     }
 }

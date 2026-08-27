@@ -39,12 +39,19 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.work-plan.download',
                 )
                 || ($request->expectsJson() && $request->routeIs(
+                    'faculty.proposal-drafts.details.update',
+                    'faculty.proposal-drafts.detailed-proposal.update',
+                    'faculty.proposal-drafts.work-plan.update',
                     'faculty.proposal-drafts.line-item-budget.update',
                     'faculty.proposal-drafts.line-item-budget.preview',
                     'faculty.proposal-drafts.line-item-budget.download',
                     'faculty.proposal-drafts.expense-breakdown.update',
                     'faculty.proposal-drafts.expense-breakdown.preview',
                     'faculty.proposal-drafts.expense-breakdown.download',
+                    'faculty.proposal-drafts.curriculum-vitae.update',
+                    'project-progress.draft',
+                    'project-narrative-reports.draft',
+                    'research_head.topics.notice-to-proceed.store',
                 )),
         );
     })->create();

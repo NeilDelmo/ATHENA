@@ -188,6 +188,35 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->assertForbidden();
 });
 
+test('a research head can review and accept a collaboration invitation from their workspace', function () {
+    $this->collaborator->syncRoles('research_head');
+    $membership = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => null,
+    ]);
+
+    $this->actingAs($this->collaborator)
+        ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('notifications.proposal-invitations.show', $membership))
+        ->assertOk()
+        ->assertSee('Join as a collaborator')
+        ->assertSee('Shared Coastal Research')
+        ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
+
+    $this->actingAs($this->collaborator)
+        ->post(route('notifications.proposal-invitations.accept', $membership))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
+
+    expect($membership->fresh()->accepted_at)->not->toBeNull();
+
+    $this->actingAs($this->collaborator)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk();
+});
+
 test('accepted collaborators are restored when a revision workspace is created', function () {
     $this->draft->members()->create([
         'user_id' => $this->collaborator->id,
@@ -381,6 +410,11 @@ test('a stale collaborator save cannot overwrite a newer teammate paper or proje
         ->assertSee('name="document_version" value="0"', false)
         ->assertSee('Collaboration protection is on.');
 
+    $this->actingAs($this->collaborator)
+        ->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), $staleWorkPlan)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('document_version');
+
     $document = $this->draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
         ->sole();
@@ -411,6 +445,14 @@ test('a stale collaborator save cannot overwrite a newer teammate paper or proje
         ->get(route('faculty.proposal-drafts.details.edit', $this->draft))
         ->assertOk()
         ->assertSee('name="draft_version" value="0"', false);
+
+    $this->actingAs($this->collaborator)
+        ->putJson(route('faculty.proposal-drafts.details.update', $this->draft), [
+            ...$ownerDetails,
+            'project_title' => 'Another stale project title',
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('draft_version');
 
     expect($this->draft->fresh()->project_title)->toBe('Owner Newer Project Title')
         ->and($this->draft->fresh()->lock_version)->toBe(1);

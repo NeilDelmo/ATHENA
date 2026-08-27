@@ -67,6 +67,7 @@
                 previewUrl: @js(route('research_head.topics.notice-to-proceed.preview', $topic)),
                 csrfToken: @js(csrf_token()),
             })"
+            data-notice-to-proceed-autosave="true"
         >
             @if ($noticePreparedForSigning)
                 <section class="rounded-2xl border border-gray-200 bg-white">

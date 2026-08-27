@@ -25,17 +25,10 @@
                     <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
                         View all drafts
                     </a>
-                    @if ($hasOpenResearchCall)
-                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                            New proposal
-                        </a>
-                    @else
-                        <span class="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-200 px-4 py-2.5 text-xs font-black text-gray-500 dark:bg-gray-800 dark:text-gray-400" aria-disabled="true" title="A proposal can be started when a research call is open.">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                            No open call
-                        </span>
-                    @endif
+                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        New proposal
+                    </a>
                 @endif
             </div>
         </div>
@@ -229,7 +222,7 @@
                         </div>
 
                         <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-950 dark:text-white">{{ $proposalDraft->project_title ?: 'Untitled proposal' }}</h4>
-                        <p class="mt-1 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{{ $proposalDraft->researchCall->title }}</p>
+                        <p class="mt-1 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{{ $proposalDraft->researchCall?->title ?? 'No research call selected yet' }}</p>
                         @unless ($proposalDraft->isOwnedBy(Auth::user()))
                             <p class="mt-1 text-[11px] font-semibold text-gray-400">Shared by {{ $proposalDraft->owner->name }}</p>
                         @endunless
@@ -261,11 +254,7 @@
                         </div>
                         <h4 class="mt-4 text-sm font-black text-gray-950 dark:text-white">No proposal drafts yet</h4>
                         <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-gray-400">Start a proposal and ATHENA will keep it here until the package is ready to submit.</p>
-                        @if ($hasOpenResearchCall)
-                            <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
-                        @else
-                            <p class="mt-4 text-xs font-bold text-[#7A0019] dark:text-red-300">New proposals will be available when the next research call opens.</p>
-                        @endif
+                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
                     </div>
                 @endforelse
             </div>

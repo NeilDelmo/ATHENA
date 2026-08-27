@@ -9,6 +9,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\LibreOfficeDocumentPdfConverter;
 use App\Services\SidebarAttentionService;
+use App\Support\ResearchCallDeadlineNotice;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
@@ -26,8 +27,10 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
-    public function boot(SidebarAttentionService $sidebarAttention): void
-    {
+    public function boot(
+        SidebarAttentionService $sidebarAttention,
+        ResearchCallDeadlineNotice $researchCallDeadlineNotice,
+    ): void {
         View::composer('layouts.navigation', function ($view) use ($sidebarAttention): void {
             $user = request()->user();
 
@@ -36,8 +39,13 @@ class AppServiceProvider extends ServiceProvider
                 : []);
         });
 
-        View::composer('layouts.app', function ($view): void {
+        View::composer('layouts.app', function ($view) use ($researchCallDeadlineNotice): void {
             $user = request()->user();
+
+            $view->with(
+                'researchCallDeadlineNotice',
+                $researchCallDeadlineNotice->forUser($user),
+            );
 
             $history = $user
                 ? $user->researchAssistantConversations()

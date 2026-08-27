@@ -1,11 +1,11 @@
 <div x-show="literatureWorkspaceOpen" x-cloak x-on:keydown.escape.window="closeLiteratureWorkspace()" class="fixed inset-0 z-50 flex items-stretch justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="literature-workspace-title">
     <button type="button" x-on:click="closeLiteratureWorkspace()" class="absolute inset-0 cursor-default bg-slate-950/60" aria-label="Close literature workspace"></button>
     <section class="relative z-10 flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-950 sm:h-[min(92vh,58rem)] sm:max-w-6xl sm:rounded-3xl sm:border sm:border-slate-200 dark:sm:border-slate-700">
-        <header class="flex flex-wrap items-start gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
+        <header class="sticky top-0 z-30 flex shrink-0 flex-wrap items-start gap-3 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-950 sm:px-6">
             <div class="min-w-0 flex-1">
                 <div x-show="literatureWorkspaceView === 'browse'">
                     <h3 id="literature-workspace-title" class="text-lg font-black text-slate-950 dark:text-white">Literature workspace</h3>
-                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Find verified evidence, then choose what belongs in this proposal. Nothing is cited automatically.</p>
+                    <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Find verified evidence, then connect it to claims throughout the proposal. Nothing is cited automatically.</p>
                 </div>
                 <div x-show="literatureWorkspaceView === 'review'" x-cloak>
                     <button type="button" x-on:click="returnToLiteratureResults()" class="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[11px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">
@@ -28,9 +28,15 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <label class="block min-w-0 flex-1 text-xs font-black text-slate-700 dark:text-slate-200" for="proposal-literature-query">
                         Search literature
-                        <input id="proposal-literature-query" type="search" maxlength="180" x-model="literatureSearchQuery" x-on:input="literatureSearchError = ''" x-on:keydown.enter.prevent="searchSuggestedLiterature()" placeholder="Enter your own terms or refine the suggested query" class="mt-1.5 block h-11 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500">
+                        <input id="proposal-literature-query" type="search" maxlength="180" x-model="literatureSearchQuery" x-on:input="literatureSearchError = ''" x-on:keydown.enter.prevent="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading" placeholder="Enter your own terms or refine the suggested query" class="mt-1.5 block h-11 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 disabled:cursor-wait disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:disabled:bg-slate-800">
                     </label>
-                    <button type="button" x-on:click="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading || literatureSearchQuery.trim().length < 3" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureSearchLoading ? 'Searching…' : 'Search literature'"></button>
+                    <button type="button" x-on:click="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading || literatureSearchQuery.trim().length < 3" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+                        <svg x-show="literatureSearchLoading" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle class="opacity-30" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3"></circle>
+                            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"></path>
+                        </svg>
+                        <span x-text="literatureSearchLoading ? 'Searching indexes' : 'Search literature'"></span>
+                    </button>
                 </div>
 
                 <details class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 dark:border-slate-700 dark:bg-slate-900/60">
@@ -47,6 +53,34 @@
                         </div>
                     </div>
                 </details>
+
+                <div x-show="literatureSearchLoading" x-cloak x-transition.opacity class="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-red-50/70 p-4 dark:border-red-950 dark:bg-red-950/25" role="status" aria-live="polite" x-bind:aria-busy="literatureSearchLoading" data-literature-search-loading>
+                    <div class="flex items-center gap-3">
+                        <span class="relative flex h-10 w-10 shrink-0 items-center justify-center" aria-hidden="true">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-300/70 dark:bg-red-900/70"></span>
+                            <span class="relative h-7 w-7 animate-spin rounded-full border-[3px] border-red-200 border-t-red-700 bg-white dark:border-red-950 dark:border-t-red-400 dark:bg-slate-950"></span>
+                        </span>
+                        <div>
+                            <p class="text-sm font-black text-slate-950 dark:text-white">Searching verified literature</p>
+                            <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">ATHENA is checking academic indexes and ranking possible matches.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 grid gap-2 sm:grid-cols-3" aria-hidden="true">
+                        <div class="rounded-xl border border-red-100 bg-white p-3 dark:border-red-950/80 dark:bg-slate-950">
+                            <div class="h-3 w-4/5 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+                            <div class="mt-2 h-2.5 w-3/5 animate-pulse rounded bg-slate-100 dark:bg-slate-900"></div>
+                        </div>
+                        <div class="rounded-xl border border-red-100 bg-white p-3 dark:border-red-950/80 dark:bg-slate-950">
+                            <div class="h-3 w-3/4 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+                            <div class="mt-2 h-2.5 w-2/3 animate-pulse rounded bg-slate-100 dark:bg-slate-900"></div>
+                        </div>
+                        <div class="rounded-xl border border-red-100 bg-white p-3 dark:border-red-950/80 dark:bg-slate-950">
+                            <div class="h-3 w-5/6 animate-pulse rounded bg-slate-200 dark:bg-slate-800"></div>
+                            <div class="mt-2 h-2.5 w-1/2 animate-pulse rounded bg-slate-100 dark:bg-slate-900"></div>
+                        </div>
+                    </div>
+                </div>
 
                 <p x-show="literatureSearchError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs font-semibold leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="literatureSearchError" role="alert"></p>
                 <p x-show="literatureSearchNotice" x-cloak class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs font-semibold leading-5 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" x-text="literatureSearchNotice" role="status"></p>
@@ -69,7 +103,7 @@
                                         <span class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="result.relevance_label || 'Potential match'"></span>
                                         <span class="rounded bg-slate-200 px-2 py-1 text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="result.access_label || 'Access not listed'"></span>
                                         <span x-show="result._linked" class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Saved</span>
-                                        <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`RRL [${literatureSourceUsage(result._linkedSource).referenceNumber}]`"></span>
+                                        <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).usedInProposal" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`Cited [${literatureSourceUsage(result._linkedSource).referenceNumber}]`"></span>
                                     </div>
                                 </div>
                                 <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
@@ -100,7 +134,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h4 id="saved-literature-sources-heading" class="text-sm font-black text-slate-950 dark:text-white">Saved sources</h4>
-                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Sources are shared-library records linked to this proposal. Citations and references are added only after you use a source in the RRL.</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Sources are shared-library records linked to this proposal. Highlight a claim in any supported narrative section, choose Support with source, and ATHENA will synchronize its reference.</p>
                     </div>
                     <span class="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`${literatureSources.length} saved`"></span>
                 </div>
@@ -116,17 +150,22 @@
                                 <div class="min-w-0">
                                     <h5 class="text-sm font-black leading-5 text-slate-950 dark:text-white" x-text="source.title"></h5>
                                     <p class="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400"><span x-text="source.authors || 'Authors not listed'"></span><span x-show="source.year"> · <span x-text="source.year"></span></span><span x-show="source.source"> · <span x-text="source.source"></span></span></p>
+                                    <div x-show="literatureSourceUsage(source).sections.length" x-cloak class="mt-2 flex flex-wrap gap-1.5">
+                                        <template x-for="section in literatureSourceUsage(source).sections" :key="`${source.id}-${section}`">
+                                            <span class="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[9px] font-black text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="section"></span>
+                                        </template>
+                                    </div>
                                 </div>
                                 <div class="flex shrink-0 flex-wrap gap-1.5 text-[9px] font-black">
                                     <span class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Saved</span>
-                                    <span x-show="literatureSourceUsage(source).usedInRrl" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`Used in RRL [${literatureSourceUsage(source).referenceNumber}]`"></span>
+                                    <span x-show="literatureSourceUsage(source).usedInProposal" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`Cited [${literatureSourceUsage(source).referenceNumber}]`"></span>
                                     <span x-show="literatureSourceUsage(source).addedToReferences" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200">Reference synchronized</span>
                                 </div>
                             </div>
                             <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                 <button x-show="!literatureSourceUsage(source).usedInRrl" type="button" x-on:click="source.rrl_draft_status === 'confirmed' ? addLiteratureSourceToRrl(source) : prepareLinkedLiteratureReview(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600" x-text="source.rrl_draft_status === 'confirmed' ? 'Add to Section XI' : (source.rrl_draft_status === 'draft' ? 'Review RRL draft' : 'Review evidence')"></button>
                                 <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-9 items-center justify-center rounded-lg px-2 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Open source</a>
-                                <button x-show="literatureSourceUsage(source).usedInRrl" type="button" x-on:click="removeCitationSource(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-red-900 dark:bg-slate-950">Remove citations</button>
+                                <button x-show="literatureSourceUsage(source).usedInProposal" type="button" x-on:click="removeCitationSource(source)" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-red-200 bg-white px-3 text-[10px] font-black text-red-800 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-red-900 dark:bg-slate-950">Remove proposal citations</button>
                             </div>
                         </article>
                     </template>
@@ -157,12 +196,40 @@
             <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-950 lg:overflow-y-auto sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">RRL draft</p>
-                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Write or generate cautious wording from the visible evidence. Adding it inserts the RRL paragraph and its reference.</p>
+                        <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Connection-aware RRL draft</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">ATHENA compares the current RRL ending with this source, then proposes a grounded transition when the evidence supports one.</p>
                     </div>
-                    <button type="button" x-on:click="generateLiteratureReviewDraft()" x-bind:disabled="literatureReviewGenerating || !hasLiteratureReviewEvidence()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-3.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewGenerating ? 'Drafting…' : 'Draft from evidence'"></button>
+                    <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
+                        <button type="button" x-on:click="generateLiteratureReviewDraft('auto')" x-bind:disabled="literatureReviewGenerating || !hasLiteratureReviewEvidence()" class="inline-flex min-h-10 items-center justify-center rounded-xl bg-red-700 px-3.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewGenerating ? 'Drafting…' : (literatureReviewPreviousContext ? (literatureReviewDraft ? 'Regenerate connection' : 'Generate connected draft') : 'Draft from evidence')"></button>
+                        <button x-show="literatureReviewPreviousContext" x-cloak type="button" x-on:click="generateLiteratureReviewDraft('standalone')" x-bind:disabled="literatureReviewGenerating || !hasLiteratureReviewEvidence()" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Keep standalone</button>
+                    </div>
                 </div>
-                <textarea x-model="literatureReviewDraft" rows="12" maxlength="5000" placeholder="Write or generate a source-supported RRL paragraph after reviewing the evidence." class="mt-4 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"></textarea>
+
+                <div x-show="literatureReviewPreviousContext" x-cloak class="mt-4 overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900 dark:bg-slate-900" data-literature-connection-preview>
+                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-red-100 bg-red-50/70 px-4 py-3 dark:border-red-950 dark:bg-red-950/25">
+                        <div>
+                            <p class="text-xs font-black text-slate-950 dark:text-white">Connection preview</p>
+                            <p class="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">Review the relationship before inserting the paragraph.</p>
+                        </div>
+                        <span class="rounded-full px-2.5 py-1 text-[10px] font-black" x-bind:class="literatureReviewHasConnection() ? 'bg-red-700 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-100'" x-text="literatureReviewDraft ? literatureReviewRelationshipLabel() : 'Ready to connect'"></span>
+                    </div>
+                    <div class="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)] sm:items-stretch">
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+                            <p class="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Current RRL ending</p>
+                            <p class="mt-2 text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200" x-text="literatureReviewPreviousContext"></p>
+                        </div>
+                        <div class="hidden items-center justify-center text-xl font-black text-red-700 sm:flex" aria-hidden="true">→</div>
+                        <div class="rounded-xl border border-red-100 bg-red-50/60 p-3 dark:border-red-950 dark:bg-red-950/20">
+                            <p class="text-[9px] font-black uppercase tracking-wider text-red-800 dark:text-red-200">Proposed relationship</p>
+                            <p class="mt-2 text-xs font-black text-slate-900 dark:text-white" x-text="literatureReviewDraft ? literatureReviewRelationshipLabel() : 'Generate to analyze the connection'"></p>
+                            <p class="mt-1 text-[11px] leading-5 text-slate-600 dark:text-slate-300" x-text="literatureReviewDraft ? literatureReviewRelationshipDescription() : 'ATHENA will use the previous ending for flow, but the new paper remains the only evidence for its claims.'"></p>
+                            <p x-show="literatureReviewTransition" x-cloak class="mt-2 rounded-lg bg-white px-2.5 py-2 text-[10px] font-bold italic text-red-800 dark:bg-slate-950 dark:text-red-200"><span class="not-italic text-slate-500 dark:text-slate-400">Transition: </span><span x-text="literatureReviewTransition"></span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <label for="literature-review-draft" class="mt-4 block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400" x-text="literatureReviewHasConnection() ? 'Proposed connected paragraph' : 'Proposed paragraph'"></label>
+                <textarea id="literature-review-draft" x-model="literatureReviewDraft" rows="12" maxlength="5000" placeholder="Write or generate a source-supported RRL paragraph after reviewing the evidence." class="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"></textarea>
                 <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <p class="font-medium text-slate-500 dark:text-slate-400"><span x-text="literatureReviewWordCount()"></span> words · Review required before saving</p>
                     <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200" x-text="literatureReviewBasis === 'full_text' ? 'Full-text based' : 'Abstract based'"></span>
@@ -171,7 +238,7 @@
                 <p x-show="literatureReviewError" x-cloak class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs font-semibold leading-5 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200" x-text="literatureReviewError" role="alert"></p>
                 <div class="mt-5 flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:justify-end">
                     <button type="button" x-on:click="saveLiteratureReview()" x-bind:disabled="literatureReviewSaving || literatureReviewDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200" x-text="literatureReviewSaving ? 'Saving…' : 'Save RRL draft'"></button>
-                    <button type="button" x-on:click="saveLiteratureReview(true)" x-bind:disabled="literatureReviewSaving || literatureReviewDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewSaving ? 'Adding…' : 'Add to Section XI'"></button>
+                    <button type="button" x-on:click="saveLiteratureReview(true)" x-bind:disabled="literatureReviewSaving || literatureReviewDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-4 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewSaving ? 'Adding…' : (literatureReviewHasConnection() ? 'Insert connected paragraph' : 'Add standalone paragraph')"></button>
                 </div>
             </section>
         </div>

@@ -39,6 +39,10 @@ test('the notification menu lists and marks proposal notifications as read', fun
         ->assertSee('Revision requested')
         ->assertSee('Please update the proposal work plan.')
         ->assertSee('Review invitation')
+        ->assertSee('View notification inbox')
+        ->assertSee('bg-gray-100/90', false)
+        ->assertSee('shadow-[inset_3px_0_0_0_#dc2626]', false)
+        ->assertSee('>New</span>', false)
         ->assertSee('x-text="unreadCount > 99 ? \'99+\' : unreadCount"', false)
         ->assertDontSee("x-show=\"unreadCount > 0\"\n            x-text=\"unreadCount > 99 ? '99+' : unreadCount\"", false);
 
@@ -172,4 +176,59 @@ test('accepting an invitation keeps the notification but removes its review acti
         ->and($notification->data)->not->toHaveKey('action_data')
         ->and($notification->read_at)->not->toBeNull()
         ->and($collaborator->notifications()->count())->toBe(1);
+});
+test('the notification inbox segregates activity and marks an opened item as read', function () {
+    $this->withoutVite();
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $notifications = [
+        ['Proposal workspace invitation', 'A proposal owner invited you to collaborate.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 1)],
+        ['Collaborator accepted invitation', 'A faculty member joined your proposal workspace.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
+        ['Proposal submitted for review', 'A collaborative proposal is ready for review.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS, null],
+        ['Research call updated', 'The call schedule and requirements changed.', null, null],
+        ['Progress report submitted', 'A quarterly progress report is ready.', ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING, null],
+    ];
+
+    foreach ($notifications as [$title, $message, $sidebarArea, $actionUrl]) {
+        $faculty->notify(new ProposalActivityNotification(
+            title: $title,
+            message: $message,
+            url: route('faculty.dashboard'),
+            actionUrl: $actionUrl,
+            sidebarArea: $sidebarArea,
+        ));
+    }
+
+    $response = $this->actingAs($faculty)->get(route('notifications.index'));
+
+    $response
+        ->assertOk()
+        ->assertSee('Notification inbox')
+        ->assertSee('Search notifications')
+        ->assertSee('Invitations')
+        ->assertSee('Collaboration')
+        ->assertSee('Reviews')
+        ->assertSee('Research calls')
+        ->assertSee('Projects')
+        ->assertSee('data-notification-category="invitations"', false)
+        ->assertSee('data-notification-category="collaboration"', false)
+        ->assertSee('data-notification-category="reviews"', false)
+        ->assertSee('data-notification-category="research_calls"', false)
+        ->assertSee('data-notification-category="projects"', false);
+
+    $reviewNotification = $faculty->notifications()->firstWhere('data->title', 'Proposal submitted for review');
+
+    $this->actingAs($faculty)
+        ->post(route('notifications.open', $reviewNotification))
+        ->assertRedirect(route('faculty.dashboard'));
+
+    expect($reviewNotification->fresh()->read_at)->not->toBeNull();
+
+    $this->actingAs($faculty)
+        ->patch(route('notifications.read-all'))
+        ->assertRedirect(route('notifications.index'));
+
+    expect($faculty->unreadNotifications()->count())->toBe(0);
 });
