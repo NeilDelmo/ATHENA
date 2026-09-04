@@ -16,6 +16,10 @@
                     ? in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf
                     : $draftAnnotationCount > 0;
                 $annotationUrl = route('topics.versions.files.annotations.index', [$topic, $latestVersion, $file]);
+
+                if ($disableUnlessRevision) {
+                    $annotationUrl .= '?decision=revision_requested';
+                }
             @endphp
 
             <article

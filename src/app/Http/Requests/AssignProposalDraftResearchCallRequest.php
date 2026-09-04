@@ -46,6 +46,7 @@ class AssignProposalDraftResearchCallRequest extends FormRequest
                         'research_call_id',
                         'Choose a research call that is currently accepting submissions.',
                     );
+
                 }
             },
         ];

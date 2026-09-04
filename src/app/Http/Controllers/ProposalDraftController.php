@@ -6,6 +6,7 @@ use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalTemplate;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ProposalRevisionTargetCatalog;
 use App\Support\ProposalWorkspacePeople;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,7 +41,8 @@ class ProposalDraftController extends Controller
             ->accessibleTo($request->user())
             ->with(['researchCall', 'documents', 'owner:id,name,email'])
             ->latest()
-            ->paginate(12);
+            ->paginate(12)
+            ->withQueryString();
         $submittedProposals = TopicProposal::query()
             ->accessibleTo($request->user())
             ->select([
@@ -59,9 +62,15 @@ class ProposalDraftController extends Controller
                 'latestVersion',
             ])
             ->latest()
-            ->paginate(12, ['*'], 'submitted-page');
+            ->paginate(12, ['*'], 'submitted-page')
+            ->withQueryString();
+        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
-        return view('faculty.proposal-drafts.index', compact('proposalDrafts', 'submittedProposals'));
+        return view('faculty.proposal-drafts.index', compact(
+            'proposalDrafts',
+            'submittedProposals',
+            'hasOpenResearchCall',
+        ));
     }
 
     public function create(Request $request): View
@@ -195,6 +204,7 @@ class ProposalDraftController extends Controller
         TopicProposal $topic,
         CreateProposalRevisionDraft $createProposalRevisionDraft,
         ProposalPaperCatalog $catalog,
+        ProposalRevisionTargetCatalog $revisionTargets,
     ): RedirectResponse {
         abort_unless(
             $topic->user_id === $request->user()->id
@@ -203,10 +213,39 @@ class ProposalDraftController extends Controller
             403,
         );
 
-        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
-        $paper = $catalog->forDocumentType($request->string('document_type')->toString());
+        $documentType = $request->string('document_type')->toString();
+        $editorTarget = null;
+        $annotation = null;
 
-        return redirect()->to($this->revisionWorkspaceUrl($proposalDraft, $paper));
+        if ($request->filled('annotation')) {
+            $annotation = ProposalFileAnnotation::query()
+                ->with('file.version')
+                ->whereKey($request->integer('annotation'))
+                ->whereNotNull('topic_review_file_revision_id')
+                ->whereHas('fileRevision', fn ($query) => $query->whereNull('resolved_at'))
+                ->whereHas('file.version', fn ($query) => $query->where('topic_id', $topic->id))
+                ->first();
+
+            abort_unless($annotation?->file, 404);
+            $documentType = $annotation->file->document_type;
+            $editorTarget = $revisionTargets->contains($annotation->file, $annotation->editor_target)
+                ? $annotation->editor_target
+                : null;
+        }
+
+        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        $paper = $catalog->forDocumentType($documentType);
+
+        $url = $this->revisionWorkspaceUrl($proposalDraft, $paper, $editorTarget);
+        if ($annotation && ($paper['mode'] ?? null) === 'generated') {
+            $url .= (str_contains($url, '?') ? '&' : '?').'revision_annotation='.$annotation->id;
+        }
+
+        if ($request->boolean('revision_embed') && ($paper['mode'] ?? null) === 'generated') {
+            $url .= (str_contains($url, '?') ? '&' : '?').'revision_embed=1';
+        }
+
+        return redirect()->to($url);
     }
 
     public function storeRevisionFile(
@@ -232,6 +271,7 @@ class ProposalDraftController extends Controller
         $extensions = 'doc,docx,pdf';
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:'.$extensions, 'max:25600'],
+            'document_version' => ['sometimes', 'integer', 'min:0'],
         ]);
         $file = $validated['file'];
         $document = $proposalDraft->documents()
@@ -252,7 +292,7 @@ class ProposalDraftController extends Controller
                 $request->user(),
                 $documentType,
                 0,
-                $document?->lock_version ?? 0,
+                $request->has('document_version') ? $request->integer('document_version') : ($document?->lock_version ?? 0),
                 [
                     'source_data' => $document?->source_data,
                     'file_path' => $storedPath,
@@ -277,29 +317,40 @@ class ProposalDraftController extends Controller
 
         return response()->json([
             'filename' => $savedDocument->original_filename,
+            'draft_id' => $proposalDraft->id,
+            'document_type' => $documentType,
+            'document_version' => $savedDocument->lock_version,
             'redirect_url' => route('topics.show', $proposalDraft->topic_id).'#review-and-submit',
         ]);
     }
 
     /** @param array<string, mixed>|null $paper */
-    private function revisionWorkspaceUrl(ProposalDraft $proposalDraft, ?array $paper): string
+    private function revisionWorkspaceUrl(ProposalDraft $proposalDraft, ?array $paper, ?string $editorTarget = null): string
     {
         if (! is_array($paper)) {
             return route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments';
         }
 
         return match ($paper['slug']) {
-            'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft),
-            'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft),
-            'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft),
-            'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft),
-            'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft),
+            'detailed-proposal' => $this->revisionEditorUrl('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft, $editorTarget),
+            'work-plan' => $this->revisionEditorUrl('faculty.proposal-drafts.work-plan.edit', $proposalDraft, $editorTarget),
+            'line-item-budget' => $this->revisionEditorUrl('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft, $editorTarget),
+            'expense-breakdown' => $this->revisionEditorUrl('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft, $editorTarget),
+            'curriculum-vitae' => $this->revisionEditorUrl('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft, $editorTarget),
             'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft),
             'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft),
             default => ($paper['mode'] ?? null) === 'upload'
                 ? route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']])
                 : route('faculty.proposal-drafts.show', $proposalDraft).'#required-pdf-attachments',
         };
+    }
+
+    private function revisionEditorUrl(string $routeName, ProposalDraft $proposalDraft, ?string $editorTarget): string
+    {
+        return route($routeName, array_filter([
+            'proposalDraft' => $proposalDraft,
+            'revision_target' => $editorTarget,
+        ], fn (mixed $value): bool => filled($value)));
     }
 
     public function destroy(ProposalDraft $proposalDraft): RedirectResponse

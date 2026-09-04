@@ -39,7 +39,6 @@ class SaveProposalDraftDetails
                 'planned_end',
                 'project_leader',
             ]);
-
             if (! $detailsChanged) {
                 return $lockedDraft;
             }

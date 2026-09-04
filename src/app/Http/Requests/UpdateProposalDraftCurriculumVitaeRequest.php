@@ -31,9 +31,11 @@ class UpdateProposalDraftCurriculumVitaeRequest extends FormRequest
             ->where('position', 0)
             ->value('source_data');
 
-        if (is_array($savedSource)) {
-            $this->merge(array_replace($savedSource, $this->all()));
-        }
+        $input = is_array($savedSource)
+            ? array_replace($savedSource, $this->all())
+            : $this->all();
+
+        $this->replace(CurriculumVitaeRules::normalizeInput($input));
 
         $this->normalizeAcademicStatuses();
     }

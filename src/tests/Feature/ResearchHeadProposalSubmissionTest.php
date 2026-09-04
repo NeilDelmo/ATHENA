@@ -4,6 +4,7 @@ use App\Models\ProposalVersion;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Notifications\ProposalActivityNotification;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -68,6 +69,14 @@ test('research heads can view every initial proposal submission and revision', f
             'is_carried_forward' => false,
         ]);
     }
+    $this->researchHead->notify(new ProposalActivityNotification(
+        title: 'Proposal revision submitted',
+        message: 'A revised proposal is ready for review.',
+        url: route('topics.show', $topic),
+        topicId: $topic->id,
+        workspace: User::WORKSPACE_RESEARCH_HEAD,
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
+    ));
 
     $this->actingAs($this->researchHead)
         ->get(route('research_head.proposal-submissions.index'))
@@ -75,6 +84,13 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('Proposal Submissions')
         ->assertSee('Active proposal queue')
         ->assertSee('Resubmitted')
+        ->assertSee('1 needs review')
+        ->assertSee('A red dot marks a submission that still needs your review.')
+        ->assertSee('data-proposal-attention="unread"', false)
+        ->assertSee('data-proposal-unread-dot', false)
+        ->assertSee('Needs review')
+        ->assertSee('Revised package received')
+        ->assertSee('Version 2 · Faculty revision')
         ->assertSee('Open for review')
         ->assertSee('Submission history')
         ->assertSee('Initial submission')
@@ -124,7 +140,8 @@ test('proposal submissions can be searched and filtered by type and status', fun
         ->assertOk()
         ->assertSee('Revised Mangrove Mapping')
         ->assertSee('Revision')
-        ->assertDontSee('Initial Coastal Survey');
+        ->assertSee('data-proposal-id="'.$revisedTopic->id.'"', false)
+        ->assertDontSee('data-proposal-id="'.$initialTopic->id.'"', false);
 });
 
 test('proposal submissions are restricted to research heads', function () {

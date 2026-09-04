@@ -57,6 +57,11 @@ class ResearchCall extends Model
         return $this->hasMany(TopicProposal::class);
     }
 
+    public function proposalDrafts(): HasMany
+    {
+        return $this->hasMany(ProposalDraft::class);
+    }
+
     public function deadlineDismissals(): HasMany
     {
         return $this->hasMany(ResearchCallDeadlineDismissal::class);
@@ -88,6 +93,7 @@ class ResearchCall extends Model
             $this->status,
             $this->opens_at,
             $this->closes_at,
+            now(),
         );
     }
 

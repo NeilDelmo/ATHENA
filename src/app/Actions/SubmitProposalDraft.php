@@ -230,6 +230,15 @@ class SubmitProposalDraft
                     }
                 }
 
+                $lockedDraft->unsetRelation('researchCall');
+                $lockedDraft->load('researchCall');
+
+                if (! $lockedDraft->researchCall?->isAcceptingSubmissions()) {
+                    throw ValidationException::withMessages([
+                        'research_call' => 'The research call submission window has closed. Your proposal was not sent and the draft remains available.',
+                    ]);
+                }
+
                 $primaryFile = $this->packageService->primaryFile($permanentFiles);
                 $topic = $user->proposals()->create([
                     'research_call_id' => $lockedDraft->research_call_id,
@@ -499,10 +508,10 @@ class SubmitProposalDraft
         ProposalDraftDocument $document,
         string $permanentDirectory,
     ): array {
-        $sourceData = [
+        $sourceData = ExpenseBreakdownRules::normalizeInput([
             ...($document->source_data ?? []),
             'project_title' => $draft->project_title,
-        ];
+        ]);
         $validated = Validator::make(
             $sourceData,
             ExpenseBreakdownRules::rules(),
@@ -525,7 +534,7 @@ class SubmitProposalDraft
         ProposalDraftDocument $document,
         string $permanentDirectory,
     ): array {
-        $sourceData = $document->source_data ?? [];
+        $sourceData = CurriculumVitaeRules::normalizeInput($document->source_data ?? []);
         $validated = Validator::make(
             $sourceData,
             CurriculumVitaeRules::rules(),

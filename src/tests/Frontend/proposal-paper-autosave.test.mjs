@@ -8,6 +8,7 @@ import {
     autoSaveValidationMessage,
     finishProposalPaperAutoSave,
     proposalPaperAutoSaveIsCurrent,
+    proposalPaperFormFingerprint,
     saveProposalPaperWithDraftFallback,
 } from '../../resources/js/proposal-paper-autosave.js';
 
@@ -62,6 +63,31 @@ test('pending-change detection covers changed, in-flight, current, and intention
 
     state.submitting = true;
     assert.equal(autoSaveHasPendingChanges(state, form, configuration), false);
+});
+
+test('paper fingerprints ignore empty file controls without hiding selected-file changes', () => {
+    const emptyFileAtFirstRead = new File([], '', { lastModified: 100 });
+    const emptyFileAtSecondRead = new File([], '', { lastModified: 200 });
+    const selectedFile = new File(['image'], 'methodology.png', {
+        type: 'image/png',
+        lastModified: 300,
+    });
+
+    const first = proposalPaperFormFingerprint([
+        ['title', 'Fruit drop detection'],
+        ['methodology_image', emptyFileAtFirstRead],
+    ]);
+    const second = proposalPaperFormFingerprint([
+        ['title', 'Fruit drop detection'],
+        ['methodology_image', emptyFileAtSecondRead],
+    ]);
+    const withSelectedFile = proposalPaperFormFingerprint([
+        ['title', 'Fruit drop detection'],
+        ['methodology_image', selectedFile],
+    ]);
+
+    assert.equal(first, second);
+    assert.notEqual(first, withSelectedFile);
 });
 
 test('all nine autosave editors finish pending and in-flight saves and block unsafe exits', async () => {

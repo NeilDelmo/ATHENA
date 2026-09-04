@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\SidebarAttentionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -241,8 +242,11 @@ class ProjectNarrativeReportController extends Controller
         return back()->with('success', 'Official progress report submitted for Research Head review.');
     }
 
-    public function review(Request $request, ProjectNarrativeReport $report): RedirectResponse
-    {
+    public function review(
+        Request $request,
+        ProjectNarrativeReport $report,
+        SidebarAttentionService $sidebarAttention,
+    ): RedirectResponse {
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
 
@@ -259,6 +263,12 @@ class ProjectNarrativeReportController extends Controller
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
         ]);
+
+        $sidebarAttention->markTopicAsRead(
+            $request->user(),
+            ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+            $report->topic_id,
+        );
 
         $report->load('topic.user');
         $report->topic->user->notify(new ProposalActivityNotification(

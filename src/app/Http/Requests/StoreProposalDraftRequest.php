@@ -22,7 +22,7 @@ class StoreProposalDraftRequest extends FormRequest
     {
         return [
             'project_title' => ['required', 'string', 'max:255'],
-            'research_call_id' => ['nullable', 'integer', 'exists:research_calls,id'],
+            'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
         ];
     }
 
@@ -35,23 +35,12 @@ class StoreProposalDraftRequest extends FormRequest
                     return;
                 }
 
-                $researchCall = $this->filled('research_call_id')
-                    ? ResearchCall::find($this->integer('research_call_id'))
-                    : null;
+                $researchCall = ResearchCall::find($this->integer('research_call_id'));
 
-                if (ResearchCall::query()->acceptingSubmissions()->exists() && $researchCall === null) {
+                if (! $researchCall?->isAcceptingSubmissions()) {
                     $validator->errors()->add(
                         'research_call_id',
-                        'Choose an open research call before creating this proposal.',
-                    );
-
-                    return;
-                }
-
-                if ($researchCall !== null && ! $researchCall->isAcceptingSubmissions()) {
-                    $validator->errors()->add(
-                        'research_call_id',
-                        'Choose a research call that is currently accepting submissions.',
+                        'This research call is not within its submission window. Choose a call that is open now.',
                     );
                 }
             },

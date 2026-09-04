@@ -10,8 +10,7 @@
 
         @include('partials.theme-script')
 
-        <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <x-app-fonts />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
@@ -109,7 +108,7 @@
                     </div>
                 </div>
 
-                <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-4">
+                <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
 
                     @auth
                         <button
@@ -139,24 +138,18 @@
 
                     <x-notification-menu />
 
-                    <div class="h-6 w-px bg-white/25"></div>
+                    <div class="hidden h-6 w-px bg-white/25 sm:block"></div>
 
-                    <div x-data="{ open: false }" class="relative">
-                        <button @click="open = !open" class="flex cursor-pointer items-center gap-2.5 rounded-xl p-1.5 transition duration-150 hover:bg-white/10 focus:outline-none">
-                            @if(Auth::user()->avatar ?? false)
-                                <img src="{{ Auth::user()->avatar }}" class="w-8 h-8 rounded-full border border-gray-200 object-cover shadow-sm" alt="Google Profile">
-                            @else
-                                <div class="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-black text-xs uppercase shadow-sm">
-                                    {{ substr(Auth::user()->name, 0, 1) }}
-                                </div>
-                            @endif
-                            <span class="hidden max-w-[120px] truncate text-sm font-bold text-white sm:block">{{ Auth::user()->name }}</span>
+                    <div x-data="{ open: false }" class="relative shrink-0" data-header-account-menu>
+                        <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="menu" aria-label="Open account menu" class="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl p-1.5 transition duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70">
+                            <x-user-avatar :user="Auth::user()" class="h-8 w-8 rounded-full border border-gray-200 bg-red-600 text-xs shadow-sm" />
+                            <span class="hidden min-w-0 max-w-20 truncate text-sm font-bold text-white sm:block lg:max-w-[120px]" title="{{ Auth::user()->name }}">{{ Auth::user()->name }}</span>
                             <svg class="hidden h-4 w-4 text-red-100 sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
                             </svg>
                         </button>
 
-                        <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                        <div x-cloak x-show="open" @click.away="open = false" x-transition role="menu" class="absolute right-0 z-50 mt-2 w-56 max-w-[calc(100vw-6rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
                             <div class="border-b border-gray-100 px-4 py-2 dark:border-slate-800">
                                 <p class="text-xs text-gray-400 font-semibold uppercase">Account Profile</p>
                                 <p class="text-xs font-bold text-gray-800 truncate mt-0.5">{{ Auth::user()->email }}</p>

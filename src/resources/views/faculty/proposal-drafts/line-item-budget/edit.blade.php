@@ -6,7 +6,7 @@
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
                     <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($lineItemBudgetDocument?->completed_at ? 'bg-green-100 text-green-800' : ($lineItemBudgetDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')) }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($lineItemBudgetDocument?->completed_at ? 'Complete' : ($lineItemBudgetDocument ? 'In progress' : 'Not started')) }}</span>
                 </div>
-                <p class="mt-1 text-xs text-gray-500">Complete the official line-item budget through structured inputs.</p>
+                <p class="mt-1 text-xs text-gray-500">Use MOOE, Capital Outlay, or both. Leave any category that does not apply empty; its total will be zero.</p>
             </div>
             <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
         </div>
@@ -65,6 +65,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
+        <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $lineItemBudgetDocument?->lock_version ?? 0)"
@@ -89,7 +90,7 @@
             </div>
         @endif
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
@@ -152,7 +153,7 @@
                 @php($customProperty = $sectionKey === 'mooe' ? 'customMooeItems' : 'customCoItems')
                 <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                        <div><h3 class="text-base font-black text-gray-900">{{ $sectionHeading }}</h3><p class="mt-1 text-xs text-gray-500">Amounts may be left empty. Enter numbers without commas.</p></div>
+                        <div><h3 class="text-base font-black text-gray-900">{{ $sectionHeading }} <span class="text-xs font-normal text-gray-500">(Optional)</span></h3><p class="mt-1 text-xs text-gray-500">This entire category may be left empty if it does not apply. Empty amounts count as zero. Enter numbers without commas.</p></div>
                         <button type="button" x-on:click="addCustomItem('{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">Add category or sub-category</button>
                     </div>
 
@@ -167,8 +168,8 @@
 
                         <template x-for="(item, index) in {{ $customProperty }}" :key="item.id">
                             <div x-bind:data-repeatable-entry="`line-item-budget-custom-${item.id}`" class="grid gap-3 border-t border-gray-100 bg-red-50/40 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-center">
-                                <input :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" x-bind:data-line-item-budget-custom-input="item.id" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
-                                <input :name="`custom_{{ $sectionKey }}_items[${index}][amount]`" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="item.amount" aria-label="Custom {{ strtoupper($sectionKey) }} amount" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                <input :id="`custom-{{ $sectionKey }}-particular-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][particular]`" x-bind:data-line-item-budget-custom-input="item.id" type="text" maxlength="255" x-model="item.particular" aria-label="Custom {{ strtoupper($sectionKey) }} particular" placeholder="Custom category or sub-category" class="block w-full rounded-lg border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                <input :id="`custom-{{ $sectionKey }}-amount-${item.id}`" :name="`custom_{{ $sectionKey }}_items[${index}][amount]`" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="item.amount" aria-label="Custom {{ strtoupper($sectionKey) }} amount" class="block w-full rounded-lg border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 <button type="button" x-on:click="removeCustomItem('{{ $sectionKey }}', index)" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
                             </div>
                         </template>
@@ -181,7 +182,7 @@
                             <div><p class="text-xs font-black uppercase tracking-wider text-gray-500">{{ $sectionKey === 'mooe' ? 'Total MOOE' : 'Total Capital Outlays' }}</p><p class="mt-1 text-xl font-black text-gray-900">Php <span x-text="formatMoney(sectionTotal('{{ $sectionKey }}'))"></span></p></div>
                             <label class="inline-flex items-center gap-2 text-xs font-bold text-gray-700"><input type="checkbox" x-model="{{ $sectionKey === 'mooe' ? 'overrideMooe' : 'overrideCo' }}" class="rounded border-gray-300 text-red-600 focus:ring-red-600">Edit this total manually</label>
                         </div>
-                        <input name="{{ $sectionKey }}_total_override" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="{{ $sectionKey === 'mooe' ? 'mooeOverride' : 'coOverride' }}" x-bind:disabled="!{{ $sectionKey === 'mooe' ? 'overrideMooe' : 'overrideCo' }}" x-show="{{ $sectionKey === 'mooe' ? 'overrideMooe' : 'overrideCo' }}" x-cloak aria-label="Manual {{ strtoupper($sectionKey) }} total" class="mt-3 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600 sm:max-w-xs sm:ml-auto">
+                        <input id="{{ $sectionKey }}-total-override" name="{{ $sectionKey }}_total_override" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="{{ $sectionKey === 'mooe' ? 'mooeOverride' : 'coOverride' }}" x-bind:disabled="!{{ $sectionKey === 'mooe' ? 'overrideMooe' : 'overrideCo' }}" x-show="{{ $sectionKey === 'mooe' ? 'overrideMooe' : 'overrideCo' }}" x-cloak aria-label="Manual {{ strtoupper($sectionKey) }} total" class="mt-3 block w-full rounded-xl border-gray-300 text-right text-sm shadow-sm focus:border-red-600 focus:ring-red-600 sm:max-w-xs sm:ml-auto">
                     </div>
                 </section>
             @endforeach
@@ -191,7 +192,7 @@
                     <div><p class="text-xs font-black uppercase tracking-wider text-gray-300">Total Project Cost</p><p class="mt-1 text-2xl font-black">Php <span x-text="formatMoney(projectTotal())"></span></p></div>
                     <label class="inline-flex items-center gap-2 text-xs font-bold text-gray-200"><input type="checkbox" x-model="overrideProject" class="rounded border-gray-500 text-red-600 focus:ring-red-600">Edit project total manually</label>
                 </div>
-                <input name="project_total_override" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="projectOverride" x-bind:disabled="!overrideProject" x-show="overrideProject" x-cloak aria-label="Manual project total" class="mt-4 block w-full rounded-xl border-gray-600 bg-gray-800 text-right text-white shadow-sm focus:border-red-500 focus:ring-red-500 sm:max-w-xs sm:ml-auto">
+                <input id="project-total-override" name="project_total_override" type="number" min="0" max="{{ config('line_item_budget.maximum_amount') }}" step="0.01" x-model="projectOverride" x-bind:disabled="!overrideProject" x-show="overrideProject" x-cloak aria-label="Manual project total" class="mt-4 block w-full rounded-xl border-gray-600 bg-gray-800 text-right text-white shadow-sm focus:border-red-500 focus:ring-red-500 sm:max-w-xs sm:ml-auto">
             </section>
 
             <div x-show="isOverBudget()" x-cloak role="alert" class="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">

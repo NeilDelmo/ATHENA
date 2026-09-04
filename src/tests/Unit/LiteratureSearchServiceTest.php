@@ -7,6 +7,7 @@ use Tests\TestCase;
 uses(TestCase::class);
 
 test('arxiv search results receive numeric provider ranks and retain complete abstracts', function () {
+    config(['literature.web_harvest.enabled' => false]);
     Http::preventStrayRequests();
     $abstract = trim(str_repeat('Complete source abstract. ', 250));
 

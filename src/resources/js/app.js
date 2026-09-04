@@ -7,6 +7,9 @@ import initializeAnnouncementImageUploads from './announcement-image-upload';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
 import initializeResearchCallImageExtractors from './research-call-image-extractor';
+import initializeResearchCallPosterPreviews from './research-call-poster-preview';
+import initializeRevisionTargetFocus from './revision-target-focus';
+import initializeRevisionWorkspace, { isEmbeddedRevisionEditor, embeddedRevisionFileSaved } from './revision-workspace';
 import {
     filterWorkspacePeople,
     formatPersonName,
@@ -42,6 +45,7 @@ import {
     autoSaveHasStaleVersionError,
     autoSaveValidationMessage,
     finishProposalPaperAutoSave,
+    proposalPaperFormFingerprint,
     saveProposalPaperWithDraftFallback,
 } from './proposal-paper-autosave';
 
@@ -587,7 +591,7 @@ async function showProposalConfirmation({
 async function offerRevisionUpload(blob, filename, config = {}) {
     if (!config.revisionUploadUrl || !config.revisionDocumentType) return;
 
-    const isConfirmed = await showProposalConfirmation({
+    const isConfirmed = isEmbeddedRevisionEditor() || await showProposalConfirmation({
         title: 'Automatically upload this file to the revision?',
         text: `Upload "${filename}" to Revision workspace → Submit revision → ${config.revisionAttachmentLabel || 'the matching attachment'}?`,
         confirmButtonText: 'Automatically upload',
@@ -600,6 +604,9 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     const formData = new FormData();
     const file = new File([blob], filename, { type: blob.type || 'application/octet-stream' });
 
+    if (isEmbeddedRevisionEditor()) {
+        formData.append('document_version', document.querySelector('[data-paper-form] [name="document_version"]').value);
+    }
     formData.append('document_type', config.revisionDocumentType);
     formData.append('file', file);
 
@@ -626,6 +633,10 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     }
 
     const payload = await response.json();
+    if (isEmbeddedRevisionEditor()) {
+        embeddedRevisionFileSaved(payload);
+        return payload;
+    }
     const destination = payload.redirect_url || config.revisionReviewUrl;
 
     if (destination) window.location.assign(destination);
@@ -873,7 +884,48 @@ function showProposalPdfPreparationLoadingScreen(form) {
     }
 }
 
-document.addEventListener('submit', (event) => {
+function proposalPackageLivewireComponent(form) {
+    const componentRoot = form.closest('[wire\\:id]');
+    const componentId = componentRoot?.getAttribute('wire:id');
+
+    return componentId ? Livewire.find(componentId) : null;
+}
+
+async function submitProposalPackageWithLivewire(form) {
+    const action = form.dataset.proposalLivewireAction;
+    const component = action ? proposalPackageLivewireComponent(form) : null;
+
+    if (!action || !component || typeof component.$call !== 'function') return false;
+
+    const busyKey = action === 'prepare' ? 'proposalPreparing' : 'proposalSubmitting';
+
+    form.dataset[busyKey] = 'true';
+    form.setAttribute('aria-busy', 'true');
+
+    try {
+        await component.$call(action);
+    } finally {
+        if (document.contains(form)) {
+            delete form.dataset[busyKey];
+            form.removeAttribute('aria-busy');
+        }
+    }
+
+    return true;
+}
+
+async function showProposalPackageRequestFailure(action) {
+    await Swal.fire({
+        title: action === 'prepare' ? 'PDF preparation was interrupted' : 'Turn in was interrupted',
+        text: 'ATHENA could not complete the request. Your proposal remains available, so you can try again.',
+        icon: 'error',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#dc2626',
+        ...proposalDialogTheme(),
+    });
+}
+
+document.addEventListener('submit', async (event) => {
     const form = event.target instanceof HTMLFormElement ? event.target : null;
 
     if (!form?.matches('[data-proposal-package-prepare]')) return;
@@ -881,6 +933,14 @@ document.addEventListener('submit', (event) => {
     event.preventDefault();
 
     if (form.dataset.proposalPreparing === 'true') return;
+
+    try {
+        if (await submitProposalPackageWithLivewire(form)) return;
+    } catch {
+        await showProposalPackageRequestFailure('prepare');
+
+        return;
+    }
 
     showProposalPdfPreparationLoadingScreen(form);
     window.requestAnimationFrame(() => {
@@ -924,6 +984,14 @@ document.addEventListener('submit', async (event) => {
     });
 
     if (!isConfirmed) return;
+
+    try {
+        if (await submitProposalPackageWithLivewire(form)) return;
+    } catch {
+        await showProposalPackageRequestFailure('turnIn');
+
+        return;
+    }
 
     form.dataset.proposalConfirmAccepted = 'true';
 
@@ -4160,7 +4228,8 @@ Alpine.data('notificationMenu', (config) => ({
         if (item.read_at) return true;
 
         const response = await this.request(config.readUrl.replace('__ID__', item.id));
-        if (!response.ok) return false;
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.read === false) return false;
 
         item.read_at = new Date().toISOString();
         this.unreadCount = Math.max(0, this.unreadCount - 1);
@@ -4172,8 +4241,13 @@ Alpine.data('notificationMenu', (config) => ({
         const response = await this.request(config.readAllUrl);
         if (!response.ok) return;
 
-        this.notifications = this.notifications.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() }));
-        this.unreadCount = 0;
+        const payload = await response.json().catch(() => ({}));
+        const preservedIds = new Set(payload.preserved_ids || []);
+
+        this.notifications = this.notifications.map((item) => preservedIds.has(item.id)
+            ? item
+            : { ...item, read_at: item.read_at || new Date().toISOString() });
+        this.unreadCount = payload.unread_count ?? 0;
     },
 
     async acceptProposalInvitation(item) {
@@ -4230,9 +4304,16 @@ Alpine.data('notificationMenu', (config) => ({
             return;
         }
 
-        await this.markNotificationRead(item);
+        if (!this.requiresCompletedReview(item)) {
+            await this.markNotificationRead(item);
+        }
 
         if (item.data.url) window.location.assign(item.data.url);
+    },
+
+    requiresCompletedReview(item) {
+        return this.workspace === 'research_head'
+            && ['proposal_submissions', 'project_monitoring'].includes(item.data?.sidebar_area);
     },
 
     levelClass(level) {
@@ -5357,7 +5438,8 @@ Alpine.data('workPlanWizard', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.workPlanFormData(),
@@ -5379,8 +5461,11 @@ Alpine.data('workPlanWizard', (config = {}) => ({
 
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-            const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
+            const filename = filenameMatch?.[1] || (isEmbeddedRevisionEditor()
+                ? 'attachment-a-work-plan.pdf'
+                : 'attachment-a-work-plan.docx');
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
@@ -5445,7 +5530,10 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         this.entries = initialEntries.length > 0
             ? initialEntries.slice(0, this.maxEntries).map((entry) => this.newEntry(entry))
             : [this.newEntry()];
-        this.expandedEntryId = this.entries.at(-1)?.id ?? null;
+        const revisionEntryId = Number(String(config.revisionTarget || '').match(/^(?:objective|output|activity|work-plan-editor)-(\d+)$/)?.[1]);
+        this.expandedEntryId = this.entries.some((entry) => entry.id === revisionEntryId)
+            ? revisionEntryId
+            : (this.entries.at(-1)?.id ?? null);
         this.limitMonthsToDuration();
 
         this.$nextTick(() => this.startWorkPlanAutoSave());
@@ -5957,7 +6045,8 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.workPlanFormData(),
@@ -5976,8 +6065,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-            const filename = filenameMatch?.[1] || 'attachment-a-work-plan.docx';
+            const filename = filenameMatch?.[1] || (isEmbeddedRevisionEditor()
+                ? 'attachment-a-work-plan.pdf'
+                : 'attachment-a-work-plan.docx');
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
 
@@ -6543,7 +6635,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/json, application/pdf',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/json, application/pdf',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -6562,6 +6654,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'attachment-b-line-item-budget.pdf';
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -6613,7 +6706,10 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         this.items = initialItems.length > 0
             ? initialItems.map((item) => this.newItem(item))
             : [this.newItem()];
-        this.expandedItemId = this.items.at(-1)?.id ?? null;
+        const revisionItemId = Number(String(config.revisionTarget || '').match(/^expense-(?:category|account|sub-account|particulars|unit|quantity|unit-cost|details|purpose)-(\d+)$/)?.[1]);
+        this.expandedItemId = this.items.some((item) => item.id === revisionItemId)
+            ? revisionItemId
+            : (this.items.at(-1)?.id ?? null);
 
         this.$nextTick(() => this.startExpenseBreakdownAutoSave());
     },
@@ -7057,7 +7153,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/json, application/pdf',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/json, application/pdf',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -7076,6 +7172,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
             const filename = filenameMatch?.[1] || 'estimated-expense-breakdown.xlsx';
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -7540,7 +7637,8 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -7557,8 +7655,11 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             if (!response.ok) throw new Error('The Word file could not be generated. Please try again.');
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-            const filename = filenameMatch?.[1] || 'attachment-c-curriculum-vitae.docx';
+            const filename = filenameMatch?.[1] || (isEmbeddedRevisionEditor()
+                ? 'attachment-c-curriculum-vitae.pdf'
+                : 'attachment-c-curriculum-vitae.docx');
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -9035,16 +9136,14 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     detailedProposalFingerprint(form) {
-        return JSON.stringify([...new FormData(form).entries()]
-            .filter(([name]) => !['_token', '_method', 'document_version', 'draft_version', 'save_as_draft', 'change_note'].includes(name))
-            .map(([name, value]) => [name, value instanceof File
-                ? {
-                    name: value.name,
-                    size: value.size,
-                    type: value.type,
-                    lastModified: value.lastModified,
-                }
-                : value]));
+        return proposalPaperFormFingerprint(new FormData(form).entries(), [
+            '_token',
+            '_method',
+            'document_version',
+            'draft_version',
+            'save_as_draft',
+            'change_note',
+        ]);
     },
 
     detailedProposalAutoSaveStatus(message, state = 'idle') {
@@ -9786,7 +9885,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             const response = await fetch(config.downloadUrl, {
                 method: 'POST',
                 headers: {
-                    Accept: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    Accept: isEmbeddedRevisionEditor() ? 'application/json' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0',
                     'X-CSRF-TOKEN': config.csrfToken,
                 },
                 body: this.formData(),
@@ -9803,8 +9903,11 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             if (!response.ok) throw new Error('The exact Word file could not be generated. Please try again.');
             const disposition = response.headers.get('Content-Disposition') || '';
             const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-            const filename = filenameMatch?.[1] || 'detailed-research-proposal.docx';
+            const filename = filenameMatch?.[1] || (isEmbeddedRevisionEditor()
+                ? 'detailed-research-proposal.pdf'
+                : 'detailed-research-proposal.docx');
             const blob = await response.blob();
+            if (isEmbeddedRevisionEditor()) return await offerRevisionUpload(blob, filename, config);
             const downloadUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = downloadUrl;
@@ -9833,11 +9936,18 @@ registerPdfAnnotationWorkspace(Alpine);
 initializeAnnouncementImageUploads();
 initializeResearchCallCarousels();
 initializeResearchCallImageExtractors();
+initializeResearchCallPosterPreviews();
+initializeRevisionTargetFocus();
+initializeRevisionWorkspace(showProposalConfirmation);
 document.addEventListener('livewire:navigated', initializeAnnouncementImageUploads);
 document.addEventListener('livewire:navigated', initializeResearchCallCarousels);
 document.addEventListener('livewire:navigated', initializeResearchCallImageExtractors);
+document.addEventListener('livewire:navigated', initializeResearchCallPosterPreviews);
+document.addEventListener('livewire:navigated', initializeRevisionTargetFocus);
+document.addEventListener('livewire:navigated', () => initializeRevisionWorkspace(showProposalConfirmation));
 document.addEventListener('livewire:navigated', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeSemanticEditors);
+document.addEventListener('alpine:initialized', initializeRevisionTargetFocus);
 if (typeof window.livewireScriptConfig !== 'undefined') {
     Livewire.start();
 }

@@ -42,6 +42,7 @@
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('topics.show', $proposalDraft->topic_id).'#review-and-submit' : null),
             accountCatalog: @js(config('expense_breakdown.accounts')),
             budgetCeiling: @js($budgetCeiling),
+            revisionTarget: @js(request()->query('revision_target')),
         })"
     >
         @if (session('success'))
@@ -59,6 +60,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
+        <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $expenseBreakdownDocument?->lock_version ?? 0)"
@@ -76,7 +78,7 @@
             </div>
         @endunless
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
@@ -109,8 +111,8 @@
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">Expense items</h3>
-                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Choose an account and sub-account from the official workbook, then enter its expense details. Matching rows are grouped with the prescribed subtotals.</p>
-                        <p class="mt-2 text-[11px] text-gray-500"><span class="text-red-600" aria-hidden="true">*</span> Required field when completing this paper.</p>
+                        <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Use MOOE, Capital Outlay, or both. Only add expense items for categories that apply to your project; an unused category has a zero total. Remove any unused expense rows.</p>
+                        <p class="mt-2 text-[11px] text-gray-500"><span class="text-red-600" aria-hidden="true">*</span> Required for each entered expense item. At least one expense item overall is required to complete this paper, not one in each category.</p>
                     </div>
                     <button type="button" x-on:click="addItem(true)" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add expense item</button>
                 </div>

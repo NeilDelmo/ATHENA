@@ -65,9 +65,16 @@
         @endif
 
         @if (isset($readinessErrors['research_call']))
-            <div role="alert" class="border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm text-red-950 dark:bg-red-950/30 dark:text-red-100">
-                <p class="font-black">Submission is currently unavailable</p>
-                <p class="mt-1">{{ $readinessErrors['research_call'] }}</p>
+            <div role="alert" class="flex flex-col gap-4 border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm text-red-950 dark:bg-red-950/30 dark:text-red-100 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="font-black">Submission is currently unavailable</p>
+                    <p class="mt-1">{{ $readinessErrors['research_call'] }}</p>
+                </div>
+                @can('submit', $proposalDraft)
+                    <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" data-select-research-call class="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $proposalDraft->researchCall === null ? 'Choose research call' : 'Change research call' }}<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></a>
+                @else
+                    <p class="font-bold sm:max-w-xs sm:text-right">Only {{ $proposalDraft->owner->name }} can choose or change the research call.</p>
+                @endcan
             </div>
         @endif
 
@@ -463,7 +470,7 @@
                 @endif
 
                 <div class="space-y-6">
-                    @include('faculty.proposal-drafts._review-package', ['inModal' => true])
+                    <livewire:proposal-draft-review-package :proposal-draft="$proposalDraft" :in-modal="true" />
                 </div>
             </div>
         </div>

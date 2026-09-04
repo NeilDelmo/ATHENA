@@ -22,6 +22,9 @@ class CreateProposalRevisionDraft
     public function handle(TopicProposal $topic, User $user): ProposalDraft
     {
         return DB::transaction(function () use ($topic, $user): ProposalDraft {
+            $topic = TopicProposal::query()->whereKey($topic->getKey())->lockForUpdate()->firstOrFail();
+            abort_unless($topic->user_id === $user->id && $topic->status === 'revision_requested', 403);
+
             $existingDraft = ProposalDraft::query()
                 ->where('topic_id', $topic->getKey())
                 ->first();

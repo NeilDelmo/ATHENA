@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\LiteratureSource;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
@@ -833,6 +834,14 @@ test('detailed proposal autosave promotes complete content without duplicating u
     expect($document->completed_at)->not->toBeNull()
         ->and($document->lock_version)->toBe(1);
 
+    $document->update([
+        'file_path' => 'proposal-drafts/revision/detailed-proposal.docx',
+        'original_filename' => 'detailed-proposal.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 1024,
+        'checksum' => hash('sha256', 'detailed proposal'),
+    ]);
+
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [
             ...$payload,
@@ -840,6 +849,8 @@ test('detailed proposal autosave promotes complete content without duplicating u
         ])
         ->assertOk()
         ->assertJsonPath('document_version', 1);
+
+    expect($document->fresh()->file_path)->toBe('proposal-drafts/revision/detailed-proposal.docx');
 });
 
 test('detailed proposal autosave retains the literature assistant research trail', function () {
@@ -1306,6 +1317,36 @@ test('the generated Word file preserves every unrelated official package part an
             unlink($temporaryPath);
         }
     }
+});
+
+test('revision preparation converts the Detailed Research Proposal to PDF before staging', function () {
+    $pdfConverter = new class implements DocumentPdfConverter
+    {
+        public ?string $receivedDocx = null;
+
+        public function convertDocx(string $contents): string
+        {
+            $this->receivedDocx = $contents;
+
+            return "%PDF-1.7\nconverted detailed proposal";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $pdfConverter);
+
+    $this->actingAs($this->faculty)
+        ->withHeader('X-Revision-PDF', '1')
+        ->postJson(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), ($this->payload)())
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload('community-coastal-research-detailed-research-proposal.pdf')
+        ->assertStreamedContent("%PDF-1.7\nconverted detailed proposal");
+
+    expect($pdfConverter->receivedDocx)->toStartWith('PK');
 });
 
 test('data analysis is optional and omitted from both previews when blank', function () {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SyncTopicCollaborators;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
@@ -21,6 +22,7 @@ use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ProposalRevisionFileScope;
 use App\Support\WorkPlanData;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -198,8 +200,7 @@ class TopicController extends Controller
             ->pluck('id');
         $viewableSubmittedFileIds = $submittedFiles
             ->filter(fn (ProposalVersionFile $file): bool => $availableSubmittedFileIds->contains($file->id)
-                && ($file->mime_type === 'application/pdf'
-                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+                && $file->canPreviewAsPdf())
             ->pluck('id');
         $reviewDocuments = ($latestVersion?->files ?? collect())
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD);
@@ -218,8 +219,7 @@ class TopicController extends Controller
             ->pluck('id');
         $viewableReviewDocumentIds = $reviewDocuments
             ->filter(fn (ProposalVersionFile $file): bool => $availableReviewDocumentIds->contains($file->id)
-                && ($file->mime_type === 'application/pdf'
-                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+                && $file->canPreviewAsPdf())
             ->pluck('id');
         $previousProjectCost = $this->projectCostForVersion($previousVersion);
         $latestProjectCost = $this->projectCostForVersion($latestVersion);
@@ -331,9 +331,17 @@ class TopicController extends Controller
 
         try {
             $topic = DB::transaction(function () use ($versionData, $proposalTitle, $call, $packageFiles, $primaryFile) {
+                $currentCall = ResearchCall::query()->findOrFail($call->id);
+
+                if (! $currentCall->isAcceptingSubmissions()) {
+                    throw ValidationException::withMessages([
+                        'research_call_id' => 'The research call submission window has closed. The proposal was not sent.',
+                    ]);
+                }
+
                 $topic = Auth::user()->proposals()->create([
                     'title' => $proposalTitle,
-                    'research_call_id' => $call->id,
+                    'research_call_id' => $currentCall->id,
                     'status' => 'pending',
                 ]);
 
@@ -374,6 +382,7 @@ class TopicController extends Controller
         Request $request,
         TopicProposal $topic,
         ProposalPackageService $packageService,
+        ProposalRevisionFileScope $revisionFileScope,
         SyncTopicCollaborators $syncTopicCollaborators,
     ) {
         abort_unless($topic->user_id === $request->user()->id, 403);
@@ -394,6 +403,10 @@ class TopicController extends Controller
             'estimated_budget' => ['required', 'numeric', 'min:0', 'max:'.$maximumBudget],
             'estimated_duration_months' => 'required|integer|min:1|max:120',
             'change_summary' => 'nullable|string|max:2000',
+            'revision_resolutions' => 'nullable|array',
+            'revision_resolutions.*' => 'array',
+            'revision_resolutions.*.action' => 'nullable|in:no_change',
+            'revision_resolutions.*.explanation' => 'nullable|string|max:1000',
             'detailed_proposal' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
             'document' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
             'work_plan' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
@@ -427,22 +440,25 @@ class TopicController extends Controller
             ->whereHas('review', fn ($query) => $query->where('topic_id', $topic->id))
             ->get();
         $requiredDocumentTypes = $pendingFileRevisions->pluck('document_type')->unique();
-        $revisionErrors = collect([
-            ProposalVersionFile::TYPE_DETAILED_PROPOSAL => ['input' => 'detailed_proposal', 'provided' => $request->hasFile('detailed_proposal') || $request->hasFile('document') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_DETAILED_PROPOSAL), 'message' => 'Upload a revised detailed proposal as requested by the Research Head.'],
-            ProposalVersionFile::TYPE_WORK_PLAN => ['input' => 'work_plan', 'provided' => $request->hasFile('work_plan') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_WORK_PLAN), 'message' => 'Upload a revised work plan as requested by the Research Head.'],
-            ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['input' => 'line_item_budget', 'provided' => $request->hasFile('line_item_budget') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_LINE_ITEM_BUDGET), 'message' => 'Upload a revised line-item budget as requested by the Research Head.'],
-            ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN => ['input' => 'expense_breakdown', 'provided' => $request->hasFile('expense_breakdown') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN), 'message' => 'Upload a revised expense breakdown as requested by the Research Head.'],
-            ProposalVersionFile::TYPE_CURRICULUM_VITAE => ['input' => 'curricula_vitae', 'provided' => $request->hasFile('curricula_vitae') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_CURRICULUM_VITAE), 'message' => 'Upload the revised curriculum vitae file(s) requested by the Research Head.'],
-            ProposalVersionFile::TYPE_GAD_CHECKLIST => ['input' => 'gad_checklist', 'provided' => $request->hasFile('gad_checklist') || $stagedRevisionFiles->has(ProposalVersionFile::TYPE_GAD_CHECKLIST), 'message' => 'Upload the revised GAD checklist requested by the Research Head.'],
-        ])->only($requiredDocumentTypes->all())
-            ->reject(fn (array $requirement) => $requirement['provided'])
-            ->mapWithKeys(fn (array $requirement) => [$requirement['input'] => $requirement['message']])
-            ->all();
+        $unexpectedRevisionErrors = $revisionFileScope->unexpectedUploadErrors($request, $requiredDocumentTypes);
 
-        if ($revisionErrors !== []) {
-            return back()->withInput()->withErrors($revisionErrors, 'resubmission');
+        if ($unexpectedRevisionErrors !== []) {
+            return back()->withInput()->withErrors($unexpectedRevisionErrors, 'resubmission');
         }
 
+        $stagedRevisionFiles = $revisionFileScope->requestedStagedFiles($stagedRevisionFiles, $requiredDocumentTypes);
+        $resolutionErrors = $revisionFileScope->unresolvedErrors(
+            $request,
+            $pendingFileRevisions,
+            $stagedRevisionFiles,
+        );
+
+        if ($resolutionErrors !== []) {
+            return back()->withInput()->withErrors($resolutionErrors, 'resubmission');
+        }
+
+        $noChangeResponses = $revisionFileScope->noChangeResponses($request, $requiredDocumentTypes);
+        $stagedRevisionFiles = $stagedRevisionFiles->except($noChangeResponses->keys()->all());
         $permanentDirectory = 'proposal-packages/'.$request->user()->id.'/'.Str::uuid();
         $replacementFiles = [];
 
@@ -468,10 +484,20 @@ class TopicController extends Controller
                 ->withErrors(['detailed_proposal' => 'The revised proposal package could not be uploaded. Please try again.'], 'resubmission');
         }
 
+        $unchangedReplacementErrors = $revisionFileScope->unchangedReplacementErrors(
+            $pendingFileRevisions,
+            $replacementFiles,
+        );
+        if ($unchangedReplacementErrors !== []) {
+            $packageService->deleteStored($replacementFiles);
+
+            return back()->withInput()->withErrors($unchangedReplacementErrors, 'resubmission');
+        }
+
         $result = ['updated' => false];
 
         try {
-            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, &$result) {
+            DB::transaction(function () use ($request, $topic, $validated, $replacementFiles, $packageService, $revisionDraft, $syncTopicCollaborators, $noChangeResponses, &$result) {
                 $revisedTopic = TopicProposal::query()
                     ->whereKey($topic->getKey())
                     ->lockForUpdate()
@@ -512,20 +538,26 @@ class TopicController extends Controller
                     ->get();
 
                 foreach ($pendingRevisions as $pendingRevision) {
-                    $replacementCandidates = $newVersionFiles
+                    $noChangeResponse = $noChangeResponses->get($pendingRevision->document_type);
+                    $resolutionCandidates = $newVersionFiles
                         ->where('document_type', $pendingRevision->document_type)
-                        ->where('is_carried_forward', false);
-                    $resolutionFile = $replacementCandidates->firstWhere('position', $pendingRevision->file?->position)
-                        ?: $replacementCandidates->first();
+                        ->when(
+                            $noChangeResponse === null,
+                            fn ($files) => $files->where('is_carried_forward', false),
+                        );
+                    $resolutionFile = $resolutionCandidates->firstWhere('position', $pendingRevision->file?->position)
+                        ?: $resolutionCandidates->first();
 
                     if (! $resolutionFile) {
                         throw ValidationException::withMessages([
-                            'document' => 'Every file marked for revision must be replaced before resubmission.',
+                            'document' => 'Every requested file must be revised or resolved with an explanation before resubmission.',
                         ]);
                     }
 
                     $pendingRevision->update([
                         'resolved_by_version_file_id' => $resolutionFile->id,
+                        'resolution_type' => $noChangeResponse === null ? 'file_revised' : 'no_file_change',
+                        'faculty_response' => $noChangeResponse,
                         'resolved_at' => now(),
                     ]);
                 }
@@ -570,7 +602,9 @@ class TopicController extends Controller
 
         $redirectRoute = ($validated['redirect_to'] ?? null) === 'topic' ? 'topics.show' : 'faculty.dashboard';
 
-        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])->with('success', 'Revised proposal submitted for another review.');
+        return redirect()->route($redirectRoute, $redirectRoute === 'topics.show' ? $topic : [])
+            ->with('success', 'Revised proposal submitted for another review.')
+            ->with('revision_submitted', true);
     }
 
     public function download(TopicProposal $topic)
@@ -614,17 +648,39 @@ class TopicController extends Controller
         TopicProposal $topic,
         ProposalVersion $version,
         ProposalVersionFile $file,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         $this->ensureCanViewTopic($request, $topic);
         abort_unless($version->topic_id === $topic->id, 404);
         abort_unless($file->proposal_version_id === $version->id, 404);
         $this->ensureCanAccessVersionFile($request, $topic, $file);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
-        abort_unless(
-            $file->mime_type === 'application/pdf'
-                || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf',
-            415,
-        );
+        abort_unless($file->canPreviewAsPdf(), 415);
+
+        if (! $file->isPdf()) {
+            $pdfContents = $pdfConverter->convertDocx(Storage::disk('local')->get($file->file_path));
+            $filenameStem = pathinfo($file->original_filename, PATHINFO_FILENAME);
+            $pdfFilename = $filenameStem.'.pdf';
+            $fallbackFilename = (Str::slug($filenameStem) ?: 'proposal-file-'.$file->id).'.pdf';
+            $response = response()->stream(
+                static function () use ($pdfContents): void {
+                    echo $pdfContents;
+                },
+                200,
+                [
+                    'Content-Type' => 'application/pdf',
+                    'Content-Length' => (string) strlen($pdfContents),
+                    'X-Content-Type-Options' => 'nosniff',
+                ],
+            );
+            $response->headers->set('Content-Disposition', $response->headers->makeDisposition(
+                'inline',
+                $pdfFilename,
+                $fallbackFilename,
+            ));
+
+            return $response;
+        }
 
         return Storage::disk('local')->response(
             $file->file_path,
@@ -846,8 +902,7 @@ class TopicController extends Controller
             ->pluck('id');
         $viewableFileIds = $workspaceFiles
             ->filter(fn (ProposalVersionFile $file): bool => $availableFileIds->contains($file->id)
-                && ($file->mime_type === 'application/pdf'
-                    || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf'))
+                && $file->canPreviewAsPdf())
             ->pluck('id');
         $requiredSignatureFiles = $latestVersion
             ? $this->signatureWorkflow->requiredFiles($latestVersion)
@@ -920,19 +975,20 @@ class TopicController extends Controller
 
     private function revisionDraftForResubmission(Request $request, TopicProposal $topic): ?ProposalDraft
     {
-        $revisionDraftId = $request->integer('revision_draft_id');
+        $revisionDraft = $topic->revisionDraft()
+            ->with('documents')
+            ->first();
 
-        if ($revisionDraftId === 0) {
+        if (! $revisionDraft) {
             return null;
         }
 
-        $revisionDraft = ProposalDraft::query()
-            ->with('documents')
-            ->findOrFail($revisionDraftId);
+        $submittedDraftId = $request->integer('revision_draft_id');
 
         abort_unless(
             $revisionDraft->user_id === $request->user()->id
-                && $revisionDraft->topic_id === $topic->id,
+                && $revisionDraft->topic_id === $topic->id
+                && ($submittedDraftId === 0 || $submittedDraftId === $revisionDraft->id),
             403,
         );
 

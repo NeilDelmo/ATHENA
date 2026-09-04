@@ -1,11 +1,13 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -63,24 +65,46 @@ beforeEach(function () {
         'mime_type' => 'application/pdf',
         'file_size' => 1024,
         'checksum' => str_repeat('b', 64),
+        'source_data' => [
+            'entries' => [[
+                'objective' => 'Restore mangrove plots',
+                'expected_output' => 'Mapped and replanted plots',
+                'activity' => 'Quarterly planting and monitoring',
+                'months' => [1, 4, 7, 10],
+            ]],
+        ],
         'is_carried_forward' => false,
     ]);
 });
 
 test('research head can annotate an exact turned-in PDF while draft comments stay private', function () {
     $this->actingAs($this->head)
-        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]).'?decision=revision_requested')
         ->assertOk()
-        ->assertSee('Annotation mode')
+        ->assertSee('Return to review')
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
+        ->assertDontSee('Annotation mode')
+        ->assertDontSee('Back to proposal workspace')
         ->assertSee('Select text')
         ->assertSee('Precise area')
         ->assertSee('Recommended')
         ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
         ->assertSee('Use exact selection')
         ->assertSee('What should the faculty revise?')
-        ->assertSee('Remove highlight')
+        ->assertSee('Where should the faculty make this change?')
+        ->assertSee('Restore mangrove plots', false)
+        ->assertSee('No matching field — open the paper only')
+        ->assertSee('Comments')
+        ->assertSee('Ready to send')
+        ->assertSee('data-remove-annotation', false)
+        ->assertDontSee('Revision comments')
+        ->assertDontSee('highlight(s) on this file')
+        ->assertDontSee('Highlights saved')
+        ->assertDontSee('paper(s)')
+        ->assertDontSee('comment(s)')
+        ->assertDontSee('Remove highlight')
         ->assertSee('data-annotation-tools-guide', false)
-        ->assertSee(route('topics.show', $this->topic).'#file-review-card-'.$this->file->id, false)
+        ->assertSee(route('topics.show', $this->topic).'?decision=revision_requested#file-review-card-'.$this->file->id, false)
         ->assertSee('Return to file checklist')
         ->assertSee('Expand paper')
         ->assertSee('Focused PDF review workspace')
@@ -100,17 +124,21 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
                 'height' => 0.03,
             ]],
             'comment' => 'State the sample size and selection criteria.',
+            'editor_target' => 'objective-1',
         ],
     );
 
     $response->assertCreated()
         ->assertJsonPath('pageNumber', 2)
+        ->assertJsonPath('editorTarget', 'objective-1')
+        ->assertJsonPath('editorTargetLabel', 'Restore mangrove plots — objective')
         ->assertJsonPath('state', 'draft');
 
     $annotation = ProposalFileAnnotation::sole();
     expect($annotation->proposal_version_file_id)->toBe($this->file->id)
         ->and($annotation->reviewer_id)->toBe($this->head->id)
         ->and($annotation->rectangles[0]['x'])->toEqual(0.15)
+        ->and($annotation->editor_target)->toBe('objective-1')
         ->and($annotation->comment)->toBe('State the sample size and selection criteria.');
 
     $this->actingAs($this->head)
@@ -121,6 +149,98 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
     $this->actingAs($this->faculty)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertNotFound();
+});
+
+test('research head can annotate a submitted DOCX through its PDF preview', function () {
+    Storage::disk('local')->delete($this->file->file_path);
+    Storage::disk('local')->put('proposal-packages/work-plan.docx', 'submitted work plan');
+    $this->file->update([
+        'file_path' => 'proposal-packages/work-plan.docx',
+        'original_filename' => 'work-plan.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 19,
+        'checksum' => hash('sha256', 'submitted work plan'),
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()
+        ->assertViewHas('annotationConfiguration', fn (array $configuration): bool => $configuration['pdfUrl'] === route(
+            'topics.versions.files.view',
+            [$this->topic, $this->version, $this->file],
+        ));
+
+    $this->actingAs($this->head)
+        ->postJson(route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]), [
+            'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+            'page_number' => 1,
+            'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+            'comment' => 'Clarify this revised activity.',
+            'editor_target' => 'activity-1',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('editorTarget', 'activity-1');
+});
+
+test('revision targets must belong to the annotated paper', function (string $target) {
+    $this->actingAs($this->head)->postJson(
+        route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]),
+        [
+            'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+            'page_number' => 1,
+            'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+            'comment' => 'Update this field.',
+            'editor_target' => $target,
+        ],
+    )->assertUnprocessable()->assertJsonValidationErrors('editor_target');
+
+    expect($this->file->annotations()->count())->toBe(0);
+})->with(['rationale', 'activity-99', 'input[name="secret"]']);
+
+test('unsent annotations cannot open a revision editor', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Private draft comment.',
+        'editor_target' => 'activity-1',
+    ]);
+
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic,
+        'annotation' => $annotation->id,
+    ]))->assertNotFound();
+    expect(ProposalDraft::query()->where('topic_id', $this->topic->id)->exists())->toBeFalse();
+});
+
+test('revision field choices omit hidden controls and tolerate missing rows', function () {
+    $catalog = app(ProposalRevisionTargetCatalog::class);
+    $budget = new ProposalVersionFile([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'source_data' => ['staff' => null, 'custom_mooe_items' => '', 'mooe_total_override' => 0],
+    ]);
+    $targets = array_column($catalog->forFile($budget), 'value');
+    expect($targets)->toContain('mooe-total-override')->not->toContain('co-total-override', 'project-total-override');
+
+    $expenses = new ProposalVersionFile([
+        'document_type' => ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN,
+        'source_data' => ['items' => [['category' => 'mooe', 'account' => 'Contingency']]],
+    ]);
+    $targets = array_column($catalog->forFile($expenses), 'value');
+    expect($targets)->toContain('expense-purpose-1', 'expense-unit-cost-1')
+        ->not->toContain('expense-quantity-1', 'expense-details-1', 'expense-particulars-1');
+});
+
+test('revision field links fall back safely when repeated rows change', function () {
+    $catalog = app(ProposalRevisionTargetCatalog::class);
+    $source = $this->file->source_data;
+    $source['entries'][0]['activity'] = 'The corrected activity';
+    expect($catalog->targetForDraft($this->file, 'activity-1', $source))->toBe('activity-1');
+    $source['entries'][] = $source['entries'][0];
+    expect($catalog->targetForDraft($this->file, 'activity-1', $source))->toBeNull()
+        ->and($catalog->targetForDraft($this->file, 'work-plan-objectives-heading', $source))->toBe('work-plan-objectives-heading');
 });
 
 test('research head can remove an unsent highlight', function () {
@@ -150,7 +270,9 @@ test('research head can draft highlights while a legacy review is in progress', 
     $this->actingAs($this->head)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertOk()
-        ->assertSee('Annotation mode')
+        ->assertSee('Return to review')
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
+        ->assertDontSee('Annotation mode')
         ->assertSee('Your highlights and comments are saved as drafts')
         ->assertSee('Select text')
         ->assertSee('Precise area')
@@ -249,6 +371,7 @@ test('sending a revision request publishes highlights for the faculty', function
         'page_number' => 1,
         'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
         'comment' => 'Replace this table with the corrected quarterly schedule.',
+        'editor_target' => 'activity-1',
     ]);
 
     $this->actingAs($this->head)
@@ -272,20 +395,62 @@ test('sending a revision request publishes highlights for the faculty', function
     $this->actingAs($this->faculty)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertOk()
-        ->assertSee('Read-only annotations')
+        ->assertDontSee('Read-only annotations')
         ->assertSee('Replace this table with the corrected quarterly schedule.')
+        ->assertSee('Restore mangrove plots', false)
+        ->assertSee('annotation.editorTargetLabel', false)
         ->assertSee('Revise Attachment A: Work Plan')
-        ->assertSee(route('faculty.proposal-drafts.revision', [
+        ->assertSee(route('topics.show', $this->topic).'#submit-revision', false);
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Revisions requested')
+        ->assertDontSee('Focus this field')
+        ->assertSee('data-revision-pdf-frame', false)
+        ->assertSee('data-annotation-id="'.$annotation->id.'"', false);
+
+    $targetedResponse = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.revision', [
             'topic' => $this->topic,
             'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
-        ]), false);
+            'annotation' => $annotation,
+        ]));
+    $revisionDraft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+    $targetedResponse->assertRedirect(route('faculty.proposal-drafts.work-plan.edit', [
+        'proposalDraft' => $revisionDraft,
+        'revision_target' => 'activity-1',
+        'revision_annotation' => $annotation->id,
+    ]));
+
+    $this->get($targetedResponse->headers->get('Location'))
+        ->assertOk()
+        ->assertSee('data-revision-target="activity-1"', false)
+        ->assertSee('Replace this table with the corrected quarterly schedule.')
+        ->assertSee('Research Head comment')
+        ->assertSee('This comment stays visible while you edit the highlighted field below.')
+        ->assertSee('data-revision-context-help', false)
+        ->assertSee('All revision tasks');
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', [
+        'proposalDraft' => $revisionDraft,
+        'revision_annotation' => $annotation->id,
+    ]))->assertOk()->assertDontSee('data-revision-context', false);
+
+    $fileRevision->update(['resolved_at' => now()]);
+    $this->get($targetedResponse->headers->get('Location'))
+        ->assertOk()->assertDontSee('data-revision-context', false);
+    $this->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic,
+        'annotation' => $annotation->id,
+    ]))->assertNotFound();
+    $fileRevision->update(['resolved_at' => null]);
 
     $response = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.revision', [
             'topic' => $this->topic,
             'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
         ]));
-    $revisionDraft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
     $response->assertRedirect(route('faculty.proposal-drafts.work-plan.edit', $revisionDraft));
 
     $this->actingAs($this->faculty)
@@ -323,21 +488,32 @@ test('the revision notification deep-links the faculty to the first highlighted 
         ])
         ->assertRedirect(route('topics.show', $this->topic));
 
-    $expectedUrl = route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file])
-        .'?annotation='.$firstAnnotation->id
-        .'#proposal-review';
+    $expectedUrl = route('topics.show', ['topic' => $this->topic, 'revision_annotation' => $firstAnnotation->id])
+        .'#submit-revision';
 
     expect($this->faculty->notifications()->sole()->data['url'])->toBe($expectedUrl);
 
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('annotation='.$firstAnnotation->id, false)
-        ->assertSee('View highlighted comments (2)', false);
+        ->assertSee('data-annotation-id="'.$firstAnnotation->id.'"', false)
+        ->assertSee('Revisions requested')
+        ->assertSee('data-revision-pdf-frame', false)
+        ->assertDontSee('Focus editor');
 });
 
 test('a downloaded generated paper is staged in its matching revision attachment', function () {
     $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+    ]);
+    $review->fileRevisions()->create([
+        'proposal_version_file_id' => $this->file->id,
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'original_filename' => $this->file->original_filename,
+        'revision_note' => 'Correct the work plan.',
+    ]);
     Storage::disk('local')->put('proposal-packages/coastal-habitat.pdf', '%PDF-1.4 primary');
 
     $this->actingAs($this->faculty)
@@ -371,10 +547,15 @@ test('a downloaded generated paper is staged in its matching revision attachment
         ->and($stagedFile->file_path)->not->toBeNull();
     Storage::disk('local')->assertExists($stagedFile->file_path);
 
-    $this->actingAs($this->faculty)
+    $response = $this->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Automatically uploaded: coastal-work-plan.docx');
+        ->assertSee('Replacement ready')
+        ->assertSee('coastal-work-plan.docx');
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//article[@data-revision-document="work_plan"]//input[@name="work_plan"][not(@required)]')->length)->toBe(1);
 
     $this->actingAs($this->faculty)
         ->patch(route('faculty.topics.resubmit', $this->topic), [
@@ -391,4 +572,319 @@ test('a downloaded generated paper is staged in its matching revision attachment
     expect($this->topic->collaborators()->sole()->user_id)->toBe($revisionCollaborator->id);
     expect($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->original_filename)
         ->toBe('coastal-work-plan.docx');
+});
+
+test('faculty revision cards keep requested feedback and replacement inputs together', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+        'comment' => 'Correct the schedule before submitting.',
+    ]);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $this->file->id,
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'original_filename' => $this->file->original_filename,
+        'revision_note' => 'Move planting to the wet season.',
+    ]);
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'topic_review_file_revision_id' => $revision->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Start planting in June.',
+    ]);
+
+    $response = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Revisions requested')
+        ->assertSee('Update 1 file and submit it for another review.')
+        ->assertSee('data-revision-dialog', false)
+        ->assertDontSee('Faculty action required')
+        ->assertDontSee('What happens next')
+        ->assertDontSee('Requested revision tasks')
+        ->assertDontSee('Paper-level feedback')
+        ->assertSee('Revision in progress')
+        ->assertSee('Working draft')
+        ->assertSee('including added images')
+        ->assertSee('Latest submitted')
+        ->assertSee('The current revision is still a working draft.')
+        ->assertSee('Submitted version comparison')
+        ->assertSee('It does not inspect document content')
+        ->assertSeeInOrder(['Revisions requested', 'Start planting in June.', 'Summary of changes', 'Decision history'])
+        ->assertDontSee('Replace another file');
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    $card = '//form[@id="submit-revision"]//article[@data-revision-document="work_plan"]';
+
+    expect($xpath->query($card)->length)->toBe(1)
+        ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(1)
+        ->and($xpath->query($card.'//select[@data-revision-comment]/option[@data-annotation-id="'.$annotation->id.'"]')->length)->toBe(1)
+        ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][contains(@src, "revision_embed=1")]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]/following-sibling::section[contains(@class, "revision-editor-panel")]//iframe[@data-revision-editor-frame]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]//iframe[@data-revision-pdf-frame]')->length)->toBe(1)
+        ->and($xpath->query($card.'//a[contains(@href, "proposal-drafts")]')->length)->toBe(0)
+        ->and($xpath->query($card.'//button[@data-revision-open]')->length)->toBe(1)
+        ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
+        ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
+        ->and($xpath->query('//details[@data-revision-proposal-details][not(@open)]')->length)->toBe(1)
+        ->and($xpath->query('//details[summary//h3[contains(., "Decision history")]][not(@open)]')->length)->toBe(1)
+        ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
+
+    $this->actingAs($this->head)->get(route('topics.show', $this->topic))
+        ->assertOk()->assertDontSee('id="submit-revision"', false);
+});
+
+test('a successful revision return shows a clear server-confirmed receipt', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+
+    $this->actingAs($this->faculty)
+        ->patch(route('faculty.topics.resubmit', $this->topic), [
+            'title' => $this->topic->title,
+            'estimated_budget' => 50000,
+            'estimated_duration_months' => 12,
+            'redirect_to' => 'topic',
+        ])
+        ->assertRedirect(route('topics.show', $this->topic))
+        ->assertSessionHas('revision_submitted', true)
+        ->assertSessionHas('success', 'Revised proposal submitted for another review.');
+
+    expect($this->topic->fresh()->status)->toBe('resubmitted');
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Revision sent successfully')
+        ->assertSee('It is now waiting for the Research Head’s review.')
+        ->assertSee('data-revision-submission-success', false);
+});
+
+test('multiple requested curriculum vitae share one replacement input', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+    ]);
+    foreach ([0, 1] as $position) {
+        $file = $this->version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+            'position' => $position,
+            'file_path' => 'proposal-packages/cv-'.$position.'.pdf',
+            'original_filename' => 'cv-'.$position.'.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+        ]);
+        $review->fileRevisions()->create([
+            'proposal_version_file_id' => $file->id,
+            'document_type' => $file->document_type,
+            'original_filename' => $file->original_filename,
+            'revision_note' => 'Update researcher '.$position.' qualifications.',
+        ]);
+    }
+    $response = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
+        ->assertOk()->assertSee('Update researcher 0 qualifications.')->assertSee('Update researcher 1 qualifications.');
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//article[@data-revision-document="curriculum_vitae"]')->length)->toBe(1)
+        ->and($xpath->query('//form[@id="submit-revision"]//input[@name="curricula_vitae[]"][@multiple][@required]')->length)->toBe(1)
+        ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0);
+});
+
+test('revision validation opens invalid metadata and rejects unrequested files', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $this->actingAs($this->faculty)
+        ->from(route('topics.show', $this->topic))
+        ->patch(route('faculty.topics.resubmit', $this->topic), [
+            'title' => $this->topic->title,
+            'estimated_budget' => -1,
+            'estimated_duration_months' => 12,
+            'curricula_vitae' => [UploadedFile::fake()->create('invalid.txt', 1, 'text/plain')],
+        ])->assertSessionHasErrorsIn('resubmission', ['estimated_budget', 'curricula_vitae.0']);
+
+    $response = $this->withCookie(config('session.cookie'), session()->getId())
+        ->get(route('topics.show', $this->topic))->assertOk();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//details[@data-revision-proposal-details][@open]')->length)->toBe(1)
+        ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
+        ->and($xpath->query('//input[@name="estimated_budget"][@value="-1"]')->length)->toBe(1)
+        ->and($response->getContent())->not->toContain('Replace another file');
+});
+
+test('revision editors open inside the feedback page with no application navigation', function (string $documentType, string $slug) {
+    $this->topic->update(['status' => 'revision_requested']);
+    $response = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic,
+        'document_type' => $documentType,
+        'revision_embed' => 1,
+    ]))->assertRedirect();
+
+    $draft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+    $url = route('faculty.proposal-drafts.'.$slug.'.edit', [$draft, 'revision_embed' => 1]);
+    $response->assertRedirect($url);
+    $page = $this->get($url)->assertOk()
+        ->assertViewIs('faculty.proposal-drafts.'.$slug.'.edit')
+        ->assertSee('data-revision-embedded', false)
+        ->assertSee('data-paper-form', false)
+        ->assertSee('data-revision-editor-context', false)
+        ->assertSee('data-original-source', false)
+        ->assertDontSee('data-app-shell', false)
+        ->assertDontSee('Exit editor');
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($page->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//nav')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-revision-editor-context][@data-topic-id="'.$this->topic->id.'"]')->length)->toBe(1);
+
+    $originalPage = $this->get(route('faculty.proposal-drafts.'.$slug.'.edit', $draft))
+        ->assertOk()->assertViewIs('faculty.proposal-drafts.'.$slug.'.edit');
+    $originalDom = new DOMDocument;
+    @$originalDom->loadHTML($originalPage->getContent());
+    $originalXpath = new DOMXPath($originalDom);
+    $fontSelector = '//head/link[@rel="stylesheet"][contains(@href, "fonts.bunny.net")]';
+    expect($xpath->query($fontSelector)->length)->toBe(1)
+        ->and($xpath->query($fontSelector)->item(0)->getAttribute('href'))
+        ->toBe($originalXpath->query($fontSelector)->item(0)->getAttribute('href'));
+
+    $fieldStyles = function (DOMXPath $document): array {
+        $fields = [];
+        foreach ($document->query('//form[@data-paper-form]//*[self::input or self::textarea or self::select or self::label]') as $field) {
+            $fields[] = [$field->nodeName, $field->getAttribute('name'), $field->getAttribute('id'), $field->getAttribute('class')];
+        }
+
+        return $fields;
+    };
+    expect($fieldStyles($xpath))->not->toBeEmpty()->toBe($fieldStyles($originalXpath));
+
+    $this->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic, 'document_type' => $documentType, 'revision_embed' => 1,
+    ]))->assertRedirect($url);
+    expect(ProposalDraft::query()->where('topic_id', $this->topic->id)->count())->toBe(1);
+    $this->actingAs($this->head)->get($url)->assertForbidden();
+})->with([
+    ['work_plan', 'work-plan'],
+    ['detailed_proposal', 'detailed-proposal'],
+    ['line_item_budget', 'line-item-budget'],
+    ['expense_breakdown', 'expense-breakdown'],
+    ['curriculum_vitae', 'curriculum-vitae'],
+]);
+
+test('embedded editors expose only current published feedback and preserve the revision lock', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id, 'decision' => 'revision_requested',
+    ]);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $this->file->id,
+        'document_type' => 'work_plan',
+        'original_filename' => $this->file->original_filename,
+    ]);
+    $published = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'topic_review_file_revision_id' => $revision->id,
+        'annotation_type' => 'area', 'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'editor_target' => 'activity-1',
+        'comment' => 'Move fieldwork to the wet season.',
+    ]);
+    $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => 'area', 'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Unpublished private note.',
+    ]);
+    $response = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic, 'document_type' => 'work_plan', 'revision_embed' => 1,
+    ]))->assertRedirect();
+    $this->get($response->headers->get('Location'))->assertOk()
+        ->assertSee('Move fieldwork to the wet season.')
+        ->assertSee('activity-1')
+        ->assertDontSee('Unpublished private note.');
+
+    $this->get(route('topics.versions.files.annotations.index', [
+        $this->topic, $this->version, $this->file,
+        'revision_embed' => 1, 'annotation' => $published->id,
+    ]))->assertOk()->assertDontSee('data-app-shell', false)->assertViewHas('annotationConfiguration', fn ($config) => $config['revisionUrl'] === null);
+
+    $draft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
+    $document = $draft->documents()->where('document_type', 'work_plan')->sole();
+    $entries = $this->file->source_data['entries'];
+    $entries[0]['activity'] = 'Wet season planting and monitoring';
+    $saved = $this->putJson(route('faculty.proposal-drafts.work-plan.update', $draft), [
+        'document_version' => $document->lock_version,
+        'entries' => $entries,
+    ])->assertOk();
+
+    $this->postJson(route('faculty.proposal-drafts.revision-files.store', $draft), [
+        'document_type' => 'work_plan',
+        'document_version' => $document->lock_version,
+        'file' => UploadedFile::fake()->create('outdated.docx', 50),
+    ])->assertUnprocessable()->assertJsonValidationErrors('document_version');
+
+    $pdfConverter = new class implements DocumentPdfConverter
+    {
+        public ?string $receivedDocx = null;
+
+        public function convertDocx(string $contents): string
+        {
+            $this->receivedDocx = $contents;
+
+            return "%PDF-1.7\nconverted revision work plan";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $pdfConverter);
+
+    $download = $this->withHeader('X-Revision-PDF', '1')
+        ->postJson(route('faculty.proposal-drafts.work-plan.download', $draft), [
+            'entries' => $entries,
+        ])
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload('coastal-habitat-restoration-work-plan.pdf');
+
+    $this->postJson(route('faculty.proposal-drafts.revision-files.store', $draft), [
+        'document_type' => 'work_plan',
+        'document_version' => $saved->json('document_version'),
+        'file' => UploadedFile::fake()->createWithContent('coastal-habitat-restoration-work-plan.pdf', $download->streamedContent()),
+    ])->assertOk()->assertJsonPath('draft_id', $draft->id)->assertJsonPath('document_type', 'work_plan');
+
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and($revision->fresh()->resolved_at)->toBeNull()
+        ->and($draft->fresh()->documents()->where('document_type', 'work_plan')->sole()->source_data['entries'][0]['activity'])->toBe('Wet season planting and monitoring');
+
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested',
+        'revision_file_ids' => [$this->file->id],
+    ])->assertSessionHasErrors('status');
+    expect($this->topic->reviews()->count())->toBe(1);
+
+    Storage::disk('local')->put('proposal-packages/coastal-habitat.pdf', '%PDF-1.4 primary');
+    $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $this->topic), [
+        'revision_draft_id' => $draft->id,
+        'title' => $this->topic->title,
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 12,
+        'redirect_to' => 'topic',
+    ])->assertRedirect(route('topics.show', $this->topic));
+
+    $revisedFile = $this->topic->fresh()->latestVersion->files->firstWhere('document_type', 'work_plan');
+    expect($this->topic->fresh()->status)->toBe('resubmitted')
+        ->and($revision->fresh()->resolved_at)->not->toBeNull()
+        ->and($revisedFile->source_data['entries'][0]['activity'])->toBe('Wet season planting and monitoring')
+        ->and($revisedFile->original_filename)->toBe('coastal-habitat-restoration-work-plan.pdf')
+        ->and($revisedFile->mime_type)->toBe('application/pdf')
+        ->and(Storage::disk('local')->get($revisedFile->file_path))->toBe("%PDF-1.7\nconverted revision work plan")
+        ->and($pdfConverter->receivedDocx)->toStartWith('PK');
 });

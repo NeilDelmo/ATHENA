@@ -52,7 +52,7 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->toContain("title: 'Join proposal workspace?'")
         ->toContain("confirmButtonText: 'Accept invitation'")
         ->toContain("title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You are now a collaborator'")
-        ->toContain('text: `You can now access the current draft')
+        ->toContain('text: payload.workload_warning || `You can now access the current draft')
         ->toContain("confirmButtonText: 'Open draft'")
         ->toContain("form?.matches('[data-proposal-confirm]')")
         ->toContain("document.querySelectorAll('[data-proposal-alert]')")
@@ -83,7 +83,7 @@ test('turning in a proposal shows a blocking progress screen after confirmation'
 
     expect($reviewPackage)
         ->toContain('data-proposal-package-submit')
-        ->toContain('<x-proposal-submission-loading-screen />')
+        ->toContain('<x-proposal-submission-loading-screen livewire-target="turnIn" />')
         ->and($loadingScreen)
         ->toContain('data-proposal-submission-loading')
         ->toContain('hidden')
@@ -109,7 +109,7 @@ test('preparing submission PDFs shows a blocking progress screen', function () {
 
     expect($reviewPackage)
         ->toContain('data-proposal-package-prepare')
-        ->toContain('<x-proposal-pdf-preparation-loading-screen />')
+        ->toContain('<x-proposal-pdf-preparation-loading-screen livewire-target="prepare" />')
         ->and($loadingScreen)
         ->toContain('data-proposal-pdf-preparation-loading')
         ->toContain('hidden')
@@ -124,6 +124,30 @@ test('preparing submission PDFs shows a blocking progress screen', function () {
         ->toContain("matches('[data-proposal-package-prepare]')")
         ->toContain("if (form.dataset.proposalPreparing === 'true')")
         ->toContain('submitButton.textContent');
+});
+
+test('proposal package preparation uses Livewire without closing the review modal', function () {
+    $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
+    $workspace = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
+    $reviewPage = file_get_contents(resource_path('views/faculty/proposal-drafts/review.blade.php'));
+    $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $livewireComponent = file_get_contents(app_path('Livewire/ProposalDraftReviewPackage.php'));
+
+    expect($reviewPackage)
+        ->toContain('data-proposal-livewire-action="prepare"')
+        ->toContain('data-proposal-livewire-action="turnIn"')
+        ->toContain('livewire-target="prepare"')
+        ->toContain('livewire-target="turnIn"')
+        ->and($workspace)
+        ->toContain('<livewire:proposal-draft-review-package')
+        ->and($reviewPage)
+        ->toContain('<livewire:proposal-draft-review-package')
+        ->and($appJavaScript)
+        ->toContain('submitProposalPackageWithLivewire(form)')
+        ->toContain('Livewire.find(componentId)')
+        ->toContain('await component.$call(action)')
+        ->and($livewireComponent)
+        ->toContain('$this->redirectRoute(\'faculty.dashboard\', navigate: true)');
 });
 
 test('generated paper editors support partial drafts and gate download controls', function () {
@@ -256,7 +280,11 @@ test('revision-linked generated paper downloads can be staged in the matching re
         ->toContain('offerRevisionUpload')
         ->toContain('Automatically upload this file to the revision?')
         ->toContain('Revision workspace')
-        ->toContain('revisionUploadUrl');
+        ->toContain('revisionUploadUrl')
+        ->toContain("'X-Revision-PDF': isEmbeddedRevisionEditor() ? '1' : '0'")
+        ->toContain('detailed-research-proposal.pdf')
+        ->toContain('attachment-a-work-plan.pdf')
+        ->toContain('attachment-c-curriculum-vitae.pdf');
 });
 
 test('proposal flash feedback is marked for SweetAlert2 across the workspace', function () {
@@ -341,6 +369,18 @@ test('repeatable paper editors collapse earlier entries and focus the newly adde
         ->toContain('[data-work-plan-objective-input="${entry.id}"]')
         ->toContain('[data-expense-item-primary="${item.id}"]')
         ->toContain('[data-line-item-budget-custom-input="${item.id}"]');
+});
+
+test('opening a Research Head review notification does not auto-mark it as read', function () {
+    $script = file_get_contents(resource_path('js/app.js'));
+
+    expect($script)
+        ->toContain('if (!this.requiresCompletedReview(item))')
+        ->toContain("this.workspace === 'research_head'")
+        ->toContain("['proposal_submissions', 'project_monitoring'].includes(item.data?.sidebar_area)")
+        ->toContain('if (!response.ok || payload.read === false) return false;')
+        ->toContain('const preservedIds = new Set(payload.preserved_ids || []);')
+        ->toContain('this.unreadCount = payload.unread_count ?? 0;');
 });
 
 test('the collaboration monitor keeps a persistent save confirmation', function () {

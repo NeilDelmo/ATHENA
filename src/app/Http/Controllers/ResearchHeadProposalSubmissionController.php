@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Notifications\ProposalActivityNotification;
+use App\Services\SidebarAttentionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -34,13 +36,17 @@ class ResearchHeadProposalSubmissionController extends Controller
         TopicProposal::STATUS_READY_FOR_SIGNATURE,
     ];
 
-    public function index(Request $request): View
+    public function index(Request $request, SidebarAttentionService $sidebarAttention): View
     {
         Gate::authorize('viewAny', TopicProposal::class);
 
         $search = $request->string('search')->trim()->toString();
         $submissionType = $request->string('type')->toString();
         $status = $request->string('status')->toString();
+        $unreadProposalTopicIds = $sidebarAttention->unreadTopicIdsFor(
+            $request->user(),
+            ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
+        );
 
         $summary = [
             'proposals' => ProposalVersion::query()->distinct()->count('topic_id'),
@@ -122,6 +128,7 @@ class ResearchHeadProposalSubmissionController extends Controller
             'activeProposals',
             'submissions',
             'summary',
+            'unreadProposalTopicIds',
         ));
     }
 }

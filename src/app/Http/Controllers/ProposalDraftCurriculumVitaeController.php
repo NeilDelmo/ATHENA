@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftCurriculumVitaeRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -126,18 +127,27 @@ class ProposalDraftCurriculumVitaeController extends Controller
         UpdateProposalDraftCurriculumVitaeRequest $request,
         ProposalDraft $proposalDraft,
         CurriculumVitaeDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
         $curriculumVitae = CurriculumVitaeData::fromValidated($request->validated());
         $contents = $documentService->generate($curriculumVitae);
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
+        $filename = $filenameBase.'-curriculum-vitae.docx';
+        $contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+        if ($request->header('X-Revision-PDF') === '1') {
+            $contents = $pdfConverter->convertDocx($contents);
+            $filename = $filenameBase.'-curriculum-vitae.pdf';
+            $contentType = 'application/pdf';
+        }
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-curriculum-vitae.docx',
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            $filename,
+            ['Content-Type' => $contentType],
         );
     }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { consolidateTextRectangles } from '../../resources/js/pdf-annotation-workspace.js';
+import registerPdfAnnotationWorkspace, { consolidateTextRectangles, pdfScaleToFit } from '../../resources/js/pdf-annotation-workspace.js';
 
 test('duplicate PDF text-layer rectangles keep the tighter highlight', () => {
     const rectangles = consolidateTextRectangles([
@@ -31,4 +31,31 @@ test('fragments on separate lines stay separate', () => {
     ]);
 
     assert.equal(rectangles.length, 2);
+});
+
+
+test('portrait and landscape PDF pages fit the available pane width at desktop and smaller sizes', () => {
+    for (const pageWidth of [595, 842, 1224]) {
+        for (const available of [352, 608, 928]) {
+            assert.ok(Math.abs(pageWidth * pdfScaleToFit(pageWidth, available) - available) < 0.001);
+        }
+    }
+});
+
+test('PDF highlight selection notifies the editor while parent-driven selection avoids feedback loops', (t) => {
+    const original = globalThis.window;
+    t.after(() => { globalThis.window = original; });
+    const notifications = [];
+    globalThis.window = { athenaRevisionPdf: { onSelect: (id) => notifications.push(id) } };
+    let factory;
+    registerPdfAnnotationWorkspace({ data: (_name, callback) => { factory = callback; } });
+    const state = factory();
+    state.config = { fitWidth: true };
+    const annotation = { id: 11, pageNumber: 2 };
+    state.annotations = [annotation];
+    state.jumpToAnnotation(annotation, false);
+    assert.equal(state.selectedAnnotationId, 11);
+    assert.deepEqual(notifications, []);
+    state.selectAnnotation(annotation);
+    assert.deepEqual(notifications, [11]);
 });

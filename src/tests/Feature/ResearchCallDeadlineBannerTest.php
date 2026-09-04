@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Spatie\Permission\Models\Role;
@@ -99,4 +100,60 @@ test('the deadline banner stays hidden when no open call is due within seven day
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertDontSee('data-research-call-deadline-banner', false);
+});
+
+test('faculty who did not submit see an ended-call message without a proposal creation shortcut', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole(User::WORKSPACE_FACULTY);
+
+    $endedCall = ResearchCall::create([
+        'title' => 'Ended Research Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subDay()->setTime(17, 30),
+        'status' => 'open',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('data-research-call-notice-state="ended"', false)
+        ->assertSee('Submission period ended')
+        ->assertSee($endedCall->title)
+        ->assertSee('New proposals cannot be started or submitted until the Research Office opens another call.')
+        ->assertSee('View research calls')
+        ->assertSee('href="'.route('research-calls.index').'"', false)
+        ->assertDontSee('Start next-call draft');
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.proposal-drafts.create'))
+        ->assertOk()
+        ->assertSee('Proposal submissions are closed')
+        ->assertDontSee('Create preparation draft');
+});
+
+test('faculty who submitted do not see an ended-call message', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole(User::WORKSPACE_FACULTY);
+
+    $endedCall = ResearchCall::create([
+        'title' => 'Submitted Research Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subDay(),
+        'status' => 'open',
+    ]);
+
+    TopicProposal::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $endedCall->id,
+        'title' => 'Submitted Faculty Proposal',
+        'status' => 'pending',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertDontSee('data-research-call-deadline-banner', false)
+        ->assertDontSee('Submission period ended');
 });

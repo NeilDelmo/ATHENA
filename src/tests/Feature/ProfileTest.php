@@ -185,3 +185,23 @@ test('guests cannot update a college', function () {
         'college' => 'College of Teacher Education',
     ])->assertRedirect(route('login'));
 });
+
+test('long account identities and unavailable avatars remain visible', function () {
+    $this->withoutVite();
+
+    $user = User::factory()->create([
+        'name' => str_repeat('Long Institutional Name ', 10),
+        'email' => str_repeat('long-account-', 12).'@g.batstate-u.edu.ph',
+        'avatar' => 'https://example.com/unavailable-profile-photo.jpg',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('profile.edit'))
+        ->assertOk()
+        ->assertSee($user->name)
+        ->assertSee('data-header-account-menu', false)
+        ->assertSee('data-user-avatar', false)
+        ->assertSee('x-on:error="avatarFailed = true"', false)
+        ->assertSee('break-words', false)
+        ->assertSee('max-w-[calc(100vw-6rem)]', false);
+});

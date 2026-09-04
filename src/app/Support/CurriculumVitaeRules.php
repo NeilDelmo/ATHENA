@@ -2,11 +2,80 @@
 
 namespace App\Support;
 
+use DateTimeImmutable;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class CurriculumVitaeRules
 {
+    private const INPUT_DATE_FORMATS = [
+        'Y-m-d',
+        'm/d/Y',
+        'n/j/Y',
+        'm-d-Y',
+        'n-j-Y',
+        'F j, Y',
+        'M j, Y',
+    ];
+
+    /**
+     * Normalize recognizable display values before strict validation.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function normalizeInput(array $input): array
+    {
+        if (! is_array($input['people'] ?? null)) {
+            return $input;
+        }
+
+        $input['people'] = array_map(function (mixed $person): mixed {
+            if (! is_array($person)) {
+                return $person;
+            }
+
+            if (is_string($person['gender'] ?? null)) {
+                $gender = Str::lower(trim($person['gender']));
+
+                if (in_array($gender, ['male', 'female'], true)) {
+                    $person['gender'] = $gender;
+                }
+            }
+
+            if (array_key_exists('birthday', $person)) {
+                $person['birthday'] = self::normalizeDate($person['birthday']);
+            }
+
+            return $person;
+        }, $input['people']);
+
+        return $input;
+    }
+
+    private static function normalizeDate(mixed $value): mixed
+    {
+        if (! is_string($value)) {
+            return $value;
+        }
+
+        $value = trim($value);
+
+        foreach (self::INPUT_DATE_FORMATS as $format) {
+            $date = DateTimeImmutable::createFromFormat('!'.$format, $value);
+            $errors = DateTimeImmutable::getLastErrors();
+
+            if ($date !== false
+                && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
+                && $date->format($format) === $value) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        return $value;
+    }
+
     /** @return array<string, ValidationRule|array<mixed>|string> */
     public static function rules(bool $allowDraft = false): array
     {

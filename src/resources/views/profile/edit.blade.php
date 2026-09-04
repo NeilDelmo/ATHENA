@@ -28,24 +28,20 @@
     @endphp
 
     <div class="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <aside class="space-y-6">
+        <aside class="min-w-0 space-y-6">
             <section class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
                 <div class="relative h-28 bg-gradient-to-br from-red-700 via-red-600 to-red-900">
                     <div class="absolute inset-0 opacity-20 [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:20px_20px]"></div>
                 </div>
                 <div class="relative px-6 pb-6">
                     <div class="-mt-10 flex items-end justify-between gap-3">
-                        @if ($user->avatar)
-                            <img src="{{ $user->avatar }}" alt="{{ $user->name }}" class="h-20 w-20 rounded-2xl border-4 border-white bg-white object-cover shadow-md dark:border-slate-900 dark:bg-slate-900">
-                        @else
-                            <div class="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-white bg-slate-900 text-2xl font-black uppercase text-white shadow-md dark:border-slate-900">{{ substr($user->name, 0, 1) }}</div>
-                        @endif
+                        <x-user-avatar :user="$user" class="h-20 w-20 rounded-2xl border-4 border-white bg-slate-900 text-2xl shadow-md dark:border-slate-900" />
                         <span class="mb-1 inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">
                             <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Active
                         </span>
                     </div>
 
-                    <h3 class="mt-4 text-xl font-black text-gray-900">{{ $user->name }}</h3>
+                    <h3 class="mt-4 break-words text-xl font-black text-gray-900">{{ $user->name }}</h3>
                     <p class="mt-1 break-all text-sm text-gray-500">{{ $user->email }}</p>
 
                     <div class="mt-4 flex flex-wrap gap-2">

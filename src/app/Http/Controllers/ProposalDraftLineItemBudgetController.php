@@ -113,11 +113,6 @@ class ProposalDraftLineItemBudgetController extends Controller
             $request->integer('document_version'),
             [
                 'source_data' => Arr::only($request->validated(), self::SOURCE_FIELDS),
-                'file_path' => null,
-                'original_filename' => null,
-                'mime_type' => null,
-                'file_size' => null,
-                'checksum' => null,
                 'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),

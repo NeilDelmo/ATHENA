@@ -6,6 +6,7 @@ use App\Support\ProposalPaperCatalog;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class ProposalVersionFile extends Model
 {
@@ -87,6 +88,11 @@ class ProposalVersionFile extends Model
         return $this->hasMany(ProposalFileAnnotation::class);
     }
 
+    public function reviewChecks(): HasMany
+    {
+        return $this->hasMany(ProposalFileReviewCheck::class);
+    }
+
     public function label(): string
     {
         $catalogLabel = app(ProposalPaperCatalog::class)->label($this->document_type);
@@ -139,5 +145,18 @@ class ProposalVersionFile extends Model
     public function isSuperseded(): bool
     {
         return $this->superseded_at !== null;
+    }
+
+    public function isPdf(): bool
+    {
+        return $this->mime_type === 'application/pdf'
+            || Str::lower(pathinfo($this->original_filename, PATHINFO_EXTENSION)) === 'pdf';
+    }
+
+    public function canPreviewAsPdf(): bool
+    {
+        return $this->isPdf()
+            || $this->mime_type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            || Str::lower(pathinfo($this->original_filename, PATHINFO_EXTENSION)) === 'docx';
     }
 }

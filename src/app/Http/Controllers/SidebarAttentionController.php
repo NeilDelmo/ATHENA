@@ -15,7 +15,9 @@ class SidebarAttentionController extends Controller
     {
         $user = $request->user();
         abort_unless($this->sidebarAttention->canOpen($user, $area), 404);
-        $this->sidebarAttention->markAsRead($user, $area);
+        if (! $this->sidebarAttention->requiresCompletedReview($area)) {
+            $this->sidebarAttention->markAsRead($user, $area);
+        }
         if ($this->sidebarAttention->switchesToResearcherWorkspace($area)) {
             $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
         }

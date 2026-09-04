@@ -7,17 +7,19 @@ use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ProposalFileAnnotationController extends Controller
 {
     /** @var list<string> */
     private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision'];
+
+    public function __construct(private readonly ProposalRevisionTargetCatalog $revisionTargets) {}
 
     public function index(
         Request $request,
@@ -65,7 +67,12 @@ class ProposalFileAnnotationController extends Controller
             'canAnnotate' => $canAnnotate,
             'fileId' => $file->id,
             'fileLabel' => $file->label(),
-            'annotations' => $annotations->map(fn (ProposalFileAnnotation $annotation): array => $this->annotationPayload($annotation))->values(),
+            'isResearchHead' => $isResearchHead,
+            'editorTargets' => $this->revisionTargets->forFile($file),
+            'revisionUrl' => ! $request->boolean('revision_embed') && ! $isResearchHead && $topic->user_id === $request->user()->id && $topic->status === 'revision_requested'
+                ? route('topics.show', $topic).'#submit-revision'
+                : null,
+            'annotations' => $annotations->map(fn (ProposalFileAnnotation $annotation): array => $this->annotationPayload($annotation, $file))->values(),
             'revisionCandidates' => $revisionCandidates->map(fn (array $candidate): array => [
                 'fileId' => $candidate['file']->id,
                 'label' => $candidate['file']->label(),
@@ -90,7 +97,7 @@ class ProposalFileAnnotationController extends Controller
         ProposalVersionFile $file,
     ): JsonResponse {
         $this->ensureFileScope($topic, $version, $file);
-        abort_unless($this->isPdf($file) && Storage::disk('local')->exists($file->file_path), 404);
+        abort_unless($file->canPreviewAsPdf() && Storage::disk('local')->exists($file->file_path), 404);
         abort_unless($this->canAnnotate($topic, $version), 403);
 
         $validated = $request->validated();
@@ -107,10 +114,11 @@ class ProposalFileAnnotationController extends Controller
                     ->all())
                 ->all(),
             'comment' => $validated['comment'],
+            'editor_target' => $validated['editor_target'] ?? null,
         ]);
         $annotation->setRelation('reviewer', $request->user());
 
-        return response()->json($this->annotationPayload($annotation), 201);
+        return response()->json($this->annotationPayload($annotation, $file), 201);
     }
 
     public function destroy(
@@ -141,7 +149,7 @@ class ProposalFileAnnotationController extends Controller
         $this->ensureFileScope($topic, $version, $file);
 
         Gate::forUser($request->user())->authorize('view', $topic);
-        abort_unless($this->isPdf($file), 415);
+        abort_unless($file->canPreviewAsPdf(), 415);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
     }
 
@@ -161,14 +169,8 @@ class ProposalFileAnnotationController extends Controller
             && $topic->latestVersion()->whereKey($version->id)->exists();
     }
 
-    private function isPdf(ProposalVersionFile $file): bool
-    {
-        return $file->mime_type === 'application/pdf'
-            || Str::lower(pathinfo($file->original_filename, PATHINFO_EXTENSION)) === 'pdf';
-    }
-
     /** @return array<string, mixed> */
-    private function annotationPayload(ProposalFileAnnotation $annotation): array
+    private function annotationPayload(ProposalFileAnnotation $annotation, ProposalVersionFile $file): array
     {
         return [
             'id' => $annotation->id,
@@ -177,6 +179,8 @@ class ProposalFileAnnotationController extends Controller
             'selectedText' => $annotation->selected_text,
             'rectangles' => $annotation->rectangles,
             'comment' => $annotation->comment,
+            'editorTarget' => $annotation->editor_target,
+            'editorTargetLabel' => $this->revisionTargets->labelFor($file, $annotation->editor_target),
             'reviewer' => $annotation->reviewer?->name ?? 'Research Head',
             'createdAt' => $annotation->created_at?->format('M j, Y g:i A'),
             'state' => match (true) {

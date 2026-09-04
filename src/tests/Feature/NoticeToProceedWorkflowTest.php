@@ -344,7 +344,9 @@ test('an approved paper remains outside monitoring until its notice is issued', 
     ])->actingAs($this->head)
         ->get(route('research_head.projects.index'))
         ->assertOk()
-        ->assertDontSee($this->topic->title);
+        ->assertSee('No projects found')
+        ->assertSee('Projects appear here after their Notice to Proceed is issued.')
+        ->assertDontSee(route('topics.show', $this->topic).'#project-monitoring', false);
 });
 
 test('notice defaults come from the latest approved proposal papers', function () {

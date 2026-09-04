@@ -33,6 +33,43 @@ class SidebarAttentionService
             ->each(fn (DatabaseNotification $notification) => $notification->markAsRead());
     }
 
+    public function requiresCompletedReview(string $area): bool
+    {
+        return in_array($area, [
+            ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
+            ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+        ], true);
+    }
+
+    public function notificationRequiresCompletedReview(User $user, DatabaseNotification $notification): bool
+    {
+        $area = $this->areaFor($notification);
+
+        return $user->activeWorkspace() === User::WORKSPACE_RESEARCH_HEAD
+            && $area !== null
+            && $this->requiresCompletedReview($area);
+    }
+
+    public function markTopicAsRead(User $user, string $area, int $topicId): void
+    {
+        $this->notificationsFor($user, $area)
+            ->filter(fn (DatabaseNotification $notification): bool => (int) data_get($notification->data, 'topic_id') === $topicId)
+            ->each(fn (DatabaseNotification $notification) => $notification->markAsRead());
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function unreadTopicIdsFor(User $user, string $area): array
+    {
+        return $this->notificationsFor($user, $area)
+            ->map(fn (DatabaseNotification $notification): int => (int) data_get($notification->data, 'topic_id'))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
     public function routeNameFor(string $area): string
     {
         return match ($area) {

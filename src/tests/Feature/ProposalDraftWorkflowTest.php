@@ -4,6 +4,7 @@ use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
 use App\Contracts\DocumentPdfConverter;
+use App\Livewire\ProposalDraftReviewPackage;
 use App\Models\LiteratureSource;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
@@ -20,6 +21,7 @@ use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -270,8 +272,10 @@ test('faculty choose an open research call from the visual poster picker before 
 
     $draft = $this->faculty->proposalDrafts()->where('project_title', 'First Coastal Study')->firstOrFail();
 
-    $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.index'))
+    $workspace = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.index'));
+
+    $workspace
         ->assertOk()
         ->assertSee('First Coastal Study')
         ->assertSee('Second Coastal Study')
@@ -285,26 +289,64 @@ test('faculty choose an open research call from the visual poster picker before 
         ->assertSee('First Coastal Study');
 });
 
-test('faculty can create a preparation draft only when no research calls are open', function () {
+test('faculty cannot start a proposal when no research calls are open', function () {
     $this->call->update(['status' => 'closed']);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee('No research calls are open right now')
+        ->assertSee('Proposal submissions are closed')
         ->assertDontSee('name="research_call_id"', false)
-        ->assertSee('Create preparation draft');
+        ->assertDontSee('Create preparation draft')
+        ->assertSee('View research calls');
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.store'), [
             'project_title' => 'Prepared Before the Call',
         ])
-        ->assertRedirect();
+        ->assertSessionHasErrors('research_call_id');
 
-    expect($this->faculty->proposalDrafts()->sole()->research_call_id)->toBeNull();
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), [
+            'project_title' => 'Prepared Against a Closed Call',
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertSessionHasErrors('research_call_id');
+
+    expect($this->faculty->proposalDrafts()->count())->toBe(0);
+});
+
+test('research call opening and closing dates control direct proposal creation requests', function () {
+    $this->call->update([
+        'status' => 'open',
+        'opens_at' => now()->addMinute(),
+        'closes_at' => now()->addMonth(),
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), [
+            'project_title' => 'Too Early Proposal',
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertSessionHasErrors('research_call_id');
+
+    $this->call->update([
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subSecond(),
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), [
+            'project_title' => 'Too Late Proposal',
+            'research_call_id' => $this->call->id,
+        ])
+        ->assertSessionHasErrors('research_call_id');
+
+    expect($this->faculty->proposalDrafts()->count())->toBe(0);
 });
 
 test('faculty can track submitted proposal statuses from the proposal workspace', function () {
+    ($this->createDraft)(['project_title' => 'Coastal Draft Package']);
     $revisionProposal = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'research_call_id' => $this->call->id,
@@ -327,15 +369,35 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('Draft packages')
-        ->assertSee('Submitted proposals')
+        ->assertSee('data-proposal-workspace-tabs', false)
+        ->assertSee('role="tablist"', false)
+        ->assertSee('Drafts')
+        ->assertSee('Submitted')
+        ->assertSee('x-show="activeWorkspaceTab === \'drafts\'"', false)
+        ->assertSee('x-show="activeWorkspaceTab === \'submitted\'"', false)
+        ->assertSee('submitted-page', false)
+        ->assertSee('Coastal Draft Package')
         ->assertSee('Revised Coastal Study')
         ->assertSee('Revision required')
+        ->assertSee('data-revision-action-required', false)
+        ->assertSee('Research Head feedback is waiting for your response.')
+        ->assertSee(route('topics.show', $revisionProposal).'#submit-revision', false)
         ->assertSee('Approved Mangrove Study')
         ->assertSee('Approved project')
         ->assertSee(route('topics.show', $revisionProposal), false)
         ->assertSee(route('topics.show', $approvedProposal), false)
         ->assertDontSee('Another Faculty Proposal');
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $revisionProposal))
+        ->assertOk()
+        ->assertSee('data-faculty-revision-required', false)
+        ->assertSee('Revisions requested')
+        ->assertDontSee('Faculty action required')
+        ->assertDontSee('What happens next')
+        ->assertDontSee('Revision requested — your action is required')
+        ->assertSee('id="submit-revision"', false)
+        ->assertSee("activeTopicTab: 'review'", false);
 });
 
 test('the review step lets the owner choose an open research call from the poster picker', function () {
@@ -347,6 +409,27 @@ test('the review step lets the owner choose an open research call from the poste
         'user_id' => $this->faculty->id,
         'project_title' => 'Independent Coastal Study',
     ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('An open research call must be selected before preparing submission PDFs.')
+        ->assertSee('href="'.route('faculty.proposal-drafts.review', $draft).'"', false)
+        ->assertSee('data-select-research-call', false)
+        ->assertSee('Choose research call');
+
+    $draft->members()->create([
+        'user_id' => $this->otherFaculty->id,
+        'name' => $this->otherFaculty->name,
+        'email' => $this->otherFaculty->email,
+        'accepted_at' => now(),
+    ]);
+
+    $this->actingAs($this->otherFaculty)
+        ->get(route('faculty.proposal-drafts.show', $draft))
+        ->assertOk()
+        ->assertSee('Only Faculty Owner can choose or change the research call.')
+        ->assertDontSee('data-select-research-call', false);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.review', $draft))
@@ -1223,7 +1306,7 @@ test('generated papers can save partial source data as in-progress drafts', func
         ]);
 });
 
-test('incomplete and closed-call drafts remain available and cannot be submitted', function () {
+test('incomplete and expired-call drafts remain available and cannot be submitted', function () {
     $incompleteDraft = ($this->createDraft)();
 
     $this->actingAs($this->faculty)
@@ -1236,7 +1319,7 @@ test('incomplete and closed-call drafts remain available and cannot be submitted
     $completeDraft = ($this->completeDraft)(($this->createDraft)([
         'project_title' => 'Draft for a Closing Call',
     ]));
-    $this->call->update(['status' => 'closed']);
+    $this->call->update(['closes_at' => now()->subSecond()]);
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submit', $completeDraft))
@@ -1364,6 +1447,96 @@ test('a PDF conversion failure keeps the complete draft available for another pr
     expect(ProposalDraft::find($draft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
     expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
+});
+
+test('submission PDFs can be prepared from expense items containing previously computed fields', function () {
+    $expenseBreakdown = ($this->expenseBreakdown)();
+    $expenseBreakdown['items'][0]['total_cost'] = 3600;
+    $expenseBreakdown['items'][0]['is_contingency'] = false;
+    $this->expenseBreakdown = fn (): array => $expenseBreakdown;
+
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $savedExpenseBreakdown = $draft->documents
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft))->toBeTrue()
+        ->and($savedExpenseBreakdown->source_data['items'][0])->not->toHaveKeys([
+            'total_cost',
+            'is_contingency',
+        ]);
+});
+
+test('submission PDFs can be prepared from CV values using the official display format', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $curriculumVitae = $draft->documents
+        ->firstWhere('document_type', ProposalVersionFile::TYPE_CURRICULUM_VITAE);
+    $sourceData = $curriculumVitae->source_data;
+    $sourceData['people'][0]['gender'] = 'Female';
+    $sourceData['people'][0]['birthday'] = '06/12/1995';
+
+    app(SaveProposalDraftDocument::class)->handle(
+        $draft,
+        $this->faculty,
+        ProposalVersionFile::TYPE_CURRICULUM_VITAE,
+        0,
+        $curriculumVitae->lock_version,
+        [
+            'source_data' => $sourceData,
+            'completed_at' => now(),
+        ],
+    );
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+        ->assertSessionHasNoErrors();
+
+    $savedCurriculumVitae = $curriculumVitae->fresh();
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue()
+        ->and($savedCurriculumVitae->source_data['people'][0]['gender'])->toBe('female')
+        ->and($savedCurriculumVitae->source_data['people'][0]['birthday'])->toBe('1995-06-12');
+});
+
+test('Livewire prepares the PDF package without leaving the review modal', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $draft->documents()->update([
+        'file_path' => null,
+        'original_filename' => null,
+        'mime_type' => null,
+        'file_size' => null,
+        'checksum' => null,
+    ]);
+
+    Livewire::actingAs($this->faculty)
+        ->test(ProposalDraftReviewPackage::class, [
+            'proposalDraft' => $draft,
+            'inModal' => true,
+        ])
+        ->assertSee('Prepare seven PDFs')
+        ->call('prepare')
+        ->assertHasNoErrors()
+        ->assertNoRedirect()
+        ->assertSet('statusMessage', 'Seven PDF attachments prepared. Review or replace them before turning in.')
+        ->assertSee('PDF package prepared')
+        ->assertSee('Turn in proposal');
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue();
+});
+
+test('Livewire turns in a prepared package and navigates to the dashboard', function () {
+    Notification::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)());
+
+    Livewire::actingAs($this->faculty)
+        ->test(ProposalDraftReviewPackage::class, ['proposalDraft' => $draft])
+        ->assertSee('Turn in proposal')
+        ->call('turnIn')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('faculty.dashboard'));
+
+    expect(ProposalDraft::find($draft->id))->toBeNull()
+        ->and(TopicProposal::query()->count())->toBe(1);
 });
 
 test('Turn in is blocked until the complete proposal has a prepared PDF package', function () {

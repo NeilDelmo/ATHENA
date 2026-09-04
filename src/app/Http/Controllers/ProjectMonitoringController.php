@@ -17,6 +17,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
+use App\Services\SidebarAttentionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -318,8 +319,11 @@ class ProjectMonitoringController extends Controller
         return view('faculty.monitoring-tools.preview', compact('report'));
     }
 
-    public function review(Request $request, ProjectProgressReport $report): RedirectResponse
-    {
+    public function review(
+        Request $request,
+        ProjectProgressReport $report,
+        SidebarAttentionService $sidebarAttention,
+    ): RedirectResponse {
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
         abort_if($report->nextVersion()->exists(), 404);
@@ -334,6 +338,12 @@ class ProjectMonitoringController extends Controller
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
         ]);
+
+        $sidebarAttention->markTopicAsRead(
+            $request->user(),
+            ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+            $report->topic_id,
+        );
 
         $report->load(['topic.user', 'submitter']);
         $report->submitter->notify(new ProposalActivityNotification(

@@ -224,6 +224,18 @@ test('the Line-Item Budget auto-save returns the current version without duplica
         ->assertJsonPath('document_version', 1)
         ->assertJsonPath('saved_as_draft', true);
 
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
+        ->sole();
+
+    $document->update([
+        'file_path' => 'proposal-drafts/revision/line-item-budget.pdf',
+        'original_filename' => 'line-item-budget.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+        'checksum' => hash('sha256', 'line item budget'),
+    ]);
+
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), [
             ...$this->draft->documents()
@@ -236,12 +248,11 @@ test('the Line-Item Budget auto-save returns the current version without duplica
         ->assertOk()
         ->assertJsonPath('document_version', 1);
 
-    $document = $this->draft->documents()
-        ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
-        ->sole();
+    $document->refresh();
 
     expect($document->lock_version)->toBe(1)
-        ->and($document->versions()->count())->toBe(1);
+        ->and($document->versions()->count())->toBe(1)
+        ->and($document->file_path)->toBe('proposal-drafts/revision/line-item-budget.pdf');
 });
 
 test('the line item budget pre-fills matching amounts from an expense breakdown draft', function () {

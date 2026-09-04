@@ -22,7 +22,19 @@
     </div>
     <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-3">
         <div class="sm:col-span-2 lg:col-span-3"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-bold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
-        <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Research Call</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->researchCall?->title ?? 'Not selected yet' }}</dd></div>
+        <div>
+            <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Research Call</dt>
+            <dd class="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
+                <span>{{ $proposalDraft->researchCall?->title ?? 'Not selected yet' }}</span>
+                @if (($inModal ?? false) && ! $proposalDraft->researchCall?->isAcceptingSubmissions())
+                    @can('submit', $proposalDraft)
+                        <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" data-select-research-call class="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">{{ $proposalDraft->researchCall === null ? 'Choose research call' : 'Change research call' }}<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></a>
+                    @else
+                        <span class="text-[11px] font-bold text-amber-700">Only {{ $proposalDraft->owner->name }} can choose this.</span>
+                    @endcan
+                @endif
+            </dd>
+        </div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->duration_months ? $proposalDraft->duration_months.' '.Str::plural('month', $proposalDraft->duration_months) : 'Missing' }}</dd></div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Missing' }}</dd></div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned Start</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->planned_start?->format('M j, Y') ?? 'Missing' }}</dd></div>
@@ -177,16 +189,16 @@
         </div>
         @can('submit', $proposalDraft)
             @if ($submissionFilesPrepared)
-                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-confirm-title="Turn in proposal package?" data-confirm-text="This sends the seven PDFs shown above to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in proposal package?" data-confirm-text="This sends the seven PDFs shown above to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
                     @csrf
-                    <button type="submit" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
-                    <x-proposal-submission-loading-screen />
+                    <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
+                    <x-proposal-submission-loading-screen livewire-target="turnIn" />
                 </form>
             @else
-                <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare>
+                <form action="{{ route('faculty.proposal-drafts.submission-files.prepare', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-package-prepare data-proposal-livewire-action="prepare">
                     @csrf
-                    <button type="submit" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
-                    <x-proposal-pdf-preparation-loading-screen />
+                    <button type="submit" wire:loading.attr="disabled" wire:target="prepare" @disabled(! $readyToPrepare) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Prepare seven PDFs</button>
+                    <x-proposal-pdf-preparation-loading-screen livewire-target="prepare" />
                 </form>
             @endif
         @else

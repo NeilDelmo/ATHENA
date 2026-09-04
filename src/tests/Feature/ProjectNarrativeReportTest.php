@@ -10,6 +10,7 @@ use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -171,6 +172,9 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('Submit progress report')
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview progress report')
+        ->assertSee('Exit monitoring')
+        ->assertSee('data-paper-cancel-exit', false)
+        ->assertSee('fixed bottom-4 right-4', false)
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('VI. Summary of Accomplishment for the Monitoring Period')
         ->assertSee('Target accomplishment')
@@ -365,6 +369,18 @@ test('the Research Head can request a progress report revision only with remarks
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
         ->assertSessionHasNoErrors();
+    $notification = $this->head->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => ProposalActivityNotification::class,
+        'data' => [
+            'title' => 'Progress report submitted',
+            'message' => 'A progress report is ready for review.',
+            'url' => route('research_head.projects.index'),
+            'topic_id' => $this->topic->id,
+            'workspace' => User::WORKSPACE_RESEARCH_HEAD,
+            'sidebar_area' => ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+        ],
+    ]);
     $this->actingAs($this->head)
         ->patch(route('research_head.narrative-progress-reports.review', $report), [
             'review_status' => ProjectNarrativeReport::STATUS_REVISION_REQUESTED,
@@ -379,5 +395,6 @@ test('the Research Head can request a progress report revision only with remarks
         ->assertRedirect();
 
     expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
-        ->and($report->fresh()->reviewed_by)->toBe($this->head->id);
+        ->and($report->fresh()->reviewed_by)->toBe($this->head->id)
+        ->and($notification->fresh()->read_at)->not->toBeNull();
 });

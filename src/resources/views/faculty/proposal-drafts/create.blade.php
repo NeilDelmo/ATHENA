@@ -17,35 +17,15 @@
             @endif
 
             @if ($researchCalls->isEmpty())
-                <form
-                    action="{{ route('faculty.proposal-drafts.store') }}"
-                    method="POST"
-                    x-data="{ submitting: false }"
-                    @submit="submitting = true"
-                    :aria-busy="submitting"
-                    class="space-y-6"
-                >
-                    @csrf
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+                    <h3 class="font-black">Proposal submissions are closed</h3>
+                    <p class="mt-2 text-sm leading-6">There is no research call accepting proposals at the current Philippine date and time. A new proposal can only be started after the Research Office opens a call and before its deadline.</p>
+                </div>
 
-                    <div class="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-950">
-                        <h3 class="font-black">No research calls are open right now</h3>
-                        <p class="mt-2 text-sm leading-6">You can still create a preparation draft and work on the proposal. ATHENA will require an open research call before Review and Turn In.</p>
-                    </div>
-
-                    <div>
-                        <label for="project_title" class="block text-xs font-black uppercase tracking-wider text-gray-600">Project Title <span class="text-red-600">Required</span></label>
-                        <input id="project_title" name="project_title" type="text" value="{{ old('project_title') }}" maxlength="255" required autofocus class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600" placeholder="Enter the complete research project title">
-                        @error('project_title')<p class="mt-2 text-xs font-semibold text-red-600">{{ $message }}</p>@enderror
-                    </div>
-
-                    <div class="flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
-                        <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Cancel</a>
-                        <button type="submit" :disabled="submitting" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-red-300 sm:w-auto">
-                            <span x-show="! submitting">Create preparation draft</span>
-                            <span x-show="submitting" x-cloak>Creating draft...</span>
-                        </button>
-                    </div>
-                </form>
+                <div class="mt-6 flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
+                    <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto">Back to workspace</a>
+                    <a href="{{ route('research-calls.index') }}" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">View research calls</a>
+                </div>
             @else
                 @php($currentResearchCallId = (string) old('research_call_id', $selectedResearchCallId))
                 <form
@@ -79,7 +59,7 @@
                                             <div class="min-w-0">
                                                 <div class="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                                                     <span class="rounded-full bg-green-100 px-2 py-1 text-green-700">Open</span>
-                                                    <span class="text-gray-400">Closes {{ $researchCall->closes_at->format('M j, Y') }}</span>
+                                                    <span class="text-gray-400">Closes {{ $researchCall->closes_at->format('M j, Y \\a\\t g:i A') }} PHT</span>
                                                 </div>
                                                 <h3 class="mt-2 truncate text-sm font-black text-gray-900">{{ $researchCall->title }}</h3>
                                                 <p class="mt-1 text-xs font-semibold text-gray-500">{{ $researchCall->academic_year }}{{ $researchCall->term ? ' · '.$researchCall->term : '' }} · Up to ₱{{ number_format($researchCall->budgetCeiling()) }}</p>
@@ -161,7 +141,7 @@
                                                         <span class="text-[10px] font-black uppercase tracking-wider text-green-700">Open · {{ $researchCall->academic_year }}</span>
                                                         <span class="mt-2 text-sm font-black leading-5 text-gray-900">{{ $researchCall->title }}</span>
                                                         <span class="mt-auto pt-4 text-[11px] font-semibold leading-5 text-gray-500">
-                                                            Closes {{ $researchCall->closes_at->format('M j, Y') }}<br>
+                                                            Closes {{ $researchCall->closes_at->format('M j, Y \\a\\t g:i A') }} PHT<br>
                                                             Up to ₱{{ number_format($researchCall->budgetCeiling()) }}
                                                         </span>
                                                     </span>

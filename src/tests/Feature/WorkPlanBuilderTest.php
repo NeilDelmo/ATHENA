@@ -120,6 +120,18 @@ test('the Work Plan auto-save returns the current version without duplicating un
         ->assertJsonPath('document_version', 1)
         ->assertJsonPath('saved_as_draft', true);
 
+    $document = $draft->documents()
+        ->where('document_type', config('proposal_papers.work-plan.document_type'))
+        ->sole();
+
+    $document->update([
+        'file_path' => 'proposal-drafts/revision/work-plan.docx',
+        'original_filename' => 'work-plan.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 1024,
+        'checksum' => hash('sha256', 'work plan'),
+    ]);
+
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), [
             ...$payload,
@@ -128,12 +140,11 @@ test('the Work Plan auto-save returns the current version without duplicating un
         ->assertOk()
         ->assertJsonPath('document_version', 1);
 
-    $document = $draft->documents()
-        ->where('document_type', config('proposal_papers.work-plan.document_type'))
-        ->sole();
+    $document->refresh();
 
     expect($document->lock_version)->toBe(1)
-        ->and($document->versions()->count())->toBe(1);
+        ->and($document->versions()->count())->toBe(1)
+        ->and($document->file_path)->toBe('proposal-drafts/revision/work-plan.docx');
 });
 
 test('an incomplete Work Plan can be previewed but not downloaded', function () {

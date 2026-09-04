@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftWorkPlanRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -59,11 +60,6 @@ class ProposalDraftWorkPlanController extends Controller
                 'source_data' => Arr::only($request->validated(), [
                     'entries',
                 ]),
-                'file_path' => null,
-                'original_filename' => null,
-                'mime_type' => null,
-                'file_size' => null,
-                'checksum' => null,
                 'completed_at' => $request->boolean('save_as_draft') ? null : now(),
             ],
             changeNote: $request->string('change_note')->toString(),
@@ -108,19 +104,28 @@ class ProposalDraftWorkPlanController extends Controller
         UpdateProposalDraftWorkPlanRequest $request,
         ProposalDraft $proposalDraft,
         WorkPlanDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
 
         $workPlan = WorkPlanData::fromValidated($request->validated());
         $contents = $documentService->generate($workPlan);
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
+        $filename = $filenameBase.'-work-plan.docx';
+        $contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+        if ($request->header('X-Revision-PDF') === '1') {
+            $contents = $pdfConverter->convertDocx($contents);
+            $filename = $filenameBase.'-work-plan.pdf';
+            $contentType = 'application/pdf';
+        }
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-work-plan.docx',
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            $filename,
+            ['Content-Type' => $contentType],
         );
     }
 

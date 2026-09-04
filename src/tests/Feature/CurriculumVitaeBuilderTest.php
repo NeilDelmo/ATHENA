@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -491,6 +492,36 @@ test('the generated Word file preserves the official form and adds one complete 
             unlink($temporaryPath);
         }
     }
+});
+
+test('revision preparation converts the Curriculum Vitae to PDF before staging', function () {
+    $pdfConverter = new class implements DocumentPdfConverter
+    {
+        public ?string $receivedDocx = null;
+
+        public function convertDocx(string $contents): string
+        {
+            $this->receivedDocx = $contents;
+
+            return "%PDF-1.7\nconverted curriculum vitae";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $pdfConverter);
+
+    $this->actingAs($this->faculty)
+        ->withHeader('X-Revision-PDF', '1')
+        ->postJson(route('faculty.proposal-drafts.curriculum-vitae.download', $this->draft), ($this->payload)())
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertDownload('community-coastal-research-curriculum-vitae.pdf')
+        ->assertStreamedContent("%PDF-1.7\nconverted curriculum vitae");
+
+    expect($pdfConverter->receivedDocx)->toStartWith('PK');
 });
 
 test('every team member requires a first and last name and the package limit is enforced', function () {

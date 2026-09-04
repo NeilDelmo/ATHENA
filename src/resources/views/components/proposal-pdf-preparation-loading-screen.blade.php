@@ -1,10 +1,18 @@
+@props(['livewireTarget' => null])
+
 <div
     data-proposal-pdf-preparation-loading
-    hidden
+    @if ($livewireTarget)
+        wire:cloak
+        wire:loading.flex
+        wire:target="{{ $livewireTarget }}"
+    @else
+        hidden
+    @endif
     role="status"
     aria-live="assertive"
     aria-atomic="true"
-    aria-hidden="true"
+    aria-hidden="{{ $livewireTarget ? 'false' : 'true' }}"
     class="fixed inset-0 z-[110] overflow-y-auto bg-gray-950/70 px-4 py-8 backdrop-blur-sm"
 >
     <div class="flex min-h-full items-center justify-center">

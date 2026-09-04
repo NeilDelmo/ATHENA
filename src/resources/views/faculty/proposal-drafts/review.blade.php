@@ -68,7 +68,7 @@
                                                     <div class="min-w-0">
                                                         <div class="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-wider">
                                                             <span class="rounded-full bg-red-100 px-2 py-1 text-red-700">Open</span>
-                                                            <span class="text-gray-400">Closes {{ $researchCall->closes_at->format('M j, Y') }}</span>
+                                                            <span class="text-gray-400">Closes {{ $researchCall->closes_at->format('M j, Y \\a\\t g:i A') }} PHT</span>
                                                         </div>
                                                         <h4 class="mt-2 text-sm font-black text-gray-900">{{ $researchCall->title }}</h4>
                                                         <p class="mt-1 text-xs font-semibold text-gray-500">{{ $researchCall->academic_year }}{{ $researchCall->term ? ' · '.$researchCall->term : '' }} · Up to ₱{{ number_format($researchCall->budgetCeiling()) }}</p>
@@ -150,7 +150,7 @@
                                                                 <span class="text-[10px] font-black uppercase tracking-wider text-red-700">Open · {{ $researchCall->academic_year }}</span>
                                                                 <span class="mt-2 text-sm font-black leading-5 text-gray-900">{{ $researchCall->title }}</span>
                                                                 <span class="mt-auto pt-4 text-[11px] font-semibold leading-5 text-gray-500">
-                                                                    Closes {{ $researchCall->closes_at->format('M j, Y') }}<br>
+                                                                    Closes {{ $researchCall->closes_at->format('M j, Y \\a\\t g:i A') }} PHT<br>
                                                                     Up to ₱{{ number_format($researchCall->budgetCeiling()) }}
                                                                 </span>
                                                             </span>
@@ -181,6 +181,6 @@
             </section>
         @endif
 
-        @include('faculty.proposal-drafts._review-package')
+        <livewire:proposal-draft-review-package :proposal-draft="$proposalDraft" />
     </div>
 </x-app-layout>

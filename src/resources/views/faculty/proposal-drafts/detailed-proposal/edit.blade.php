@@ -74,6 +74,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
         <x-paper-editor-submit-status />
+        <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $detailedProposalDocument?->lock_version ?? 0)"
@@ -91,7 +92,7 @@
             </div>
         @endunless
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Official form source</h3>
@@ -254,7 +255,7 @@
                 </section>
             @endforeach
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section id="specific-objectives" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">IX. Objectives of the Project</h3>
@@ -281,7 +282,7 @@
                 </div>
             </section>
 
-            <section data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section id="expected-outputs" data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>
@@ -668,7 +669,7 @@
                             </div>
                             @endif
                             @if ($key === 'specific_methods')
-                                <div class="mt-3">
+                                <div id="methodology-specific-methods" class="mt-3">
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <p class="text-sm leading-6 text-gray-600">Write each method heading in your own words, then list the numbered methods below it.</p>
                                         <button type="button" x-on:click="addSpecificMethodGroup()" class="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 text-sm font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">
@@ -720,7 +721,7 @@
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section id="responsibilities" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex items-end justify-between gap-3"><div><h3 class="text-base font-black text-gray-900">XIII. Duties and Responsibilities of Each Member</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
                 <div class="mt-5 space-y-4">
                     <template x-for="(responsibility, index) in responsibilities" :key="responsibility.id">

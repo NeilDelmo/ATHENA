@@ -6,6 +6,7 @@ use App\Actions\AcceptProposalWorkspaceInvitation;
 use App\Models\ProposalDraftMember;
 use App\Models\User;
 use App\Services\FacultyProjectCapacityService;
+use App\Services\SidebarAttentionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -43,6 +44,8 @@ class NotificationController extends Controller
         ],
     ];
 
+    public function __construct(private readonly SidebarAttentionService $sidebarAttention) {}
+
     public function index(Request $request): JsonResponse|View
     {
         $notifications = $request->user()->visibleNotifications();
@@ -76,6 +79,11 @@ class NotificationController extends Controller
     {
         $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
         abort_unless($storedNotification, 404);
+
+        if ($this->sidebarAttention->notificationRequiresCompletedReview($request->user(), $storedNotification)) {
+            return response()->json(['read' => false]);
+        }
+
         $storedNotification->markAsRead();
 
         return response()->json(['read' => true]);
@@ -83,23 +91,34 @@ class NotificationController extends Controller
 
     public function markAllRead(Request $request): JsonResponse|RedirectResponse
     {
-        $request->user()
-            ->visibleNotifications()
-            ->whereNull('read_at')
-            ->each(fn ($notification) => $notification->markAsRead());
+        $user = $request->user();
+        $unreadNotifications = $user->visibleNotifications()->whereNull('read_at');
+        $pendingReviewNotifications = $unreadNotifications
+            ->filter(fn (DatabaseNotification $notification): bool => $this->sidebarAttention
+                ->notificationRequiresCompletedReview($user, $notification));
+
+        $unreadNotifications
+            ->reject(fn (DatabaseNotification $notification): bool => $pendingReviewNotifications->contains('id', $notification->id))
+            ->each(fn (DatabaseNotification $notification) => $notification->markAsRead());
 
         if (! $request->expectsJson()) {
             return redirect()->route('notifications.index');
         }
 
-        return response()->json(['read' => true]);
+        return response()->json([
+            'read' => true,
+            'unread_count' => $pendingReviewNotifications->count(),
+            'preserved_ids' => $pendingReviewNotifications->pluck('id')->values(),
+        ]);
     }
 
     public function open(Request $request, string $notification): RedirectResponse
     {
         $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
         abort_unless($storedNotification, 404);
-        $storedNotification->markAsRead();
+        if (! $this->sidebarAttention->notificationRequiresCompletedReview($request->user(), $storedNotification)) {
+            $storedNotification->markAsRead();
+        }
 
         return redirect()->to($this->safeNotificationUrl($storedNotification->data['url'] ?? null));
     }
@@ -244,7 +263,7 @@ class NotificationController extends Controller
             return 'invitations';
         }
 
-        if ($isCompletedInvitation || $sidebarArea === 'proposal_workspace') {
+        if ($isCompletedInvitation) {
             return 'collaboration';
         }
 
@@ -257,6 +276,10 @@ class NotificationController extends Controller
             'screening',
         ])) {
             return 'reviews';
+        }
+
+        if ($sidebarArea === 'proposal_workspace') {
+            return 'collaboration';
         }
 
         if (in_array($sidebarArea, ['project_monitoring', 'my_projects'], true) || Str::contains($title, [

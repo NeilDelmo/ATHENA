@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProposalDraft;
 use App\Models\ProposalTemplate;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -146,15 +147,15 @@ test('research heads can close and reopen calls while faculty cannot change call
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee('No research calls are open right now')
-        ->assertSee('Create preparation draft')
+        ->assertSee('Proposal submissions are closed')
+        ->assertDontSee('Create preparation draft')
         ->assertDontSee($this->call->title);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee(route('faculty.proposal-drafts.create'), false)
-        ->assertDontSee('No open research call');
+        ->assertSee('No open research call')
+        ->assertDontSee('New Proposal');
 
     $this->actingAs($this->faculty)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])
@@ -165,6 +166,103 @@ test('research heads can close and reopen calls while faculty cannot change call
         ->assertRedirect();
 
     expect($this->call->fresh()->status)->toBe('open');
+});
+
+test('faculty research calls prioritize open opportunities and archive only calls connected to their work', function () {
+    $draftCall = ResearchCall::create([
+        'title' => 'Archived Call With My Draft',
+        'academic_year' => '2025-2026',
+        'opens_at' => now()->subMonths(3),
+        'closes_at' => now()->subMonths(2),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'closed',
+        'created_by' => $this->head->id,
+    ]);
+    ProposalDraft::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $draftCall->id,
+        'project_title' => 'My Archived Mangosteen Draft',
+    ]);
+
+    $collaboratorOwner = User::factory()->create();
+    $collaboratorOwner->assignRole('faculty');
+    $collaborativeCall = ResearchCall::create([
+        'title' => 'Archived Collaborative Call',
+        'academic_year' => '2025-2026',
+        'opens_at' => now()->subMonths(2),
+        'closes_at' => now()->subMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'closed',
+        'created_by' => $this->head->id,
+    ]);
+    $collaborativeTopic = TopicProposal::create([
+        'user_id' => $collaboratorOwner->id,
+        'research_call_id' => $collaborativeCall->id,
+        'title' => 'Shared Archived Proposal',
+        'status' => 'pending',
+    ]);
+    $collaborativeTopic->collaborators()->create([
+        'user_id' => $this->faculty->id,
+        'name' => $this->faculty->name,
+        'email' => $this->faculty->email,
+        'accepted_at' => now(),
+    ]);
+
+    $unrelatedCall = ResearchCall::create([
+        'title' => 'Unrelated Historical Call',
+        'academic_year' => '2024-2025',
+        'opens_at' => now()->subYear(),
+        'closes_at' => now()->subMonths(10),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'closed',
+        'created_by' => $this->head->id,
+    ]);
+
+    $upcomingCall = ResearchCall::create([
+        'title' => 'Next Semester Research Call',
+        'academic_year' => '2027-2028',
+        'opens_at' => now()->addMonth(),
+        'closes_at' => now()->addMonths(2),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 150000,
+        'status' => 'open',
+        'created_by' => $this->head->id,
+    ]);
+    $this->call->update(['reference_image_path' => 'research-calls/open-call.png']);
+
+    $this->actingAs($this->faculty)
+        ->get(route('research-calls.index'))
+        ->assertOk()
+        ->assertSee('data-faculty-research-calls', false)
+        ->assertSee('Open for submission')
+        ->assertSee($this->call->title)
+        ->assertSee('data-research-call-poster-preview', false)
+        ->assertSee('data-research-call-poster-modal', false)
+        ->assertDontSee('Click to enlarge')
+        ->assertDontSee('Open now')
+        ->assertSee('object-contain', false)
+        ->assertDontSee('object-cover opacity-90', false)
+        ->assertSee(route('faculty.proposal-drafts.create', ['research_call_id' => $this->call->id]), false)
+        ->assertSee('Coming soon')
+        ->assertSee($upcomingCall->title)
+        ->assertSee('Your research-call archive')
+        ->assertSee($draftCall->title)
+        ->assertSee('My Archived Mangosteen Draft')
+        ->assertSee($collaborativeCall->title)
+        ->assertSee('Shared Archived Proposal')
+        ->assertDontSee($unrelatedCall->title)
+        ->assertDontSee('Call lifecycle');
+
+    $upcomingCall->delete();
+
+    $this->actingAs($this->faculty)
+        ->get(route('research-calls.index'))
+        ->assertOk()
+        ->assertDontSee('Coming soon')
+        ->assertDontSee('Upcoming calls');
 });
 
 test('only faculty workspace recipients are notified when an open research call is posted', function () {

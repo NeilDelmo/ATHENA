@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\SaveProposalDraftDetails;
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\UpdateProposalDraftDetailedProposalRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
@@ -181,11 +182,6 @@ class ProposalDraftDetailedProposalController extends Controller
                     $request->integer('document_version'),
                     [
                         'source_data' => $sourceData,
-                        'file_path' => null,
-                        'original_filename' => null,
-                        'mime_type' => null,
-                        'file_size' => null,
-                        'checksum' => null,
                         'completed_at' => $completedAt,
                     ],
                     changeNote: $request->string('change_note')->toString(),
@@ -249,6 +245,7 @@ class ProposalDraftDetailedProposalController extends Controller
         UpdateProposalDraftDetailedProposalRequest $request,
         ProposalDraft $proposalDraft,
         DetailedProposalDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('download', $proposalDraft);
         $detailedProposal = DetailedProposalData::fromValidated(
@@ -257,13 +254,21 @@ class ProposalDraftDetailedProposalController extends Controller
         );
         $contents = $documentService->generate($detailedProposal);
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
+        $filename = $filenameBase.'-detailed-research-proposal.docx';
+        $contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+        if ($request->header('X-Revision-PDF') === '1') {
+            $contents = $pdfConverter->convertDocx($contents);
+            $filename = $filenameBase.'-detailed-research-proposal.pdf';
+            $contentType = 'application/pdf';
+        }
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-detailed-research-proposal.docx',
-            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            $filename,
+            ['Content-Type' => $contentType],
         );
     }
 

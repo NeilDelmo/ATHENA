@@ -31,10 +31,14 @@ class UpdateProposalDraftExpenseBreakdownRequest extends FormRequest
             ->where('position', 0)
             ->value('source_data');
 
-        $this->merge([
-            ...(is_array($savedSource) ? array_replace($savedSource, $this->all()) : []),
+        $input = is_array($savedSource)
+            ? array_replace($savedSource, $this->all())
+            : $this->all();
+
+        $this->replace(ExpenseBreakdownRules::normalizeInput([
+            ...$input,
             'project_title' => $draft->project_title,
-        ]);
+        ]));
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

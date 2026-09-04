@@ -179,6 +179,13 @@ test('faculty and faculty researchers can open the research help facility', func
 
     if ($role === 'faculty_researcher') {
         $response
+            ->assertSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
+            ->assertSee('aria-controls="turnitin"', false)
+            ->assertSee('Review similarity before submitting your report.')
+            ->assertSee('href="https://www.turnitin.com/"', false)
+            ->assertSee('target="_blank"', false)
+            ->assertSee('rel="noopener noreferrer"', false)
+            ->assertSee('Institutional access may be required')
             ->assertSee("x-show=\"activeResearchTool === 'conference'\"", false)
             ->assertSee('Conference Finder')
             ->assertSee('HTML scraping')
@@ -186,12 +193,15 @@ test('faculty and faculty researchers can open the research help facility', func
             ->assertSee('Scraped source: WikiCFP');
     } else {
         $response
+            ->assertDontSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
+            ->assertDontSee('aria-controls="turnitin"', false)
+            ->assertDontSee('href="https://www.turnitin.com/"', false)
             ->assertDontSee("x-show=\"activeResearchTool === 'conference'\"", false)
             ->assertDontSee('Conference Finder');
     }
 })->with(['faculty', 'faculty_researcher']);
 
-test('all authenticated roles can open the assistant workspace', function (string $role) {
+test('research heads can open the assistant workspace without faculty researcher tools', function (string $role) {
     $this->withoutVite();
 
     $user = User::factory()->create();
@@ -201,6 +211,9 @@ test('all authenticated roles can open the assistant workspace', function (strin
         ->get(route('research-support.index'))
         ->assertOk()
         ->assertSee('Research Support')
+        ->assertDontSee('Visit Turnitin')
+        ->assertDontSee('href="https://www.turnitin.com/"', false)
+        ->assertDontSee('Conference Finder')
         ->assertSee('Ask ATHENA')
         ->assertDontSee('RRL Finder');
 })->with(['research_head']);

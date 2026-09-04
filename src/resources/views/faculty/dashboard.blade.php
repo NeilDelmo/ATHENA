@@ -1,34 +1,37 @@
 <x-app-layout>
     @php
         $isFacultyResearcher = Auth::user()->isUsingWorkspace('faculty_researcher');
+        $revisionRequestedTopics = $topics->where('status', 'revision_requested');
+        $underReviewTopics = $topics->whereIn('status', [
+            'pending',
+            'expert_review',
+            'for_final_decision',
+            'resubmitted',
+            'ready_for_signature',
+        ]);
     @endphp
 
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-xs font-black uppercase tracking-[0.2em] text-[#7A0019] dark:text-red-300">Faculty research</p>
-                <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">
-                    {{ $isFacultyResearcher ? 'Faculty Researcher Workspace' : 'Research Proposal Workspace' }}
-                </h2>
+            <div class="max-w-2xl">
+                <h2 class="text-2xl font-black tracking-tight text-gray-950 dark:text-white">Faculty research</h2>
                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
                     Welcome back, <span class="font-bold text-gray-950 dark:text-white">{{ Auth::user()->name }}</span>.
-                    {{ $isFacultyResearcher ? 'Manage and track your institutional research submissions.' : 'Submit and track your research proposals.' }}
+                    Manage your drafts, review feedback, and submitted proposals.
                 </p>
             </div>
 
-            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                @if ($isFacultyResearcher)
-                    <a href="{{ route('research.index') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
-                        View projects
-                    </a>
-                @else
-                    <a href="{{ route('faculty.proposal-drafts.index') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-black text-gray-700 shadow-sm transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
-                        View all drafts
-                    </a>
-                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            <div class="flex w-full sm:w-auto">
+                @if ($hasOpenResearchCall)
+                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New proposal
                     </a>
+                @else
+                    <span class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-bold text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 sm:w-auto">
+                        <span class="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-600" aria-hidden="true"></span>
+                        No open call
+                    </span>
                 @endif
             </div>
         </div>
@@ -52,8 +55,42 @@
                 </ul>
             </div>
         @endif
-        
-        @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
+
+        @if ($revisionRequestedTopics->isNotEmpty())
+            <section aria-labelledby="action-required-heading" class="overflow-hidden rounded-2xl border border-red-200 bg-red-50/70 shadow-sm dark:border-red-950 dark:bg-red-950/20">
+                <div class="flex flex-col gap-2 border-b border-red-200 px-5 py-4 dark:border-red-950 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7A0019] text-white dark:bg-red-700" aria-hidden="true">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9.303 3.376c.866 1.5-.217 3.374-1.948 3.374H4.645c-1.73 0-2.813-1.874-1.948-3.374L10.052 3.38c.865-1.5 3.03-1.5 3.896 0l7.355 12.746ZM12 16.5h.008v.008H12V16.5Z" /></svg>
+                        </span>
+                        <div>
+                            <h3 id="action-required-heading" class="text-sm font-black text-gray-950 dark:text-white">Action required</h3>
+                            <p class="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{{ $revisionRequestedTopics->count() }} {{ str('proposal')->plural($revisionRequestedTopics->count()) }} {{ $revisionRequestedTopics->count() === 1 ? 'needs' : 'need' }} your attention.</p>
+                        </div>
+                    </div>
+                    <span class="w-fit rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#7A0019] ring-1 ring-inset ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-900">Needs revision</span>
+                </div>
+
+                <div class="divide-y divide-red-200 dark:divide-red-950">
+                    @foreach ($revisionRequestedTopics as $topic)
+                        @php
+                            $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->last() ?? $topic->reviews->last();
+                        @endphp
+                        <article class="grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                            <div class="min-w-0">
+                                <h4 class="truncate text-sm font-black text-gray-950 dark:text-white">{{ $topic->title }}</h4>
+                                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'No research call assigned' }}</p>
+                                <p class="mt-2 line-clamp-2 text-xs leading-5 text-gray-700 dark:text-gray-300">{{ $latestRevisionReview?->comment ?: 'The Research Office requested changes to this proposal.' }}</p>
+                            </div>
+                            <a href="{{ route('topics.show', $topic) }}#proposal-review" class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-red-950">
+                                Revise and resubmit proposal
+                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                            </a>
+                        </article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
 
         @if (false)
             <section aria-labelledby="research-call-posters-heading">
@@ -155,64 +192,43 @@
             </section>
         @endif
 
-        <section aria-labelledby="proposal-overview-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <div class="flex flex-col gap-2 border-b border-gray-200 px-5 py-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h3 id="proposal-overview-heading" class="text-sm font-black text-gray-950 dark:text-white">{{ $isFacultyResearcher ? 'Project overview' : 'Proposal overview' }}</h3>
-                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ $isFacultyResearcher ? 'Your approved institutional research projects' : 'Your current work across drafting and review' }}</p>
-                </div>
-                <span class="inline-flex w-fit items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">
-                    <span class="h-2 w-2 rounded-full bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
-                    Personal workspace
-                </span>
+        <section aria-labelledby="proposal-overview-heading">
+            <div>
+                <h3 id="proposal-overview-heading" class="text-sm font-black text-gray-950 dark:text-white">Proposal overview</h3>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">A quick view of your research pipeline.</p>
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-4">
-                @foreach ($isFacultyResearcher
-                    ? [
-                        ['Approved projects', $topics->count(), 'Approved'],
-                        ['Ongoing', $topics->where('project_status', 'ongoing')->count(), 'In execution'],
-                        ['Delayed', $topics->where('project_status', 'delayed')->count(), 'Needs attention'],
-                        ['Completed', $topics->where('project_status', 'completed')->count(), 'Finished'],
-                    ]
-                    : [
-                        ['Draft packages', $proposalDraftCount, 'In progress'],
-                        ['Submitted', $topics->count(), 'All records'],
-                        ['Under review', $topics->whereIn('status', ['pending', 'expert_review', 'for_final_decision', 'resubmitted', 'ready_for_signature'])->count(), 'With research office'],
-                        ['Action required', $topics->where('status', 'revision_requested')->count(), 'Needs revision'],
-                    ] as [$label, $count, $context])
-                    <div class="flex min-h-32 flex-col border-b border-r border-gray-200 px-5 py-4 last:border-r-0 dark:border-gray-800 lg:border-b-0">
-                        <p class="text-xs font-bold text-gray-600 dark:text-gray-400">{{ $label }}</p>
-                        <p class="mt-2 text-3xl font-black tracking-tight text-gray-950 dark:text-white">{{ $count }}</p>
-                        <p class="mt-auto pt-3 text-[10px] font-black uppercase tracking-wider {{ $label === 'Action required' ? 'text-[#7A0019] dark:text-red-300' : 'text-gray-400 dark:text-gray-600' }}">
-                            @if ($label === 'Action required')
-                                <span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>
-                            @endif
-                            {{ $context }}
-                        </p>
+            <dl class="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                @foreach ([
+                    ['Drafts', $proposalDraftCount],
+                    ['Submitted', $topics->count()],
+                    ['Under review', $underReviewTopics->count()],
+                    ['Needs revision', $revisionRequestedTopics->count()],
+                ] as [$label, $count])
+                    <div class="rounded-xl border bg-white px-4 py-3 shadow-sm dark:bg-gray-950 {{ $label === 'Needs revision' && $count > 0 ? 'border-red-200 dark:border-red-950' : 'border-gray-200 dark:border-gray-800' }}">
+                        <dt class="text-xs font-bold {{ $label === 'Needs revision' && $count > 0 ? 'text-[#7A0019] dark:text-red-300' : 'text-gray-500 dark:text-gray-400' }}">{{ $label }}</dt>
+                        <dd class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">{{ $count }}</dd>
                     </div>
                 @endforeach
-            </div>
+            </dl>
         </section>
 
         @if (! $isFacultyResearcher)
-            <section id="recent-drafts" aria-labelledby="recent-drafts-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <div class="flex items-end justify-between gap-4 border-b border-gray-200 px-5 py-5 dark:border-gray-800">
+            <section id="recent-drafts" aria-labelledby="recent-drafts-heading">
+            <div class="flex items-end justify-between gap-4">
                 <div>
-                    <div class="border-l-4 border-[#7A0019] pl-3 dark:border-red-500">
-                        <h3 id="recent-drafts-heading" class="text-base font-black text-gray-950 dark:text-white">Recent proposal drafts</h3>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Continue the proposal packages you edited most recently.</p>
-                    </div>
+                    <h3 id="recent-drafts-heading" class="text-base font-black text-gray-950 dark:text-white">Continue working</h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Your two most recently edited proposal packages.</p>
                 </div>
                 <a href="{{ route('faculty.proposal-drafts.index') }}" class="shrink-0 text-xs font-black text-[#7A0019] transition hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:text-red-300 dark:hover:text-red-200 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">View all drafts</a>
             </div>
 
-            <div class="grid md:grid-cols-2">
-                @forelse ($recentProposalDrafts as $proposalDraft)
+            <div class="mt-3 grid gap-3 md:grid-cols-2">
+                @forelse ($recentProposalDrafts->take(2) as $proposalDraft)
                     @php
                         $progress = $proposalDraftProgress->get($proposalDraft->getKey());
                     @endphp
-                    <article class="group flex flex-col border-t border-gray-200 p-5 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-900/50 md:odd:border-r">
+                    <article class="group flex flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:bg-gray-950 dark:hover:bg-gray-900/50">
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex flex-wrap gap-2">
                                 <span class="rounded-full bg-gray-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white dark:bg-white dark:text-gray-950">Draft</span>
@@ -232,11 +248,7 @@
                                 <span>Package progress</span>
                                 <span>{{ $progress['completed'] }}/{{ $progress['total'] }} papers</span>
                             </div>
-                            <div class="mt-2 grid grid-cols-10 gap-1" role="img" aria-label="{{ $progress['percentage'] }} percent complete">
-                                @for ($step = 1; $step <= 10; $step++)
-                                    <span class="h-1.5 rounded-full {{ $step <= (int) ceil($progress['percentage'] / 10) ? 'bg-[#7A0019] dark:bg-red-500' : 'bg-gray-100 dark:bg-gray-800' }}"></span>
-                                @endfor
-                            </div>
+                            <progress value="{{ $progress['percentage'] }}" max="100" class="mt-2 h-2 w-full overflow-hidden rounded-full accent-[#7A0019]" aria-label="{{ $progress['percentage'] }} percent complete">{{ $progress['percentage'] }}%</progress>
                         </div>
 
                         <div class="mt-auto flex items-center justify-between gap-4 pt-5">
@@ -248,13 +260,17 @@
                         </div>
                     </article>
                 @empty
-                    <div class="px-6 py-12 text-center md:col-span-2">
+                    <div class="rounded-2xl border border-gray-200 bg-white px-6 py-12 text-center shadow-sm dark:border-gray-800 dark:bg-gray-950 md:col-span-2">
                         <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 text-[#7A0019] dark:border-gray-800 dark:text-red-300">
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         </div>
                         <h4 class="mt-4 text-sm font-black text-gray-950 dark:text-white">No proposal drafts yet</h4>
-                        <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-gray-400">Start a proposal and ATHENA will keep it here until the package is ready to submit.</p>
-                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
+                        <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $hasOpenResearchCall ? 'Start a proposal and ATHENA will keep it here until the package is ready to submit.' : 'A new proposal can be started when the Research Office opens the next call.' }}</p>
+                        @if ($hasOpenResearchCall)
+                            <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
+                        @else
+                            <a href="{{ route('research-calls.index') }}" class="mt-4 inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-black text-gray-700 transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:text-gray-300 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">View research calls</a>
+                        @endif
                     </div>
                 @endforelse
             </div>
@@ -262,19 +278,15 @@
         @endif
 
         <section aria-labelledby="submitted-proposals-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-            <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-5 dark:border-gray-800">
-                <div class="border-l-4 border-[#7A0019] pl-3 dark:border-red-500">
-                    <h3 id="submitted-proposals-heading" class="text-base font-black text-gray-950 dark:text-white">{{ $isFacultyResearcher ? 'Approved projects' : 'Submitted proposals' }}</h3>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $isFacultyResearcher ? 'Monitor your approved research projects and report progress.' : 'Track decisions, review feedback, and requested revisions.' }}</p>
+            <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                <div>
+                    <h3 id="submitted-proposals-heading" class="text-base font-black text-gray-950 dark:text-white">Submitted proposals</h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Status and submission details at a glance.</p>
                 </div>
                 <p class="shrink-0 text-xs font-bold text-gray-500 dark:text-gray-400">{{ $topics->count() }} {{ str('proposal')->plural($topics->count()) }}</p>
             </div>
             @forelse ($topics as $topic)
                 @php
-                    $latestReview = $topic->reviews->last();
-                    $isCurrentResubmission = (string) old('resubmitting_topic_id') === (string) $topic->id;
-                    $pendingFileRevisions = $topic->reviews->flatMap->fileRevisions->whereNull('resolved_at')->values();
-                    $requiredRevisionTypes = $pendingFileRevisions->pluck('document_type')->unique();
                     $statusStyle = match (true) {
                         $topic->status === 'approved' && $topic->isMonitoringAvailable() => 'bg-gray-950 text-white ring-gray-950 dark:bg-white dark:text-gray-950 dark:ring-white',
                         $topic->status === 'approved' && ! $topic->isMonitoringAvailable() => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
@@ -282,66 +294,35 @@
                         in_array($topic->status, ['revision_requested', 'ready_for_signature'], true) => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
                         default => 'bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800',
                     };
-                    $statusLabel = $topic->status === 'approved' && ! $topic->isMonitoringAvailable()
-                        ? 'approved - awaiting notice'
-                        : str_replace('_', ' ', $topic->status);
+                    $statusLabel = match ($topic->status) {
+                        'revision_requested' => 'Needs revision',
+                        'pending' => 'Under review',
+                        'expert_review' => 'Expert review',
+                        'for_final_decision' => 'Final decision',
+                        'resubmitted' => 'Revision under review',
+                        'ready_for_signature' => 'Ready for signature',
+                        'approved' => $topic->isMonitoringAvailable() ? 'Approved' : 'Awaiting notice',
+                        'rejected' => 'Not approved',
+                        default => str($topic->status)->replace('_', ' ')->title(),
+                    };
                 @endphp
-                <article class="border-b border-gray-200 px-5 py-6 transition-colors last:border-b-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-900/40">
-                    <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_180px] lg:items-start lg:gap-6">
+                <article class="border-b border-gray-200 px-5 py-4 transition-colors last:border-b-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-900/40">
+                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-center">
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
-                                <span class="h-2 w-2 shrink-0 rounded-full bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
                                 <h4 class="text-sm font-black text-gray-950 dark:text-white">{{ $topic->title }}</h4>
                                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset {{ $statusStyle }}">{{ $statusLabel }}</span>
                             </div>
-                            <p class="mt-2 line-clamp-2 text-xs leading-5 text-gray-600 dark:text-gray-400">{{ $topic->description ?: 'No description provided.' }}</p>
-                            <dl class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                <div><dt class="inline font-black uppercase tracking-wider text-gray-400 dark:text-gray-600">Cost</dt> <dd class="ml-1 inline font-bold text-gray-700 dark:text-gray-300">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Not provided' }}</dd></div>
-                                <div><dt class="inline font-black uppercase tracking-wider text-gray-400 dark:text-gray-600">Duration</dt> <dd class="ml-1 inline font-bold text-gray-700 dark:text-gray-300">{{ $topic->estimated_duration_months }} months</dd></div>
-                                <div><dt class="inline font-black uppercase tracking-wider text-gray-400 dark:text-gray-600">Submitted</dt> <dd class="ml-1 inline font-bold text-gray-700 dark:text-gray-300">{{ $topic->created_at->diffForHumans() }}</dd></div>
-                            </dl>
-                            <p class="mt-2 text-[11px] font-semibold text-gray-400 dark:text-gray-500">{{ $topic->researchCall->title }}@if ($topic->category) <span class="text-gray-300 dark:text-gray-700">/</span> {{ $topic->category->name }}@endif</p>
-
-                            @if ($latestReview)
-                                <div class="mt-4 border-l-2 border-[#7A0019] bg-gray-50 px-4 py-3 dark:border-red-500 dark:bg-gray-900/70">
-                                    <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#7A0019] dark:text-red-300">Latest review: {{ str_replace('_', ' ', $latestReview->decision) }}</p>
-                                @if ($latestReview->comment)
-                                        <p class="mt-1 whitespace-pre-line text-xs leading-5 text-gray-700 dark:text-gray-300">{{ $latestReview->comment }}</p>
-                                @endif
-                                    <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500">{{ $latestReview->reviewer?->name ?? 'Research Head' }} / {{ $latestReview->created_at->format('M d, Y h:i A') }}</p>
-                                </div>
-                            @endif
-
-                            @if ($topic->reviews->count() > 1)
-                                <details class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                                    <summary class="cursor-pointer font-black text-[#7A0019] dark:text-red-300">View all review history</summary>
-                                    <div class="mt-2 space-y-2 border-l border-gray-200 pl-3 dark:border-gray-800">
-                                    @foreach ($topic->reviews as $review)
-                                        <div>
-                                            <p class="text-[11px] font-bold uppercase tracking-wider">{{ str_replace('_', ' ', $review->decision) }}</p>
-                                            @if ($review->comment)
-                                                <p class="mt-0.5 whitespace-pre-line leading-relaxed">{{ $review->comment }}</p>
-                                            @endif
-                                            <p class="mt-0.5 text-[10px] text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</p>
-                                        </div>
-                                    @endforeach
-                                </div>
-                                </details>
-                            @endif
-
-                            @include('topics.partials.version-history', ['topic' => $topic])
+                            <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'No research call assigned' }} <span class="text-gray-300 dark:text-gray-700">·</span> Submitted {{ $topic->created_at->diffForHumans() }}</p>
                         </div>
 
-                        <div class="flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-800 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                        <div class="flex">
                             <a href="{{ route('topics.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-[#7A0019] focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-white dark:text-gray-950 dark:hover:bg-red-200 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Open workspace</a>
-                            <a href="{{ route('topics.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 px-3 py-2.5 text-xs font-black text-gray-700 transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:text-gray-300 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">
-                                Download latest
-                            </a>
                         </div>
                     </div>
 
-                    @if ($topic->status === 'revision_requested')
-                        <details class="mt-5 border-l-2 border-[#7A0019] bg-gray-50 p-4 dark:border-red-500 dark:bg-gray-900/70" @if ($isCurrentResubmission && $errors->resubmission->any()) open @endif>
+                    @if (false)
+                        <details class="hidden" @if ($isCurrentResubmission && $errors->resubmission->any()) open @endif>
                             <summary class="cursor-pointer text-sm font-black text-[#7A0019] dark:text-red-300">Revise and resubmit proposal</summary>
                             <form action="{{ route('faculty.topics.resubmit', $topic) }}" method="POST" enctype="multipart/form-data" class="mt-4 grid gap-4 sm:grid-cols-2">
                                 @csrf
@@ -429,6 +410,8 @@
                 </div>
             @endforelse
         </section>
+
+        @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
 
     </div>
 </x-app-layout>

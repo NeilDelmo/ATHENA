@@ -7,6 +7,9 @@
 ])
 
 @php
+    if (request()->boolean('revision_embed')) {
+        $reloadUrl .= (str_contains($reloadUrl, '?') ? '&' : '?').'revision_embed=1';
+    }
     $showSaveConfirmation = filled(session('success'))
         && \Illuminate\Support\Str::contains((string) session('success'), 'saved');
 @endphp
@@ -26,7 +29,7 @@
         </div>
     @endif
 
-    <div class="flex flex-col gap-2 border-l-2 border-red-600 bg-gray-50 px-4 py-3 text-xs text-gray-700 dark:bg-slate-800/70 dark:text-slate-200 sm:flex-row sm:items-center sm:justify-between">
+    <div data-proposal-monitor-summary class="flex flex-col gap-2 border-l-2 border-red-600 bg-gray-50 px-4 py-3 text-xs text-gray-700 dark:bg-slate-800/70 dark:text-slate-200 sm:flex-row sm:items-center sm:justify-between">
         <p><span class="font-black text-gray-950 dark:text-white">Collaboration protection is on.</span> ATHENA checks for teammate saves while this page is open.</p>
         <div class="flex shrink-0 flex-wrap items-center gap-3">
             <span data-proposal-monitor-status aria-live="polite" class="inline-flex items-center gap-1.5 font-semibold text-gray-600 dark:text-slate-300"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>Checking teammate changes&hellip;</span>

@@ -26,9 +26,17 @@
             <div class="mb-4 flex items-end justify-between gap-4">
                 <div>
                     <h3 id="active-proposal-queue-heading" class="text-lg font-black text-gray-900 dark:text-white">Active proposal queue</h3>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current record per proposal. Approved projects continue in Project Monitoring.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current record per proposal. A red dot marks a submission that still needs your review.</p>
                 </div>
-                <span class="text-xs font-bold text-gray-500 dark:text-slate-400">{{ $activeProposals->total() }} active {{ Str::plural('proposal', $activeProposals->total()) }}</span>
+                <div class="flex flex-wrap justify-end gap-2 text-xs font-bold">
+                    @if (count($unreadProposalTopicIds) > 0)
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900">
+                            <span class="h-2 w-2 rounded-full bg-red-600 dark:bg-red-400" aria-hidden="true"></span>
+                            {{ count($unreadProposalTopicIds) }} {{ count($unreadProposalTopicIds) === 1 ? 'needs' : 'need' }} review
+                        </span>
+                    @endif
+                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-slate-800 dark:text-slate-300">{{ $activeProposals->total() }} active {{ Str::plural('proposal', $activeProposals->total()) }}</span>
+                </div>
             </div>
 
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -44,11 +52,33 @@
                         };
                         $latestSubmission = $proposal->latestVersion;
                         $receivedAt = $latestSubmission?->created_at ?? $proposal->created_at;
+                        $requiresAttention = in_array($proposal->id, $unreadProposalTopicIds, true);
+                        $isRevisedSubmission = $latestSubmission?->submission_type === 'revision';
                     @endphp
 
-                    <article class="flex min-h-64 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <article
+                        data-proposal-id="{{ $proposal->id }}"
+                        data-proposal-attention="{{ $requiresAttention ? 'unread' : 'seen' }}"
+                        @class([
+                            'relative flex min-h-64 flex-col overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition dark:bg-slate-900',
+                            'border-red-300 ring-2 ring-red-100 shadow-red-100/60 dark:border-red-800 dark:ring-red-950/70 dark:shadow-none' => $requiresAttention,
+                            'border-gray-200 dark:border-slate-800' => ! $requiresAttention,
+                        ])
+                    >
+                        @if ($requiresAttention)
+                            <div class="absolute inset-x-0 top-0 h-1 bg-red-600 dark:bg-red-500" aria-hidden="true"></div>
+                        @endif
+
                         <div class="flex items-start justify-between gap-3">
-                            <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                @if ($requiresAttention)
+                                    <span data-proposal-unread-dot class="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+                                        <span class="h-2 w-2 rounded-full bg-white" aria-hidden="true"></span>
+                                        Needs review
+                                    </span>
+                                @endif
+                                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
+                            </div>
                             <time datetime="{{ $receivedAt?->toIso8601String() }}" class="shrink-0 text-[11px] text-gray-500 dark:text-slate-400">{{ $receivedAt?->diffForHumans() }}</time>
                         </div>
 
@@ -61,11 +91,29 @@
 
                         <p class="mt-4 text-xs leading-5 text-gray-600 dark:text-slate-300">{{ $statusDescription }}</p>
 
-                        <div class="mt-4 rounded-xl bg-gray-50 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:bg-slate-950 dark:text-slate-300">
+                        <div @class([
+                            'mt-4 rounded-xl border px-3 py-3',
+                            'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40' => $isRevisedSubmission,
+                            'border-gray-100 bg-gray-50 dark:border-slate-800 dark:bg-slate-950' => ! $isRevisedSubmission,
+                        ])>
                             @if ($latestSubmission)
-                                Version {{ $latestSubmission->version_number }} · {{ $latestSubmission->submission_type === 'revision' ? 'Latest submission is a revision' : 'Initial package received' }}
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p class="text-[10px] font-black uppercase tracking-wider {{ $isRevisedSubmission ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-slate-400' }}">
+                                            {{ $isRevisedSubmission ? 'Revised package received' : 'Initial package received' }}
+                                        </p>
+                                        <p class="mt-1 text-xs font-bold {{ $isRevisedSubmission ? 'text-blue-950 dark:text-blue-100' : 'text-gray-700 dark:text-slate-200' }}">
+                                            Version {{ $latestSubmission->version_number }} · {{ $isRevisedSubmission ? 'Faculty revision' : 'First submission' }}
+                                        </p>
+                                    </div>
+                                    @if ($isRevisedSubmission)
+                                        <svg class="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v6h6M20 20v-6h-6M5.5 15a7 7 0 0 0 11.8 2.2L20 14M4 10l2.7-3.2A7 7 0 0 1 18.5 9" />
+                                        </svg>
+                                    @endif
+                                </div>
                             @else
-                                Submitted proposal record
+                                <p class="text-xs font-semibold text-gray-600 dark:text-slate-300">Submitted proposal record</p>
                             @endif
                         </div>
 

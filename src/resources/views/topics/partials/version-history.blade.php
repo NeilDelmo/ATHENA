@@ -6,11 +6,11 @@
     <details @if ($expanded) open @endif>
         <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
             <div>
-                <h3 class="text-sm font-black text-gray-900">Proposal version history</h3>
-                <p class="mt-0.5 text-xs text-gray-500">Immutable proposal-package snapshots with file-level change tracking.</p>
+                <h3 class="text-sm font-black text-gray-900">Submitted proposal versions</h3>
+                <p class="mt-0.5 text-xs text-gray-500">Only packages sent for review appear here. Working edits are excluded until submission.</p>
             </div>
             <span class="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600">
-                {{ $topic->versions->count() }} {{ Str::plural('version', $topic->versions->count()) }}
+                {{ $topic->versions->count() }} submitted {{ Str::plural('version', $topic->versions->count()) }}
             </span>
         </summary>
 
@@ -20,9 +20,9 @@
                     <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-700">Version {{ $version->version_number }}</span>
-                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">{{ $version->submission_type }}</span>
+                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">{{ $version->submission_type === 'initial' ? 'Initial submission' : 'Revision submission' }}</span>
                                 @if ($loop->first)
-                                    <span class="rounded-full bg-green-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Latest</span>
+                                    <span class="rounded-full bg-green-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Latest submitted</span>
                                 @endif
                             </div>
                             <h4 class="mt-3 text-sm font-black text-gray-900">{{ $version->title }}</h4>

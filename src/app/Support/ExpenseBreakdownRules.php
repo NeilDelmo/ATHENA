@@ -4,11 +4,39 @@ namespace App\Support;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Support\Arr;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class ExpenseBreakdownRules
 {
+    private const COMPUTED_ITEM_KEYS = [
+        'total_cost',
+        'is_contingency',
+    ];
+
+    /**
+     * Remove computed presentation fields before validating persisted source data.
+     *
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    public static function normalizeInput(array $input): array
+    {
+        if (! is_array($input['items'] ?? null)) {
+            return $input;
+        }
+
+        $input['items'] = array_map(
+            static fn (mixed $item): mixed => is_array($item)
+                ? Arr::except($item, self::COMPUTED_ITEM_KEYS)
+                : $item,
+            $input['items'],
+        );
+
+        return $input;
+    }
+
     /** @return array<string, ValidationRule|Closure|array<mixed>|string> */
     public static function rules(bool $allowDraft = false): array
     {

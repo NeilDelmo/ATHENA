@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\FacultyProjectCapacityService;
 use App\Services\ProposalSignatureWorkflow;
+use App\Services\SidebarAttentionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,8 +30,16 @@ class ResearchHeadTopicController extends Controller
     public function updateStatus(
         UpdateResearchHeadTopicStatusRequest $request,
         TopicProposal $topic,
+        SidebarAttentionService $sidebarAttention,
     ): RedirectResponse {
         $validated = $request->validated();
+
+        if ($topic->status === 'revision_requested') {
+            throw ValidationException::withMessages([
+                'status' => 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.',
+            ]);
+        }
+
         $latestVersion = $topic->latestVersion()->with('files')->first();
 
         if (! $latestVersion instanceof ProposalVersion) {
@@ -40,7 +49,10 @@ class ResearchHeadTopicController extends Controller
         }
 
         $latestFacultyFiles = $latestVersion->files
-            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD);
+            ->whereNotIn('document_type', [
+                ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            ]);
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
@@ -128,7 +140,9 @@ class ResearchHeadTopicController extends Controller
             if (! $isReturningFromSigning
                 && ! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'Only proposals awaiting a Research Head decision can be reviewed.',
+                    'status' => $reviewedTopic->status === 'revision_requested'
+                        ? 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.'
+                        : 'Only proposals awaiting a Research Head decision can be reviewed.',
                 ]);
             }
 
@@ -196,6 +210,12 @@ class ResearchHeadTopicController extends Controller
             }
 
         });
+
+        $sidebarAttention->markTopicAsRead(
+            $request->user(),
+            ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
+            $topic->id,
+        );
 
         $notificationDetails = match ($validated['status']) {
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
@@ -333,8 +353,7 @@ class ResearchHeadTopicController extends Controller
      * Build the URL a faculty member should land on after receiving a
      * Research Head decision. For revision requests we deep-link straight into
      * the PDF annotation workspace for the first highlighted comment, so the
-     * faculty user is dropped on the exact passage that needs a change instead
-     * of having to hunt through the proposal overview.
+     * faculty user sees the requested feedback beside the working editor.
      */
     private function revisionDeepLinkUrl(
         TopicProposal $topic,
@@ -357,9 +376,8 @@ class ResearchHeadTopicController extends Controller
             return route('topics.show', $topic).'#submit-revision';
         }
 
-        return route('topics.versions.files.annotations.index', [$topic, $latestVersion, $annotation->file])
-            .'?annotation='.$annotation->id
-            .'#proposal-review';
+        return route('topics.show', ['topic' => $topic, 'revision_annotation' => $annotation->id])
+            .'#submit-revision';
     }
 
     private function canAnnotateRevisionFile(ProposalVersionFile $file): bool

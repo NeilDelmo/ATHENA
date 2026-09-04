@@ -12,7 +12,7 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
-test('a Research Head sidebar area clears only its matching unread notifications', function () {
+test('Research Head review notifications stay unread when their sidebar area is opened', function () {
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $head->notify(new ProposalActivityNotification(
@@ -55,9 +55,33 @@ test('a Research Head sidebar area clears only its matching unread notifications
         ->post(route('sidebar-attention.open', 'proposal_submissions'))
         ->assertRedirect(route('research_head.proposal-submissions.index'));
 
-    expect($proposalNotification->fresh()->read_at)->not->toBeNull()
+    expect($proposalNotification->fresh()->read_at)->toBeNull()
         ->and($monitoringNotification->fresh()->read_at)->toBeNull()
         ->and($generalNotification->fresh()->read_at)->toBeNull();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($head)
+        ->post(route('notifications.open', $proposalNotification))
+        ->assertRedirect(route('research_head.proposal-submissions.index'));
+
+    expect($proposalNotification->fresh()->read_at)->toBeNull();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($head)
+        ->patchJson(route('notifications.read', $proposalNotification))
+        ->assertOk()
+        ->assertJsonPath('read', false);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($head)
+        ->patchJson(route('notifications.read-all'))
+        ->assertOk()
+        ->assertJsonPath('unread_count', 2)
+        ->assertJsonCount(2, 'preserved_ids');
+
+    expect($proposalNotification->fresh()->read_at)->toBeNull()
+        ->and($monitoringNotification->fresh()->read_at)->toBeNull()
+        ->and($generalNotification->fresh()->read_at)->not->toBeNull();
 });
 
 test('a Faculty user can open My Projects and is switched into the researcher workspace', function () {
@@ -105,7 +129,7 @@ test('a Faculty user can open My Projects and is switched into the researcher wo
         ->and($proposalNotification->fresh()->read_at)->toBeNull();
 });
 
-test('legacy unread notification titles are grouped without adding sidebar metadata', function () {
+test('legacy Research Head review notifications also stay unread when their sidebar area is opened', function () {
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $head->notify(new ProposalActivityNotification(
@@ -122,7 +146,7 @@ test('legacy unread notification titles are grouped without adding sidebar metad
         ->post(route('sidebar-attention.open', 'proposal_submissions'))
         ->assertRedirect(route('research_head.proposal-submissions.index'));
 
-    expect($notification->fresh()->read_at)->not->toBeNull();
+    expect($notification->fresh()->read_at)->toBeNull();
 });
 
 test('a user cannot open a sidebar destination outside their workspace access', function () {

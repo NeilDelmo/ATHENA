@@ -31,6 +31,7 @@
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
         $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
+        $isFacultyRevision = $isFacultyWorkspace && $topic->status === 'revision_requested' && $topic->user_id === Auth::id();
           $hasProjectAccess = $isResearchHead || $topic->isAccessibleTo(Auth::user());
           $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed())
               && $hasProjectAccess;
@@ -62,6 +63,7 @@
         $reviewTabHash = 'proposal-review';
         $initialTopicTab = $resubmissionErrors->any()
             || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*'])
+            || ($isFacultyWorkspace && $topic->status === 'revision_requested')
             ? 'review'
             : ($noticeToProceedErrors
                 ? 'notice'
@@ -88,7 +90,9 @@
                             Ask Athena about this proposal
                         </button>
                     @endif
-                    <span class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}">{{ $statusLabel }}</span>
+                    @unless ($isFacultyRevision)
+                        <span class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}">{{ $statusLabel }}</span>
+                    @endunless
                 </div>
             </div>
         </div>
@@ -98,7 +102,7 @@
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
-                ['#proposal-review', '#submit-revision'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
+                ['#proposal-review', '#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
                         ? 'notice'
@@ -113,7 +117,7 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                if (['#proposal-review', '#submit-revision'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
+                if (['#proposal-review', '#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
                     this.activeTopicTab = 'notice';
@@ -130,7 +134,7 @@
                 this.scrollToTopicHash();
             },
             scrollToTopicHash() {
-                if (window.location.hash.startsWith('#file-review-card-')) {
+                if (['#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.$nextTick(() => {
                         const card = document.getElementById(window.location.hash.slice(1));
                         if (!card) {
@@ -164,7 +168,19 @@
         }"
         @hashchange.window="syncTopicTab()"
     >
-        @if (session('success'))
+        @if (session('revision_submitted'))
+            <div id="revision-submitted" data-revision-submission-success role="status" class="rounded-2xl border border-green-200 bg-green-50 p-5 text-green-950 shadow-sm dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-700 text-white" aria-hidden="true">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12.5 4 4L19 7" /></svg>
+                    </span>
+                    <div>
+                        <p class="font-black">Revision sent successfully</p>
+                        <p class="mt-1 text-sm leading-6">{{ session('success') }} It is now waiting for the Research Head’s review.</p>
+                    </div>
+                </div>
+            </div>
+        @elseif (session('success'))
             <div class="rounded-2xl border border-gray-950 bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">{{ session('success') }}</div>
         @endif
         @if ($errors->any() || $resubmissionErrors->any())
@@ -225,6 +241,20 @@
                         </div>
                     </div>
 
+                    @if ($isResearchHead)
+                        <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
+                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                                <h4 class="text-sm font-black text-gray-950">Latest submitted package</h4>
+                                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-700">
+                                    @if ($latestVersion)
+                                        Version {{ $latestVersion->version_number }} is the package currently awaiting your decision. File review and decision actions are available under the <span class="font-black">Review &amp; decision</span> tab.
+                                    @else
+                                        No submitted package is available for review yet.
+                                    @endif
+                                </p>
+                            </div>
+                        </div>
+                    @else
                     <div class="divide-y divide-gray-100">
                         @forelse ($submittedFiles as $file)
                             @php
@@ -262,6 +292,7 @@
                             </div>
                         @endforelse
                     </div>
+                    @endif
                 </section>
 
                 <section aria-labelledby="research-details-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -315,13 +346,20 @@
         </section>
 
         <section id="proposal-review-tab" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
-            @if (! ($isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE))
+            @if ($isFacultyRevision)
+                <x-proposal-revision-form
+                    :topic="$topic"
+                    :pending-file-revisions="$pendingFileRevisions"
+                    :staged-revision-files="$stagedRevisionFiles"
+                    :display-project-cost="$displayProjectCost"
+                />
+            @endif
+
+            @if (! $isResearchHead && ! $isFacultyRevision)
                 <div class="rounded-2xl border border-red-200 bg-red-50 p-5 sm:p-6">
-                    <h3 class="text-lg font-black text-gray-900">{{ $isResearchHead ? 'One clear review process' : 'What happens next' }}</h3>
+                    <h3 class="text-lg font-black text-gray-900">What happens next</h3>
                     <p class="mt-2 max-w-4xl text-sm leading-6 text-gray-700">
-                        @if ($isResearchHead)
-                            Review the faculty package and record the decision. For revision requests, use highlighted comments and file-specific instructions to identify what must change.
-                        @elseif ($topic->status === 'revision_requested')
+                        @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                         @elseif ($topic->isAwaitingNoticeToProceed())
                             Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
@@ -395,35 +433,58 @@
             @endif
 
             @php
-                $decisionReviews = $topic->reviews->where('decision', '!=', 'head_upload');
+                $decisionReviews = $topic->reviews
+                    ->where('decision', '!=', 'head_upload')
+                    ->sortByDesc('created_at')
+                    ->values();
+                $latestDecisionReview = $decisionReviews->first();
             @endphp
-            <details class="group rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden" @if ($decisionReviews->isNotEmpty() && $topic->status !== \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE) open @endif>
-                <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 sm:px-6 hover:bg-gray-50 transition">
-                    <div class="flex items-center gap-4">
-                        <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                        <div>
-                            <h3 class="text-base font-black text-gray-900">Decision history</h3>
-                            <p class="mt-0.5 text-sm text-gray-600">
-                                @if ($decisionReviews->isNotEmpty())
-                                    {{ $decisionReviews->count() }} decision(s) recorded.
+            <details data-decision-history class="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-red-700 dark:hover:bg-gray-900 sm:px-6 [&::-webkit-details-marker]:hidden">
+                    <div class="flex min-w-0 items-start gap-3 sm:items-center">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-900 dark:text-gray-400" aria-hidden="true">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                        </span>
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-base font-black text-gray-900 dark:text-white">Decision history</h3>
+                                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span>
+                            </div>
+                            <p class="mt-1 truncate text-sm text-gray-600 dark:text-gray-400">
+                                @if ($latestDecisionReview)
+                                    Latest: <span class="font-bold text-gray-800 dark:text-gray-200">{{ str($latestDecisionReview->decision)->replace('_', ' ')->title() }}</span>
+                                    <span aria-hidden="true">&middot;</span>
+                                    <time datetime="{{ $latestDecisionReview->created_at->toIso8601String() }}">{{ $latestDecisionReview->created_at->format('M j, Y') }}</time>
                                 @else
-                                    No decisions recorded yet.
+                                    No Research Head decisions recorded yet.
                                 @endif
                             </p>
                         </div>
                     </div>
-                    <svg class="h-5 w-5 shrink-0 text-gray-400 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
+                    <div class="flex shrink-0 items-center gap-2 text-gray-500 dark:text-gray-400">
+                        <span class="hidden text-xs font-bold sm:inline"><span class="group-open:hidden">View history</span><span class="hidden group-open:inline">Hide history</span></span>
+                        <svg class="h-5 w-5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
+                    </div>
                 </summary>
-                <div class="border-t border-gray-100">
-                    <div class="space-y-5 p-6">
-                        @forelse ($decisionReviews as $review)
-                            <div class="border-l-2 border-red-200 pl-4">
-                                <div class="flex flex-wrap justify-between gap-2"><p class="text-sm font-black text-gray-800">{{ str($review->decision)->replace('_', ' ')->title() }}</p><time class="text-xs text-gray-500">{{ $review->created_at->format('M d, Y h:i A') }}</time></div>
-                                <p class="mt-1 text-xs font-semibold text-gray-500">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>
+                <div class="max-h-[42rem] overflow-y-auto overscroll-contain border-t border-gray-100 dark:border-gray-800" data-decision-history-list>
+                    @if ($decisionReviews->isNotEmpty())
+                        <ol class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach ($decisionReviews as $review)
+                            <li class="p-5 sm:p-6">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="text-sm font-black text-gray-800 dark:text-gray-100">{{ str($review->decision)->replace('_', ' ')->title() }}</p>
+                                        @if ($loop->first)
+                                            <span class="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-red-700 dark:bg-red-950/40 dark:text-red-300">Latest</span>
+                                        @endif
+                                    </div>
+                                    <time datetime="{{ $review->created_at->toIso8601String() }}" class="text-xs text-gray-500 dark:text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</time>
+                                </div>
+                                <p class="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>
                                 @if ($review->comment)
-                                    <div class="mt-3 rounded-xl bg-gray-50 p-4 text-sm leading-6 text-gray-700">
+                                    <div class="mt-3 rounded-xl bg-gray-50 p-4 text-sm leading-6 text-gray-700 dark:bg-gray-900 dark:text-gray-300">
                                         @if ($review->decision === 'rejected')
-                                            <p class="text-xs font-black uppercase tracking-wider text-red-700">Rejection reason</p>
+                                            <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Rejection reason</p>
                                         @endif
                                         <p @class(['whitespace-pre-line', 'mt-1' => $review->decision === 'rejected'])>{{ $review->comment }}</p>
                                     </div>
@@ -435,9 +496,10 @@
                                                 $annotationVersion = $topic->versions->firstWhere('id', $fileRevision->file?->proposal_version_id);
                                             @endphp
                                             <div class="rounded-xl border px-4 py-3 text-sm {{ $fileRevision->resolved_at ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200' : 'border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200' }}">
-                                                <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-xs font-black">{{ $fileRevision->resolved_at ? 'Resolved' : 'Revision required' }}</span></div>
+                                                <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-xs font-black">{{ ! $fileRevision->resolved_at ? 'Revision required' : ($fileRevision->resolution_type === 'no_file_change' ? 'Resolved — no file change' : 'Resolved — revised file') }}</span></div>
                                                 <p class="mt-1 text-xs opacity-75">{{ $fileRevision->original_filename }}</p>
                                                 @if ($fileRevision->revision_note)<p class="mt-2 leading-6">{{ $fileRevision->revision_note }}</p>@endif
+                                                @if ($fileRevision->resolved_at && $fileRevision->faculty_response)<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p class="text-xs font-black uppercase tracking-wide">Faculty response</p><p class="mt-1 whitespace-pre-line leading-6">{{ $fileRevision->faculty_response }}</p></div>@endif
                                                 @if ($fileRevision->annotations->isNotEmpty() && $annotationVersion && $fileRevision->file)
                                                     @php
                                                         $firstAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first();
@@ -449,22 +511,32 @@
                                         @endforeach
                                     </div>
                                 @endif
-                            </div>
-                        @empty
-                            <p class="text-center text-sm text-gray-500">No Research Head decision has been recorded.</p>
-                        @endforelse
-                    </div>
+                            </li>
+                        @endforeach
+                        </ol>
+                    @else
+                        <p class="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No Research Head decision has been recorded.</p>
+                    @endif
                 </div>
             </details>
 
             @if ($canDecide)
-                <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open>
+                @php
+                    $initialResearchHeadDecision = old(
+                        'status',
+                        request()->query('decision') === 'revision_requested' ? 'revision_requested' : '',
+                    );
+                @endphp
+                <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
                     <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
                         <div class="flex items-center gap-4">
                             <svg class="h-5 w-5 shrink-0 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                             <div>
                                 <p class="text-xs font-black uppercase tracking-wider text-red-700">Action required</p>
                                 <h3 class="text-base font-black text-gray-900">Record the Research Head decision</h3>
+                                @if ($latestVersion)
+                                    <p class="mt-1 text-xs font-bold text-red-800">Reviewing Version {{ $latestVersion->version_number }} &mdash; latest submitted package</p>
+                                @endif
                             </div>
                         </div>
                         <svg class="h-5 w-5 shrink-0 text-red-400 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
@@ -475,7 +547,7 @@
                             action="{{ route('research_head.topics.updateStatus', $topic) }}"
                             method="POST"
                             x-data="{
-                                decision: @js(old('status', '')),
+                                decision: @js($initialResearchHeadDecision),
                                 signingDecision: @js(\App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE),
                                 submitting: false,
                                 async submitDecision(event) {
@@ -657,21 +729,18 @@
                             </section>
 
                             <section
-                                x-show="decision === 'revision_requested'"
-                                x-cloak
-                                x-transition.opacity
                                 class="rounded-2xl border border-gray-300 bg-white p-4 dark:border-gray-700 dark:bg-gray-950 sm:p-5"
                                 aria-labelledby="file-review-checklist-heading"
                             >
                                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
-                                        <h4 id="file-review-checklist-heading" class="text-lg font-black text-gray-900">File review checklist</h4>
-                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Mark only the files that need revision. Every selected PDF requires at least one saved highlight and comment. For a file that cannot be highlighted, exact file-specific instructions are required.</p>
+                                        <h4 id="file-review-checklist-heading" class="text-lg font-black text-gray-900">Review latest submitted files</h4>
+                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">These are the files from Version {{ $latestVersion?->version_number ?? 1 }}. Preview and review them here. To request changes, choose <span class="font-black">Request revisions</span>, then mark only the affected files. Every selected PDF requires at least one saved highlight and comment.</p>
                                     </div>
                                 </div>
-                                @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect(), 'disableUnlessRevision' => true])
+                                @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true])
                                 @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
-                                <p class="mt-4 rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border dark:border-gray-800">If any file is marked for revision, choose <span class="font-black">Request revision</span> as the decision.</p>
+                                <p x-show="decision === 'revision_requested'" x-cloak class="mt-4 rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border dark:border-gray-800">This request applies to Version {{ $latestVersion?->version_number ?? 1 }}. The faculty member's next resubmission will create a newer version for a new review round.</p>
                             </section>
 
                             <button type="submit" :disabled="submitting" class="w-full rounded-xl bg-red-600 px-5 py-3.5 text-base font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">
@@ -699,7 +768,7 @@
                                 <h4 class="text-base font-black text-gray-900 dark:text-white">Papers that must be corrected</h4>
                                 <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">For PDFs, save at least one highlight and comment before selecting the paper. For non-PDF files, give exact instructions.</p>
                                 <div class="mt-4">
-                                    @include('topics.partials.revision-file-selector', ['files' => $latestVersion?->files ?? collect()])
+                                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles])
                                 </div>
                                 @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                             </section>
@@ -708,86 +777,17 @@
                     </div>
                 </details>
             @elseif (Auth::user()->isUsingWorkspace('research_head'))
-                <div class="rounded-2xl bg-gray-100 p-5 text-center text-sm font-bold text-gray-600">This proposal is already {{ $statusLabel }}. No further decision is available.</div>
-            @endif
-
-            @if ($isFacultyWorkspace && $topic->status === 'revision_requested' && $topic->user_id === Auth::id())
-                <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open>
-                    <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
-                        <div class="flex items-center gap-4">
-                            <svg class="h-5 w-5 shrink-0 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                            <div>
-                                <p class="text-xs font-black uppercase tracking-wider text-red-700">Action required</p>
-                                <h3 class="text-base font-black text-gray-900">Submit your revision</h3>
-                            </div>
-                        </div>
-                        <svg class="h-5 w-5 shrink-0 text-red-400 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m19 9-7 7-7-7" /></svg>
-                    </summary>
-                    <div class="border-t border-red-200 bg-white">
-                        <form id="submit-revision" action="{{ route('faculty.topics.resubmit', $topic) }}" method="POST" enctype="multipart/form-data" data-proposal-confirm data-confirm-title="Upload this revision to the Research Head?" data-confirm-text="Your updated metadata and selected files will be saved as a new version. Unchanged files will carry forward automatically. Continue?" data-confirm-button="Save and submit revision" data-confirm-icon="question" class="space-y-4 p-5 sm:p-6">
-                            @csrf @method('PATCH')
-                            <input type="hidden" name="redirect_to" value="topic">
-                            <input type="hidden" name="topic_tab" value="review">
-                            @if ($topic->revisionDraft)
-                                <input type="hidden" name="revision_draft_id" value="{{ $topic->revisionDraft->id }}">
-                            @endif
-                            <p class="text-sm leading-6 text-gray-600">Update the details and upload only the files marked below. Unchanged files carry forward automatically.</p>
-
-                            @if ($pendingFileRevisions->isNotEmpty())
-                                <div class="rounded-xl border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
-                                    <p class="text-sm font-black text-red-900 dark:text-red-200">Files you must replace</p>
-                                    <div class="mt-2 space-y-2">
-                                        @foreach ($pendingFileRevisions as $fileRevision)
-                                            <div class="text-sm leading-6 text-red-900 dark:text-red-200"><span class="font-black">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}:</span> {{ $fileRevision->original_filename }}@if ($fileRevision->revision_note)<p class="pl-2 text-sm text-red-800 dark:text-red-300">{{ $fileRevision->revision_note }}</p>@endif @if ($fileRevision->annotations->isNotEmpty() && $latestVersion && $fileRevision->file)@php $firstFacultyAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first(); $facultyAnnotationLink = route('topics.versions.files.annotations.index', [$topic, $latestVersion, $fileRevision->file]).'?annotation='.$firstFacultyAnnotation->id.'#proposal-review'; @endphp <a href="{{ $facultyAnnotationLink }}" class="mt-2 inline-flex rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white hover:bg-red-800">View highlighted comments ({{ $fileRevision->annotations->count() }})</a>@endif</div>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
-
-                            @php($requiredRevisionTypes = $pendingFileRevisions->pluck('document_type')->unique())
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <label class="block text-sm font-bold text-gray-700">Project title<input name="title" value="{{ old('title', $topic->title) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="Project title"></label>
-                                <label class="block text-sm font-bold text-gray-700">Total project cost<input name="estimated_budget" type="number" min="0" max="{{ $topic->researchCall?->budgetCeiling() ?? 0 }}" step="0.01" value="{{ old('estimated_budget', $displayProjectCost) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="Total project cost"></label>
-                                <label class="block text-sm font-bold text-gray-700 md:col-span-2">Description<textarea name="description" rows="3" class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="Description">{{ old('description', $topic->description) }}</textarea></label>
-                                <label class="block text-sm font-bold text-gray-700">Duration in months<input name="estimated_duration_months" type="number" min="1" max="120" value="{{ old('estimated_duration_months', $topic->estimated_duration_months) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="Duration in months"></label>
-                                <label class="block text-sm font-bold text-gray-700">What changed?<textarea name="change_summary" rows="2" maxlength="2000" class="mt-2 block w-full rounded-xl border-gray-300 text-sm" placeholder="Briefly explain your changes">{{ old('change_summary') }}</textarea></label>
-                            </div>
-
-                            <div class="grid gap-3 md:grid-cols-2">
-                                @foreach ([['detailed_proposal', 'Detailed proposal', '.doc,.docx,.pdf'], ['work_plan', 'Work plan', '.doc,.docx,.pdf'], ['line_item_budget', 'Line-item budget', '.doc,.docx,.pdf'], ['expense_breakdown', 'Expense breakdown', '.pdf'], ['gad_checklist', 'GAD checklist', '.doc,.docx,.pdf']] as [$name, $label, $accept])
-                                    @php($stagedFile = $stagedRevisionFiles->get($name))
-                                    <x-file-dropzone
-                                        id="revision_{{ $name }}"
-                                        name="{{ $name }}"
-                                        :label="$label"
-                                        :accept="$accept"
-                                        :required="$requiredRevisionTypes->contains($name) && ! $stagedFile"
-                                        data-topic-file-dropzone="{{ $name }}"
-                                    >
-                                        @if ($stagedFile)<span class="mt-1 block rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-xs font-black text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Automatically uploaded: {{ $stagedFile->original_filename }}</span>@endif
-                                    </x-file-dropzone>
-                                @endforeach
-                                @php($stagedCurriculumVitae = $stagedRevisionFiles->get('curriculum_vitae'))
-                                <x-file-dropzone
-                                    id="revision_curricula_vitae"
-                                    name="curricula_vitae[]"
-                                    label="Curriculum vitae files"
-                                    accept=".doc,.docx,.pdf"
-                                    :multiple="true"
-                                    :required="$requiredRevisionTypes->contains('curriculum_vitae') && ! $stagedCurriculumVitae"
-                                    data-topic-file-dropzone="curricula_vitae"
-                                >
-                                    @if ($stagedCurriculumVitae)<span class="mt-1 block rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-xs font-black text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Automatically uploaded: {{ $stagedCurriculumVitae->original_filename }}</span>@endif
-                                </x-file-dropzone>
-                            </div>
-
-                            <div class="flex justify-end border-t border-gray-100 pt-4">
-                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto">Save and submit revision</button>
-                            </div>
-                        </form>
+                @if ($topic->status === 'revision_requested')
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                        <p class="font-bold">Waiting for the faculty revision</p>
+                        <p class="mt-1 leading-6">This revision request is locked while the faculty member works. Review the resubmitted version before requesting another round of changes.</p>
                     </div>
-                </details>
+                @else
+                    <div class="rounded-2xl bg-gray-100 p-5 text-center text-sm font-bold text-gray-600">This proposal is already {{ $statusLabel }}. No further decision is available.</div>
+                @endif
             @endif
+
+
         </section>
 
         @if ($canViewNoticeToProceed)
@@ -797,8 +797,33 @@
         @endif
 
         <section id="version-history-tab" x-show="activeTopicTab === 'history'" x-cloak role="tabpanel" aria-labelledby="version-history-tab-button" class="space-y-5">
+            @if ($topic->status === 'revision_requested')
+                <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100" data-working-revision-status>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-base font-black">{{ $isFacultyRevision ? 'Revision in progress' : 'Faculty revision in progress' }}</h3>
+                                <span class="rounded-full bg-amber-200/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900 dark:bg-amber-900 dark:text-amber-100">Working draft</span>
+                            </div>
+                            @if ($isFacultyRevision)
+                                <p class="mt-2 text-sm leading-6">Your editor changes, including added images, stay in this private working revision. They are not part of Version {{ $latestVersion?->version_number ?? 1 }}.</p>
+                                <p class="mt-1 text-sm font-semibold">Submitting the revision creates Version {{ ($latestVersion?->version_number ?? 1) + 1 }}, sends it to the Research Head, and enables the comparison below.</p>
+                            @else
+                                <p class="mt-2 text-sm leading-6">Version {{ $latestVersion?->version_number ?? 1 }} remains the latest submitted package while the faculty member works. The Research Head receives the changes only after the faculty submits the revision.</p>
+                            @endif
+                        </div>
+                        @if ($isFacultyRevision)
+                            <button type="button" @click="setTopicTab('review', '#submit-revision')" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950 dark:bg-amber-100 dark:text-amber-950">Continue revision</button>
+                        @endif
+                    </div>
+                </section>
+            @endif
+
             <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                <div class="border-b border-gray-100 px-6 py-4"><h3 class="text-lg font-black text-gray-900">Version comparison</h3><p class="mt-1 text-sm text-gray-600">What changed between the two latest submissions.</p></div>
+                <div class="border-b border-gray-100 px-6 py-4">
+                    <h3 class="text-lg font-black text-gray-900">Submitted version comparison</h3>
+                    <p class="mt-1 text-sm text-gray-600">Compares submission details and identifies replaced files. It does not inspect document content to describe individual text or image edits.</p>
+                </div>
                 @if ($previousVersion && $latestVersion)
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-100 text-left text-sm">
@@ -821,7 +846,16 @@
                         </div>
                     </div>
                 @else
-                    <div class="p-8 text-center"><p class="text-base font-bold text-gray-700">Initial version</p><p class="mt-1 text-sm text-gray-500">A comparison will appear after the first revision.</p></div>
+                    <div class="p-8 text-center">
+                        <p class="text-base font-bold text-gray-700">Only one submitted version</p>
+                        <p class="mt-1 text-sm text-gray-500">
+                            @if ($topic->status === 'revision_requested')
+                                The current revision is still a working draft. This comparison appears after the faculty submits it as Version {{ ($latestVersion?->version_number ?? 1) + 1 }}.
+                            @else
+                                A comparison appears after the first revision is submitted.
+                            @endif
+                        </p>
+                    </div>
                 @endif
             </section>
 

@@ -24,12 +24,14 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
         ->assertDontSee('AI Research Assistant')
         ->assertDontSee('href="'.$researchHelpUrl.'#ai-research-assistant"', false)
         ->assertSee('href="'.$researchHelpUrl.'#rrl-finder"', false)
+        ->assertDontSee('href="'.$researchHelpUrl.'#turnitin"', false)
         ->assertDontSee('href="'.$researchHelpUrl.'#conference-finder"', false)
         ->assertSee('id="rrl-finder"', false)
+        ->assertDontSee('id="turnitin"', false)
         ->assertDontSee('id="conference-finder"', false);
 });
 
-test('faculty researcher sidebar includes conference discovery', function () {
+test('faculty researcher sidebar includes turnitin and conference discovery', function () {
     Role::firstOrCreate(['name' => 'faculty_researcher']);
     $researcher = User::factory()->create();
     $researcher->assignRole('faculty_researcher');
@@ -39,7 +41,9 @@ test('faculty researcher sidebar includes conference discovery', function () {
     $this->actingAs($researcher)
         ->get($researchHelpUrl)
         ->assertOk()
-        ->assertSeeInOrder(['Research Help Facility', 'RRL Finder', 'Conference Finder'])
+        ->assertSeeInOrder(['Research Help Facility', 'RRL Finder', 'Turnitin', 'Conference Finder'])
+        ->assertSee('href="'.$researchHelpUrl.'#turnitin"', false)
         ->assertSee('href="'.$researchHelpUrl.'#conference-finder"', false)
+        ->assertSee('id="turnitin"', false)
         ->assertSee('id="conference-finder"', false);
 });

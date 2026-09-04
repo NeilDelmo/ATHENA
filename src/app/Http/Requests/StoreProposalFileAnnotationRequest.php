@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\ProposalFileAnnotation;
+use App\Models\ProposalVersionFile;
+use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,8 +21,13 @@ class StoreProposalFileAnnotationRequest extends FormRequest
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-    public function rules(): array
+    public function rules(ProposalRevisionTargetCatalog $revisionTargets): array
     {
+        $file = $this->route('file');
+        $editorTargets = $file instanceof ProposalVersionFile
+            ? collect($revisionTargets->forFile($file))->pluck('value')->all()
+            : [];
+
         return [
             'annotation_type' => ['required', Rule::in([
                 ProposalFileAnnotation::TYPE_TEXT,
@@ -35,6 +42,15 @@ class StoreProposalFileAnnotationRequest extends FormRequest
             'rectangles.*.width' => ['required', 'numeric', 'gt:0', 'max:1'],
             'rectangles.*.height' => ['required', 'numeric', 'gt:0', 'max:1'],
             'comment' => ['required', 'string', 'max:5000'],
+            'editor_target' => ['nullable', 'string', Rule::in($editorTargets)],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'editor_target.in' => 'Choose a field from this paper, or select paper-level feedback.',
         ];
     }
 }

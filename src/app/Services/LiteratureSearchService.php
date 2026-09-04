@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\LiteratureSource;
 use App\Support\LiteratureFullTextToken;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
@@ -47,6 +48,8 @@ class LiteratureSearchService
     /** @var array<string, string> */
     private array $failureReasons = [];
 
+    public function __construct(private LiteratureWebSearchService $webSearch) {}
+
     /**
      * @param  array{year_from?: int|null, year_to?: int|null, min_citations?: int|null, open_access?: bool|null}  $filters
      * @return array{results: list<array<string, mixed>>, failed_sources: list<string>, sources: list<string>, query_guidance: array{is_broad: bool, term_count: int, message: ?string, suggestion: ?string}, provider_notice: ?string}
@@ -55,6 +58,7 @@ class LiteratureSearchService
     {
         $this->failedSources = [];
         $this->failureReasons = [];
+        unset($this->providers['web_repositories']);
         $filters = $this->normalizeFilters($filters);
         $queryTerms = $this->queryTerms($query);
         $queryGuidance = $this->queryGuidance($query, $queryTerms);
@@ -79,6 +83,7 @@ class LiteratureSearchService
             ...$this->ericResults($this->successfulResponse($responses['eric'] ?? null, 'eric')),
             ...$this->doajResults($this->successfulResponse($responses['doaj'] ?? null, 'doaj')),
             ...$this->arxivResults($this->successfulResponse($responses['arxiv'] ?? null, 'arxiv')),
+            ...$this->webRepositoryResults($query),
         ])
             ->filter(fn (array $result) => filled($result['title'] ?? null))
             ->filter(fn (array $result) => $this->passesFilters($result, $filters)))
@@ -130,6 +135,10 @@ class LiteratureSearchService
             ->values()
             ->all();
 
+        if (collect($results)->contains(fn (array $result): bool => ($result['provenance'] ?? []) !== [])) {
+            $this->providers['web_repositories'] = 'Web repositories';
+        }
+
         return [
             'results' => $results,
             'failed_sources' => $this->failedSources,
@@ -142,6 +151,19 @@ class LiteratureSearchService
     public function allProvidersFailed(): bool
     {
         return count($this->failedSources) >= count($this->providers);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function webRepositoryResults(string $query): array
+    {
+        try {
+            return array_map(fn (array $result): array => $this->normalizedResult($result), $this->webSearch->search($query));
+        } catch (QueryException $exception) {
+            $this->providers['web_repositories'] = 'Web repositories';
+            $this->recordFailure('web_repositories', $exception::class);
+
+            return [];
+        }
     }
 
     /**
@@ -611,6 +633,10 @@ class LiteratureSearchService
         $merged = $ordered->first();
 
         foreach ($ordered->slice(1) as $duplicate) {
+            $merged['provenance'] = array_values(array_unique([
+                ...($merged['provenance'] ?? []),
+                ...($duplicate['provenance'] ?? []),
+            ], SORT_REGULAR));
             if (blank($merged['full_text_url'] ?? null) && filled($duplicate['full_text_url'] ?? null)) {
                 $merged['_full_text_provider'] = $duplicate['_full_text_provider'] ?? $duplicate['source'];
             }
@@ -1207,6 +1233,7 @@ class LiteratureSearchService
             'access_status' => $accessStatus,
             'type' => $this->cleanText($result['type'] ?? null) ?: null,
             '_provider_rank' => (int) ($result['_provider_rank'] ?? 999),
+            'provenance' => $result['provenance'] ?? [],
         ];
     }
 

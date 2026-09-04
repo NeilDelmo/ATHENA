@@ -24,6 +24,7 @@ function openResearchCall(string $title, CarbonImmutable $closesAt): ResearchCal
         'opens_at' => now()->subDay(),
         'closes_at' => $closesAt,
         'status' => 'open',
+        'faculty_open_notification_sent_at' => now(),
     ]);
 }
 
@@ -83,6 +84,35 @@ test('changing a deadline makes its previously dismissed banner visible again', 
         ->assertOk()
         ->assertSee('data-research-call-deadline-banner', false)
         ->assertSee('Updated Deadline Call');
+});
+
+test('a faculty member can dismiss an ended-call notice through the next Manila day', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole(User::WORKSPACE_FACULTY);
+    $researchCall = ResearchCall::create([
+        'title' => 'Ended Dismissible Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subMonth(),
+        'closes_at' => now()->subDay(),
+        'status' => 'open',
+    ]);
+
+    $this->actingAs($faculty)
+        ->postJson(route('research-calls.deadline-dismissal.store', $researchCall))
+        ->assertOk()
+        ->assertJson(['dismissed' => true]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertDontSee('data-research-call-deadline-banner', false);
+
+    $this->travelTo(CarbonImmutable::parse('2026-08-26 09:00:00', 'Asia/Manila'));
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSee('data-research-call-notice-state="ended"', false);
 });
 
 test('deadline reminders are sent once at the warning window and once in the final 24 hours', function () {

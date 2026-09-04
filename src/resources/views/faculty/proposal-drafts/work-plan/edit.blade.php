@@ -42,6 +42,7 @@
             revisionDocumentType: @js($paper['document_type']),
             revisionAttachmentLabel: @js($paper['label']),
             revisionReviewUrl: @js($proposalDraft->topic_id ? route('topics.show', $proposalDraft->topic_id).'#review-and-submit' : null),
+            revisionTarget: @js(request()->query('revision_target')),
         })"
     >
         @if (session('success'))
@@ -57,6 +58,7 @@
 
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
 
+        <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $workPlanDocument?->lock_version ?? 0)"
@@ -74,7 +76,7 @@
             </div>
         @endunless
 
-        <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div><h3 class="text-base font-black text-gray-900">Shared project information</h3><p class="mt-1 text-xs text-gray-500">Edit these values from Project Details; they are applied automatically to the paper.</p></div>
                 <div class="flex gap-2">

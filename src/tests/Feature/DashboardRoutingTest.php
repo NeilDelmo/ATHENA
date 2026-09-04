@@ -39,10 +39,11 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Research Proposal Workspace')
-        ->assertSee('Submit and track your research proposals.')
+        ->assertSee('Faculty research')
+        ->assertSee('Manage your drafts, review feedback, and submitted proposals.')
         ->assertSee('data-dashboard-palette="red-black-white"', false)
         ->assertSee('Proposal overview')
+        ->assertSee('A quick view of your research pipeline.')
         ->assertSee('No open call')
         ->assertDontSee(route('faculty.proposal-drafts.create'), false)
         ->assertDontSee('Faculty Researcher Workspace')
@@ -103,12 +104,64 @@ test('the faculty dashboard shows recent accessible proposal drafts', function (
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Recent proposal drafts')
+        ->assertSee('Continue working')
+        ->assertSee('Your two most recently edited proposal packages.')
         ->assertSee($ownedDraft->project_title)
         ->assertSee($sharedDraft->project_title)
         ->assertSee('Shared by Sharing Faculty')
         ->assertSee(route('faculty.proposal-drafts.show', $ownedDraft))
         ->assertDontSee('Private Draft That Must Stay Hidden');
+});
+
+test('the faculty dashboard prioritizes revision requests and keeps submitted proposals compact', function () {
+    $this->withoutVite();
+
+    $head = User::factory()->create(['name' => 'Research Head']);
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create(['name' => 'Revision Faculty']);
+    $faculty->assignRole('faculty');
+
+    $researchCall = ResearchCall::create([
+        'title' => 'Revision Dashboard Call',
+        'academic_year' => '2026-2027',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'max_active_research_per_faculty' => 2,
+        'maximum_budget' => 100000,
+        'status' => 'open',
+        'created_by' => $head->id,
+    ]);
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'research_call_id' => $researchCall->id,
+        'title' => 'Proposal Requiring Revision',
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 12,
+        'status' => 'revision_requested',
+    ]);
+    $topic->reviews()->create([
+        'reviewer_id' => $head->id,
+        'decision' => 'revision_requested',
+        'comment' => 'Clarify the sampling plan before resubmitting.',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.dashboard'))
+        ->assertOk()
+        ->assertSeeInOrder([
+            'Action required',
+            'Proposal overview',
+            'Continue working',
+            'Submitted proposals',
+        ])
+        ->assertSee('1 proposal needs your attention.')
+        ->assertSee('Clarify the sampling plan before resubmitting.')
+        ->assertSee('Revise and resubmit proposal')
+        ->assertSee(route('topics.show', $topic).'#proposal-review', false)
+        ->assertSee('Status and submission details at a glance.')
+        ->assertDontSee('Proposal version history')
+        ->assertDontSee('Download latest');
 });
 
 test('the faculty researcher dashboard hides proposal drafts and only lists approved projects', function () {

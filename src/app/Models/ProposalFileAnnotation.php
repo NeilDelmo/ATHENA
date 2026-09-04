@@ -19,6 +19,7 @@ class ProposalFileAnnotation extends Model
         'selected_text',
         'rectangles',
         'comment',
+        'editor_target',
     ];
 
     protected function casts(): array

@@ -186,6 +186,7 @@ test('the notification inbox segregates activity and marks an opened item as rea
     $notifications = [
         ['Proposal workspace invitation', 'A proposal owner invited you to collaborate.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 1)],
         ['Collaborator accepted invitation', 'A faculty member joined your proposal workspace.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
+        ['Revision requested', 'The Research Head requested changes to your proposal.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
         ['Proposal submitted for review', 'A collaborative proposal is ready for review.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS, null],
         ['Research call updated', 'The call schedule and requirements changed.', null, null],
         ['Progress report submitted', 'A quarterly progress report is ready.', ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING, null],
@@ -217,6 +218,15 @@ test('the notification inbox segregates activity and marks an opened item as rea
         ->assertSee('data-notification-category="reviews"', false)
         ->assertSee('data-notification-category="research_calls"', false)
         ->assertSee('data-notification-category="projects"', false);
+
+    $notificationItems = $response->viewData('notificationItems');
+
+    expect($notificationItems
+        ->first(fn (array $item): bool => $item['data']['title'] === 'Revision requested')['category'])
+        ->toBe('reviews')
+        ->and($notificationItems
+            ->first(fn (array $item): bool => $item['data']['title'] === 'Collaborator accepted invitation')['category'])
+        ->toBe('collaboration');
 
     $reviewNotification = $faculty->notifications()->firstWhere('data->title', 'Proposal submitted for review');
 

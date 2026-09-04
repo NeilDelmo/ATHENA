@@ -155,7 +155,7 @@ class ProposalDraftReadiness
         }
 
         if ($draft->researchCall === null) {
-            $errors['research_call'] = 'Choose an open research call from Review and Turn In when you are ready to submit. Your draft remains available.';
+            $errors['research_call'] = 'An open research call must be selected before preparing submission PDFs. The proposal owner can use Choose research call; your draft remains available.';
         } elseif (! $draft->researchCall->isAcceptingSubmissions()) {
             $errors['research_call'] = 'This research call is no longer accepting submissions. Your draft remains available.';
         }

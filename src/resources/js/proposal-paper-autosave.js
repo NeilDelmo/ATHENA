@@ -88,6 +88,25 @@ export function autoSaveHasPendingChanges(state, form, configuration) {
     return state.autoSaveInFlight || !proposalPaperAutoSaveIsCurrent(state, form, configuration);
 }
 
+export function proposalPaperFormFingerprint(entries, excludedNames = []) {
+    const excluded = new Set(excludedNames);
+
+    return JSON.stringify([...entries]
+        .filter(([name, value]) => !excluded.has(name) && !(
+            value instanceof File
+            && value.name === ''
+            && value.size === 0
+        ))
+        .map(([name, value]) => [name, value instanceof File
+            ? {
+                name: value.name,
+                size: value.size,
+                type: value.type,
+                lastModified: value.lastModified,
+            }
+            : value]));
+}
+
 export async function finishProposalPaperAutoSave({
     state,
     form,

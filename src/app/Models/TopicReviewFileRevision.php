@@ -14,6 +14,8 @@ class TopicReviewFileRevision extends Model
         'document_type',
         'original_filename',
         'revision_note',
+        'resolution_type',
+        'faculty_response',
         'resolved_at',
     ];
 

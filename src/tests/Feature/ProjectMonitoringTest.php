@@ -10,6 +10,7 @@ use App\Notifications\ProposalActivityNotification;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -144,6 +145,9 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview monitoring tool')
         ->assertSee('Changes save automatically.')
+        ->assertSee('Exit monitoring')
+        ->assertSee('data-paper-cancel-exit', false)
+        ->assertSee('fixed bottom-4 right-4', false)
         ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('A. Work Plan')
@@ -386,6 +390,30 @@ test('a research head can review a report and update project status', function (
         'progress_percentage' => 60,
         'accomplishments' => 'Draft report completed.',
     ]);
+    $notification = $this->head->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => ProposalActivityNotification::class,
+        'data' => [
+            'title' => 'Monitoring tool submitted',
+            'message' => 'A monitoring tool is ready for review.',
+            'url' => route('research_head.projects.index'),
+            'topic_id' => $this->topic->id,
+            'workspace' => User::WORKSPACE_RESEARCH_HEAD,
+            'sidebar_area' => ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+        ],
+    ]);
+    $otherNotification = $this->head->notifications()->create([
+        'id' => (string) Str::uuid(),
+        'type' => ProposalActivityNotification::class,
+        'data' => [
+            'title' => 'Progress report submitted',
+            'message' => 'Another project report is ready for review.',
+            'url' => route('research_head.projects.index'),
+            'topic_id' => $this->topic->id + 1000,
+            'workspace' => User::WORKSPACE_RESEARCH_HEAD,
+            'sidebar_area' => ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+        ],
+    ]);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.progress-reports.review', $report), [
@@ -402,7 +430,9 @@ test('a research head can review a report and update project status', function (
 
     expect($report->fresh()->review_status)->toBe('reviewed')
         ->and($report->fresh()->reviewed_by)->toBe($this->head->id)
-        ->and($this->topic->fresh()->project_status)->toBe('delayed');
+        ->and($this->topic->fresh()->project_status)->toBe('delayed')
+        ->and($notification->fresh()->read_at)->not->toBeNull()
+        ->and($otherNotification->fresh()->read_at)->toBeNull();
 });
 
 test('revision requests require Research Head remarks', function () {
