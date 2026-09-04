@@ -331,7 +331,10 @@ class TopicController extends Controller
 
         try {
             $topic = DB::transaction(function () use ($versionData, $proposalTitle, $call, $packageFiles, $primaryFile) {
-                $currentCall = ResearchCall::query()->findOrFail($call->id);
+                $currentCall = ResearchCall::query()
+                    ->whereKey($call->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 if (! $currentCall->isAcceptingSubmissions()) {
                     throw ValidationException::withMessages([

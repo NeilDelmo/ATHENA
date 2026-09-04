@@ -230,18 +230,20 @@ class SubmitProposalDraft
                     }
                 }
 
-                $lockedDraft->unsetRelation('researchCall');
-                $lockedDraft->load('researchCall');
+                $primaryFile = $this->packageService->primaryFile($permanentFiles);
+                $currentCall = ResearchCall::query()
+                    ->whereKey($lockedDraft->research_call_id)
+                    ->lockForUpdate()
+                    ->first();
 
-                if (! $lockedDraft->researchCall?->isAcceptingSubmissions()) {
+                if (! $currentCall?->isAcceptingSubmissions()) {
                     throw ValidationException::withMessages([
                         'research_call' => 'The research call submission window has closed. Your proposal was not sent and the draft remains available.',
                     ]);
                 }
 
-                $primaryFile = $this->packageService->primaryFile($permanentFiles);
                 $topic = $user->proposals()->create([
-                    'research_call_id' => $lockedDraft->research_call_id,
+                    'research_call_id' => $currentCall->id,
                     'title' => $lockedDraft->project_title,
                     'estimated_duration_months' => $lockedDraft->duration_months,
                     'status' => 'pending',

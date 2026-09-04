@@ -183,9 +183,9 @@
                 <div class="relative max-w-2xl">
                     <span class="inline-flex rounded-full border border-red-400/25 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-red-200">Research workspace</span>
                     <h3 id="research-call-posters-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">No research call poster has been uploaded yet.</h3>
-                    <p class="mt-3 max-w-xl text-sm leading-6 text-gray-300">You can still start a proposal or continue one of your saved drafts while the next call is being prepared.</p>
+                    <p class="mt-3 max-w-xl text-sm leading-6 text-gray-300">Continue a saved draft while the Research Office prepares the next call. New proposals remain unavailable until its submission window opens.</p>
                     <div class="mt-6 flex flex-wrap gap-3">
-                        <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-gray-950 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">Start a proposal</a>
+                        <a href="{{ route('research-calls.index') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-gray-950 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">View research calls</a>
                         <a href="#recent-drafts" class="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">Continue a draft</a>
                     </div>
                 </div>
