@@ -189,6 +189,9 @@ Route::get('/topics/{topic}/versions/{version}/files/{file}/annotations', [Propo
 Route::post('/topics/{topic}/versions/{version}/files/{file}/annotations', [ProposalFileAnnotationController::class, 'store'])
     ->middleware(['auth', 'workspace:research_head'])
     ->name('topics.versions.files.annotations.store');
+Route::patch('/topics/{topic}/versions/{version}/files/{file}/annotations/{annotation}', [ProposalFileAnnotationController::class, 'update'])
+    ->middleware(['auth', 'workspace:research_head'])
+    ->name('topics.versions.files.annotations.update');
 Route::delete('/topics/{topic}/versions/{version}/files/{file}/annotations/{annotation}', [ProposalFileAnnotationController::class, 'destroy'])
     ->middleware(['auth', 'workspace:research_head'])
     ->name('topics.versions.files.annotations.destroy');

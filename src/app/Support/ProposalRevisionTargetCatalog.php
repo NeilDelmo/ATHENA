@@ -14,7 +14,7 @@ class ProposalRevisionTargetCatalog
     {
         $sourceData = is_array($file->source_data) ? $file->source_data : [];
 
-        return match ($file->document_type) {
+        $fields = match ($file->document_type) {
             ProposalVersionFile::TYPE_DETAILED_PROPOSAL => $this->detailedProposalTargets(),
             ProposalVersionFile::TYPE_WORK_PLAN => $this->workPlanTargets($sourceData),
             ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => $this->lineItemBudgetTargets($sourceData),
@@ -22,6 +22,11 @@ class ProposalRevisionTargetCatalog
             ProposalVersionFile::TYPE_CURRICULUM_VITAE => $this->curriculumVitaeTargets($sourceData),
             default => [],
         };
+
+        return [...$fields, ...array_map(
+            fn (array $section): array => $this->target($section['value'], $section['label']),
+            app(ProposalRevisionSectionCatalog::class)->forType($file->document_type, $sourceData),
+        )];
     }
 
     public function labelFor(ProposalVersionFile $file, ?string $target): ?string

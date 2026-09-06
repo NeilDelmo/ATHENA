@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProposalFileAnnotationRequest;
+use App\Http\Requests\UpdateProposalFileAnnotationRequest;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Services\ProposalRevisionSectionMap;
 use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +21,7 @@ class ProposalFileAnnotationController extends Controller
     /** @var list<string> */
     private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision'];
 
-    public function __construct(private readonly ProposalRevisionTargetCatalog $revisionTargets) {}
+    public function __construct(private readonly ProposalRevisionTargetCatalog $revisionTargets, private readonly ProposalRevisionSectionMap $sectionMap) {}
 
     public function index(
         Request $request,
@@ -62,6 +64,7 @@ class ProposalFileAnnotationController extends Controller
         $annotationConfiguration = [
             'pdfUrl' => route('topics.versions.files.view', [$topic, $version, $file]),
             'storeUrl' => route('topics.versions.files.annotations.store', [$topic, $version, $file]),
+            'updateUrlTemplate' => route('topics.versions.files.annotations.update', [$topic, $version, $file, '__ANNOTATION__']),
             'destroyUrlTemplate' => route('topics.versions.files.annotations.destroy', [$topic, $version, $file, '__ANNOTATION__']),
             'csrfToken' => csrf_token(),
             'canAnnotate' => $canAnnotate,
@@ -69,6 +72,7 @@ class ProposalFileAnnotationController extends Controller
             'fileLabel' => $file->label(),
             'isResearchHead' => $isResearchHead,
             'editorTargets' => $this->revisionTargets->forFile($file),
+            'sections' => $this->sectionMap->forFile($file),
             'revisionUrl' => ! $request->boolean('revision_embed') && ! $isResearchHead && $topic->user_id === $request->user()->id && $topic->status === 'revision_requested'
                 ? route('topics.show', $topic).'#submit-revision'
                 : null,
@@ -101,6 +105,7 @@ class ProposalFileAnnotationController extends Controller
         abort_unless($this->canAnnotate($topic, $version), 403);
 
         $validated = $request->validated();
+        $sections = $this->sectionMap->forFile($file);
         $annotation = $file->annotations()->create([
             'reviewer_id' => $request->user()->id,
             'annotation_type' => $validated['annotation_type'],
@@ -114,11 +119,46 @@ class ProposalFileAnnotationController extends Controller
                     ->all())
                 ->all(),
             'comment' => $validated['comment'],
-            'editor_target' => $validated['editor_target'] ?? null,
+            'editor_target' => $sections !== []
+                ? $this->sectionMap->match($sections, (int) $validated['page_number'], $validated['rectangles'])
+                : ($validated['editor_target'] ?? null),
         ]);
         $annotation->setRelation('reviewer', $request->user());
 
         return response()->json($this->annotationPayload($annotation, $file), 201);
+    }
+
+    public function update(
+        UpdateProposalFileAnnotationRequest $request,
+        TopicProposal $topic,
+        ProposalVersion $version,
+        ProposalVersionFile $file,
+        ProposalFileAnnotation $annotation,
+    ): JsonResponse {
+        $this->ensureAnnotationCanBeChanged($request, $topic, $version, $file, $annotation);
+        $changes = $request->validated();
+        if (str_starts_with($annotation->editor_target ?? '', 'section-')) {
+            unset($changes['editor_target']);
+        }
+        $annotation->update($changes);
+        $annotation->load('reviewer');
+
+        return response()->json($this->annotationPayload($annotation, $file));
+    }
+
+    private function ensureAnnotationCanBeChanged(
+        Request $request,
+        TopicProposal $topic,
+        ProposalVersion $version,
+        ProposalVersionFile $file,
+        ProposalFileAnnotation $annotation,
+    ): void {
+        $this->ensureFileScope($topic, $version, $file);
+        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+        abort_unless($this->canAnnotate($topic, $version), 403);
+        abort_unless($annotation->proposal_version_file_id === $file->id, 404);
+        abort_unless($annotation->reviewer_id === $request->user()->id, 403);
+        abort_unless($annotation->topic_review_file_revision_id === null, 409);
     }
 
     public function destroy(
@@ -128,12 +168,7 @@ class ProposalFileAnnotationController extends Controller
         ProposalVersionFile $file,
         ProposalFileAnnotation $annotation,
     ): JsonResponse {
-        $this->ensureFileScope($topic, $version, $file);
-        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
-        abort_unless($this->canAnnotate($topic, $version), 403);
-        abort_unless($annotation->proposal_version_file_id === $file->id, 404);
-        abort_unless($annotation->reviewer_id === $request->user()->id, 403);
-        abort_unless($annotation->topic_review_file_revision_id === null, 409);
+        $this->ensureAnnotationCanBeChanged($request, $topic, $version, $file, $annotation);
 
         $annotation->delete();
 
@@ -179,6 +214,7 @@ class ProposalFileAnnotationController extends Controller
             'selectedText' => $annotation->selected_text,
             'rectangles' => $annotation->rectangles,
             'comment' => $annotation->comment,
+            'canEdit' => $annotation->reviewer_id === auth()->id() && $annotation->topic_review_file_revision_id === null,
             'editorTarget' => $annotation->editor_target,
             'editorTargetLabel' => $this->revisionTargets->labelFor($file, $annotation->editor_target),
             'reviewer' => $annotation->reviewer?->name ?? 'Research Head',

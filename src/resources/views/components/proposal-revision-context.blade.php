@@ -12,7 +12,8 @@
             <a data-paper-cancel-exit href="{{ route('topics.show', $proposalDraft->topic_id) }}#submit-revision" class="shrink-0 text-xs font-semibold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">All revision tasks</a>
         </div>
         <p class="mt-2 whitespace-pre-line break-words" data-revision-instruction>{{ $annotation->comment }}</p>
-        <p class="mt-2 text-xs leading-5 opacity-80" data-revision-context-help>This comment stays visible while you edit the highlighted field below.</p>
-        <p @if (! $targetLabel || $editorTarget) hidden @endif data-revision-target-unavailable class="mt-2 text-xs">This field could not be located reliably in the current paper. Use these instructions to update it, or return to the revision tasks to view the PDF highlight.</p>
+        <a href="{{ route('topics.versions.files.annotations.index', [$proposalDraft->topic_id, $annotation->file->proposal_version_id, $annotation->file]) }}?annotation={{ $annotation->id }}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold underline">View exact PDF highlight</a>
+        <p class="mt-2 text-xs leading-5 opacity-80" data-revision-context-help>This comment stays visible while you edit the marked section below.</p>
+        <p @if (! $targetLabel || $editorTarget) hidden @endif data-revision-target-unavailable class="mt-2 text-xs">This section could not be located reliably in the current paper. Use these instructions to update it, or return to the revision tasks to view the PDF highlight.</p>
     </section>
 @endif

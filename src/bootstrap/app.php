@@ -40,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 )
                 || ($request->expectsJson() && $request->routeIs(
                     'topics.versions.files.annotations.store',
+                    'topics.versions.files.annotations.update',
                     'topics.versions.files.annotations.destroy',
                     'faculty.proposal-drafts.details.update',
                     'faculty.proposal-drafts.revision-files.store',

@@ -78,7 +78,7 @@
             </div>
         @endunless
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
@@ -107,7 +107,7 @@
             <input type="hidden" name="document_version" value="{{ old('document_version', $expenseBreakdownDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-expense-items" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">Expense items</h3>
@@ -226,7 +226,7 @@
                 <button type="button" x-on:click="addItem(true)" class="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600">Add another expense item</button>
             </section>
 
-            <section class="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-totals" class="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm sm:p-6">
                 <p class="text-xs font-black uppercase tracking-wider text-red-700">Total estimated budget</p>
                 <p class="mt-1 text-3xl font-black text-gray-900">Php <span x-text="formatMoney(grandTotal())"></span></p>
                 <div class="mt-4 grid gap-3 border-t border-red-200 pt-4 text-sm text-gray-700 sm:grid-cols-2">

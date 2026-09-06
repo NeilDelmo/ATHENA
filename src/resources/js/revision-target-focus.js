@@ -1,3 +1,10 @@
+export function findRevisionTarget(documentRoot, targetId) {
+    if (!targetId || !/^[a-zA-Z0-9_-]+$/.test(targetId)) return null;
+    return documentRoot.getElementById(targetId)
+        || documentRoot.querySelector?.(`[data-revision-section~="${targetId}"]`)
+        || null;
+}
+
 function targetLabel(target, targetId) {
     const escapedId = window.CSS?.escape ? window.CSS.escape(targetId) : targetId;
     const explicitLabel = document.querySelector(`label[for="${escapedId}"]`);
@@ -25,8 +32,9 @@ function visualTarget(target) {
     return target;
 }
 
-export function focusRevisionTarget(target, targetId, { withinDocument = false } = {}) {
+export function focusRevisionTarget(target, targetId, { withinDocument = false, comment = null, label = null } = {}) {
     revealTarget(target);
+    if (targetId.startsWith('section-')) target.classList.add('revision-section-revealed');
 
     const visual = visualTarget(target);
     if (!(visual instanceof HTMLElement) || visual.offsetParent === null || visual.matches(':disabled')) return false;
@@ -46,11 +54,16 @@ export function focusRevisionTarget(target, targetId, { withinDocument = false }
     cue.setAttribute('role', 'status');
     if (!context) {
         cue.innerHTML = '<strong>Research Head revision target</strong><span></span>';
-        cue.querySelector('span').textContent = targetLabel(target, targetId);
+        cue.querySelector('strong').textContent = label || 'Research Head revision comment';
+        cue.querySelector('span').textContent = comment || targetLabel(target, targetId);
     }
     context?.querySelector('[data-revision-target-unavailable]')?.setAttribute('hidden', '');
     highlight.before(cue);
     highlight.classList.add('revision-target-active');
+    if (targetId.startsWith('section-')) {
+        window.clearTimeout(highlight._revisionEmphasisTimer);
+        highlight._revisionEmphasisTimer = window.setTimeout(() => highlight.classList.remove('revision-target-active'), 4000);
+    }
     const descriptions = new Set((visual.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
     descriptions.add(cue.id);
     visual.setAttribute('aria-describedby', [...descriptions].join(' '));
@@ -89,7 +102,7 @@ export default function initializeRevisionTargetFocus() {
         if (currentRun !== focusRun) return;
 
         attempts += 1;
-        const target = document.getElementById(targetId);
+        const target = findRevisionTarget(document, targetId);
 
         if (target instanceof HTMLElement && focusRevisionTarget(target, targetId)) return;
         if (attempts < 12) window.setTimeout(tryFocus, attempts < 5 ? 100 : 250);

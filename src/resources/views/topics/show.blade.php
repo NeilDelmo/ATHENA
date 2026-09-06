@@ -527,7 +527,7 @@
                         request()->query('decision') === 'revision_requested' ? 'revision_requested' : '',
                     );
                 @endphp
-                <details class="group rounded-2xl border-2 border-red-300 shadow-lg overflow-hidden" open data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
+                <details class="group rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" open data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
                     <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
                         <div class="flex items-center gap-4">
                             <svg class="h-5 w-5 shrink-0 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
@@ -548,19 +548,12 @@
                             method="POST"
                             x-data="{
                                 decision: @js($initialResearchHeadDecision),
-                                signingDecision: @js(\App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE),
                                 submitting: false,
                                 async submitDecision(event) {
                                     const form = event.currentTarget;
                                     if (this.submitting || !form.reportValidity()) return;
 
                                     const confirmation = {
-                                        [this.signingDecision]: {
-                                            title: 'Continue to final signing?',
-                                            text: 'This starts the signing stage. You will upload a signed PDF for every selected paper before approval can be finalized.',
-                                            confirmButtonText: 'Continue to signing',
-                                            confirmButtonColor: '#dc2626',
-                                        },
                                         rejected: {
                                             title: 'Reject this proposal?',
                                             text: 'This closes the submission and shares the rejection reason with the faculty member. It cannot continue to signing.',
@@ -590,161 +583,50 @@
                         >
                             @csrf @method('PATCH')
                             <input type="hidden" name="redirect_to" value="topic">
-                            <p class="text-sm leading-6 text-gray-600">Choose the decision below. A proposal must complete final signing before it can be approved. Revision requests use the file checklist and highlighted comments to tell the faculty member exactly what to change.</p>
-
-                            <fieldset aria-describedby="decision-help">
-                                <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                                    <div>
-                                        <legend class="text-lg font-black text-gray-950 dark:text-white">Choose the next step <span class="text-red-600">Required</span></legend>
-                                        <p id="decision-help" class="text-sm leading-6 text-gray-600 dark:text-gray-300">Each option opens only the work needed for that decision. Approval remains unavailable until final signing is complete.</p>
-                                    </div>
-                                    <span x-show="decision" x-cloak class="w-fit rounded-full bg-gray-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-gray-950">Decision selected</span>
-                                </div>
-
-                                <div class="mt-4 grid gap-3 lg:grid-cols-3">
-                                    <label
-                                        :class="decision === 'revision_requested' ? 'border-red-700 bg-red-50 shadow-md shadow-red-100 dark:border-red-500 dark:bg-red-950/30 dark:shadow-none' : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-red-800 dark:hover:bg-red-950/20'"
-                                        class="group relative flex min-h-52 cursor-pointer flex-col rounded-2xl border-2 p-4 transition focus-within:outline-none focus-within:ring-2 focus-within:ring-red-700 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-950"
-                                    >
-                                        <input class="sr-only" type="radio" name="status" value="revision_requested" x-model="decision" required>
-                                        <div class="flex items-start justify-between gap-3">
-                                            <span :class="decision === 'revision_requested' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition">
-                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z" /></svg>
-                                            </span>
-                                            <span x-show="decision === 'revision_requested'" x-cloak class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Selected</span>
-                                        </div>
-                                        <div class="mt-4">
-                                            <p class="text-base font-black text-gray-950 dark:text-white">Request revisions</p>
-                                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Send specific file feedback so the faculty member can correct and resubmit the proposal.</p>
-                                        </div>
-                                        <p class="mt-auto pt-4 text-xs font-bold leading-5 text-red-800 dark:text-red-300">Mark files → add highlights/comments → request revision</p>
-                                    </label>
-
-                                    <label
-                                        :class="decision === signingDecision ? 'border-red-700 bg-red-50 shadow-md shadow-red-100 dark:border-red-500 dark:bg-red-950/30 dark:shadow-none' : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-red-800 dark:hover:bg-red-950/20'"
-                                        class="group relative flex min-h-52 cursor-pointer flex-col rounded-2xl border-2 p-4 transition focus-within:outline-none focus-within:ring-2 focus-within:ring-red-700 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-950"
-                                    >
-                                        <input class="sr-only" type="radio" name="status" value="{{ \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE }}" x-model="decision" required>
-                                        <div class="flex items-start justify-between gap-3">
-                                            <span :class="decision === signingDecision ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition">
-                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3.75H6a2.25 2.25 0 0 0-2.25 2.25v12A2.25 2.25 0 0 0 6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75h-2.25M8.25 3.75A2.25 2.25 0 0 0 10.5 6h3a2.25 2.25 0 0 0 2.25-2.25M8.25 3.75A2.25 2.25 0 0 1 10.5 1.5h3a2.25 2.25 0 0 1 2.25 2.25M8.25 12l2.25 2.25 4.5-4.5" /></svg>
-                                            </span>
-                                            <span x-show="decision === signingDecision" x-cloak class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Selected</span>
-                                        </div>
-                                        <div class="mt-4">
-                                            <p class="text-base font-black text-gray-950 dark:text-white">Continue to final signing</p>
-                                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Choose the papers that need signed final copies before approval can be unlocked.</p>
-                                        </div>
-                                        <p class="mt-auto pt-4 text-xs font-bold leading-5 text-red-800 dark:text-red-300">Select papers → upload signed PDFs → approval unlocks</p>
-                                    </label>
-
-                                    <label
-                                        :class="decision === 'rejected' ? 'border-red-700 bg-red-50 shadow-md shadow-red-100 dark:border-red-500 dark:bg-red-950/30 dark:shadow-none' : 'border-gray-200 bg-white hover:border-red-300 hover:bg-red-50/40 dark:border-gray-700 dark:bg-gray-950 dark:hover:border-red-800 dark:hover:bg-red-950/20'"
-                                        class="group relative flex min-h-52 cursor-pointer flex-col rounded-2xl border-2 p-4 transition focus-within:outline-none focus-within:ring-2 focus-within:ring-red-700 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-950"
-                                    >
-                                        <input class="sr-only" type="radio" name="status" value="rejected" x-model="decision" required>
-                                        <div class="flex items-start justify-between gap-3">
-                                            <span :class="decision === 'rejected' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition">
-                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3h.008v.008H12v-.008Zm0-13.5a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z" /></svg>
-                                            </span>
-                                            <span x-show="decision === 'rejected'" x-cloak class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Selected</span>
-                                        </div>
-                                        <div class="mt-4">
-                                            <p class="text-base font-black text-gray-950 dark:text-white">Reject proposal</p>
-                                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Close this submission with a professional, documented final reason.</p>
-                                        </div>
-                                        <p class="mt-auto pt-4 text-xs font-bold leading-5 text-red-800 dark:text-red-300">Give reason → confirm final decision → proposal closes</p>
-                                    </label>
-                                </div>
-                                @error('status')<p class="mt-3 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
-                            </fieldset>
-
-                            <section
-                                x-show="decision === 'rejected'"
-                                x-cloak
-                                x-transition
-                                class="overflow-hidden rounded-2xl border-2 border-red-300 bg-red-50 dark:border-red-900/80 dark:bg-red-950/30"
-                                aria-labelledby="rejection-reason-heading"
-                            >
-                                <div class="border-b border-red-200 bg-red-100/70 px-4 py-4 dark:border-red-900/80 dark:bg-red-950/60 sm:px-5">
-                                    <div class="flex items-start gap-3">
-                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-700 text-white shadow-sm" aria-hidden="true">
-                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                                        </span>
-                                        <div>
-                                            <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Final decision</p>
-                                            <h4 id="rejection-reason-heading" class="mt-1 text-lg font-black text-red-950 dark:text-white">Why is this proposal being rejected?</h4>
-                                            <p class="mt-1 text-sm leading-6 text-red-800 dark:text-red-200">Give the faculty member a clear, professional reason. It will be saved in the decision history and the proposal cannot move to signing.</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="space-y-4 p-4 sm:p-5">
-                                    <label class="block text-sm font-bold text-red-950 dark:text-red-100" for="rejection_reason">
-                                        Rejection reason <span class="text-red-700 dark:text-red-300">Required</span>
-                                        <textarea id="rejection_reason" name="rejection_reason" rows="5" maxlength="2000" x-bind:required="decision === 'rejected'" aria-describedby="rejection-reason-help" class="mt-2 block w-full rounded-xl border-red-300 bg-white text-sm leading-6 text-gray-900 placeholder:text-gray-400 focus:border-red-700 focus:ring-red-700 dark:border-red-900 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-500" placeholder="Explain the reason for the final rejection in a way the faculty member can understand.">{{ old('rejection_reason') }}</textarea>
-                                    </label>
-                                    <p id="rejection-reason-help" class="text-xs leading-5 text-red-800 dark:text-red-200">Be specific about the issue or decision basis. Maximum 2,000 characters.</p>
-                                    @error('rejection_reason')<p class="text-sm font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-
-                                    <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-red-300 bg-white/80 p-4 text-sm text-red-950 transition hover:border-red-500 dark:border-red-900 dark:bg-gray-950/70 dark:text-red-100">
-                                        <input id="rejection_confirmed" name="rejection_confirmed" type="checkbox" value="1" x-bind:required="decision === 'rejected'" @checked(old('rejection_confirmed')) class="mt-0.5 rounded border-red-400 text-red-700 focus:ring-red-700">
-                                        <span>
-                                            <span class="block font-black">I confirm that this rejection is final.</span>
-                                            <span class="mt-1 block text-xs leading-5 text-red-800 dark:text-red-200">The proposal will be closed, will not proceed to signing, and cannot be approved from this submission.</span>
-                                        </span>
-                                    </label>
-                                    @error('rejection_confirmed')<p class="text-sm font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-                                </div>
-                            </section>
-
-                            @php
-                                $oldSignatureFileIds = collect(old('signature_file_ids', []))->map(fn ($fileId) => (int) $fileId);
-                            @endphp
-                            <section
-                                x-show="decision === @js(\App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)"
-                                x-cloak
-                                class="rounded-2xl border border-red-300 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30 sm:p-5"
-                                aria-labelledby="signature-file-selection-heading"
-                            >
-                                <h4 id="signature-file-selection-heading" class="text-lg font-black text-gray-950 dark:text-white">Which papers need a signed final PDF?</h4>
-                                <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">Nothing is selected automatically. Choose only the papers that actually require a signature.</p>
-                                <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                                    @foreach ($submittedFiles as $signatureCandidate)
-                                        <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-300 bg-white p-3 text-sm font-bold text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                                            <input
-                                                type="checkbox"
-                                                name="signature_file_ids[]"
-                                                value="{{ $signatureCandidate->id }}"
-                                                @checked($oldSignatureFileIds->contains($signatureCandidate->id))
-                                                class="mt-0.5 rounded border-gray-400 text-red-700 focus:ring-red-700"
-                                            >
-                                            <span>
-                                                <span class="block">{{ $signatureCandidate->label() }}</span>
-                                                <span class="mt-1 block break-all text-xs font-normal text-gray-500 dark:text-gray-400">{{ $signatureCandidate->original_filename }}</span>
-                                            </span>
+                            <fieldset>
+                                <legend class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Review decision</legend>
+                                <div class="flex flex-wrap gap-2" data-review-decision-options>
+                                    @foreach (['revision_requested' => 'Request revisions', 'rejected' => 'Reject proposal'] as $decisionValue => $decisionLabel)
+                                        <label
+                                            class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-900"
+                                            :class="decision === @js($decisionValue) ? 'border-red-700 bg-red-50 text-red-800 dark:border-red-500 dark:bg-red-950/30 dark:text-red-200' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'"
+                                        >
+                                            <input class="h-4 w-4 border-gray-400 text-red-700 focus:ring-red-600" type="radio" name="status" value="{{ $decisionValue }}" x-model="decision" required>
+                                            {{ $decisionLabel }}
                                         </label>
                                     @endforeach
                                 </div>
+                                @error('status')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
+                            </fieldset>
+
+                            <section x-show="decision === 'rejected'" x-cloak class="space-y-3" aria-labelledby="rejection-reason-heading">
+                                <label id="rejection-reason-heading" class="block text-sm font-medium text-gray-900 dark:text-gray-100" for="rejection_reason">Reason for rejection</label>
+                                <textarea id="rejection_reason" name="rejection_reason" rows="3" maxlength="2000" x-bind:required="decision === 'rejected'" aria-describedby="rejection-reason-help" class="block w-full rounded-lg border-gray-300 text-sm focus:border-red-600 focus:ring-red-600 dark:border-gray-700 dark:bg-gray-900 dark:text-white" placeholder="Explain why this proposal cannot proceed.">{{ old('rejection_reason') }}</textarea>
+                                <p id="rejection-reason-help" class="text-xs text-gray-500 dark:text-gray-400">Shared with the faculty member. Maximum 2,000 characters.</p>
+                                @error('rejection_reason')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
+                                <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <input id="rejection_confirmed" name="rejection_confirmed" type="checkbox" value="1" x-bind:required="decision === 'rejected'" @checked(old('rejection_confirmed')) class="mt-0.5 rounded border-gray-400 text-red-700 focus:ring-red-600">
+                                    <span>I understand this closes the submission and the rejection is final.</span>
+                                </label>
+                                @error('rejection_confirmed')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                             </section>
 
                             <section
-                                class="rounded-2xl border border-gray-300 bg-white p-4 dark:border-gray-700 dark:bg-gray-950 sm:p-5"
+                                x-show="decision !== 'rejected'"
+                                class="border-t border-gray-200 pt-4 dark:border-gray-700"
                                 aria-labelledby="file-review-checklist-heading"
                             >
                                 <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
-                                        <h4 id="file-review-checklist-heading" class="text-lg font-black text-gray-900">Review latest submitted files</h4>
-                                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">These are the files from Version {{ $latestVersion?->version_number ?? 1 }}. Preview and review them here. To request changes, choose <span class="font-black">Request revisions</span>, then mark only the affected files. Every selected PDF requires at least one saved highlight and comment.</p>
+                                        <h4 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Submitted documents <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">Version {{ $latestVersion?->version_number ?? 1 }}</span></h4>
                                     </div>
                                 </div>
                                 @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true])
                                 @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
-                                <p x-show="decision === 'revision_requested'" x-cloak class="mt-4 rounded-xl bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border dark:border-gray-800">This request applies to Version {{ $latestVersion?->version_number ?? 1 }}. The faculty member's next resubmission will create a newer version for a new review round.</p>
                             </section>
 
-                            <button type="submit" :disabled="submitting" class="w-full rounded-xl bg-red-600 px-5 py-3.5 text-base font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600">
-                                <span x-text="submitting ? 'Saving decision…' : (decision === signingDecision ? 'Continue to final signing' : (decision === 'rejected' ? 'Reject proposal' : 'Send revision request'))">Save decision and share with faculty</span>
+                            <button type="submit" :disabled="submitting || !decision" class="inline-flex items-center justify-center rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                                <span x-text="submitting ? 'Saving decision…' : (decision === 'rejected' ? 'Reject proposal' : 'Send revision request')">Send revision request</span>
                             </button>
                         </form>
                     </div>
@@ -766,7 +648,6 @@
                             <p class="text-sm leading-6 text-gray-700">Use this only when a paper must change after signing has started. Select every affected paper and provide the same file-specific feedback required for a normal revision. Current signed uploads will be retained as superseded audit copies and cannot be reused for the new version.</p>
                             <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20 sm:p-5">
                                 <h4 class="text-base font-black text-gray-900 dark:text-white">Papers that must be corrected</h4>
-                                <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">For PDFs, save at least one highlight and comment before selecting the paper. For non-PDF files, give exact instructions.</p>
                                 <div class="mt-4">
                                     @include('topics.partials.revision-file-selector', ['files' => $submittedFiles])
                                 </div>

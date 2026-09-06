@@ -90,7 +90,7 @@
             </div>
         @endif
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Shared project information</h3>
@@ -116,7 +116,7 @@
             <input type="hidden" name="document_version" value="{{ old('document_version', $lineItemBudgetDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-project-team" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div><h3 class="text-base font-black text-gray-900">Project leader and staff</h3><p class="mt-1 text-xs text-gray-500">Choose a proposal workspace member to reuse their account name and college, or type an external member manually.</p></div>
                     <button type="button" x-on:click="addStaff" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Add project staff</button>
@@ -151,7 +151,7 @@
 
             @foreach (['mooe' => 'I. Maintenance and Other Operating Expenses (MOOE)', 'co' => 'II. Capital Outlays (CO)'] as $sectionKey => $sectionHeading)
                 @php($customProperty = $sectionKey === 'mooe' ? 'customMooeItems' : 'customCoItems')
-                <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                <section data-revision-section="section-{{ $sectionKey }}" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div><h3 class="text-base font-black text-gray-900">{{ $sectionHeading }} <span class="text-xs font-normal text-gray-500">(Optional)</span></h3><p class="mt-1 text-xs text-gray-500">This entire category may be left empty if it does not apply. Empty amounts count as zero. Enter numbers without commas.</p></div>
                         <button type="button" x-on:click="addCustomItem('{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2 sm:w-auto">Add category or sub-category</button>
@@ -187,7 +187,7 @@
                 </section>
             @endforeach
 
-            <section class="rounded-2xl border border-gray-900 bg-gray-900 p-5 text-white shadow-sm sm:p-6">
+            <section data-revision-section="section-totals" class="rounded-2xl border border-gray-900 bg-gray-900 p-5 text-white shadow-sm sm:p-6">
                 <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div><p class="text-xs font-black uppercase tracking-wider text-gray-300">Total Project Cost</p><p class="mt-1 text-2xl font-black">Php <span x-text="formatMoney(projectTotal())"></span></p></div>
                     <label class="inline-flex items-center gap-2 text-xs font-bold text-gray-200"><input type="checkbox" x-model="overrideProject" class="rounded border-gray-500 text-red-600 focus:ring-red-600">Edit project total manually</label>
@@ -200,7 +200,7 @@
                 <p class="mt-1 leading-6">The Line-Item Budget is over the research call limit by <strong>Php <span x-text="formatMoney(budgetOverage())"></span></strong>. Your changes are retained as a draft, and you can still preview and print this working copy. Reduce the total to <strong>Php <span x-text="formatMoney(budgetCeiling)"></span></strong> or less before downloading or completing the paper.</p>
             </div>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-research-office" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div><h3 class="text-base font-black text-gray-900">Research Office section</h3><p class="mt-1 text-xs text-gray-500">These fields are optional and may remain blank.</p></div>
                 <div class="mt-5 grid gap-5 sm:grid-cols-2">
                     <div><label for="level-of-call" class="block text-xs font-black uppercase tracking-wider text-gray-600">Level of call</label><select id="level-of-call" name="level_of_call" x-model="levelOfCall" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"><option value="">Leave blank</option><option value="central_agency">Central Agency (VPRDES, President)</option><option value="constituent_campus">Constituent Campus (VCRDES, Chancellor)</option></select></div>

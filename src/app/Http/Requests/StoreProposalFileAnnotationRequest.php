@@ -32,10 +32,11 @@ class StoreProposalFileAnnotationRequest extends FormRequest
             'annotation_type' => ['required', Rule::in([
                 ProposalFileAnnotation::TYPE_TEXT,
                 ProposalFileAnnotation::TYPE_AREA,
+                ProposalFileAnnotation::TYPE_PIN,
             ])],
             'page_number' => ['required', 'integer', 'min:1', 'max:10000'],
             'selected_text' => ['nullable', 'required_if:annotation_type,text', 'string', 'max:5000'],
-            'rectangles' => ['required', 'array', 'min:1', 'max:100'],
+            'rectangles' => ['required', 'array', 'min:1', 'max:100', Rule::when($this->input('annotation_type') === ProposalFileAnnotation::TYPE_PIN, 'size:1')],
             'rectangles.*' => ['required', 'array:x,y,width,height'],
             'rectangles.*.x' => ['required', 'numeric', 'between:0,1'],
             'rectangles.*.y' => ['required', 'numeric', 'between:0,1'],

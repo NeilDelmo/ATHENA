@@ -150,7 +150,7 @@
                         <button type="button" x-on:click="removePerson(personIndex)" x-bind:disabled="people.length === 1" class="rounded-xl px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove member</button>
                     </div>
 
-                    <details :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
+                    <details :data-revision-section="`section-cv-${personIndex + 1}-personal`" :id="`cv-${person.id}-personal`" open class="rounded-xl border border-gray-200">
                         <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">Personal Information</summary>
                         <div class="grid gap-4 border-t border-gray-100 p-4 sm:grid-cols-2 lg:grid-cols-3">
                             @foreach ([['last_name', 'Last Name', true], ['first_name', 'First Name', true], ['middle_name', 'Middle Name', false], ['agency', 'Agency', false], ['birthday', 'Birthday', false], ['street', 'Street', false], ['barangay', 'Barangay', false], ['municipality', 'Municipality', false], ['province', 'Province', false], ['landline', 'Landline Number', false], ['cellphone', 'Cellphone Number', false], ['email', 'Email Address', false]] as [$key, $label, $required])
@@ -172,7 +172,7 @@
                     </details>
 
                     @foreach ($sections as $sectionKey => $section)
-                        <details :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
+                        <details :data-revision-section="`section-cv-${personIndex + 1}-{{ $sectionKey }}`" :id="`cv-${person.id}-{{ $sectionKey }}`" class="rounded-xl border border-gray-200">
                             <summary class="cursor-pointer select-none px-4 py-3 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600">{{ $section['label'] }} <span class="font-semibold text-gray-400" x-text="`(${person.{{ $sectionKey }}.length})`"></span></summary>
                             <div class="space-y-4 border-t border-gray-100 p-4">
                                 <div class="flex justify-end"><button type="button" x-on:click="addSectionRow(personIndex, '{{ $sectionKey }}')" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 sm:w-auto">Add {{ Str::singular(strtolower($section['label'])) }} entry</button></div>

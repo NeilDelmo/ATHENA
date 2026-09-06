@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'node_binary' => env('PDF_SECTION_NODE_BINARY', 'node'),
     'libreoffice_binary' => env(
         'LIBREOFFICE_BINARY',
         PHP_OS_FAMILY === 'Windows' ? 'soffice.com' : 'soffice',

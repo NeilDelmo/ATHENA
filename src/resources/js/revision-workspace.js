@@ -1,5 +1,5 @@
 import { activeProposalPaperAutoSave, finishProposalPaperAutoSave } from './proposal-paper-autosave.js';
-import { focusRevisionTarget } from './revision-target-focus.js';
+import { findRevisionTarget, focusRevisionTarget } from './revision-target-focus.js';
 
 export function isEmbeddedRevisionEditor() {
     return Boolean(document.querySelector('[data-revision-embedded] [data-revision-editor-context]'));
@@ -137,7 +137,7 @@ function revisionSourceValue(sourceData, name) {
 }
 
 function revisionControls(documentRoot, targetId) {
-    const target = targetId ? documentRoot.getElementById(targetId) : null;
+    const target = targetId ? findRevisionTarget(documentRoot, targetId) : null;
     const form = documentRoot.querySelector('[data-paper-form]');
     let scope = target || form;
     if (!scope) return { controls: [], scope: null };
@@ -316,8 +316,8 @@ function initializeEmbeddedEditor() {
             const itemId = Number(targetId.match(/^expense-(?:category|account|sub-account|particulars|unit|quantity|unit-cost|details|purpose)-(\d+)$/)?.[1]);
             if (itemId && editor?.items?.some((item) => item.id === itemId)) editor.expandedItemId = itemId;
             await window.Alpine.nextTick();
-            const target = document.getElementById(targetId);
-            return target ? focusRevisionTarget(target, targetId, { withinDocument: true }) : false;
+            const target = findRevisionTarget(document, targetId);
+            return target ? focusRevisionTarget(target, targetId, { withinDocument: true, comment: annotation.comment, label: annotation.label }) : false;
         },
         release() {
             root.dataset.paperSubmitting = 'true';

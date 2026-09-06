@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import initializeRevisionTargetFocus, { focusRevisionTarget } from '../../resources/js/revision-target-focus.js';
+import initializeRevisionTargetFocus, { findRevisionTarget, focusRevisionTarget } from '../../resources/js/revision-target-focus.js';
 
 class Element {
     constructor(tag = 'div') {
@@ -144,4 +144,26 @@ test('embedded field focus scrolls only the editor document and keeps the outer 
     assert.equal(context.scrollOptions, undefined);
     assert.deepEqual(scrolling, { top: 500, behavior: 'auto' });
     assert.deepEqual(target.focusOptions, { preventScroll: true });
+});
+
+
+test('section destinations reveal the category, show its comment, scroll and briefly emphasize it', (t) => {
+    const section = new Element('section');
+    const details = new Element('details');
+    section.details = details;
+    environment(t, { target: null });
+    document.querySelector = (selector) => selector === '[data-revision-section~="section-sdgs"]' ? section : null;
+    const timers = [];
+    window.clearTimeout = () => {};
+    window.setTimeout = (callback, delay) => { if (delay === 4000) timers.push(callback); else callback(); };
+    const target = findRevisionTarget(document, 'section-sdgs');
+    assert.equal(target, section);
+    assert.equal(focusRevisionTarget(target, 'section-sdgs', { label: 'III. Sustainable Development Goal', comment: 'Explain the selected goals.' }), true);
+    assert.equal(details.hasAttribute('open'), true);
+    assert.equal(section.cue.child.textContent, 'Explain the selected goals.');
+    assert.equal(section.cue.scrollOptions.block, 'center');
+    assert.equal(section.classes.has('revision-target-active'), true);
+    timers[0]();
+    assert.equal(section.classes.has('revision-target-active'), false);
+    assert.equal(section.cue.removed, undefined);
 });

@@ -92,7 +92,7 @@
             </div>
         @endunless
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h3 class="text-base font-black text-gray-900">Official form source</h3>
@@ -119,13 +119,13 @@
             <input type="hidden" name="literature_research_history" x-bind:value="JSON.stringify(literatureSearchHistory)">
             <input id="literature-citations" type="hidden" name="literature_citations" x-bind:value="JSON.stringify(literatureCitations)">
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-research-agenda" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">II–III. Research alignment</h3>
                 <div class="mt-5">
                     <label for="research-agenda" class="block text-xs font-black uppercase tracking-wider text-gray-600">II. BatStateU Research Agenda</label>
                     <input id="research-agenda" name="research_agenda" type="text" required maxlength="500" x-model="researchAgenda" placeholder="Type the applicable BatStateU research agenda" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                 </div>
-                <fieldset data-detailed-proposal-validation-group="sdgs" tabindex="-1" class="mt-6">
+                <fieldset data-revision-section="section-sdgs" data-detailed-proposal-validation-group="sdgs" tabindex="-1" class="mt-6">
                     <legend class="text-xs font-black uppercase tracking-wider text-gray-600">III. Sustainable Development Goal <span class="font-normal normal-case text-gray-500">(check all applicable SDGs)</span></legend>
                     <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         @foreach ($sdgs as $number => $label)
@@ -138,7 +138,7 @@
                 </fieldset>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+            <section data-revision-section="section-project-team" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
                 <div>
                     <h3 class="text-base font-black text-gray-900 dark:text-white">IV. Project leader and staff</h3>
                     <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Names follow the official uppercase format. Add a professional title such as Asst Prof. or Dr. when applicable.</p>
@@ -233,14 +233,14 @@
                 <datalist id="detailed-proposal-professional-titles">@foreach ($professionalTitles as $title)<option value="{{ $title }}"></option>@endforeach</datalist>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-proponent" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">V–VI. Proponent and cooperating agencies</h3>
                 <p class="mt-1 text-xs text-gray-500">The Proponent Agency line is intentionally left blank on the official form.</p>
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
                     <div><label for="proponent-department" class="block text-xs font-black uppercase tracking-wider text-gray-600">Department <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="proponent-department" name="proponent_department" type="text" maxlength="255" x-model="proponentDepartment" placeholder="Leave blank if not applicable" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="proponent-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">College <span class="font-normal normal-case text-gray-400">From your profile</span></label><input id="proponent-college" name="proponent_college" type="text" required maxlength="255" x-model="proponentCollege" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="proponent-campus" class="block text-xs font-black uppercase tracking-wider text-gray-600">Campus</label><input id="proponent-campus" name="proponent_campus" type="text" required maxlength="255" x-model="proponentCampus" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    <div><label for="cooperating-agency" class="block text-xs font-black uppercase tracking-wider text-gray-600">VI. Cooperating Agency <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="cooperating-agency" name="cooperating_agency" type="text" maxlength="500" x-model="cooperatingAgency" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    <div data-revision-section="section-cooperating-agency"><label for="cooperating-agency" class="block text-xs font-black uppercase tracking-wider text-gray-600">VI. Cooperating Agency <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="cooperating-agency" name="cooperating_agency" type="text" maxlength="500" x-model="cooperatingAgency" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
             </section>
 
@@ -248,14 +248,14 @@
                 'executive_brief' => ['VII. Executive Brief', 'Summarize the proposed project and its intended contribution.'],
                 'rationale' => ['VIII. Rationale', 'Include available statistics related to the problem.'],
             ] as $field => [$label, $help])
-                <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                <section data-revision-section="section-{{ str_replace('_', '-', $field) }}" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <label for="{{ str_replace('_', '-', $field) }}" class="block text-base font-black text-gray-900">{{ $label }}</label>
                     <p class="mt-1 text-xs text-gray-500">{{ $help }}</p>
                     <textarea id="{{ str_replace('_', '-', $field) }}" name="{{ $field }}" rows="{{ $field === 'rationale' ? 14 : 9 }}" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="{{ \Illuminate\Support\Str::camel($field) }}" data-semantic-editor class="mt-4 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                 </section>
             @endforeach
 
-            <section id="specific-objectives" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-objectives" id="specific-objectives" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">IX. Objectives of the Project</h3>
@@ -282,7 +282,7 @@
                 </div>
             </section>
 
-            <section id="expected-outputs" data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-expected-outputs" id="expected-outputs" data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>
@@ -586,7 +586,7 @@
                 </section>
             </div>
 
-            <section x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-literature" x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">XI. Introduction and Related Studies and Literature</h3>
                 <div class="mt-5 grid gap-5">
                     <div>
@@ -614,7 +614,7 @@
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-methodology" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">XII. Methodology</h3>
@@ -721,7 +721,7 @@
                 </div>
             </section>
 
-            <section id="responsibilities" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-responsibilities" id="responsibilities" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex items-end justify-between gap-3"><div><h3 class="text-base font-black text-gray-900">XIII. Duties and Responsibilities of Each Member</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
                 <div class="mt-5 space-y-4">
                     <template x-for="(responsibility, index) in responsibilities" :key="responsibility.id">
@@ -737,7 +737,7 @@
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-signatories" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <h3 class="text-base font-black text-gray-900">Approval Signatory Names</h3>
                 <p class="mt-1 text-xs leading-5 text-gray-500">Faculty may enter the three names shown in the approval blocks. Names are converted to uppercase and bold in the preview and Word file; the official titles remain fixed.</p>
                 <div class="mt-5 grid gap-4 lg:grid-cols-3">
@@ -759,13 +759,13 @@
                 </div>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-references" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <label for="references" class="block text-base font-black text-gray-900">XVI. References</label>
                 <p class="mt-1 text-xs text-gray-500">Enter one reference per line or separate entries with blank lines.</p>
                 <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" data-semantic-editor class="mt-4 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
             </section>
 
-            <section class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+            <section data-revision-section="section-work-plan section-budget section-curriculum-vitae" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
                 <h3 class="font-black">Sections generated automatically</h3>
                 <p class="mt-1 leading-6">XIV links Attachment A, XV pulls MOOE and Capital Outlay totals from Attachment B, XVII links Attachment C, and the prepared-by name and agency details repeat on the signature page. Approval titles are fixed; the three names come from the fields above.</p>
             </section>

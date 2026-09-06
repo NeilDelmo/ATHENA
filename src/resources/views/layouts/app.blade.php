@@ -58,7 +58,7 @@
         ></div>
 
         <div
-            :class="{ 'sm:pl-[280px]': sidebarOpen, 'xl:pr-[28rem]': $store.researchAssistant.drawerOpen }"
+            :class="{ 'sm:pl-[280px]': sidebarOpen }"
             class="flex min-h-screen flex-col bg-white pl-[76px] transition-[padding,background-color] duration-300 ease-out dark:bg-slate-950"
         >
             
@@ -182,10 +182,7 @@
                 <header class="border-b border-gray-100 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
                     <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
                         @if (request()->routeIs('faculty.proposal-drafts.*') && ! request()->routeIs('faculty.proposal-drafts.index'))
-                            <div
-                                :class="$store.researchAssistant.drawerOpen ? 'flex-col' : 'sm:flex-row sm:items-start'"
-                                class="flex gap-3"
-                            >
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
                                 <div class="min-w-0 flex-1">{{ $header }}</div>
                             </div>
                         @else

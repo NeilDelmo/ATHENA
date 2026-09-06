@@ -81,21 +81,23 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
     $this->actingAs($this->head)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]).'?decision=revision_requested')
         ->assertOk()
-        ->assertSee('Return to review')
-        ->assertSee('fixed bottom-4 right-4 z-40', false)
+        ->assertSee('Back to review')
+        ->assertDontSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
         ->assertDontSee('Back to proposal workspace')
-        ->assertSee('Select text')
-        ->assertSee('Precise area')
-        ->assertSee('Recommended')
+        ->assertSee('Drag over the part that needs revision, then add a comment.')
+        ->assertDontSee('Highlight text')
+        ->assertDontSee('Mark an area')
+        ->assertDontSee('Place a pin')
         ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
-        ->assertSee('Use exact selection')
-        ->assertSee('What should the faculty revise?')
-        ->assertSee('Where should the faculty make this change?')
+        ->assertSee('Add comment')
+        ->assertSee('What needs to change?')
+        ->assertDontSee('Where should the faculty make this change?')
         ->assertSee('Restore mangrove plots', false)
-        ->assertSee('No matching field — open the paper only')
+        ->assertDontSee('Link to an editor field (optional)')
+        ->assertDontSee('x-model="draftEditorTarget"', false)
         ->assertSee('Comments')
-        ->assertSee('Ready to send')
+        ->assertSee('data-edit-annotation', false)
         ->assertSee('data-remove-annotation', false)
         ->assertDontSee('Revision comments')
         ->assertDontSee('highlight(s) on this file')
@@ -105,7 +107,7 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertDontSee('Remove highlight')
         ->assertSee('data-annotation-tools-guide', false)
         ->assertSee(route('topics.show', $this->topic).'?decision=revision_requested#file-review-card-'.$this->file->id, false)
-        ->assertSee('Return to file checklist')
+        ->assertSee('Save changes')
         ->assertSee('Expand paper')
         ->assertSee('Focused PDF review workspace')
         ->assertDontSee('Zoom out')
@@ -270,12 +272,13 @@ test('research head can draft highlights while a legacy review is in progress', 
     $this->actingAs($this->head)
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertOk()
-        ->assertSee('Return to review')
-        ->assertSee('fixed bottom-4 right-4 z-40', false)
+        ->assertSee('Back to review')
+        ->assertDontSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
-        ->assertSee('Your highlights and comments are saved as drafts')
-        ->assertSee('Select text')
-        ->assertSee('Precise area')
+        ->assertSee('Comments remain drafts until you send the revision request.')
+        ->assertSee('Drag over the part that needs revision, then add a comment.')
+        ->assertDontSee('Highlight text')
+        ->assertDontSee('Mark an area')
         ->assertDontSee('Send revision request');
 
     $this->actingAs($this->head)
@@ -328,8 +331,8 @@ test('a non PDF revision requires exact file specific instructions', function ()
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Exact revision instructions')
-        ->assertSee('This file cannot be highlighted in the PDF viewer');
+        ->assertSee('Revision instructions')
+        ->assertSee('This document cannot be highlighted. Describe the exact location and change needed.');
 
     $this->actingAs($this->head)
         ->from(route('topics.show', $this->topic))
@@ -428,7 +431,7 @@ test('sending a revision request publishes highlights for the faculty', function
         ->assertSee('data-revision-target="activity-1"', false)
         ->assertSee('Replace this table with the corrected quarterly schedule.')
         ->assertSee('Research Head comment')
-        ->assertSee('This comment stays visible while you edit the highlighted field below.')
+        ->assertSee('This comment stays visible while you edit the marked section below.')
         ->assertSee('data-revision-context-help', false)
         ->assertSee('All revision tasks');
 
@@ -887,4 +890,127 @@ test('embedded editors expose only current published feedback and preserve the r
         ->and($revisedFile->mime_type)->toBe('application/pdf')
         ->and(Storage::disk('local')->get($revisedFile->file_path))->toBe("%PDF-1.7\nconverted revision work plan")
         ->and($pdfConverter->receivedDocx)->toStartWith('PK');
+});
+
+test('pins can be saved without choosing an editor field and require one location', function () {
+    $payload = [
+        'annotation_type' => 'pin',
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.3, 'y' => 0.4, 'width' => 0.001, 'height' => 0.001]],
+        'comment' => 'Clarify this activity.',
+    ];
+    $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
+    $this->actingAs($this->head)->postJson($url, $payload)
+        ->assertCreated()
+        ->assertJsonPath('type', 'pin')
+        ->assertJsonPath('editorTarget', null)
+        ->assertJsonPath('canEdit', true);
+
+    $payload['rectangles'][] = $payload['rectangles'][0];
+    $this->postJson($url, $payload)->assertUnprocessable()->assertJsonValidationErrors('rectangles');
+    expect($this->file->annotations()->count())->toBe(1);
+});
+
+test('draft comments can be edited without changing their marked location or author', function () {
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => 'area',
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Original instruction.',
+        'editor_target' => 'activity-1',
+    ]);
+    $url = route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]);
+    $this->actingAs($this->head)->patchJson($url, [
+        'comment' => 'Move the planting activity to June.',
+        'editor_target' => null,
+        'page_number' => 10,
+        'reviewer_id' => $this->faculty->id,
+    ])->assertOk()->assertJsonPath('comment', 'Move the planting activity to June.')->assertJsonPath('editorTarget', null);
+
+    expect($annotation->fresh()->page_number)->toBe(1)
+        ->and($annotation->fresh()->reviewer_id)->toBe($this->head->id)
+        ->and($annotation->fresh()->rectangles)->toBe($annotation->rectangles)
+        ->and($this->file->annotations()->count())->toBe(1);
+
+    $this->patchJson($url, ['comment' => ''])->assertUnprocessable()->assertJsonValidationErrors('comment');
+    $this->patchJson($url, ['comment' => 'Valid instruction', 'editor_target' => 'not-a-field'])
+        ->assertUnprocessable()->assertJsonValidationErrors('editor_target');
+});
+
+test('comment updates reject other authors and files and lock after sending', function () {
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => 'pin',
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.001, 'height' => 0.001]],
+        'comment' => 'Original instruction.',
+    ]);
+    $url = route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]);
+    $otherHead = User::factory()->create();
+    $otherHead->assignRole('research_head');
+    $this->actingAs($otherHead)->patchJson($url, ['comment' => 'Changed'])->assertForbidden();
+    $this->actingAs($this->faculty)->patchJson($url, ['comment' => 'Changed'])->assertForbidden();
+
+    $otherFile = $this->file->replicate();
+    $otherFile->position = 1;
+    $otherFile->save();
+    $this->actingAs($this->head)->patchJson(
+        route('topics.versions.files.annotations.update', [$this->topic, $this->version, $otherFile, $annotation]),
+        ['comment' => 'Changed'],
+    )->assertNotFound();
+
+    $this->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested',
+        'redirect_to' => 'topic',
+        'revision_file_ids' => [$this->file->id],
+    ])->assertSessionHasNoErrors();
+    expect($annotation->fresh()->topic_review_file_revision_id)->not->toBeNull();
+    $this->patchJson($url, ['comment' => 'Changed after sending'])->assertForbidden();
+    $this->deleteJson(route('topics.versions.files.annotations.destroy', [$this->topic, $this->version, $this->file, $annotation]))->assertForbidden();
+    expect($annotation->fresh()->comment)->toBe('Original instruction.');
+});
+
+test('a highlight automatically opens the matching section and comment for faculty without a field picker', function () {
+    $regions = [
+        ['id' => 'section-project-information', 'label' => 'Project Information', 'pageNumber' => 1, 'x' => .1, 'y' => .1, 'width' => .8, 'height' => .2],
+        ['id' => 'section-schedule', 'label' => 'Objectives and Gantt Schedule', 'pageNumber' => 1, 'x' => .1, 'y' => .3, 'width' => .8, 'height' => .6],
+    ];
+    $source = $this->file->source_data;
+    $source['_revision_sections'] = [
+        'version' => 1,
+        'checksum' => hash('sha256', Storage::disk('local')->get($this->file->file_path)),
+        'regions' => $regions,
+    ];
+    $this->file->update(['source_data' => $source]);
+    $response = $this->actingAs($this->head)->postJson(
+        route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]),
+        ['annotation_type' => 'area', 'page_number' => 1,
+            'rectangles' => [['x' => .2, 'y' => .25, 'width' => .3, 'height' => .25]],
+            'comment' => 'Move the planting activity to June.',
+            'editor_target' => 'section-project-information'],
+    )->assertCreated()->assertJsonPath('editorTarget', 'section-schedule');
+    $annotation = ProposalFileAnnotation::findOrFail($response->json('id'));
+    $this->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]),
+        ['comment' => 'Move planting to June.', 'editor_target' => null])
+        ->assertOk()->assertJsonPath('editorTarget', 'section-schedule');
+    $this->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()->assertDontSee('x-model="draftEditorTarget"', false)->assertSee('section-schedule');
+    $this->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested', 'redirect_to' => 'topic',
+        'revision_file_ids' => [$this->file->id],
+        'revision_file_notes' => [$this->file->id => 'See the marked section.'],
+    ])->assertRedirect();
+    $response = $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.revision', [
+        'topic' => $this->topic, 'annotation' => $annotation->id,
+    ]))->assertRedirect();
+    $this->get($response->headers->get('Location'))->assertOk()
+        ->assertSee('data-revision-target="section-schedule"', false)
+        ->assertSee('data-revision-section="section-schedule"', false)
+        ->assertSee('Move planting to June.')
+        ->assertSee('View exact PDF highlight');
+    $draft = ProposalDraft::where('topic_id', $this->topic->id)->sole();
+    $this->get(route('faculty.proposal-drafts.work-plan.edit', [
+        'proposalDraft' => $draft, 'revision_embed' => 1,
+    ]))->assertOk()->assertSee('section-schedule')->assertSee('Move planting to June.');
 });

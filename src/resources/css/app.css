@@ -7,6 +7,10 @@
     to { transform: scaleX(0); }
 }
 
+.pdf-annotation-viewer {
+    scrollbar-gutter: stable;
+}
+
 .pdf-annotation-page {
     position: relative;
     flex: none;
@@ -147,6 +151,54 @@
 .pdf-annotation-area-mode .pdf-annotation-page .textLayer {
     cursor: crosshair;
     user-select: none;
+}
+
+
+.pdf-annotation-pin {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px;
+    padding: 0;
+    border: 2px solid white;
+    border-radius: 50%;
+    background: #b91c1c;
+    color: white;
+    font: 700 12px/1 system-ui, sans-serif;
+    transform: translate(-25%, -25%);
+    box-shadow: 0 1px 5px rgb(0 0 0 / .25);
+}
+.pdf-annotation-pin:hover,
+.pdf-annotation-pin:focus-visible,
+.pdf-annotation-pin.pdf-annotation-mark-selected {
+    background: #991b1b;
+    color: white;
+}
+.pdf-annotation-number {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    border: 2px solid white;
+    border-radius: 999px;
+    background: #b91c1c;
+    color: white;
+    font: 700 11px/1 system-ui, sans-serif;
+    box-shadow: 0 1px 3px rgb(0 0 0 / .2);
+}
+.pdf-annotation-area-mode .pdf-annotation-page .textLayer :is(span, br) {
+    cursor: crosshair;
+    user-select: none;
+}
+.pdf-annotation-area-mode .pdf-annotation-page {
+    touch-action: none;
 }
 
 @layer base {
@@ -605,4 +657,8 @@ html.dark .revision-frame-loading {
 }
 html.dark .revision-embedded [data-proposal-autosave-status] {
     background: #0f172a;
+}
+
+.revision-embedded [data-revision-shared-summary].revision-section-revealed {
+    display: block;
 }

@@ -11,6 +11,8 @@ class ProposalFileAnnotation extends Model
 
     public const TYPE_AREA = 'area';
 
+    public const TYPE_PIN = 'pin';
+
     protected $fillable = [
         'reviewer_id',
         'topic_review_file_revision_id',

@@ -18,6 +18,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPackageService;
+use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
 use App\Support\ProposalDraftReadiness;
@@ -661,7 +662,7 @@ class TopicController extends Controller
         abort_unless($file->canPreviewAsPdf(), 415);
 
         if (! $file->isPdf()) {
-            $pdfContents = $pdfConverter->convertDocx(Storage::disk('local')->get($file->file_path));
+            $pdfContents = app(ProposalRevisionSectionMap::class)->pdfContents($file);
             $filenameStem = pathinfo($file->original_filename, PATHINFO_FILENAME);
             $pdfFilename = $filenameStem.'.pdf';
             $fallbackFilename = (Str::slug($filenameStem) ?: 'proposal-file-'.$file->id).'.pdf';

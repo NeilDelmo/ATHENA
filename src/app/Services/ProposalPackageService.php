@@ -350,6 +350,15 @@ class ProposalPackageService
             default => throw new RuntimeException('The generated paper format cannot be converted to PDF.'),
         };
 
+        if ($sourceData !== null) {
+            try {
+                $regions = app(ProposalRevisionSectionMap::class)->fromPdf($pdfContents, $documentType, $sourceData);
+                $sourceData['_revision_sections'] = ['version' => 1, 'checksum' => hash('sha256', $pdfContents), 'regions' => $regions];
+            } catch (RuntimeException $exception) {
+                report($exception);
+            }
+        }
+
         return $this->storeGeneratedFile(
             $pdfContents,
             $directory,

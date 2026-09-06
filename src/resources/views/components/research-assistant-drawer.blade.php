@@ -9,19 +9,18 @@
     <aside
         id="research-assistant-panel"
         x-show="$store.researchAssistant.drawerOpen"
-        x-transition:enter="transform transition ease-out duration-200"
-        x-transition:enter-start="translate-x-full"
-        x-transition:enter-end="translate-x-0"
-        x-transition:leave="transform transition ease-in duration-150"
-        x-transition:leave-start="translate-x-0"
-        x-transition:leave-end="translate-x-full"
+        x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+        x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 scale-95"
         role="dialog"
         :aria-modal="$store.researchAssistant.workspaceOpen || $store.researchAssistant.isOverlayViewport() ? 'true' : null"
         aria-labelledby="research-assistant-drawer-title"
-        :class="$store.researchAssistant.workspaceOpen ? 'fixed inset-0 z-10 w-full border-0' : 'absolute inset-y-0 right-0 w-full border-l sm:w-[26rem] xl:w-[28rem]'"
-        class="pointer-events-auto flex max-h-[100dvh] flex-col border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        class="pointer-events-auto absolute inset-x-2 bottom-2 flex h-[44rem] max-h-[calc(100dvh-1rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[28rem]"
     >
-        <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
+        <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
             <div class="flex min-w-0 items-center gap-3">
                 <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
@@ -44,11 +43,11 @@
             </div>
         </header>
 
-        <div class="border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
+        <div class="shrink-0 border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
             <span class="font-black">Context-aware assistance:</span> A page action states which saved ATHENA record it uses. On proposal forms, a limited focused-field snapshot may also be included; contact and sensitive profile fields are redacted. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
         </div>
 
-        <div data-assistant-messages class="flex-1 overflow-y-auto scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
+        <div data-assistant-messages class="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
             <div x-show="!$store.researchAssistant.hasConversation()" class="flex min-h-full flex-col items-center justify-center px-5 py-10 text-center">
                 <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white dark:bg-white dark:text-slate-900">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
@@ -105,7 +104,7 @@
             </div>
         </div>
 
-        <footer class="border-t border-gray-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:pb-4">
+        <footer class="max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:pb-4">
             <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
                 <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
                 <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
@@ -128,7 +127,7 @@
 
             <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800">
                 <label for="research-assistant-drawer-message" class="sr-only">Message Athena Research Assistant</label>
-                <textarea id="research-assistant-drawer-message" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Message Athena…" class="max-h-44 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"></textarea>
+                <textarea id="research-assistant-drawer-message" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Message Athena…" class="max-h-44 min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"></textarea>
                 <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg></button>
                 <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
             </form>

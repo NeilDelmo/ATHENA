@@ -76,7 +76,7 @@
             </div>
         @endunless
 
-        <section data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div><h3 class="text-base font-black text-gray-900">Shared project information</h3><p class="mt-1 text-xs text-gray-500">Edit these values from Project Details; they are applied automatically to the paper.</p></div>
                 <div class="flex gap-2">
@@ -99,7 +99,7 @@
             <input type="hidden" name="document_version" value="{{ old('document_version', $workPlanDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
 
-            <section aria-labelledby="work-plan-objectives-heading" class="space-y-4">
+            <section data-revision-section="section-schedule" aria-labelledby="work-plan-objectives-heading" class="space-y-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
@@ -179,7 +179,7 @@
                 <button type="button" x-on:click="addEntry" x-bind:disabled="!canAddEntry()" x-bind:title="canAddEntry() ? 'Add another objective' : 'No unassigned project month is available for another objective.'" class="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50">Add another objective</button>
             </section>
 
-            <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <section data-revision-section="section-signatories" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
                     <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Checked &amp; Verified by</p>
                     <p class="mt-2 font-black text-gray-900">{{ config('work_plan.verifier.name') }}</p>
