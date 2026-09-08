@@ -10,7 +10,6 @@ use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
-use App\Services\FacultyProjectCapacityService;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\SidebarAttentionService;
 use Illuminate\Http\RedirectResponse;
@@ -34,9 +33,9 @@ class ResearchHeadTopicController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
 
-        if ($topic->status === 'revision_requested') {
+        if (! $topic->canRecordDecision($validated['status'])) {
             throw ValidationException::withMessages([
-                'status' => 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.',
+                'status' => 'Follow the current proposal stage. Faculty must submit their first revision before the proposal can be sent to LREC.',
             ]);
         }
 
@@ -53,6 +52,7 @@ class ResearchHeadTopicController extends Controller
                 ProposalVersionFile::TYPE_COMMENT_RESPONSE,
                 ProposalVersionFile::TYPE_HEAD_UPLOAD,
             ]);
+        $committeeComments = $topic->review_stage === 'lrec' ? ($validated['committee_comments'] ?? []) : [];
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
@@ -68,7 +68,7 @@ class ResearchHeadTopicController extends Controller
                 ]);
             }
 
-            if ($selectedIds->isEmpty()) {
+            if ($selectedIds->isEmpty() && $committeeComments === []) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Select at least one proposal file that requires revision.',
                 ]);
@@ -91,7 +91,7 @@ class ResearchHeadTopicController extends Controller
                 ->whereNotIn('id', $highlightedFileIds)
                 ->values();
 
-            if ($filesMissingHighlights->isNotEmpty()) {
+            if ($filesMissingHighlights->isNotEmpty() && $committeeComments === []) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Add and save at least one highlighted comment to each selected PDF before requesting revision: '.$filesMissingHighlights->map->label()->join(', ').'.',
                 ]);
@@ -101,7 +101,7 @@ class ResearchHeadTopicController extends Controller
                 ->reject(fn (ProposalVersionFile $file): bool => $this->canAnnotateRevisionFile($file))
                 ->filter(fn (ProposalVersionFile $file): bool => blank($validated['revision_file_notes'][$file->id] ?? null));
 
-            if ($filesMissingInstructions->isNotEmpty()) {
+            if ($filesMissingInstructions->isNotEmpty() && $committeeComments === []) {
                 throw ValidationException::withMessages(
                     $filesMissingInstructions->mapWithKeys(fn (ProposalVersionFile $file): array => [
                         'revision_file_notes.'.$file->id => 'Give exact revision instructions for '.$file->label().' because this file cannot be highlighted in the PDF viewer.',
@@ -111,12 +111,12 @@ class ResearchHeadTopicController extends Controller
         }
 
         if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
-            $selectedIds = collect($validated['signature_file_ids'] ?? [])->map(fn ($id) => (int) $id);
-            $selectedSignatureFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
+            $signatureWorkflow = app(ProposalSignatureWorkflow::class);
+            $selectedSignatureFiles = $signatureWorkflow->requiredFiles($latestVersion);
 
-            if ($selectedSignatureFiles->count() !== $selectedIds->count()) {
+            if (! $signatureWorkflow->hasRequiredPapers($latestVersion)) {
                 throw ValidationException::withMessages([
-                    'signature_file_ids' => 'Every selected signature paper must belong to the latest proposal version.',
+                    'status' => 'The latest package must contain the Detailed Proposal, Work Plan, Line-Item Budget, GAD Checklist, and Initial Screening Form before signing.',
                 ]);
             }
         }
@@ -128,6 +128,7 @@ class ResearchHeadTopicController extends Controller
             $latestVersion,
             $selectedRevisionFiles,
             $selectedSignatureFiles,
+            $committeeComments,
         ): void {
             $reviewedTopic = TopicProposal::query()
                 ->whereKey($topic->getKey())
@@ -137,16 +138,22 @@ class ResearchHeadTopicController extends Controller
             $isReturningFromSigning = $reviewedTopic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
                 && $validated['status'] === 'revision_requested';
 
-            if (! $isReturningFromSigning
-                && ! in_array($reviewedTopic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
-                throw ValidationException::withMessages([
-                    'status' => $reviewedTopic->status === 'revision_requested'
-                        ? 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.'
-                        : 'Only proposals awaiting a Research Head decision can be reviewed.',
-                ]);
+            if (! $reviewedTopic->canRecordDecision($validated['status'])) {
+                throw ValidationException::withMessages(['status' => 'This action is no longer available. Refresh the proposal and follow its current review stage.']);
             }
 
-            $reviewedTopic->update(['status' => $validated['status']]);
+            $lockedVersion = $reviewedTopic->latestVersion()->lockForUpdate()->firstOrFail();
+            if ($lockedVersion->id !== $latestVersion->id) {
+                throw ValidationException::withMessages(['status' => 'A newer version was submitted. Review it before continuing.']);
+            }
+
+            $reviewStage = $reviewedTopic->review_stage;
+            $reviewedTopic->update([
+                'status' => $validated['status'],
+                'review_stage' => $validated['status'] === TopicProposal::STATUS_LREC_QUEUED || $isReturningFromSigning ? 'lrec' : $reviewStage,
+                'lrec_cleared_at' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE ? now() : null,
+                'notice_to_proceed_data' => $isReturningFromSigning ? null : $reviewedTopic->notice_to_proceed_data,
+            ]);
 
             $reviewedTopic->expertAssignments()
                 ->where('status', 'pending')
@@ -182,6 +189,8 @@ class ResearchHeadTopicController extends Controller
             $review = $reviewedTopic->reviews()->create([
                 'reviewer_id' => $request->user()->id,
                 'decision' => $validated['status'],
+                'review_stage' => $reviewStage,
+                'committee_comments' => $committeeComments,
                 'comment' => $validated['status'] === 'rejected'
                     ? $validated['rejection_reason']
                     : null,
@@ -218,6 +227,8 @@ class ResearchHeadTopicController extends Controller
         );
 
         $notificationDetails = match ($validated['status']) {
+            TopicProposal::STATUS_LREC_QUEUED => ['Queued for LREC', 'Initial review is complete for “'.$topic->title.'”. Await the LREC presentation schedule from the research office.', 'info'],
+            TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
                 'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
@@ -260,7 +271,9 @@ class ResearchHeadTopicController extends Controller
         ));
 
         $message = match ($validated['status']) {
-            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'Review completed. Upload the required signed PDFs, then finalize approval.',
+            TopicProposal::STATUS_LREC_QUEUED => 'Initial review cleared. The proposal is queued for LREC presentation.',
+            TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
                 : 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.',
@@ -283,70 +296,15 @@ class ResearchHeadTopicController extends Controller
         FinalizeResearchHeadTopicApprovalRequest $request,
         TopicProposal $topic,
         ProposalSignatureWorkflow $signatureWorkflow,
-        FacultyProjectCapacityService $capacityService,
     ): RedirectResponse {
-        DB::transaction(function () use ($request, $topic, $signatureWorkflow, $capacityService): void {
-            $reviewedTopic = TopicProposal::query()
-                ->whereKey($topic->getKey())
-                ->lockForUpdate()
-                ->firstOrFail();
+        abort_unless($topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE, 422);
+        $version = $topic->latestVersion()->with('files')->firstOrFail();
+        if (! $signatureWorkflow->isComplete($version)) {
+            throw ValidationException::withMessages(['status' => 'Upload every required signed paper before preparing the final release.']);
+        }
 
-            if ($reviewedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
-                throw ValidationException::withMessages([
-                    'status' => 'Only proposals that are ready for signature can be finalized.',
-                ]);
-            }
-
-            $latestVersion = ProposalVersion::query()
-                ->where('topic_id', $reviewedTopic->id)
-                ->with('files')
-                ->orderByDesc('version_number')
-                ->lockForUpdate()
-                ->firstOrFail();
-            $requiredSignatureFiles = $signatureWorkflow->requiredFiles($latestVersion);
-
-            if ($requiredSignatureFiles->isEmpty()) {
-                throw ValidationException::withMessages([
-                    'status' => 'No papers were selected for final signing. Record the Research Head decision again and select the applicable papers.',
-                ]);
-            }
-
-            $missingSignatureFiles = $signatureWorkflow->missingRequiredFiles($latestVersion);
-
-            if ($missingSignatureFiles->isNotEmpty()) {
-                throw ValidationException::withMessages([
-                    'status' => 'Upload signed PDFs for: '.$missingSignatureFiles->map->label()->join(', ').'.',
-                ]);
-            }
-
-            $capacityService->ensureAvailableFor($reviewedTopic);
-            $reviewedTopic->update([
-                'status' => 'approved',
-                'project_status' => null,
-            ]);
-            $reviewedTopic->reviews()->create([
-                'reviewer_id' => $request->user()->id,
-                'decision' => 'approved',
-                'comment' => 'All required signed final copies were uploaded and the proposal was released as approved.',
-            ]);
-        });
-
-        $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
-            'Signed documents ready',
-            'All required signed final copies for “'.$topic->title.'” are now available. The proposal is approved and waiting for its Notice to Proceed.',
-            route('topics.show', $topic),
-            'success',
-            $topic->id,
-            workspace: [
-                User::WORKSPACE_FACULTY_RESEARCHER,
-                User::WORKSPACE_FACULTY,
-            ],
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
-        ));
-
-        return redirect()
-            ->to(route('topics.show', $topic).'#proposal-review')
-            ->with('success', 'Signed documents finalized and released. Monitoring will open after the Notice to Proceed is issued.');
+        return redirect()->to(route('topics.show', $topic).'#notice-to-proceed')
+            ->with('success', 'Signed papers are ready. Upload the signed Notice to Proceed to release the complete package to faculty.');
     }
 
     /**

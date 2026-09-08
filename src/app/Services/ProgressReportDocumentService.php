@@ -14,25 +14,25 @@ use ZipArchive;
 
 class ProgressReportDocumentService
 {
-    private const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    protected const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
-    private const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    protected const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
-    private const WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+    protected const WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
 
-    private const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    protected const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
 
-    private const PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+    protected const PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
 
-    private const PACKAGE_RELATIONSHIPS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+    protected const PACKAGE_RELATIONSHIPS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
-    private const CONTENT_TYPES = 'http://schemas.openxmlformats.org/package/2006/content-types';
+    protected const CONTENT_TYPES = 'http://schemas.openxmlformats.org/package/2006/content-types';
 
-    private const XML = 'http://www.w3.org/XML/1998/namespace';
+    protected const XML = 'http://www.w3.org/XML/1998/namespace';
 
-    private const MAX_IMAGE_WIDTH_EMU = 5715000;
+    protected const MAX_IMAGE_WIDTH_EMU = 5715000;
 
-    private const MAX_IMAGE_HEIGHT_EMU = 6629400;
+    protected const MAX_IMAGE_HEIGHT_EMU = 6629400;
 
     public function __construct(
         private readonly FilesystemManager $filesystem,
@@ -114,12 +114,15 @@ class ProgressReportDocumentService
     /**
      * @param  list<array<string, mixed>>  $figures
      */
-    private function renderDocumentXml(
+    protected function renderDocumentXml(
         string $xml,
         ProjectNarrativeReport $report,
         array $figures,
     ): string {
         [$document, $xpath] = $this->documentAndXPath($xml, 'document');
+        if ($report->report_type === 'terminal') {
+            return app(TerminalReportDocumentService::class)->renderXml($xml, $report, $figures);
+        }
         $table = $xpath->query('/w:document/w:body/w:tbl[1]')->item(0);
 
         if (! $table instanceof DOMElement) {
@@ -166,7 +169,7 @@ class ProgressReportDocumentService
     }
 
     /** @param list<DOMElement> $rows */
-    private function splitSignOffPage(DOMXPath $xpath, DOMElement $table, array $rows): void
+    protected function splitSignOffPage(DOMXPath $xpath, DOMElement $table, array $rows): void
     {
         $tableProperties = $xpath->query('./w:tblPr', $table)->item(0);
         $tableGrid = $xpath->query('./w:tblGrid', $table)->item(0);
@@ -199,7 +202,7 @@ class ProgressReportDocumentService
         $parent->insertBefore($signOffTable, $insertionPoint);
     }
 
-    private function fillAccomplishments(DOMXPath $xpath, DOMElement $row, ProjectNarrativeReport $report): void
+    protected function fillAccomplishments(DOMXPath $xpath, DOMElement $row, ProjectNarrativeReport $report): void
     {
         $cell = $this->cells($xpath, $row, 1)[0];
         $table = $xpath->query('./w:tbl[1]', $cell)->item(0);
@@ -241,7 +244,7 @@ class ProgressReportDocumentService
         }
     }
 
-    private function fillNarrativeBelowHeading(DOMXPath $xpath, DOMElement $row, string $text): void
+    protected function fillNarrativeBelowHeading(DOMXPath $xpath, DOMElement $row, string $text): void
     {
         $cell = $this->cells($xpath, $row, 1)[0];
         $paragraphs = $this->elements($xpath, './w:p', $cell);
@@ -257,7 +260,7 @@ class ProgressReportDocumentService
         }
     }
 
-    private function fillPreparedBy(DOMXPath $xpath, DOMElement $row, ProjectNarrativeReport $report): void
+    protected function fillPreparedBy(DOMXPath $xpath, DOMElement $row, ProjectNarrativeReport $report): void
     {
         $cells = $this->cells($xpath, $row, 1);
         $paragraphs = $this->elements($xpath, './w:p', $cells[0]);
@@ -276,7 +279,7 @@ class ProgressReportDocumentService
     /**
      * @param  list<array<string, mixed>>  $figures
      */
-    private function appendFigures(
+    protected function appendFigures(
         DOMXPath $xpath,
         DOMElement $row,
         array $figures,
@@ -302,7 +305,7 @@ class ProgressReportDocumentService
     /**
      * @param  array<string, mixed>  $figure
      */
-    private function figureParagraph(DOMDocument $document, array $figure, int $figureNumber): DOMElement
+    protected function figureParagraph(DOMDocument $document, array $figure, int $figureNumber): DOMElement
     {
         $paragraph = $document->createElementNS(self::W, 'w:p');
         $paragraphProperties = $document->createElementNS(self::W, 'w:pPr');
@@ -385,7 +388,7 @@ class ProgressReportDocumentService
         return $paragraph;
     }
 
-    private function captionParagraph(DOMDocument $document, string $caption): DOMElement
+    protected function captionParagraph(DOMDocument $document, string $caption): DOMElement
     {
         $paragraph = $document->createElementNS(self::W, 'w:p');
         $paragraphProperties = $document->createElementNS(self::W, 'w:pPr');
@@ -415,7 +418,7 @@ class ProgressReportDocumentService
     /**
      * @return list<array<string, mixed>>
      */
-    private function loadFigures(ProjectNarrativeReport $report): array
+    protected function loadFigures(ProjectNarrativeReport $report): array
     {
         $disk = $this->filesystem->disk('local');
         $figures = [];
@@ -446,6 +449,7 @@ class ProgressReportDocumentService
                 'width' => $width,
                 'height' => $height,
                 'caption' => (string) ($photo['caption'] ?? ''),
+                'after_paragraph' => (int) ($photo['after_paragraph'] ?? 0),
                 'section' => in_array($photo['section'] ?? null, ['methodology', 'results_discussion'], true)
                     ? $photo['section']
                     : 'results_discussion',
@@ -456,7 +460,7 @@ class ProgressReportDocumentService
     }
 
     /** @return array{int, int} */
-    private function scaledImageDimensions(int $pixelWidth, int $pixelHeight): array
+    protected function scaledImageDimensions(int $pixelWidth, int $pixelHeight): array
     {
         $width = $pixelWidth * 9525;
         $height = $pixelHeight * 9525;
@@ -473,7 +477,7 @@ class ProgressReportDocumentService
      * @param  list<array<string, mixed>>  $figures
      * @return array{string, list<array<string, mixed>>}
      */
-    private function registerFigureRelationships(string $xml, array $figures): array
+    protected function registerFigureRelationships(string $xml, array $figures): array
     {
         $document = new DOMDocument('1.0', 'UTF-8');
         $document->preserveWhiteSpace = true;
@@ -513,7 +517,7 @@ class ProgressReportDocumentService
     /**
      * @param  list<array<string, mixed>>  $figures
      */
-    private function registerFigureContentTypes(string $xml, array $figures): string
+    protected function registerFigureContentTypes(string $xml, array $figures): string
     {
         $document = new DOMDocument('1.0', 'UTF-8');
         $document->preserveWhiteSpace = true;
@@ -551,10 +555,10 @@ class ProgressReportDocumentService
         return $this->serialized($document, 'content types');
     }
 
-    private function renderFooterXml(string $xml, ProjectNarrativeReport $report): string
+    protected function renderFooterXml(string $xml, ProjectNarrativeReport $report): string
     {
         [$document, $xpath] = $this->documentAndXPath($xml, 'footer');
-        $replacement = 'Tracking No. '.($report->tracking_number ?: '__________________________').' ';
+        $replacement = $report->report_type === 'terminal' ? '' : 'Tracking No. '.($report->tracking_number ?: '__________________________').' ';
 
         foreach ($xpath->query('//w:t') as $text) {
             if ($text instanceof DOMElement && Str::contains($text->textContent, 'Tracking No.')) {
@@ -569,7 +573,7 @@ class ProgressReportDocumentService
     }
 
     /** @return array{DOMDocument, DOMXPath} */
-    private function documentAndXPath(string $xml, string $part): array
+    protected function documentAndXPath(string $xml, string $part): array
     {
         $document = new DOMDocument('1.0', 'UTF-8');
         $document->preserveWhiteSpace = true;
@@ -585,7 +589,7 @@ class ProgressReportDocumentService
     }
 
     /** @return list<DOMElement> */
-    private function cells(DOMXPath $xpath, DOMElement $row, int $expected): array
+    protected function cells(DOMXPath $xpath, DOMElement $row, int $expected): array
     {
         $cells = $this->elements($xpath, './w:tc', $row);
 
@@ -596,7 +600,7 @@ class ProgressReportDocumentService
         return $cells;
     }
 
-    private function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text): void
+    protected function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text): void
     {
         $paragraphs = $this->elements($xpath, './w:p', $cell);
 
@@ -611,7 +615,7 @@ class ProgressReportDocumentService
         }
     }
 
-    private function replaceParagraphText(
+    protected function replaceParagraphText(
         DOMXPath $xpath,
         DOMElement $paragraph,
         string $text,
@@ -670,7 +674,7 @@ class ProgressReportDocumentService
     }
 
     /** @return list<DOMElement> */
-    private function elements(DOMXPath $xpath, string $query, DOMElement $context): array
+    protected function elements(DOMXPath $xpath, string $query, DOMElement $context): array
     {
         $elements = [];
 
@@ -683,7 +687,7 @@ class ProgressReportDocumentService
         return $elements;
     }
 
-    private function serialized(DOMDocument $document, string $part): string
+    protected function serialized(DOMDocument $document, string $part): string
     {
         $xml = $document->saveXML();
 

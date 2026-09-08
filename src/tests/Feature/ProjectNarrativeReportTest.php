@@ -61,7 +61,7 @@ beforeEach(function () {
         'status' => 'approved',
         'project_status' => 'ongoing',
         'notice_to_proceed_issued_by' => $this->head->id,
-        'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_issued_at' => now()->subMonths(3),
     ]);
 
     $this->progressReportPayload = fn (array $overrides = []): array => array_replace([
@@ -161,7 +161,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Monitoring submissions')
+        ->assertSee('Quarterly reporting schedule')
         ->assertSee('Open progress report')
         ->assertSee(route('project-narrative-reports.create', $this->topic), false)
         ->assertDontSee('data-narrative-progress-autosave-form', false);
@@ -169,7 +169,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
     $this->actingAs($this->researcher)
         ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
-        ->assertSee('Submit progress report')
+        ->assertSee('Report project accomplishments')
         ->assertSee('Prepare official PDF')
         ->assertSee('Preview progress report')
         ->assertSee('Exit monitoring')
@@ -349,7 +349,7 @@ test('a researcher can discard a prepared progress report and its stored files',
     $this->actingAs($this->researcher)
         ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
-        ->assertSee('Progress Report PDF prepared')
+        ->assertSee('Progress report PDF prepared')
         ->assertSee('Submit to Research Head');
     $this->actingAs($this->researcher)
         ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))

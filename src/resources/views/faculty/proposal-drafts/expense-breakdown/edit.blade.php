@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official expense table through structured inputs. Totals and subtotals are calculated automatically.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
+            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
         </div>
     </x-slot>
 

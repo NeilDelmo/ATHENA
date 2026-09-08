@@ -32,7 +32,7 @@
                 'annotation_id' => $annotation?->id,
                 'pdf_url' => $pdfUrl,
                 'label' => $annotation
-                    ? 'Page '.$annotation->page_number.' · '.($revisionTargetCatalog->labelFor($revisionFile, $annotation->editor_target) ?? 'Paper feedback')
+                    ? $annotation->feedbackLabel().' · Page '.$annotation->page_number.' · '.($revisionTargetCatalog->labelFor($revisionFile, $annotation->editor_target) ?? 'Paper feedback')
                     : $fileRevision->original_filename,
                 'note' => $fileRevision->revision_note,
                 'quote' => $annotation?->selected_text,
@@ -83,7 +83,7 @@
             </div>
             <div class="revision-dialog-body">
                 <div class="revision-document-workspace">
-                    <section class="revision-feedback" aria-label="Research Head feedback and submitted PDF">
+                    <section class="revision-feedback" aria-label="Reviewer feedback and submitted PDF">
                         <div class="revision-comment-strip" data-revision-feedback>
                             @if ($feedbackItems->isNotEmpty())
                                 <label for="revision-comment-{{ $documentType }}" class="sr-only">Requested change</label>

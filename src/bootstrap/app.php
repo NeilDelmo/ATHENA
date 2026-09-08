@@ -57,6 +57,8 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.curriculum-vitae.update',
                     'project-progress.draft',
                     'project-narrative-reports.draft',
+                    'project-narrative-reports.preview',
+                    'project-progress.preview',
                     'research_head.topics.notice-to-proceed.store',
                 )),
         );

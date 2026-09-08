@@ -73,6 +73,28 @@ function annotationWorkspace() {
     return state;
 }
 
+test('co-evaluator highlighting requires confirmation and changing the name relocks it', () => {
+    const state = annotationWorkspace();
+    state.switchReviewer('co_evaluator');
+    const selection = { type: 'area', pageNumber: 1, rectangles: [] };
+    state.coEvaluatorName = ' Dr. Santos ';
+    state.openCommentComposer(selection);
+    assert.equal(state.draftSelection, null);
+    state.confirmReviewer();
+    assert.equal(state.reviewerReady, true);
+    assert.equal(state.confirmedCoEvaluatorName, 'Dr. Santos');
+    state.openCommentComposer(selection);
+    assert.equal(state.draftCoEvaluatorName, 'Dr. Santos');
+    state.cancelDraft();
+    state.editReviewerName();
+    assert.equal(state.reviewerReady, false);
+    state.coEvaluatorName = '   ';
+    state.confirmReviewer();
+    assert.equal(state.reviewerReady, false);
+    state.switchReviewer('research_head');
+    assert.equal(state.reviewerReady, true);
+});
+
 test('pin placement stays inside the page even at its edges', async () => {
     const { pinRectangle } = await import('../../resources/js/pdf-annotation-workspace.js');
     const rectangle = pinRectangle(1500, -10, { left: 100, top: 100, width: 600, height: 900 });
@@ -164,4 +186,51 @@ test('section matching uses the greatest overlap on the selected page', async ()
     assert.equal(matchRevisionSection(sections, selection).id, 'section-project-team');
     assert.equal(matchRevisionSection(sections, { ...selection, pageNumber: 2 }).id, 'section-proponent');
     assert.equal(matchRevisionSection(sections, { ...selection, pageNumber: 3 }), null);
+});
+
+test('switching reviewer keeps an unfinished comment attached to its original source', () => {
+    const state = annotationWorkspace();
+    state.switchReviewer('co_evaluator');
+    assert.equal(state.activeReviewer, 'co_evaluator');
+    state.coEvaluatorName = 'Dr. Maria Santos';
+    state.confirmReviewer();
+    state.openCommentComposer({type:'area', pageNumber:1, rectangles:[]});
+    state.switchReviewer('research_head');
+    assert.equal(state.activeReviewer, 'co_evaluator');
+    assert.equal(state.draftFeedbackSource, 'co_evaluator');
+    assert.equal(state.draftCoEvaluatorName, 'Dr. Maria Santos');
+    state.cancelDraft();
+    state.switchReviewer('research_head');
+    assert.equal(state.activeReviewer, 'research_head');
+});
+
+test('co evaluator save transmits attribution and an unnamed evaluator cannot be saved', async (t) => {
+    const state = annotationWorkspace();
+    state.draftSelection = {type:'area',pageNumber:1,rectangles:[]};
+    state.draftComment = 'Explain the sampling plan.';
+    state.draftFeedbackSource = 'co_evaluator';
+    let requests = 0;
+    t.mock.method(globalThis, 'fetch', async (_url, options) => {
+        requests++;
+        const body = JSON.parse(options.body);
+        assert.equal(body.feedback_source,'co_evaluator');
+        assert.equal(body.co_evaluator_name,'Dr. Santos');
+        return Response.json({id:1,pageNumber:1,feedbackSource:'co_evaluator',coEvaluatorName:'Dr. Santos'});
+    });
+    await state.saveAnnotation();
+    assert.equal(requests,0);
+    assert.match(state.saveError,/name/);
+    state.draftCoEvaluatorName = 'Dr. Santos';
+    await state.saveAnnotation();
+    assert.equal(requests,1);
+    assert.equal(state.coEvaluatorName,'Dr. Santos');
+});
+
+test('each profile counts only its feedback while legacy comments remain Research Head feedback', () => {
+    const state = annotationWorkspace();
+    state.annotations = [{id:1}, {id:2,feedbackSource:'research_head'}, {id:3,feedbackSource:'co_evaluator'}];
+    assert.equal(state.reviewerCommentCount,2);
+    state.switchReviewer('co_evaluator');
+    assert.equal(state.reviewerCommentCount,1);
+    assert.equal(state.reviewerInitials('Maria Santos'),'MS');
 });

@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
@@ -20,7 +22,7 @@ class TopicCommentResponseFormController extends Controller
 
         $commentResponseForm = $this->commentResponseFormData($topic);
 
-        return view('faculty.comment-response-form.preview', compact('commentResponseForm'));
+        return view('faculty.comment-response-form.preview', compact('commentResponseForm', 'topic'));
     }
 
     public function download(
@@ -41,6 +43,27 @@ class TopicCommentResponseFormController extends Controller
         );
     }
 
+    public function downloadPdf(
+        TopicProposal $topic,
+        CommentResponseFormDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
+    ): StreamedResponse {
+        Gate::authorize('generateCommentResponseForm', $topic);
+
+        $contents = $pdfConverter->convertDocx(
+            $documentService->generate($this->commentResponseFormData($topic)),
+        );
+        $filenameBase = Str::slug($topic->title) ?: 'research-project';
+
+        return response()->streamDownload(
+            static function () use ($contents): void {
+                echo $contents;
+            },
+            $filenameBase.'-comment-response-form.pdf',
+            ['Content-Type' => 'application/pdf'],
+        );
+    }
+
     /**
      * @return array{
      *     project_title: string,
@@ -48,6 +71,7 @@ class TopicCommentResponseFormController extends Controller
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
+     *     feedback: list<array{reviewer: string, location: string, comment: string}>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }
      */
@@ -89,7 +113,20 @@ class TopicCommentResponseFormController extends Controller
                 $detailedProposal['proponent_department'] ?? null,
             ),
             'staff' => $this->staffRows($detailedProposal, $lineItemBudget),
+            'feedback' => $this->feedbackRows($topic),
         ];
+    }
+
+    /** @return list<array{reviewer: string, location: string, comment: string}> */
+    private function feedbackRows(TopicProposal $topic): array
+    {
+        $review = $topic->reviews()->where('decision', 'revision_requested')
+            ->when(request()->filled('review'), fn ($query) => $query->whereKey(request()->integer('review')))
+            ->latest('id')->first();
+
+        abort_if(request()->filled('review') && $review === null, 404);
+
+        return app(CommentResponseFeedback::class)->rows($review);
     }
 
     /** @return array<string, mixed> */

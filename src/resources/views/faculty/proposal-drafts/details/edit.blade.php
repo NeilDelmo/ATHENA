@@ -5,7 +5,7 @@
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Project Details</h2>
                 <p class="mt-1 text-xs text-gray-500">Enter shared information once; Attachment A will use it automatically.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
+            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Exit editor</x-back-link>
         </div>
     </x-slot>
 
@@ -44,10 +44,6 @@
         />
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-8">
-            <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                <p class="font-black">Research call</p>
-                <p class="mt-1">{{ $proposalDraft->researchCall?->title ?? 'Choose a research call when you are ready to turn in.' }}</p>
-            </div>
 
             @if ($errors->any())
                 <x-proposal-alert type="error" class="mb-6">

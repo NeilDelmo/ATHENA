@@ -8,6 +8,7 @@
                     <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-600">Research support</span>
                 </div>
                 <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Research Support</h2>
+                <a href="{{ route('similarity-checks.index') }}" class="mt-3 inline-flex rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white">{{ Auth::user()->isUsingWorkspace('research_head') ? 'Manage similarity checks' : 'Request or view a Turnitin similarity check' }}</a>
                 <p class="mt-1 text-xs text-gray-500">{{ $canUseResearcherTools ? 'Find literature, review similarity, and discover publication venues for your research.' : 'Find and save literature while preparing your research proposal.' }}</p>
             </div>
         </div>

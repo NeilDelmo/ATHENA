@@ -19,6 +19,8 @@ class ProjectNarrativeReport extends Model
     public const STATUS_REVISION_REQUESTED = 'revision_requested';
 
     protected $fillable = [
+        'report_type',
+        'terminal_data',
         'topic_id',
         'submitted_by',
         'submission_date',
@@ -58,6 +60,7 @@ class ProjectNarrativeReport extends Model
     protected function casts(): array
     {
         return [
+            'terminal_data' => 'array',
             'submission_date' => 'date',
             'implementation_start' => 'date',
             'implementation_end' => 'date',
@@ -100,6 +103,11 @@ class ProjectNarrativeReport extends Model
     public function isPrepared(): bool
     {
         return $this->submission_status === self::SUBMISSION_STATUS_PREPARED;
+    }
+
+    public function getReportLabelAttribute(): string
+    {
+        return $this->report_type === 'terminal' ? 'Terminal report' : 'Progress report';
     }
 
     public function isSubmitted(): bool

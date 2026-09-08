@@ -2,18 +2,37 @@
     $revisionFiles = $files->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD);
     $oldRevisionFileIds = old('revision_file_ids');
     $disableUnlessRevision = $disableUnlessRevision ?? false;
+    $decisionFormId = $decisionFormId ?? null;
+    $latestRevisionRequest = ($prioritizeRevisedFiles ?? false)
+        ? $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first()
+        : null;
+    $requestedRevisions = ($latestRevisionRequest?->fileRevisions ?? collect())
+        ->whereIn('resolved_by_version_file_id', $revisionFiles->pluck('id'))
+        ->keyBy('resolved_by_version_file_id');
+    $revisedPapers = $revisionFiles->whereIn('id', $requestedRevisions->keys());
+    $fileGroups = $revisedPapers->isNotEmpty()
+        ? ['revised' => $revisedPapers, 'other' => $revisionFiles->whereNotIn('id', $requestedRevisions->keys())]
+        : ['all' => $revisionFiles];
 @endphp
 
 @if ($revisionFiles->isNotEmpty())
     <div x-data="{ selectedFiles: {} }" data-revision-file-list>
-        <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">Open a document to review it. To request changes to a PDF, save a highlight with a comment, then select the document.</p>
+        <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Select the documents faculty must update. The LREC comments above can provide the instructions; highlights are optional.' : 'Open a document to review it. To request changes to a PDF, save a highlight with a comment, then select the document.' }}</p>
+        @foreach ($fileGroups as $group => $groupFiles)
+            @continue($groupFiles->isEmpty())
+            @if ($group === 'other')
+                <details class="mt-4" @if (collect(old('revision_file_ids', []))->intersect($groupFiles->pluck('id'))->isNotEmpty() || $groupFiles->contains(fn ($file) => $file->annotations->whereNull('topic_review_file_revision_id')->isNotEmpty())) open @endif>
+                    <summary class="cursor-pointer py-3 text-sm font-semibold text-gray-600 dark:text-gray-300">Other submitted papers ({{ $groupFiles->count() }}) — not included in the previous revision request</summary>
+            @elseif ($group === 'revised')
+                <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Papers returned for review ({{ $groupFiles->count() }})</h4>
+            @endif
         <ul role="list" class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-            @foreach ($revisionFiles as $file)
+            @foreach ($groupFiles as $file)
                 @php
                     $draftAnnotationCount = $file->annotations->whereNull('topic_review_file_revision_id')->count();
                     $fileAvailable = $availableSubmittedFileIds->contains($file->id);
                     $fileViewable = $viewableSubmittedFileIds->contains($file->id);
-                    $canSelectHighlightedPdf = ! $fileViewable || $draftAnnotationCount > 0;
+                    $canSelectHighlightedPdf = $topic->review_stage === 'lrec' || ! $fileViewable || $draftAnnotationCount > 0;
                     $isSelected = is_array($oldRevisionFileIds)
                         ? in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf
                         : $draftAnnotationCount > 0;
@@ -38,15 +57,16 @@
                             <label
                                 @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif
                                 class="inline-flex shrink-0 items-center p-1"
-                                @if ($fileViewable) :title="savedHighlightCount === 0 ? 'Save a highlight and comment before selecting this document.' : 'Include this document in the revision request.'" @endif
+                                @if ($fileViewable && $topic->review_stage !== 'lrec') :title="savedHighlightCount === 0 ? 'Save a highlight and comment before selecting this document.' : 'Include this document in the revision request.'" @endif
                             >
                                 <input
                                     type="checkbox"
                                     name="revision_file_ids[]"
+                                    @if ($decisionFormId) form="{{ $decisionFormId }}" @endif
                                     value="{{ $file->id }}"
                                     x-model="needsRevision"
                                     @checked($isSelected)
-                                    x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}{{ $fileViewable ? 'savedHighlightCount === 0' : 'false' }}"
+                                    x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}{{ ($fileViewable && $topic->review_stage !== 'lrec') ? 'savedHighlightCount === 0' : 'false' }}"
                                     class="h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900"
                                 >
                                 <span class="sr-only">Mark for revision: {{ $file->label() }}</span>
@@ -89,11 +109,21 @@
                         </div>
                     </div>
 
+                    @if ($returnedRevision = $requestedRevisions->get($file->id))
+                        <div class="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                            <p class="font-semibold">{{ $returnedRevision->resolution_type === 'no_file_change' ? 'Faculty responded without replacing this paper' : 'Revised paper submitted' }}</p>
+                            @if ($returnedRevision->faculty_response)
+                                <p class="mt-1 whitespace-pre-line">{{ $returnedRevision->faculty_response }}</p>
+                            @endif
+                        </div>
+                    @endif
+
                     @if (! $fileViewable)
                         <label x-show="needsRevision{{ $disableUnlessRevision ? " && decision === 'revision_requested'" : '' }}" x-cloak class="mt-3 block text-sm font-semibold text-gray-700 dark:text-gray-200">
                             Revision instructions <span class="text-red-600 dark:text-red-400">Required</span>
                             <textarea
                                 name="revision_file_notes[{{ $file->id }}]"
+                                @if ($decisionFormId) form="{{ $decisionFormId }}" @endif
                                 rows="3"
                                 maxlength="2000"
                                 :required="needsRevision"
@@ -108,6 +138,10 @@
                 </li>
             @endforeach
         </ul>
+            @if ($group === 'other')
+                </details>
+            @endif
+        @endforeach
         <p @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif class="mt-3 text-sm text-gray-600 dark:text-gray-300" role="status">
             <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="Object.values(selectedFiles).filter(Boolean).length + (Object.values(selectedFiles).filter(Boolean).length === 1 ? ' document marked for revision.' : ' documents marked for revision.')"></span>
             Select only the documents that need changes.

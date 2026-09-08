@@ -11,7 +11,7 @@
 
     <x-slot name="header">
         <div class="grid gap-3">
-            <x-back-link href="{{ route('faculty.dashboard') }}">Back to dashboard</x-back-link>
+            <x-back-link fixed href="{{ route('faculty.dashboard') }}">Back to dashboard</x-back-link>
             <div>
                 <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">Guided proposal workflow</p>
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Submit a Research Proposal</h2>

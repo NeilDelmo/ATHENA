@@ -16,8 +16,8 @@
             <header class="progress-report-header">
                 <p>BatStateU-REC-RES-02</p>
                 <div>
-                    <h1>PROGRESS REPORT</h1>
-                    <p>Research Project Progress Report</p>
+                    <h1>{{ strtoupper($report->report_label) }}</h1>
+                    <p>Research Project {{ $report->report_label }}</p>
                 </div>
                 <p>Revision 02</p>
             </header>

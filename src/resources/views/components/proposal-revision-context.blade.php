@@ -8,7 +8,7 @@
 @elseif ($annotation)
     <section data-revision-context data-revision-target="{{ $editorTarget }}" class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-950 shadow-sm dark:border-red-800 dark:bg-red-950 dark:text-red-100" aria-label="Requested revision">
         <div class="flex flex-wrap items-center justify-between gap-2">
-            <strong class="text-xs font-bold">Research Head comment{{ $targetLabel ? ' · '.$targetLabel : '' }}</strong>
+            <strong class="text-xs font-bold">{{ $annotation->feedbackLabel() }} comment{{ $targetLabel ? ' · '.$targetLabel : '' }}</strong>
             <a data-paper-cancel-exit href="{{ route('topics.show', $proposalDraft->topic_id) }}#submit-revision" class="shrink-0 text-xs font-semibold underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">All revision tasks</a>
         </div>
         <p class="mt-2 whitespace-pre-line break-words" data-revision-instruction>{{ $annotation->comment }}</p>

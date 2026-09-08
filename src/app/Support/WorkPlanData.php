@@ -59,8 +59,8 @@ class WorkPlanData
                     ->all()
                 : [],
             'prepared_by' => (string) ($validated['prepared_by'] ?? ''),
-            'verified_by' => config('work_plan.verifier.name'),
-            'verified_role' => config('work_plan.verifier.role'),
+            'verified_by' => $validated['verified_by'] ?? config('work_plan.verifier.name'),
+            'verified_role' => $validated['verified_role'] ?? config('work_plan.verifier.role'),
         ];
     }
 

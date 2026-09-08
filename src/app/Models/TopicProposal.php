@@ -12,6 +12,10 @@ class TopicProposal extends Model
 {
     public const MAX_CONCURRENT_APPROVED_PROJECTS = 2;
 
+    public const STATUS_LREC_QUEUED = 'lrec_queued';
+
+    public const STATUS_LREC_REVIEW = 'lrec_review';
+
     public const STATUS_READY_FOR_SIGNATURE = 'ready_for_signature';
 
     public const AWAITING_APPROVAL_STATUSES = [
@@ -21,6 +25,8 @@ class TopicProposal extends Model
         'revision_requested',
         'resubmitted',
         self::STATUS_READY_FOR_SIGNATURE,
+        self::STATUS_LREC_QUEUED,
+        self::STATUS_LREC_REVIEW,
     ];
 
     public const PROJECT_STATUS_ONGOING = 'ongoing';
@@ -30,6 +36,8 @@ class TopicProposal extends Model
     public const PROJECT_STATUS_COMPLETED = 'completed';
 
     protected $table = 'topics';
+
+    protected $attributes = ['status' => 'pending', 'review_stage' => 'initial'];
 
     protected $fillable = [
         'user_id',
@@ -48,6 +56,8 @@ class TopicProposal extends Model
         'notice_to_proceed_issued_at',
         'notice_to_proceed_data',
         'status',
+        'review_stage',
+        'lrec_cleared_at',
         'project_status',
     ];
 
@@ -55,9 +65,82 @@ class TopicProposal extends Model
     {
         return [
             'estimated_budget' => 'decimal:2',
+            'status_started_at' => 'datetime',
+            'lrec_cleared_at' => 'datetime',
             'notice_to_proceed_issued_at' => 'datetime',
             'notice_to_proceed_data' => 'array',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (TopicProposal $topic): void {
+            $topic->status_started_at = $topic->created_at ?? now();
+        });
+        static::updating(function (TopicProposal $topic): void {
+            if ($topic->isDirty('status')) {
+                $topic->status_started_at = now();
+            }
+        });
+        static::created(function (TopicProposal $topic): void {
+            $topic->stageTransitions()->create([
+                'from_status' => null,
+                'to_status' => $topic->status,
+                'changed_at' => $topic->status_started_at,
+            ]);
+        });
+        static::updated(function (TopicProposal $topic): void {
+            if ($topic->wasChanged('status')) {
+                $topic->stageTransitions()->create([
+                    'from_status' => $topic->getOriginal('status'),
+                    'to_status' => $topic->status,
+                    'previous_started_at' => $topic->getOriginal('status_started_at'),
+                    'changed_at' => $topic->status_started_at,
+                ]);
+            }
+        });
+    }
+
+    public function canRecordDecision(string $decision): bool
+    {
+        $allowed = match ($this->status) {
+            self::STATUS_LREC_QUEUED => [self::STATUS_LREC_REVIEW],
+            self::STATUS_LREC_REVIEW => ['revision_requested', 'rejected', self::STATUS_READY_FOR_SIGNATURE],
+            self::STATUS_READY_FOR_SIGNATURE => ['revision_requested'],
+            'pending', 'resubmitted', 'expert_review', 'for_final_decision' => $this->review_stage === 'lrec'
+                ? ['revision_requested', 'rejected', self::STATUS_READY_FOR_SIGNATURE]
+                : ['revision_requested', 'rejected', self::STATUS_LREC_QUEUED],
+            default => [],
+        };
+
+        if (! in_array($decision, $allowed, true)) {
+            return false;
+        }
+
+        return $decision !== self::STATUS_LREC_QUEUED
+            || $this->versions()
+                ->where('submission_type', 'revision')
+                ->where('version_number', '>', 1)
+                ->exists();
+    }
+
+    public function workflowStatusLabel(): string
+    {
+        return match ($this->status) {
+            self::STATUS_LREC_QUEUED => 'Awaiting LREC presentation',
+            self::STATUS_LREC_REVIEW => 'LREC review',
+            self::STATUS_READY_FOR_SIGNATURE => 'Signing and Notice to Proceed',
+            'revision_requested' => $this->review_stage === 'lrec' ? 'LREC revisions requested' : 'Initial revisions requested',
+            'resubmitted' => $this->review_stage === 'lrec' ? 'LREC revision awaiting review' : 'Revision awaiting review',
+            'approved' => $this->hasIssuedNoticeToProceed() ? 'Approved and released' : 'Preparing final release',
+            'rejected' => 'Rejected',
+            default => 'Initial review',
+        };
+    }
+
+    public function stageTransitions(): HasMany
+    {
+        return $this->hasMany(ProposalStageTransition::class, 'topic_id');
     }
 
     public function scopeMonitoringAvailable(Builder $query): Builder
@@ -171,7 +254,7 @@ class TopicProposal extends Model
 
     public function hasPreparedNoticeToProceed(): bool
     {
-        return $this->status === 'approved'
+        return in_array($this->status, ['approved', self::STATUS_READY_FOR_SIGNATURE], true)
             && $this->notice_to_proceed_issued_at === null
             && filled($this->notice_to_proceed_data);
     }

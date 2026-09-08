@@ -13,8 +13,8 @@ class GADChecklistData
         return [
             'project_title' => trim((string) $validated['project_title']),
             'project_leader' => trim((string) $validated['project_leader']),
-            'verifier_name' => (string) config('gad_checklist.verifier.name'),
-            'verifier_role' => (string) config('gad_checklist.verifier.role'),
+            'verifier_name' => (string) ($validated['verifier_name'] ?? config('gad_checklist.verifier.name')),
+            'verifier_role' => (string) ($validated['verifier_role'] ?? config('gad_checklist.verifier.role')),
         ];
     }
 }

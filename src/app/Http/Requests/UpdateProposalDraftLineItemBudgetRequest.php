@@ -65,7 +65,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
         $merged['leader_campus'] = LineItemBudgetData::campusLabel($merged['leader_campus'] ?? null);
         $merged['leader_college'] = LineItemBudgetData::collegeAbbreviation($merged['leader_college'] ?? null);
 
-        $this->merge($merged);
+        $this->merge([...$merged, ...$draft->signatoryFields('line_item_budget')]);
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

@@ -229,13 +229,50 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             pendingSelection: null,
             draftSelection: null,
             draftComment: '',
+            activeReviewer: 'research_head',
+            coEvaluatorName: '',
+            confirmedCoEvaluatorName: '',
+            draftFeedbackSource: 'research_head',
+            draftCoEvaluatorName: '',
             draftEditorTarget: '',
             selectedAnnotationId: null,
             saving: false,
             saveError: '',
 
+            get reviewerCommentCount() {
+                return this.annotations.filter((item) => (item.feedbackSource || 'research_head') === this.activeReviewer).length;
+            },
+
+            get reviewerReady() {
+                return this.activeReviewer !== 'co_evaluator' || (this.confirmedCoEvaluatorName !== '' && this.coEvaluatorName.trim() === this.confirmedCoEvaluatorName);
+            },
+
+            confirmReviewer() {
+                if (this.saving || this.draftSelection || !this.coEvaluatorName.trim()) return;
+                this.coEvaluatorName = this.coEvaluatorName.trim();
+                this.confirmedCoEvaluatorName = this.coEvaluatorName;
+                this.$nextTick(() => this.$refs.viewer?.focus({ preventScroll: true }));
+            },
+
+            editReviewerName() {
+                if (this.saving || this.draftSelection) return;
+                this.confirmedCoEvaluatorName = '';
+                this.$nextTick(() => this.$refs.reviewerNameInput?.focus());
+            },
+
+            reviewerInitials(name) {
+                return String(name || '').trim().split(/\s+/).slice(0, 2).map((word) => word[0] || '').join('').toUpperCase() || 'CE';
+            },
+
+            switchReviewer(source) {
+                if (this.draftSelection || this.saving || !['research_head', 'co_evaluator'].includes(source)) return;
+                this.activeReviewer = source;
+                this.commentMenuId = null;
+            },
+
             get modeInstruction() {
                 if (!this.canAnnotate) return 'Select a comment in the sidebar to locate its highlight.';
+                if (!this.reviewerReady) return 'Confirm the co-evaluator’s name in the sidebar to unlock highlighting.';
 
                 if (this.draftSelection) return 'Finish or cancel your comment before marking another location.';
                 return {
@@ -256,6 +293,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 }
 
                 this.annotations = Array.isArray(this.config.annotations) ? this.config.annotations : [];
+                this.coEvaluatorName = this.config.coEvaluatorName || this.annotations.findLast((item) => item.coEvaluatorName)?.coEvaluatorName || '';
+                if (this.annotations.length && this.annotations.every((item) => item.feedbackSource === 'co_evaluator')) this.activeReviewer = 'co_evaluator';
                 this.revisionCandidates = Array.isArray(this.config.revisionCandidates) ? this.config.revisionCandidates : [];
                 this.editorTargets = Array.isArray(this.config.editorTargets) ? this.config.editorTargets : [];
                 this.sections = Array.isArray(this.config.sections) ? this.config.sections : [];
@@ -485,7 +524,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             captureTextSelection() {
-                if (!this.canAnnotate || this.draftSelection || this.saving || this.mode !== 'text') return;
+                if (!this.canAnnotate || !this.reviewerReady || this.draftSelection || this.saving || this.mode !== 'text') return;
 
                 const selection = window.getSelection();
                 if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
@@ -556,6 +595,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 selection.rectangles.forEach((rectangle) => {
                     const preview = document.createElement('span');
                     preview.className = 'pdf-annotation-pending-mark';
+                    preview.dataset.feedbackSource = this.draftSelection ? this.draftFeedbackSource : this.activeReviewer;
                     if (selection.type === 'pin') {
                         preview.classList.add('pdf-annotation-pin');
                         preview.textContent = '+';
@@ -573,7 +613,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             startAreaSelection(event, pageElement) {
-                if (!this.canAnnotate || this.draftSelection || this.saving || event.button !== 0) return;
+                if (!this.canAnnotate || !this.reviewerReady || this.draftSelection || this.saving || event.button !== 0) return;
                 if (this.mode === 'pin') {
                     if (event.target.closest('.pdf-annotation-mark')) return;
                     event.preventDefault();
@@ -597,6 +637,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 const startY = clamp(event.clientY - bounds.top, 0, bounds.height);
                 const preview = document.createElement('div');
                 preview.className = 'pdf-annotation-area-preview';
+                preview.dataset.feedbackSource = this.activeReviewer;
                 pageElement.append(preview);
                 areaPointer = { pageElement, bounds, startX, startY, preview };
 
@@ -652,10 +693,13 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             },
 
             openCommentComposer(selection, annotation = null) {
+                if (!annotation && !this.reviewerReady) return;
                 if (this.saving || (this.draftSelection && this.draftComment.trim())) return;
                 this.editingAnnotationId = annotation?.id ?? null;
                 this.draftSelection = selection;
                 this.draftComment = annotation?.comment || '';
+                this.draftFeedbackSource = annotation?.feedbackSource || (annotation ? 'research_head' : this.activeReviewer);
+                this.draftCoEvaluatorName = annotation?.coEvaluatorName || this.coEvaluatorName.trim();
                 const section = matchRevisionSection(this.sections, selection);
                 this.draftEditorTarget = annotation?.editorTarget || section?.id || '';
                 this.draftSectionLabel = annotation?.editorTargetLabel || section?.label || '';
@@ -718,6 +762,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 if (!this.draftSelection || !this.draftComment.trim() || this.saving) return;
                 if (!this.canAnnotate) return;
 
+                if (this.draftFeedbackSource === 'co_evaluator' && !this.draftCoEvaluatorName.trim()) {
+                    this.saveError = 'Enter the co-evaluator’s name before adding their feedback.';
+                    return;
+                }
                 this.saving = true;
                 this.saveError = '';
 
@@ -739,6 +787,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                             selected_text: this.draftSelection.selectedText || null,
                             rectangles: this.draftSelection.rectangles,
                             comment: this.draftComment.trim(),
+                            feedback_source: this.draftFeedbackSource,
+                            co_evaluator_name: this.draftFeedbackSource === 'co_evaluator' ? this.draftCoEvaluatorName.trim() : null,
                             editor_target: this.draftEditorTarget === '__paper__'
                                 ? null
                                 : (this.draftEditorTarget || null),
@@ -753,6 +803,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     if (editingId) {
                         this.annotations = this.annotations.map((item) => item.id === editingId ? payload : item);
                     } else {
+                        if (this.draftFeedbackSource === 'co_evaluator') this.coEvaluatorName = this.draftCoEvaluatorName.trim();
                         this.annotations.push(payload);
                         this.adjustRevisionCandidate(1);
                     }
@@ -851,7 +902,8 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                                 badge.textContent = String(number);
                                 mark.append(badge);
                             }
-                            mark.title = annotation.comment;
+                            mark.dataset.feedbackSource = annotation.feedbackSource || 'research_head';
+                            mark.title = (annotation.feedbackLabel || (annotation.feedbackSource === 'co_evaluator' ? 'Co-evaluator' : 'Research Head')) + ': ' + annotation.comment;
                             mark.setAttribute('aria-label', `Revision comment on page ${annotation.pageNumber}: ${annotation.comment}`);
                             mark.addEventListener('click', () => this.selectAnnotation(annotation));
                             overlay.append(mark);
@@ -864,14 +916,17 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     (item) => Number(item.id) === Number(this.selectedAnnotationId),
                 );
                 this.selectedAnnotationId = annotation.id;
+                if (!this.draftSelection) this.activeReviewer = annotation.feedbackSource || 'research_head';
                 if (previouslySelected && Number(previouslySelected.pageNumber) !== Number(annotation.pageNumber)) {
                     this.renderAnnotationsForPage(previouslySelected.pageNumber);
                 }
                 this.renderAnnotationsForPage(annotation.pageNumber);
                 if (this.config.fitWidth && notify) window.athenaRevisionPdf?.onSelect?.(annotation.id);
                 if (!this.config.fitWidth && this.$el) {
-                    const card = this.$el.querySelector('[data-comment-id="' + Number(annotation.id) + '"]');
-                    card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    this.$nextTick(() => {
+                        const card = this.$el.querySelector('[data-comment-id="' + Number(annotation.id) + '"]');
+                        card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                    });
                 }
             },
 

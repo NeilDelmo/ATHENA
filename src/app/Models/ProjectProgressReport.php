@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ class ProjectProgressReport extends Model
 
     protected $fillable = [
         'topic_id', 'submitted_by', 'reporting_date', 'reporting_year', 'reporting_quarter',
+        'period_start', 'period_end',
         'version_number', 'supersedes_report_id', 'tracking_number',
         'progress_percentage', 'accomplishments', 'issues', 'work_plan',
         'budget_utilization', 'prepared_by_date_signed', 'attachment_path', 'submission_status',
@@ -32,6 +34,8 @@ class ProjectProgressReport extends Model
     {
         return [
             'reporting_date' => 'date',
+            'period_start' => 'date',
+            'period_end' => 'date',
             'prepared_by_date_signed' => 'date',
             'prepared_at' => 'datetime',
             'submitted_at' => 'datetime',
@@ -99,6 +103,9 @@ class ProjectProgressReport extends Model
 
     public function getQuarterLabelAttribute(): string
     {
+        if ($this->period_start) {
+            return 'Q'.$this->reporting_quarter;
+        }
         $quarter = $this->reporting_quarter ?? (int) ceil($this->reporting_date->month / 3);
 
         return 'Q'.min(max($quarter, 1), 4);
@@ -106,6 +113,9 @@ class ProjectProgressReport extends Model
 
     public function getReportingPeriodLabelAttribute(): string
     {
+        if ($this->period_start && $this->period_end) {
+            return Carbon::parse($this->period_start)->format('M j, Y').' – '.Carbon::parse($this->period_end)->format('M j, Y');
+        }
         $year = $this->reporting_year ?? $this->reporting_date->year;
         $quarter = $this->reporting_quarter ?? (int) ceil($this->reporting_date->month / 3);
         $start = $this->reporting_date->copy()->setDate($year, (($quarter - 1) * 3) + 1, 1)->startOfMonth();

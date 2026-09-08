@@ -15,6 +15,7 @@ use App\Models\TopicProposal;
 use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\CommentResponseFeedback;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPackageService;
@@ -83,7 +84,6 @@ class TopicController extends Controller
                 'closes_at',
                 'status',
             ]);
-        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
         $announcementImages = AnnouncementImage::query()
             ->with('researchCall:id,status,opens_at,closes_at')
@@ -144,7 +144,6 @@ class TopicController extends Controller
             'recentProposalDrafts',
             'proposalDraftProgress',
             'isFacultyResearcher',
-            'hasOpenResearchCall',
         ));
     }
 
@@ -169,12 +168,12 @@ class TopicController extends Controller
 
         $topic->load([
             'user', 'noticeIssuer', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'progressReports.supersedes', 'progressReports.nextVersion', 'narrativeReports.submitter', 'narrativeReports.reviewer',
-            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations'])->oldest(),
+            'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])->oldest(),
         ]);
 
         $monitoringReports = $topic->progressReports->values();
 
-        $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports);
+        $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
         $previousVersion = $topic->versions
@@ -209,7 +208,7 @@ class TopicController extends Controller
         if (! $request->user()->isUsingWorkspace('research_head')) {
             $reviewDocuments = $reviewDocuments
                 ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
-                    && ($topic->status !== 'approved' || $file->isSuperseded()));
+                    && (! $topic->hasIssuedNoticeToProceed() || $file->isSuperseded()));
         }
 
         $reviewDocuments = $reviewDocuments
@@ -247,11 +246,24 @@ class TopicController extends Controller
         $headUploadWorkspace = $request->user()->isUsingWorkspace('research_head')
             ? $this->headUploadWorkspaceData($topic, $latestVersion)
             : null;
-        $noticeToProceedForm = $request->user()->isUsingWorkspace('research_head') && $topic->status === 'approved'
+        $noticeToProceedForm = $request->user()->isUsingWorkspace('research_head') && in_array($topic->status, ['approved', TopicProposal::STATUS_READY_FOR_SIGNATURE], true)
             ? $this->noticeToProceedDataService->defaults($topic)
             : null;
 
+        $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
+        $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
+
+        $researchHeadDecisionOptions = $request->user()->isUsingWorkspace('research_head')
+            ? collect([
+                $topic->review_stage === 'lrec' ? TopicProposal::STATUS_READY_FOR_SIGNATURE : TopicProposal::STATUS_LREC_QUEUED => $topic->review_stage === 'lrec' ? 'Clear for signing' : 'Send to LREC',
+                'revision_requested' => 'Request revisions',
+                'rejected' => 'Reject proposal',
+            ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision))->all()
+            : [];
+
         return view('topics.show', compact(
+            'researchHeadDecisionOptions',
+            'commentResponseRows',
             'topic',
             'latestVersion',
             'previousVersion',
@@ -278,14 +290,6 @@ class TopicController extends Controller
         WorkPlanDocumentService $documentService,
     ) {
         $validated = $request->validated();
-
-        $call = ResearchCall::findOrFail($validated['research_call_id']);
-
-        if (! $call->isAcceptingSubmissions()) {
-            return back()->withInput()->withErrors([
-                'research_call_id' => 'This research call is not accepting submissions.',
-            ], 'submission');
-        }
 
         $packageFiles = [];
         $directory = 'proposal-packages/'.Auth::id().'/'.Str::uuid();
@@ -331,21 +335,10 @@ class TopicController extends Controller
         ];
 
         try {
-            $topic = DB::transaction(function () use ($versionData, $proposalTitle, $call, $packageFiles, $primaryFile) {
-                $currentCall = ResearchCall::query()
-                    ->whereKey($call->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if (! $currentCall->isAcceptingSubmissions()) {
-                    throw ValidationException::withMessages([
-                        'research_call_id' => 'The research call submission window has closed. The proposal was not sent.',
-                    ]);
-                }
-
+            $topic = DB::transaction(function () use ($versionData, $proposalTitle, $packageFiles, $primaryFile) {
                 $topic = Auth::user()->proposals()->create([
                     'title' => $proposalTitle,
-                    'research_call_id' => $currentCall->id,
+                    'research_call_id' => null,
                     'status' => 'pending',
                 ]);
 
@@ -407,6 +400,11 @@ class TopicController extends Controller
             'estimated_budget' => ['required', 'numeric', 'min:0', 'max:'.$maximumBudget],
             'estimated_duration_months' => 'required|integer|min:1|max:120',
             'change_summary' => 'nullable|string|max:2000',
+            'feedback_review_id' => 'nullable|integer',
+            'feedback_responses' => 'nullable|array|max:500',
+            'feedback_responses.*' => 'array:response,remarks',
+            'feedback_responses.*.response' => 'required|string|max:5000',
+            'feedback_responses.*.remarks' => 'nullable|string|max:300',
             'revision_resolutions' => 'nullable|array',
             'revision_resolutions.*' => 'array',
             'revision_resolutions.*.action' => 'nullable|in:no_change',
@@ -511,6 +509,21 @@ class TopicController extends Controller
                     return;
                 }
 
+                $review = $revisedTopic->reviews()->where('decision', 'revision_requested')->latest('id')->lockForUpdate()->firstOrFail();
+                $feedbackRows = app(CommentResponseFeedback::class)->rows($review);
+                if ($feedbackRows !== [] && (int) ($validated['feedback_review_id'] ?? 0) !== $review->id) {
+                    throw ValidationException::withMessages(['feedback_responses' => 'The review round changed. Reload the revision before submitting.'])->errorBag('resubmission');
+                }
+                $responses = [];
+                foreach ($feedbackRows as $row) {
+                    $answer = $validated['feedback_responses'][$row['key']] ?? [];
+                    if (blank($answer['response'] ?? null)) {
+                        throw ValidationException::withMessages(['feedback_responses' => 'Respond to every review comment before submitting your revision.'])->errorBag('resubmission');
+                    }
+                    $responses[$row['key']] = $answer;
+                }
+                $review->update(['feedback_responses' => $responses]);
+
                 $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
                 $previousVersion = $revisedTopic->latestVersion()->with('files')->first();
                 $snapshotFiles = $packageService->revisionSnapshot($previousVersion, $replacementFiles, $revisedTopic);
@@ -521,7 +534,7 @@ class TopicController extends Controller
                     'description' => $validated['description'] ?? null,
                     'estimated_budget' => $validated['estimated_budget'],
                     'estimated_duration_months' => $validated['estimated_duration_months'],
-                    'status' => 'resubmitted',
+                    'status' => $revisedTopic->review_stage === 'lrec' ? TopicProposal::STATUS_LREC_REVIEW : 'resubmitted',
                 ]);
 
                 $version = $revisedTopic->versions()->create($this->versionAttributes(
@@ -764,7 +777,7 @@ class TopicController extends Controller
             && ! $this->signatureWorkflow->requiredFiles($latestVersion)->contains('id', $sourceFile->id)) {
             return back()
                 ->withInput()
-                ->withErrors(['source_file_id' => $sourceFile->label().' was not selected for final signing.'], 'headUpload');
+                ->withErrors(['source_file_id' => $sourceFile->label().' does not require a signed copy.'], 'headUpload');
         }
 
         if ($validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION
@@ -795,6 +808,10 @@ class TopicController extends Controller
             $storedPath = $attributes['file_path'];
 
             DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $sourceFile, &$replacedSignedCopy): void {
+                $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+                if ($isSignedCopy && ($lockedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE || $lockedTopic->latestVersion()->value('id') !== $latestVersion->id)) {
+                    throw ValidationException::withMessages(['review_file' => 'Signing is closed or the proposal version changed. Reload the proposal.']);
+                }
                 $lockedVersion = ProposalVersion::query()
                     ->whereKey($latestVersion->id)
                     ->lockForUpdate()
@@ -844,7 +861,7 @@ class TopicController extends Controller
         }
 
         return redirect()
-            ->to(route('topics.show', $topic).'#proposal-review')
+            ->to(route('topics.show', $topic).(in_array($topic->status, ['ready_for_signature', 'approved'], true) ? '#notice-to-proceed' : '#proposal-review'))
             ->with('success', $isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : ($replacedSignedCopy
@@ -917,6 +934,7 @@ class TopicController extends Controller
         $missingSignatureFiles = $latestVersion
             ? $this->signatureWorkflow->missingRequiredFiles($latestVersion)
             : collect();
+        $signaturesComplete = $latestVersion !== null && $this->signatureWorkflow->isComplete($latestVersion);
 
         return compact(
             'latestVersion',
@@ -929,6 +947,7 @@ class TopicController extends Controller
             'requiredSignatureFiles',
             'signedSourceFileIds',
             'missingSignatureFiles',
+            'signaturesComplete',
         );
     }
 
@@ -972,7 +991,7 @@ class TopicController extends Controller
 
         $isUnreleasedSignedCopy = $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
             && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
-            && ($topic->status !== 'approved' || $file->isSuperseded());
+            && (! $topic->hasIssuedNoticeToProceed() || $file->isSuperseded());
 
         abort_if($isUnreleasedSignedCopy, 404);
     }

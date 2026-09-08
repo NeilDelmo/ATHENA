@@ -85,7 +85,7 @@
                                 />
                                 @error('signed_notice_to_proceed')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
                             </div>
-                            <button type="submit" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2">Release signed PDF</button>
+                            <button type="submit" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2">Release papers and Notice to Proceed</button>
                         </div>
                     </form>
                 </section>

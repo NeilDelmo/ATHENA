@@ -11,7 +11,7 @@
     <x-slot name="header">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="min-w-0">
-                <x-back-link href="{{ $backRoute }}">Back to {{ $archived ? 'submitted proposal' : 'proposal package' }}</x-back-link>
+                <x-back-link fixed href="{{ $backRoute }}">Back to {{ $archived ? 'submitted proposal' : 'proposal package' }}</x-back-link>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900 dark:text-white">{{ $archived ? 'Submitted draft record' : 'Recovery history' }}</h2>
                 <p class="mt-1 break-words text-xs text-gray-500 dark:text-slate-400">{{ $subjectTitle }}</p>
             </div>

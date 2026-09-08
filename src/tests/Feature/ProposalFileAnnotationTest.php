@@ -7,6 +7,7 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProposalRevisionSectionMap;
 use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -1013,4 +1014,45 @@ test('a highlight automatically opens the matching section and comment for facul
     $this->get(route('faculty.proposal-drafts.work-plan.edit', [
         'proposalDraft' => $draft, 'revision_embed' => 1,
     ]))->assertOk()->assertSee('section-schedule')->assertSee('Move planting to June.');
+});
+
+test('research head records both feedback sources and publishes them together with attribution', function () {
+    Notification::fake();
+    $this->mock(ProposalRevisionSectionMap::class)->shouldReceive('forFile')->andReturn([]);
+    $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
+    $payload = ['annotation_type' => 'area', 'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
+        'comment' => 'Clarify the timeline.'];
+    $this->actingAs($this->head)->postJson($url, $payload)->assertCreated()->assertJsonPath('feedbackSource', 'research_head');
+    $co = $this->postJson($url, $payload + ['feedback_source' => 'co_evaluator', 'co_evaluator_name' => 'Dr. Maria Santos', 'reviewer_id' => $this->faculty->id])
+        ->assertCreated()->assertJsonPath('feedbackAuthor', 'Dr. Maria Santos')->assertJsonPath('reviewer', $this->head->name)->json();
+    expect(ProposalFileAnnotation::find($co['id'])->reviewer_id)->toBe($this->head->id);
+    $index = route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]);
+    $preview = $this->get($index)->assertOk()->assertViewHas('annotationConfiguration', fn ($config) => $config['coEvaluatorName'] === 'Dr. Maria Santos');
+    if ($path = getenv('ATHENA_REVIEW_PREVIEW')) {
+        file_put_contents($path, $preview->getContent());
+    }
+    $this->actingAs($this->faculty)->get($index)->assertNotFound();
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), ['status' => 'revision_requested', 'revision_file_ids' => [$this->file->id]])->assertSessionHasNoErrors();
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and(ProposalFileAnnotation::whereNotNull('topic_review_file_revision_id')->count())->toBe(2);
+    $this->actingAs($this->faculty)->get($index)->assertOk()->assertViewHas('annotationConfiguration', fn ($config) => count($config['annotations']) === 2 && $config['annotations'][1]['feedbackLabel'] === 'Co-evaluator · Dr. Maria Santos');
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Co-evaluator · Dr. Maria Santos');
+    $this->actingAs($this->head)->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $co['id']]), ['comment' => 'Change published feedback'])->assertForbidden();
+});
+
+test('co evaluator feedback requires a name and faculty cannot enter it', function () {
+    $payload = ['annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]], 'comment' => 'Feedback', 'feedback_source' => 'co_evaluator'];
+    $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
+    $this->actingAs($this->head)->postJson($url, $payload + ['co_evaluator_name' => '   '])->assertUnprocessable()->assertJsonValidationErrors('co_evaluator_name');
+    $this->postJson($url, array_replace($payload, ['feedback_source' => 'administrator']))->assertUnprocessable()->assertJsonValidationErrors('feedback_source');
+    $this->actingAs($this->faculty)->postJson($url, $payload + ['co_evaluator_name' => 'Dr. Santos'])->assertForbidden();
+});
+
+test('editing feedback preserves the original co evaluator and recorder', function () {
+    $annotation = $this->file->annotations()->create(['reviewer_id' => $this->head->id, 'feedback_source' => 'co_evaluator', 'co_evaluator_name' => 'Dr. Santos', 'annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [], 'comment' => 'Original feedback']);
+    $this->actingAs($this->head)->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), ['comment' => 'Corrected transcription', 'feedback_source' => 'research_head', 'co_evaluator_name' => 'Different name', 'reviewer_id' => $this->faculty->id])
+        ->assertOk()->assertJsonPath('feedbackSource', 'co_evaluator')->assertJsonPath('feedbackAuthor', 'Dr. Santos')->assertJsonPath('comment', 'Corrected transcription');
+    expect($annotation->fresh()->reviewer_id)->toBe($this->head->id);
+    $this->deleteJson(route('topics.versions.files.annotations.destroy', [$this->topic, $this->version, $this->file, $annotation]))->assertNoContent();
 });

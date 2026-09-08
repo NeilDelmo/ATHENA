@@ -6,6 +6,8 @@
             'pending',
             'expert_review',
             'for_final_decision',
+            'lrec_queued',
+            'lrec_review',
             'resubmitted',
             'ready_for_signature',
         ]);
@@ -22,17 +24,10 @@
             </div>
 
             <div class="flex w-full sm:w-auto">
-                @if ($hasOpenResearchCall)
-                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
+                                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New proposal
                     </a>
-                @else
-                    <span class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs font-bold text-gray-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 sm:w-auto">
-                        <span class="h-2 w-2 rounded-full bg-gray-400 dark:bg-gray-600" aria-hidden="true"></span>
-                        No open call
-                    </span>
-                @endif
             </div>
         </div>
     </x-slot>
@@ -79,7 +74,7 @@
                         <article class="grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                             <div class="min-w-0">
                                 <h4 class="truncate text-sm font-black text-gray-950 dark:text-white">{{ $topic->title }}</h4>
-                                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'No research call assigned' }}</p>
+                                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'Independent submission' }}</p>
                                 <p class="mt-2 line-clamp-2 text-xs leading-5 text-gray-700 dark:text-gray-300">{{ $latestRevisionReview?->comment ?: 'The Research Office requested changes to this proposal.' }}</p>
                             </div>
                             <a href="{{ route('topics.show', $topic) }}#proposal-review" class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-red-950">
@@ -91,6 +86,8 @@
                 </div>
             </section>
         @endif
+
+        <livewire:dashboard-calendar />
 
         @if (false)
             <section aria-labelledby="research-call-posters-heading">
@@ -185,7 +182,7 @@
                     <h3 id="research-call-posters-heading" class="mt-4 text-2xl font-black tracking-tight sm:text-3xl">No research call poster has been uploaded yet.</h3>
                     <p class="mt-3 max-w-xl text-sm leading-6 text-gray-300">Continue a saved draft while the Research Office prepares the next call. New proposals remain unavailable until its submission window opens.</p>
                     <div class="mt-6 flex flex-wrap gap-3">
-                        <a href="{{ route('research-calls.index') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-gray-950 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">View research calls</a>
+                        <a href="{{ route('research-calls.index') }}" class="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-black text-gray-950 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">View announcements</a>
                         <a href="#recent-drafts" class="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-950">Continue a draft</a>
                     </div>
                 </div>
@@ -238,7 +235,7 @@
                         </div>
 
                         <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-950 dark:text-white">{{ $proposalDraft->project_title ?: 'Untitled proposal' }}</h4>
-                        <p class="mt-1 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{{ $proposalDraft->researchCall?->title ?? 'No research call selected yet' }}</p>
+                        <p class="mt-1 line-clamp-1 text-xs text-gray-500 dark:text-gray-400">{{ $proposalDraft->researchCall?->title ?? 'Draft in progress' }}</p>
                         @unless ($proposalDraft->isOwnedBy(Auth::user()))
                             <p class="mt-1 text-[11px] font-semibold text-gray-400">Shared by {{ $proposalDraft->owner->name }}</p>
                         @endunless
@@ -265,12 +262,8 @@
                             <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         </div>
                         <h4 class="mt-4 text-sm font-black text-gray-950 dark:text-white">No proposal drafts yet</h4>
-                        <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $hasOpenResearchCall ? 'Start a proposal and ATHENA will keep it here until the package is ready to submit.' : 'A new proposal can be started when the Research Office opens the next call.' }}</p>
-                        @if ($hasOpenResearchCall)
-                            <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
-                        @else
-                            <a href="{{ route('research-calls.index') }}" class="mt-4 inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-black text-gray-700 transition hover:border-gray-950 hover:text-gray-950 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:border-gray-700 dark:text-gray-300 dark:hover:border-white dark:hover:text-white dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">View research calls</a>
-                        @endif
+                        <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-gray-500 dark:text-gray-400">Start a proposal and complete each required paper. You can submit anytime.</p>
+                                                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-4 inline-flex items-center justify-center rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">Create first proposal</a>
                     </div>
                 @endforelse
             </div>
@@ -294,17 +287,7 @@
                         in_array($topic->status, ['revision_requested', 'ready_for_signature'], true) => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
                         default => 'bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800',
                     };
-                    $statusLabel = match ($topic->status) {
-                        'revision_requested' => 'Needs revision',
-                        'pending' => 'Under review',
-                        'expert_review' => 'Expert review',
-                        'for_final_decision' => 'Final decision',
-                        'resubmitted' => 'Revision under review',
-                        'ready_for_signature' => 'Ready for signature',
-                        'approved' => $topic->isMonitoringAvailable() ? 'Approved' : 'Awaiting notice',
-                        'rejected' => 'Not approved',
-                        default => str($topic->status)->replace('_', ' ')->title(),
-                    };
+                    $statusLabel = $topic->workflowStatusLabel();
                 @endphp
                 <article class="border-b border-gray-200 px-5 py-4 transition-colors last:border-b-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-900/40">
                     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-center">
@@ -313,7 +296,7 @@
                                 <h4 class="text-sm font-black text-gray-950 dark:text-white">{{ $topic->title }}</h4>
                                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ring-1 ring-inset {{ $statusStyle }}">{{ $statusLabel }}</span>
                             </div>
-                            <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'No research call assigned' }} <span class="text-gray-300 dark:text-gray-700">·</span> Submitted {{ $topic->created_at->diffForHumans() }}</p>
+                            <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'Independent submission' }} <span class="text-gray-300 dark:text-gray-700">·</span> Submitted {{ $topic->created_at->diffForHumans() }}</p>
                         </div>
 
                         <div class="flex">
@@ -349,8 +332,8 @@
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_budget_{{ $topic->id }}" class="text-xs font-bold text-gray-600 dark:text-gray-300">Total project cost (PHP)</label>
-                                    <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="{{ $topic->researchCall->budgetCeiling() }}" step="0.01" required class="block w-full rounded-xl border-gray-300 bg-white text-sm text-gray-950 shadow-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-red-400 dark:focus:ring-red-400">
-                                    <p class="text-[10px] text-gray-400">Maximum: PHP {{ number_format($topic->researchCall->budgetCeiling(), 2) }}</p>
+                                    <input id="revision_budget_{{ $topic->id }}" name="estimated_budget" type="number" value="{{ $isCurrentResubmission ? old('estimated_budget') : $topic->estimated_budget }}" min="0" max="{{ ($topic->researchCall?->budgetCeiling() ?? \App\Models\ResearchCall::MAXIMUM_BUDGET) }}" step="0.01" required class="block w-full rounded-xl border-gray-300 bg-white text-sm text-gray-950 shadow-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-red-400 dark:focus:ring-red-400">
+                                    <p class="text-[10px] text-gray-400">Maximum: PHP {{ number_format(($topic->researchCall?->budgetCeiling() ?? \App\Models\ResearchCall::MAXIMUM_BUDGET), 2) }}</p>
                                 </div>
                                 <div class="space-y-1">
                                     <label for="revision_duration_{{ $topic->id }}" class="text-xs font-bold text-gray-600 dark:text-gray-300">Total project duration (months)</label>

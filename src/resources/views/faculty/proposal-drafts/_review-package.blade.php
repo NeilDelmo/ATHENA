@@ -22,19 +22,6 @@
     </div>
     <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-3">
         <div class="sm:col-span-2 lg:col-span-3"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Title</dt><dd class="mt-1 text-sm font-bold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
-        <div>
-            <dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Research Call</dt>
-            <dd class="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
-                <span>{{ $proposalDraft->researchCall?->title ?? 'Not selected yet' }}</span>
-                @if (($inModal ?? false) && ! $proposalDraft->researchCall?->isAcceptingSubmissions())
-                    @can('submit', $proposalDraft)
-                        <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" data-select-research-call class="inline-flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-700 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">{{ $proposalDraft->researchCall === null ? 'Choose research call' : 'Change research call' }}<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></a>
-                    @else
-                        <span class="text-[11px] font-bold text-amber-700">Only {{ $proposalDraft->owner->name }} can choose this.</span>
-                    @endcan
-                @endif
-            </dd>
-        </div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Duration</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->duration_months ? $proposalDraft->duration_months.' '.Str::plural('month', $proposalDraft->duration_months) : 'Missing' }}</dd></div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Missing' }}</dd></div>
         <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Planned Start</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->planned_start?->format('M j, Y') ?? 'Missing' }}</dd></div>

@@ -11,7 +11,7 @@
             <div>
                 <h3 class="text-sm font-black">{{ $overBudget ? 'Budget limit exceeded' : 'Budget totals do not match' }}</h3>
                 @if ($overBudget)
-                    <p class="mt-1 max-w-3xl text-xs leading-5">The project total is over the research call limit of Php {{ number_format($comparison['budget_ceiling'], 2) }} by Php {{ number_format($comparison['overage'], 2) }}. The Line-Item Budget and Estimated Expense Breakdown are retained as drafts, but both must be reduced before the papers can be completed or the proposal turned in.</p>
+                    <p class="mt-1 max-w-3xl text-xs leading-5">The project total is over the project budget limit of Php {{ number_format($comparison['budget_ceiling'], 2) }} by Php {{ number_format($comparison['overage'], 2) }}. The Line-Item Budget and Estimated Expense Breakdown are retained as drafts, but both must be reduced before the papers can be completed or the proposal turned in.</p>
                 @endif
                 @if ($hasMismatches)
                     <p class="{{ $overBudget ? 'mt-2' : 'mt-1' }} max-w-3xl text-xs leading-5">Attachment B and the Estimated Expense Breakdown contain different totals. Standard Attachment B amounts already follow the latest Expense Breakdown; review any custom budget rows or manual total overrides that make the totals differ before turning in the proposal.</p>

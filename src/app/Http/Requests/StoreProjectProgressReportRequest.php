@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -29,8 +30,10 @@ class StoreProjectProgressReportRequest extends FormRequest
      */
     public function rules(): array
     {
+        $window = app(MonitoringQuarterService::class)->reportingWindow($this->route('topic'));
+
         return [
-            'reporting_date' => ['required', 'date', 'before_or_equal:today'],
+            'reporting_date' => ['required', 'date', 'before_or_equal:today', 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
@@ -60,6 +63,9 @@ class StoreProjectProgressReportRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                if (! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canSubmitForDate($this->route('topic'), $this->input('reporting_date'))) {
+                    $validator->errors()->add('reporting_date', 'This reporting period is still in progress. Submit after its end date.');
+                }
                 $workPlanInput = $this->input('work_plan', []);
                 $budgetInput = $this->input('budget_utilization', []);
                 $workPlan = collect(is_array($workPlanInput) ? $workPlanInput : [])
@@ -74,6 +80,12 @@ class StoreProjectProgressReportRequest extends FormRequest
 
                 if ($workPlan->sum(fn ($entry): float => (float) ($entry['accomplished_percentage'] ?? 0)) > 100) {
                     $validator->errors()->add('work_plan', 'The total accomplished percentage may not exceed 100%.');
+                }
+
+                foreach ($workPlan as $index => $entry) {
+                    if ((float) ($entry['accomplished_percentage'] ?? 0) > (float) ($entry['percent_weight'] ?? 0) + 0.005) {
+                        $validator->errors()->add("work_plan.{$index}.accomplished_percentage", 'An activity cannot contribute more than its assigned share of the project.');
+                    }
                 }
 
                 foreach ($budget as $index => $entry) {

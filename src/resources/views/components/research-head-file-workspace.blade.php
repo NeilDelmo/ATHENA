@@ -11,6 +11,7 @@
     $requiredSignatureFiles = $workspace['requiredSignatureFiles'];
     $signedSourceFileIds = $workspace['signedSourceFileIds'];
     $missingSignatureFiles = $workspace['missingSignatureFiles'];
+    $signaturesComplete = $workspace['signaturesComplete'];
     $isSigningStage = $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
     $canUploadRevisionCopy = in_array($topic->status, ['pending', 'expert_review', 'for_final_decision', 'resubmitted', 'revision_requested'], true);
     $activeSignedCopiesBySource = $headUploadedFiles
@@ -50,9 +51,9 @@
                 <div>
                     <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-400">Final signing</p>
                     <h3 id="signature-progress-heading" class="mt-1 text-xl font-black text-gray-950 dark:text-white">
-                        {{ $topic->status === 'approved' ? 'Released signed copies' : 'Upload the selected signed PDFs' }}
+                        {{ $topic->status === 'approved' ? 'Released signed copies' : 'Upload the required signed PDFs' }}
                     </h3>
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">Only the papers selected by the Research Head during the decision are listed here. No other paper is assumed to need a signature.</p>
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">Signed PDFs are required for all five listed proposal papers. Attachment C and Estimated Expense Breakdown stay in the package without signatures.</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full {{ $missingSignatureFiles->isEmpty() ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-3 py-1.5 text-sm font-black">
                     {{ $requiredSignatureFiles->count() - $missingSignatureFiles->count() }}/{{ $requiredSignatureFiles->count() }} uploaded
@@ -160,10 +161,10 @@
                     @csrf
                     @method('PATCH')
                     <p class="text-sm font-semibold leading-6 text-gray-700 dark:text-gray-300">
-                        {{ $missingSignatureFiles->isEmpty() ? 'All selected signed PDFs are present. You can now release the approved proposal.' : 'Final approval stays locked until every selected paper has a signed PDF.' }}
+                        {{ $signaturesComplete ? 'Signed papers are ready. Prepare the signed Notice to Proceed to release the complete package.' : 'Final approval stays locked until all five required papers have signed PDFs.' }}
                     </p>
-                    <button type="submit" @disabled($missingSignatureFiles->isNotEmpty()) class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-gray-800 dark:disabled:text-gray-500">
-                        Finalize approval
+                    <button type="submit" @disabled(! $signaturesComplete) class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-gray-800 dark:disabled:text-gray-500">
+                        Continue to Notice to Proceed
                     </button>
                 </form>
             @endif

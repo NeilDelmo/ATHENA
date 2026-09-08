@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="fixed bottom-4 right-4 z-40 w-auto shrink-0 shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6">Exit editor</x-back-link>
+            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
         </div>
     </x-slot>
 
@@ -737,27 +737,7 @@
                 </div>
             </section>
 
-            <section data-revision-section="section-signatories" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <h3 class="text-base font-black text-gray-900">Approval Signatory Names</h3>
-                <p class="mt-1 text-xs leading-5 text-gray-500">Faculty may enter the three names shown in the approval blocks. Names are converted to uppercase and bold in the preview and Word file; the official titles remain fixed.</p>
-                <div class="mt-5 grid gap-4 lg:grid-cols-3">
-                    <div>
-                        <label for="checked-verified-by-name" class="block text-xs font-black uppercase tracking-wider text-gray-600">Checked and Verified by</label>
-                        <input id="checked-verified-by-name" name="checked_verified_by_name" type="text" maxlength="255" x-model="checkedVerifiedByName" placeholder="Enter name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600">
-                        <p class="mt-1.5 text-xs text-gray-500">Head, Research Office</p>
-                    </div>
-                    <div>
-                        <label for="recommending-approval-name" class="block text-xs font-black uppercase tracking-wider text-gray-600">Recommending Approval</label>
-                        <input id="recommending-approval-name" name="recommending_approval_name" type="text" maxlength="255" x-model="recommendingApprovalName" placeholder="Enter name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600">
-                        <p class="mt-1.5 text-xs text-gray-500">Vice Chancellor for Research Development and Extension Services</p>
-                    </div>
-                    <div>
-                        <label for="approved-by-name" class="block text-xs font-black uppercase tracking-wider text-gray-600">Final Approval</label>
-                        <input id="approved-by-name" name="approved_by_name" type="text" maxlength="255" x-model="approvedByName" placeholder="Enter name" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600">
-                        <p class="mt-1.5 text-xs text-gray-500">University President/Vice President for RDES</p>
-                    </div>
-                </div>
-            </section>
+            <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="detailed_proposal" />
 
             <section data-revision-section="section-references" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <label for="references" class="block text-base font-black text-gray-900">XVI. References</label>

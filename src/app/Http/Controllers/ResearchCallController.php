@@ -7,14 +7,12 @@ use App\Exceptions\ResearchCallImageExtractionException;
 use App\Http\Requests\ExtractResearchCallImageRequest;
 use App\Http\Requests\StoreResearchCallRequest;
 use App\Http\Requests\UpdateResearchCallRequest;
-use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
-use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ResearchCallUpdatedNotification;
+use App\Services\DashboardCalendar;
 use App\Services\ResearchCallImageParser;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +33,12 @@ class ResearchCallController extends Controller
 
     public function index(Request $request): View
     {
+        if ($request->filled('call')) {
+            $call = app(DashboardCalendar::class)->calls($request->user())->findOrFail($request->integer('call'));
+
+            return view('research_calls.calendar-detail', ['call' => $call, 'milestones' => DashboardCalendar::MILESTONES]);
+        }
+
         if (! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
             return $this->facultyIndex($request);
         }
@@ -54,64 +58,12 @@ class ResearchCallController extends Controller
 
     private function facultyIndex(Request $request): View
     {
-        $user = $request->user();
-
-        $activeCalls = ResearchCall::query()
+        $calls = ResearchCall::query()
             ->visibleToFaculty()
-            ->acceptingSubmissions()
-            ->orderBy('closes_at')
-            ->get();
+            ->orderByDesc('opens_at')
+            ->paginate(10);
 
-        $upcomingCalls = ResearchCall::query()
-            ->visibleToFaculty()
-            ->where('status', 'open')
-            ->where('opens_at', '>', now())
-            ->orderBy('opens_at')
-            ->limit(3)
-            ->get();
-
-        $archivedCalls = ResearchCall::query()
-            ->visibleToFaculty()
-            ->where(function (Builder $ended): void {
-                $ended
-                    ->where('status', 'closed')
-                    ->orWhere('closes_at', '<', now());
-            })
-            ->where(function (Builder $participated) use ($user): void {
-                $participated
-                    ->whereHas('proposalDrafts', fn (Builder $drafts): Builder => $drafts->accessibleTo($user))
-                    ->orWhereHas('topics', fn (Builder $topics): Builder => $topics->accessibleTo($user));
-            })
-            ->orderByDesc('closes_at')
-            ->paginate(6, ['*'], 'archive')
-            ->withQueryString();
-
-        $displayedCallIds = $activeCalls->pluck('id')
-            ->merge($upcomingCalls->pluck('id'))
-            ->merge($archivedCalls->getCollection()->pluck('id'))
-            ->unique();
-
-        $proposalDraftsByResearchCall = ProposalDraft::query()
-            ->accessibleTo($user)
-            ->whereIn('research_call_id', $displayedCallIds)
-            ->latest('updated_at')
-            ->get(['id', 'research_call_id', 'project_title', 'updated_at'])
-            ->groupBy('research_call_id');
-
-        $topicProposalsByResearchCall = TopicProposal::query()
-            ->accessibleTo($user)
-            ->whereIn('research_call_id', $displayedCallIds)
-            ->latest('updated_at')
-            ->get(['id', 'research_call_id', 'title', 'status', 'updated_at'])
-            ->groupBy('research_call_id');
-
-        return view('research_calls.faculty-index', [
-            'activeCalls' => $activeCalls,
-            'upcomingCalls' => $upcomingCalls,
-            'archivedCalls' => $archivedCalls,
-            'proposalDraftsByResearchCall' => $proposalDraftsByResearchCall,
-            'topicProposalsByResearchCall' => $topicProposalsByResearchCall,
-        ]);
+        return view('research_calls.faculty-index', compact('calls'));
     }
 
     public function store(StoreResearchCallRequest $request): RedirectResponse

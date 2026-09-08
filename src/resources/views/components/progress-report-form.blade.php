@@ -1,4 +1,8 @@
-@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false])
+@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'terminalDefaults' => [], 'terminalEvidence' => []])
+@php
+    $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
+    $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
+@endphp
 
 @if ($preparedReport)
     <section class="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-950 dark:bg-slate-950">
@@ -7,7 +11,7 @@
         @endif
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <p class="text-sm font-black text-gray-950 dark:text-white">Progress Report PDF prepared</p>
+                <p class="text-sm font-black text-gray-950 dark:text-white">{{ $reportLabel }} PDF prepared</p>
                 <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
             </div>
@@ -26,7 +30,9 @@
         </div>
     </section>
 @else
-
+@if ($reportType === 'terminal')
+    <x-terminal-report-form :topic="$topic" :draft="$narrativeReportDraft" :defaults="$terminalDefaults" :evidence="$terminalEvidence" />
+@else
 @php
     $proposalDraft = $topic->revisionDraft;
     $draftData = is_array($narrativeReportDraft?->source_data) ? $narrativeReportDraft->source_data : [];
@@ -67,7 +73,7 @@
     @if (! $standalone)
     <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-black text-gray-950 dark:text-white">
         <span>
-            Submit progress report
+            Submit {{ strtolower($reportLabel) }}
             <span class="mt-1 block text-xs font-normal text-red-700 dark:text-red-300">BatStateU-REC-RES-02 · Revision 02</span>
         </span>
         <span class="rounded-full bg-gray-950 px-3 py-1 text-[10px] font-black uppercase text-white shadow-sm dark:bg-white dark:text-gray-950">Open form</span>
@@ -77,6 +83,7 @@
     <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitting = true">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
+        <input type="hidden" name="report_type" value="{{ $reportType }}">
 
         @if ($errors->narrativeProgress->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">
@@ -217,7 +224,7 @@
             </div>
             <div class="flex flex-wrap justify-end gap-2">
                 <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-gray-300 bg-white px-5 py-3 text-xs font-bold text-gray-900 shadow-sm hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
-                    <span x-show="!previewLoading">Preview progress report</span>
+                    <span x-show="!previewLoading">Preview {{ strtolower($reportLabel) }}</span>
                     <span x-show="previewLoading" x-cloak>Generating preview...</span>
                 </button>
                 <button type="submit" :disabled="submitting || previewLoading" class="rounded-xl bg-red-700 px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-red-800 disabled:cursor-wait disabled:opacity-60">
@@ -232,7 +239,7 @@
         <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <p class="text-sm font-black text-gray-900">Progress report preview</p>
+                    <p class="text-sm font-black text-gray-900">{{ $reportLabel }} preview</p>
                     <p class="text-xs text-gray-500">This preview is generated from the current form values and has not been submitted.</p>
                 </div>
                 <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm disabled:opacity-50">Print preview</button>
@@ -240,5 +247,6 @@
             <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Progress report document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
         </section>
     </form>
-@if (! $standalone)</details>@endif
+</details>
+@endif
 @endif

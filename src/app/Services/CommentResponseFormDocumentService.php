@@ -27,6 +27,7 @@ class CommentResponseFormDocumentService
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
+     *     feedback?: list<array{reviewer: string, location: string, comment: string}>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -98,6 +99,7 @@ class CommentResponseFormDocumentService
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
+     *     feedback?: list<array{reviewer: string, location: string, comment: string}>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -106,6 +108,7 @@ class CommentResponseFormDocumentService
         [$document, $xpath] = $this->documentAndXPath($documentXml, 'document');
         $this->fillProjectTitle($xpath, $commentResponseForm['project_title']);
         $this->fillResearchers($xpath, $commentResponseForm);
+        $this->fillFeedbackTable($xpath, $commentResponseForm['feedback'] ?? []);
         $this->fillPreparedBy($xpath, $commentResponseForm['project_leader']);
 
         return $this->serialized($document, 'document');
@@ -172,6 +175,7 @@ class CommentResponseFormDocumentService
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
+     *     feedback?: list<array{reviewer: string, location: string, comment: string}>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -237,6 +241,69 @@ class CommentResponseFormDocumentService
 
             $this->replaceParagraphText($xpath, $paragraph, $researcher[$key]);
         }
+    }
+
+    /** @param list<array{reviewer: string, location: string, comment: string}> $feedback */
+    private function fillFeedbackTable(DOMXPath $xpath, array $feedback): void
+    {
+        if ($feedback === []) {
+            return;
+        }
+
+        foreach ($xpath->query('/w:document/w:body/w:tbl') as $table) {
+            $rows = $this->elements($xpath, './w:tr', $table);
+
+            if (count($rows) < 2 || ! in_array('COMMENTS AND SUGGESTIONS', $this->rowText($xpath, $rows[0]), true)) {
+                continue;
+            }
+
+            $template = $rows[1]->cloneNode(true);
+            $headerProperties = $xpath->query('./w:trPr', $rows[0])->item(0);
+
+            if (! $headerProperties instanceof DOMElement) {
+                $headerProperties = $table->ownerDocument->createElementNS(self::W, 'w:trPr');
+                $rows[0]->insertBefore($headerProperties, $rows[0]->firstChild);
+            }
+
+            if ($xpath->query('./w:tblHeader', $headerProperties)->length === 0) {
+                $headerProperties->appendChild($table->ownerDocument->createElementNS(self::W, 'w:tblHeader'));
+            }
+
+            foreach (array_slice($rows, 1) as $row) {
+                $table->removeChild($row);
+            }
+
+            foreach ($feedback as $index => $item) {
+                $row = $template->cloneNode(true);
+                $table->appendChild($row);
+
+                foreach ($this->elements($xpath, './w:trPr/w:trHeight | ./w:trPr/w:cantSplit | .//w:pPr/w:keepNext | .//w:pPr/w:keepLines', $row) as $constraint) {
+                    $constraint->parentNode->removeChild($constraint);
+                }
+
+                $cells = $this->elements($xpath, './w:tc', $row);
+                $values = [($index + 1).'.', $item['reviewer']."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+
+                foreach ($cells as $offset => $cell) {
+                    $paragraphs = $this->elements($xpath, './w:p', $cell);
+                    $paragraphTemplate = $paragraphs[0]->cloneNode(true);
+
+                    foreach ($paragraphs as $paragraph) {
+                        $cell->removeChild($paragraph);
+                    }
+
+                    foreach (preg_split('/\R/u', $values[$offset]) as $line) {
+                        $paragraph = $paragraphTemplate->cloneNode(true);
+                        $cell->appendChild($paragraph);
+                        $this->replaceParagraphText($xpath, $paragraph, $line);
+                    }
+                }
+            }
+
+            return;
+        }
+
+        throw new RuntimeException('The Comment-Response Form feedback table is missing.');
     }
 
     private function fillPreparedBy(DOMXPath $xpath, string $projectLeader): void

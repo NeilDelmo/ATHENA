@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\ResearchHeadDashboard;
 use App\Models\ProjectProgressReport;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -57,11 +58,10 @@ test('proposal dashboard supports search and status filters', function () {
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Mangrove Restoration', 'status' => 'pending']);
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Solar Irrigation', 'status' => 'rejected']);
 
-    $this->actingAs($this->head)
-        ->get(route('research_head.dashboard', ['search' => 'Mangrove', 'status' => 'pending']))
-        ->assertOk()
-        ->assertSee('Mangrove Restoration')
-        ->assertDontSee('Solar Irrigation');
+    Livewire::actingAs($this->head)->withQueryParams(['search' => 'Mangrove', 'status' => 'pending'])
+        ->test(ResearchHeadDashboard::class)
+        ->assertSet('status', 'pending')
+        ->assertViewHas('topics', fn ($topics) => $topics->total() === 1 && $topics->first()->title === 'Mangrove Restoration');
 });
 
 test('proposal dashboard presents a focused research head workspace', function () {
@@ -130,11 +130,11 @@ test('proposal dashboard paginates and preserves search', function () {
         createDashboardTopic($this->researcher, $this->call, ['title' => "Filtered Proposal {$number}"]);
     }
 
-    $this->actingAs($this->head)
-        ->get(route('research_head.dashboard', ['search' => 'Filtered']))
-        ->assertOk()
-        ->assertSee('page=2', false)
-        ->assertSee('search=Filtered', false);
+    Livewire::actingAs($this->head)->withQueryParams(['search' => 'Filtered'])
+        ->test(ResearchHeadDashboard::class)
+        ->assertViewHas('topics', fn ($topics) => $topics->total() === 16 && $topics->hasMorePages())
+        ->call('setPage', 2)->assertSet('search', 'Filtered')
+        ->assertViewHas('topics', fn ($topics) => $topics->currentPage() === 2 && $topics->count() === 1);
 });
 
 test('monitoring page shows approved projects only with latest progress and counts', function () {
@@ -221,8 +221,8 @@ test('the proposal pipeline shows the four actionable counts', function () {
         ->get(route('research_head.dashboard'))
         ->assertOk()
         ->assertSee('Awaiting your review')
-        ->assertSee('Needs signed copies')
-        ->assertSee('Issue notice to proceed')
+        ->assertSee('Awaiting faculty revision')
+        ->assertSee('Deadlines in 14 days')
         ->assertSee('Active projects')
         ->assertDontSee('In-progress drafts')
         ->assertDontSee('Live workload');
@@ -233,7 +233,7 @@ test('the proposal pipeline can be filtered by stage without a page refresh', fu
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Solar Irrigation', 'status' => 'rejected']);
 
     Livewire::actingAs($this->head)
-        ->test(\App\Livewire\ResearchHeadDashboard::class)
+        ->test(ResearchHeadDashboard::class)
         ->assertSet('pipeline', '')
         ->call('setPipeline', 'awaiting_review')
         ->assertSet('pipeline', 'awaiting_review')
@@ -248,8 +248,7 @@ test('the dashboard search box filters proposals via Livewire', function () {
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Solar Irrigation', 'status' => 'pending']);
 
     Livewire::actingAs($this->head)
-        ->test(\App\Livewire\ResearchHeadDashboard::class)
+        ->test(ResearchHeadDashboard::class)
         ->set('search', 'Mangrove')
-        ->assertSee('Mangrove Restoration')
-        ->assertDontSee('Solar Irrigation');
+        ->assertViewHas('topics', fn ($topics) => $topics->total() === 1 && $topics->first()->title === 'Mangrove Restoration');
 });

@@ -88,6 +88,14 @@ class GADChecklistDocumentService
 
         $this->fillProjectTitle($xpath, $checklist['project_title']);
         $this->fillProjectLeader($xpath, $checklist['project_leader']);
+        foreach ($xpath->query('//w:p') as $paragraph) {
+            $text = trim($paragraph->textContent);
+            if ($text === config('gad_checklist.verifier.name')) {
+                $this->replaceParagraphText($paragraph, $checklist['verifier_name'], true);
+            } elseif ($text === config('gad_checklist.verifier.role')) {
+                $this->replaceParagraphText($paragraph, $checklist['verifier_role']);
+            }
+        }
 
         $renderedXml = $document->saveXML();
 

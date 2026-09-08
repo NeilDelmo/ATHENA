@@ -3,8 +3,12 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Services\MonitoringQuarterService;
+use App\Support\TerminalReportData;
+use App\Support\TerminalReportRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreProjectNarrativeReportRequest extends FormRequest
 {
@@ -19,12 +23,16 @@ class StoreProjectNarrativeReportRequest extends FormRequest
 
         return $topic instanceof TopicProposal
             && $topic->isMonitoringAvailable()
+            && ($this->input('report_type') === 'terminal'
+                ? app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
+                : app(MonitoringQuarterService::class)->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])))
             && $this->user() !== null
             && $topic->isAccessibleTo($this->user());
     }
 
     protected function prepareForValidation(): void
     {
+        $this->merge(['report_type' => $this->input('report_type', 'progress')]);
         $accomplishments = collect($this->input('accomplishments', []))
             ->filter(fn (mixed $row): bool => is_array($row) && collect($row)->contains(fn (mixed $value): bool => filled($value)))
             ->values()
@@ -42,6 +50,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     {
         $rules = [
             'submission_date' => ['required', 'date', 'before_or_equal:today'],
+            'report_type' => ['required', Rule::in(['progress', 'terminal'])],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'researchers' => ['required', 'string', 'max:1000'],
             'implementation_start' => ['required', 'date'],
@@ -74,6 +83,59 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             $rules['photo_section_'.$index] = $sectionRules;
         }
 
+        if ($this->input('report_type') === 'terminal') {
+            $rules = array_merge($rules, TerminalReportRules::rules(false));
+            foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
+                $rules[$field] = ['required', 'string', 'max:100000'];
+            }
+            $rules['implementation_start'][] = 'before_or_equal:today';
+            $rules['implementation_end'][] = 'before_or_equal:today';
+            $rules['implementation_end'][] = 'before_or_equal:submission_date';
+            $rules['researchers'] = ['nullable', 'string', 'max:10000'];
+            $rules['funding_agency'] = ['nullable', 'string', 'max:255'];
+            $rules['objectives'] = ['nullable', 'string', 'max:10000'];
+            $rules['accomplishments'] = ['required', 'array', 'max:30'];
+            $evidenceKeys = array_keys(app(TerminalReportData::class)->evidence($this->route('topic')));
+            foreach (range(1, 30) as $index) {
+                $rules['reuse_photo_'.$index] = ['nullable', Rule::in($evidenceKeys)];
+                $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:1000'];
+                $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
+                $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:200'];
+                if (! false) {
+                    $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
+                    $rules['photo_caption_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
+                    $rules['photo_section_'.$index][] = 'required_with:photo_'.$index.',reuse_photo_'.$index;
+                }
+            }
+        }
+
         return $rules;
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($this->input('report_type') !== 'terminal' || $validator->errors()->isNotEmpty()) {
+                return;
+            }
+            $plain = app(TerminalReportData::class);
+            foreach (['introduction', 'rationale', 'methodology', 'results_discussion', ...array_map(fn ($key) => 'terminal_data.'.$key, TerminalReportRules::NARRATIVES)] as $field) {
+                if ($plain->plain((string) $this->input($field)) === '') {
+                    $validator->errors()->add($field, 'Please enter substantive text for this section.');
+                }
+            }
+            $authors = $this->input('terminal_data.authors', []);
+            if (collect($authors)->where('role', 'Project Leader')->count() !== 1) {
+                $validator->errors()->add('terminal_data.authors', 'Identify exactly one project leader.');
+            }
+            foreach ($this->input('terminal_data.tables', []) as $index => $table) {
+                foreach ($table['rows'] ?? [] as $row) {
+                    if (count($row) !== count($table['headers'] ?? [])) {
+                        $validator->errors()->add('terminal_data.tables.'.$index, 'Every table row must have one cell per column.');
+                        break;
+                    }
+                }
+            }
+        }];
     }
 }

@@ -26,6 +26,7 @@ class UpdateProposalDraftWorkPlanRequest extends FormRequest
         }
 
         $this->merge([
+            ...$proposalDraft->signatoryFields('work_plan'),
             'project_title' => $proposalDraft->project_title,
             'total_duration_months' => $proposalDraft->duration_months,
             'planned_start' => $proposalDraft->planned_start?->toDateString(),

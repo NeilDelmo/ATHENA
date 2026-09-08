@@ -23,6 +23,7 @@ class SaveProjectNarrativeReportDraft
             $draft = ProjectNarrativeReportDraft::query()
                 ->whereBelongsTo($topic, 'topic')
                 ->whereBelongsTo($user, 'user')
+                ->where('report_type', $normalizedSourceData['report_type'] ?? 'progress')
                 ->lockForUpdate()
                 ->first();
             $currentVersion = $draft?->lock_version ?? 0;
@@ -37,6 +38,7 @@ class SaveProjectNarrativeReportDraft
                 return ProjectNarrativeReportDraft::query()->create([
                     'topic_id' => $topic->id,
                     'user_id' => $user->id,
+                    'report_type' => $normalizedSourceData['report_type'] ?? 'progress',
                     'source_data' => $normalizedSourceData,
                     'lock_version' => 1,
                 ]);

@@ -29,7 +29,7 @@ class StoreTopicProposalRequest extends FormRequest
         return [
             ...WorkPlanRules::rules('required_without:work_plan'),
             'title' => ['required', 'string', 'max:255'],
-            'research_call_id' => ['required', 'integer', 'exists:research_calls,id'],
+            'research_call_id' => ['exclude'],
             'detailed_proposal' => ['required_without:document', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
             'document' => ['nullable', 'required_without:detailed_proposal', 'file', 'mimes:pdf,doc,docx', 'max:25600'],
             'work_plan' => ['nullable', 'required_without:entries', 'file', 'mimes:pdf,doc,docx', 'max:25600'],

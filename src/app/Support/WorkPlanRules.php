@@ -29,6 +29,8 @@ class WorkPlanRules
             'entries.*.months' => [$presenceRule, 'array', ...$minimumMonths, 'max:'.config('work_plan.max_duration_months')],
             'entries.*.months.*' => ['integer', Rule::in(range(1, (int) config('work_plan.max_duration_months'))), 'lte:total_duration_months'],
             'prepared_by' => [$presenceRule, 'string', 'max:120'],
+            'verified_by' => ['nullable', 'string', 'max:120'],
+            'verified_role' => ['nullable', 'string', 'max:120'],
         ];
     }
 

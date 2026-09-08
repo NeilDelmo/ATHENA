@@ -1,103 +1,70 @@
-<section id="project-monitoring" class="rounded-2xl border border-gray-200 bg-white shadow-sm">
+<section id="project-monitoring" class="space-y-5">
     @php
         $projectStatus = $topic->project_status ?: 'ongoing';
-        $projectStatusClass = match ($projectStatus) { 'completed' => 'bg-green-50 text-green-700', 'delayed' => 'bg-red-50 text-red-700', default => 'bg-blue-50 text-blue-700' };
-        $revisionProgressReport = $topic->progressReports->first(
-            fn ($report): bool => $report->review_status === 'revision_requested' && $report->nextVersion === null,
-        );
+        $schedule = app(\App\Services\MonitoringQuarterService::class);
+        $window = $schedule->reportingWindow($topic);
+        $terminalDate = $schedule->terminalOpensAt($topic);
+        $terminalOpen = $schedule->canSubmitTerminal($topic);
+        $openPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] !== null);
+        $nextPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] === null);
+        $canReport = ! Auth::user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
     @endphp
-    @if ($topic->hasIssuedNoticeToProceed())
-        <article class="border-b border-red-200 bg-red-50 px-6 py-5 dark:border-red-950 dark:bg-slate-950" aria-labelledby="official-notice-to-proceed-heading">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="rounded-full bg-red-700 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">Official project record</span>
-                        <span class="text-[11px] font-bold uppercase tracking-wider text-red-800 dark:text-red-300">Notice to Proceed</span>
-                    </div>
-                    <h3 id="official-notice-to-proceed-heading" class="mt-2 text-lg font-black text-gray-950 dark:text-white">Notice to Proceed issued</h3>
-                    <p class="mt-1 max-w-2xl text-sm leading-6 text-gray-700 dark:text-slate-300">This is the authorization document for the active project. Keep it with the project record for future monitoring and reporting.</p>
-                </div>
-                <div class="flex shrink-0 flex-wrap gap-2">
-                    <a href="{{ route('topics.notice-to-proceed.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-black text-white transition hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download PDF</a>
-                    <a href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-black text-gray-900 transition hover:bg-red-50 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">View notice details</a>
-                </div>
+    <header class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="text-lg font-bold text-gray-950 dark:text-white">Project monitoring</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">Report every three months. Submit the terminal report after the project ends.</p>
             </div>
-            <dl class="mt-4 grid gap-3 border-t border-red-200 pt-4 text-xs dark:border-red-950 sm:grid-cols-3">
-                <div>
-                    <dt class="font-black uppercase tracking-wider text-red-700 dark:text-red-300">Issued</dt>
-                    <dd class="mt-1 font-bold text-gray-950 dark:text-white">{{ $topic->notice_to_proceed_issued_at?->format('M j, Y g:i A') ?: 'Not recorded' }}</dd>
-                    @if ($topic->noticeIssuer)<dd class="mt-0.5 text-gray-600 dark:text-slate-300">by {{ $topic->noticeIssuer->name }}</dd>@endif
-                </div>
-                <div>
-                    <dt class="font-black uppercase tracking-wider text-red-700 dark:text-red-300">Approved period</dt>
-                    <dd class="mt-1 font-bold text-gray-950 dark:text-white">{{ data_get($topic->notice_to_proceed_data, 'approved_start_date', 'Not recorded') }} to {{ data_get($topic->notice_to_proceed_data, 'approved_end_date', 'Not recorded') }}</dd>
-                </div>
-                <div>
-                    <dt class="font-black uppercase tracking-wider text-red-700 dark:text-red-300">Approved budget</dt>
-                    <dd class="mt-1 font-bold text-gray-950 dark:text-white">PHP {{ number_format((float) data_get($topic->notice_to_proceed_data, 'approved_budget', 0), 2) }}</dd>
-                </div>
-            </dl>
-        </article>
-    @endif
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-6 py-4">
-        <div><h3 class="text-sm font-black text-gray-900">Project monitoring</h3><p class="mt-1 text-xs text-gray-500">Official monitoring tools and Research Head feedback.</p></div>
-        <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase {{ $projectStatusClass }}">{{ $projectStatus }}</span>
-    </div>
-    <div class="space-y-5 p-6">
-        @if ($topic->isCompletedProject())
-            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                This project is complete. Monitoring records are available below in read-only mode.
-            </div>
-        @elseif (Auth::user()->isUsingWorkspace('research_head'))
-            <form method="POST" action="{{ route('research_head.projects.update-status', $topic) }}" class="flex flex-col gap-2 rounded-xl bg-gray-50 p-4 sm:flex-row sm:items-end">@csrf @method('PATCH')
-                <label class="flex-1 text-[11px] font-bold uppercase text-gray-500">Execution status<select name="project_status" class="mt-1 block w-full rounded-xl border-gray-200 text-xs font-bold">@foreach (['ongoing', 'delayed', 'completed'] as $value)<option value="{{ $value }}" @selected($projectStatus === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
-                <button class="rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white">Update status</button>
-            </form>
-        @else
-            @if ($topic->isAccessibleTo(Auth::user()) && $projectStatus !== 'completed')
-                <section aria-labelledby="monitoring-submissions-heading">
-                    <div class="mb-4">
-                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Project monitoring</p>
-                        <h3 id="monitoring-submissions-heading" class="mt-1 text-lg font-black text-gray-950 dark:text-white">Monitoring submissions</h3>
-                        <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete one official record at a time. Submitted versions stay below as the project history.</p>
-                    </div>
-
-                    <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <article class="grid gap-4 border-b border-gray-200 p-5 dark:border-slate-800 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">
-                            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-xs font-black text-white dark:bg-white dark:text-gray-950" aria-label="Monitoring tool">01</div>
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="text-sm font-black leading-6 text-gray-950 dark:text-white">Monitoring tool</h4>
-                                    @if ($revisionProgressReport)
-                                        <span class="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Revision requested</span>
-                                    @else
-                                        <span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">Ready to prepare</span>
-                                    @endif
-                                </div>
-                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">BatStateU-REC-RES-03 · Revision 03. Record the work plan, accomplishments, budget utilization, and any supporting attachment.</p>
-                            </div>
-                            <a href="{{ route('project-progress.create', ['topic' => $topic, 'revise_monitoring_report' => $revisionProgressReport?->id]) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto">
-                                {{ $revisionProgressReport ? 'Revise tool' : 'Open monitoring tool' }}
-                            </a>
-                        </article>
-
-                        <article class="grid gap-4 p-5 dark:border-slate-800 sm:grid-cols-[3rem_minmax(0,1fr)_auto] sm:items-center sm:px-6">
-                            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-950 text-xs font-black text-white dark:bg-white dark:text-gray-950" aria-label="Progress report">02</div>
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="text-sm font-black leading-6 text-gray-950 dark:text-white">Progress report</h4>
-                                    <span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">Ready to prepare</span>
-                                </div>
-                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">BatStateU-REC-RES-02 · Revision 02. Record narrative accomplishments and captioned photo documentation for the reporting period.</p>
-                            </div>
-                            <a href="{{ route('project-narrative-reports.create', $topic) }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 transition hover:border-red-600 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:hover:border-red-600 dark:hover:text-red-300 sm:w-auto">Open progress report</a>
-                        </article>
-                    </div>
-                </section>
-            @endif
+            <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ ucfirst($projectStatus) }}</span>
+        </div>
+        <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-4 dark:border-slate-800 sm:grid-cols-3">
+            <div><dt class="text-xs text-gray-500">Monitoring starts</dt><dd class="mt-1 text-sm font-semibold dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-xs text-gray-500">Project ends</dt><dd class="mt-1 text-sm font-semibold dark:text-white">{{ $window['end']->format('M j, Y') }}</dd></div>
+            <div><dt class="text-xs text-gray-500">Next period opens</dt><dd class="mt-1 text-sm font-semibold dark:text-white">{{ $nextPeriod ? $nextPeriod['opens_at']->format('M j, Y') : 'All periods have ended' }}</dd></div>
+        </dl>
+        @if ($topic->hasIssuedNoticeToProceed())
+            <a href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="mt-4 inline-block text-xs font-semibold text-red-700 dark:text-red-300">View Notice to Proceed and signed papers</a>
         @endif
+        @if ($topic->isCompletedProject())
+            <p class="mt-4 text-sm text-gray-600 dark:text-slate-300">Project completed. Reports remain available as read-only records.</p>
+        @endif
+    </header>
 
-        <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" />
+    <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :topic="$topic" />
+
+    <section class="divide-y divide-gray-200 rounded-xl border border-gray-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900" aria-label="Narrative reports">
+        @foreach (['progress' => 'Progress report', 'terminal' => 'Terminal report'] as $reportType => $reportLabel)
+            @php
+                $available = $reportType === 'terminal' ? $terminalOpen : $openPeriod !== null;
+            @endphp
+            <article class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h4 class="text-sm font-bold text-gray-950 dark:text-white">{{ $reportLabel }}</h4>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $reportType === 'terminal' ? 'Summarize the full project, final results, and accomplishments.' : 'Add narrative accomplishments and photo documentation for an ended reporting period.' }}</p>
+                    @if (! $available)
+                        <p class="mt-2 text-xs font-medium text-gray-600 dark:text-slate-300">Opens {{ ($reportType === 'terminal' ? $terminalDate : ($nextPeriod['opens_at'] ?? $terminalDate))->format('M j, Y') }}</p>
+                    @endif
+                </div>
+                @if ($canReport && $available)
+                    <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => $reportType]) }}" class="inline-flex shrink-0 justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-slate-600 dark:text-red-300">Open {{ strtolower($reportLabel) }}</a>
+                @elseif ($canReport)
+                    <button type="button" disabled class="shrink-0 rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-400 dark:bg-slate-800">Not open yet</button>
+                @endif
+            </article>
+        @endforeach
+    </section>
+
+    @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
+        <details class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <summary class="cursor-pointer text-sm font-semibold dark:text-white">Manage project status</summary>
+            <p class="mt-3 text-sm text-gray-500">Mark complete after the terminal report has been reviewed.</p>
+            <form method="POST" action="{{ route('research_head.projects.update-status', $topic) }}" class="mt-3 flex flex-wrap items-end gap-3">@csrf @method('PATCH')
+                <label class="text-sm dark:text-white">Status<select name="project_status" class="mt-1 block rounded-lg border-gray-300 text-sm dark:bg-slate-800">@foreach (['ongoing', 'delayed', 'completed'] as $value)<option value="{{ $value }}" @selected($projectStatus === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
+                <button class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white">Save status</button>
+            </form>
+        </details>
+    @endif
+    <div class="space-y-5">
 
         <div class="space-y-4">
             <div class="flex items-center justify-between gap-3">
@@ -149,13 +116,13 @@
 
         <div class="space-y-4 border-t border-gray-100 pt-5">
             <div class="flex items-center justify-between gap-3">
-                <div><p class="text-sm font-black text-gray-900">Progress report versions</p><p class="mt-1 text-xs text-gray-400">Submitted narrative accomplishment records with captioned photo documentation.</p></div>
+                <div><p class="text-sm font-black text-gray-900">Progress and terminal report history</p><p class="mt-1 text-xs text-gray-400">Submitted narratives, final results, and photo documentation.</p></div>
             </div>
             @forelse ($topic->narrativeReports as $report)
                 <article class="rounded-xl border border-gray-200 p-4">
                     <div class="flex flex-wrap justify-between gap-3">
                         <div>
-                            <p class="text-sm font-black text-gray-900">Progress report</p>
+                            <p class="text-sm font-black text-gray-900">{{ $report->report_label }}@if ($report->report_type === 'terminal' && isset($report->terminal_data['version_number'])) · Version {{ $report->terminal_data['version_number'] }}@endif</p>
                             <p class="mt-1 text-[11px] text-gray-400">{{ $report->submission_date->format('M d, Y') }} · {{ $report->submitter->name }}</p>
                         </div>
                         <span class="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">{{ str_replace('_', ' ', $report->review_status) }}</span>
@@ -165,7 +132,7 @@
                         <div><p class="text-[10px] font-black uppercase text-gray-400">Funding agency</p><p class="mt-1 text-xs leading-5 text-gray-600">{{ $report->funding_agency }}</p></div>
                     </div>
                     <div class="mt-3 flex flex-wrap gap-4">
-                        <a href="{{ route('project-narrative-reports.download', $report) }}" class="inline-flex text-xs font-bold text-red-700">Download official progress report</a>
+                        <a href="{{ route('project-narrative-reports.download', $report) }}" class="inline-flex text-xs font-bold text-red-700">Download {{ strtolower($report->report_label) }}</a>
                         @foreach ($report->photos ?? [] as $photoIndex => $photo)
                             <a href="{{ route('project-narrative-reports.photos.download', [$report, $photoIndex]) }}" class="inline-flex text-xs font-bold text-red-700">Photo {{ $photoIndex + 1 }}: {{ $photo['caption'] }}</a>
                         @endforeach

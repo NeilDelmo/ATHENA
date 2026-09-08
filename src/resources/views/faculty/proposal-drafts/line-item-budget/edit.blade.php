@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Use MOOE, Capital Outlay, or both. Leave any category that does not apply empty; its total will be zero.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
+            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
         </div>
     </x-slot>
 
@@ -208,14 +208,7 @@
                     <div><label for="resolution-number" class="block text-xs font-black uppercase tracking-wider text-gray-600">Resolution number</label><input id="resolution-number" name="resolution_number" type="text" maxlength="50" x-model="resolutionNumber" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="resolution-year" class="block text-xs font-black uppercase tracking-wider text-gray-600">Resolution year</label><input id="resolution-year" name="resolution_year" type="text" maxlength="10" x-model="resolutionYear" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
-                <div class="mt-5 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Certified correct signatory</p>
-                    <div class="mt-3 grid gap-4 sm:grid-cols-2">
-                        <div><label for="certified-by" class="block text-xs font-bold text-gray-700">Name</label><input id="certified-by" name="certified_by" type="text" maxlength="120" x-model="certifiedBy" x-on:input="certifiedBy = certifiedBy.toUpperCase()" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                        <div><label for="certified-role" class="block text-xs font-bold text-gray-700">Role / position</label><input id="certified-role" name="certified_role" type="text" maxlength="120" x-model="certifiedRole" class="mt-1.5 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    </div>
-                    <p class="mt-3 text-xs text-gray-500">The signatory name prints in uppercase. The signature lines and both Date Signed fields remain blank for handwriting.</p>
-                </div>
+            <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="line_item_budget" />
             </section>
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">

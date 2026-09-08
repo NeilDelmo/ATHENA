@@ -1,6 +1,11 @@
+@props(['fixed' => false])
+
 <a
     data-back-link
-    {{ $attributes->merge([
+    @if ($fixed) data-fixed-back-link @endif
+    {{ $attributes->class([
+        'fixed bottom-4 right-4 z-40 w-auto max-w-[calc(100vw-2rem)] shadow-xl ring-1 ring-black/10 sm:bottom-6 sm:right-6 print:hidden' => $fixed,
+    ])->merge([
         'class' => 'group inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm font-black text-gray-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-950',
     ]) }}
 >

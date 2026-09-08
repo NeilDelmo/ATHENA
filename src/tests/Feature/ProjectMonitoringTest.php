@@ -61,11 +61,11 @@ beforeEach(function () {
         'status' => 'approved',
         'project_status' => 'ongoing',
         'notice_to_proceed_issued_by' => $this->head->id,
-        'notice_to_proceed_issued_at' => now(),
+        'notice_to_proceed_issued_at' => now()->subMonths(3),
     ]);
 
     $this->monitoringPayload = fn (array $overrides = []): array => array_replace([
-        'reporting_date' => now()->toDateString(),
+        'reporting_date' => now()->subDay()->toDateString(),
         'tracking_number' => 'REC-2026-001',
         'work_plan' => [
             [
@@ -94,6 +94,25 @@ beforeEach(function () {
         ],
         'prepared_by_date_signed' => now()->toDateString(),
     ], $overrides);
+});
+
+test('report schedule blocks early submissions and opens terminal after project end', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 6]);
+    $this->travelTo(now()->setDate(2026, 4, 14)->startOfDay());
+    $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))
+        ->assertSessionHasErrors('reporting_date');
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertForbidden();
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Quarterly reporting schedule')->assertSee('Not open yet');
+    $this->travelTo(now()->setDate(2026, 4, 15)->startOfDay());
+    $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))->assertSessionHasNoErrors()->assertRedirect(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-04-14']));
+    $report = ProjectProgressReport::where('topic_id', $this->topic->id)->firstOrFail();
+    expect($report->period_start->toDateString())->toBe('2026-01-15')
+        ->and($report->period_end->toDateString())->toBe('2026-04-14');
+    $this->post(route('project-progress.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    expect($report->fresh()->isSubmitted())->toBeTrue();
+    $this->travelTo(now()->setDate(2026, 7, 15)->startOfDay());
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertOk()->assertSee('Terminal report')->assertSee('value="terminal"', false);
 });
 
 test('a researcher prepares an official monitoring PDF before submitting it to the Research Head', function () {
@@ -133,8 +152,8 @@ test('the faculty project page opens the monitoring tool in a focused form page'
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Monitoring submissions')
-        ->assertSee('Open monitoring tool')
+        ->assertSee('Quarterly reporting schedule')
+        ->assertSee('Start report')
         ->assertSee(route('project-progress.create', $this->topic), false)
         ->assertDontSee('data-monitoring-tool-autosave-form', false);
 
@@ -147,12 +166,12 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertSee('Changes save automatically.')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
-        ->assertSee('fixed bottom-4 right-4', false)
+        ->assertSee('data-proposal-autosave-status', false)
         ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
-        ->assertSee('A. Work Plan')
-        ->assertSee('Add up to eleven activities')
-        ->assertSee('B. Budget Utilization')
+        ->assertSee('Activities and progress')
+        ->assertSee('You can add up to 11 activities.')
+        ->assertSee('Spending this quarter')
         ->assertSee('Purchase Request')
         ->assertSee('Request of Payment');
 });
@@ -345,7 +364,7 @@ test('an accepted collaborator can access the same active project monitoring wor
     $this->actingAs($collaborator)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Open monitoring tool');
+        ->assertSee('Start report');
     $this->actingAs($collaborator)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertRedirect()
@@ -512,7 +531,7 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Monitoring Tool quarters')
+        ->assertSee('Quarterly reporting schedule')
         ->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2')
         ->assertSee('Historical version')
         ->assertSee('Current submission');

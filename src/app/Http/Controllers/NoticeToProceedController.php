@@ -9,8 +9,10 @@ use App\Http\Requests\UploadSignedNoticeToProceedRequest;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\FacultyProjectCapacityService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\NoticeToProceedDocumentService;
+use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -139,7 +141,14 @@ class NoticeToProceedController extends Controller
                     ]);
                 }
 
+                $version = $approvedTopic->latestVersion()->with('files')->lockForUpdate()->firstOrFail();
+                if (! app(ProposalSignatureWorkflow::class)->isComplete($version)) {
+                    throw ValidationException::withMessages(['signed_notice_to_proceed' => 'Upload all required signed proposal papers before releasing the Notice to Proceed.']);
+                }
+                app(FacultyProjectCapacityService::class)->ensureAvailableFor($approvedTopic);
+
                 $approvedTopic->update([
+                    'status' => 'approved',
                     'notice_to_proceed_path' => $path,
                     'notice_to_proceed_original_filename' => $this->noticeFilename($approvedTopic, 'signed-notice-to-proceed'),
                     'notice_to_proceed_issued_by' => $request->user()->id,
@@ -147,6 +156,12 @@ class NoticeToProceedController extends Controller
                     'project_status' => $approvedTopic->project_status ?? TopicProposal::PROJECT_STATUS_ONGOING,
                 ]);
 
+                $approvedTopic->reviews()->create([
+                    'reviewer_id' => $request->user()->id,
+                    'review_stage' => $approvedTopic->review_stage,
+                    'decision' => 'approved',
+                    'comment' => 'Signed proposal papers and signed Notice to Proceed released together to faculty.',
+                ]);
                 $this->promoteTopicTeam->handle($approvedTopic);
             });
         } catch (Throwable $exception) {
@@ -167,8 +182,8 @@ class NoticeToProceedController extends Controller
             ->values();
 
         Notification::send($recipients, new ProposalActivityNotification(
-            'Signed Notice to Proceed issued',
-            'Your signed Notice to Proceed for "'.$issuedTopic->title.'" is ready. Project monitoring is now open.',
+            'Signed papers and Notice to Proceed released',
+            'Your signed proposal papers and Notice to Proceed for "'.$issuedTopic->title.'" is ready. Project monitoring is now open.',
             route('topics.show', $issuedTopic).'#project-monitoring',
             'success',
             $issuedTopic->id,
@@ -181,7 +196,7 @@ class NoticeToProceedController extends Controller
 
         return redirect()
             ->to(route('topics.show', $topic).'#notice-to-proceed')
-            ->with('success', 'Signed Notice to Proceed uploaded and issued. Faculty Researcher access and project monitoring are now open.');
+            ->with('success', 'Signed papers and Notice to Proceed released together. Faculty Researcher access and project monitoring are now open.');
     }
 
     public function download(Request $request, TopicProposal $topic): StreamedResponse
@@ -213,9 +228,9 @@ class NoticeToProceedController extends Controller
 
     private function ensureProposalIsApproved(TopicProposal $topic): void
     {
-        if ($topic->status !== 'approved') {
+        if (! in_array($topic->status, ['approved', TopicProposal::STATUS_READY_FOR_SIGNATURE], true)) {
             throw ValidationException::withMessages([
-                'notice_to_proceed' => 'The proposal papers must be approved before a Notice to Proceed can be issued.',
+                'notice_to_proceed' => 'Complete the LREC review and proceed to signing before preparing the Notice to Proceed.',
             ]);
         }
     }

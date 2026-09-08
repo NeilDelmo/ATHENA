@@ -85,6 +85,19 @@ class InitialScreeningFormDocumentService
 
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', self::W);
+        $signatureKeys = ['screening_head', 'screening_center', 'screening_verifier'];
+        $signatureIndex = 0;
+        foreach ($xpath->query('//w:p') as $paragraph) {
+            if (trim($paragraph->textContent) !== 'NAME') {
+                continue;
+            }
+            $key = $signatureKeys[$signatureIndex++] ?? null;
+            if ($key && filled($screeningForm[$key] ?? null)) {
+                foreach ($xpath->query('.//w:t', $paragraph) as $index => $text) {
+                    $text->nodeValue = $index === 0 ? mb_strtoupper($screeningForm[$key]) : '';
+                }
+            }
+        }
         $this->fillLabeledValue($xpath, 'Research Project Title:', $screeningForm['project_title']);
         $this->fillLabeledValue($xpath, 'Project Leader:', $screeningForm['project_leader']);
         $renderedXml = $document->saveXML();

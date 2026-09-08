@@ -4602,7 +4602,7 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         failureMessage: 'The monitoring preview could not be generated. Please try again.',
     }),
     entries: Array.isArray(config.entries) && config.entries.length > 0
-        ? config.entries
+        ? config.entries.map(entry => ({ ...entry, completion: Number(entry.percent_weight) > 0 ? Number((Number(entry.accomplished_percentage || 0) / Number(entry.percent_weight) * 100).toFixed(2)) : 0 }))
         : [{
             activity: '',
             percent_weight: '',
@@ -4622,11 +4622,17 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         this.$nextTick(() => this.startMonitoringDraftAutoSave());
     },
 
+    updateEntryProgress(entry) {
+        entry.accomplished_percentage = Number((Number(entry.percent_weight || 0) * Number(entry.completion || 0) / 100).toFixed(2));
+        this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+    },
+
     addEntry() {
         if (this.entries.length >= 11) return;
 
         this.entries.push({
             activity: '',
+            completion: 0,
             percent_weight: '',
             physical_target: '',
             target_completion_date: '',

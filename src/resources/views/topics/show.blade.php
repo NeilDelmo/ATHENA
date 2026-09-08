@@ -8,18 +8,10 @@
             'resubmitted', 'expert_review', 'for_final_decision' => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
             default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
         };
-        $statusLabel = match ($topic->status) {
-            'approved' => 'Approved',
-            'ready_for_signature' => 'Ready for signature',
-            'rejected' => 'Rejected',
-            'revision_requested' => 'Revision required',
-            'resubmitted' => 'Revision awaiting review',
-            'expert_review', 'for_final_decision' => 'Awaiting Research Head',
-            default => 'Awaiting Research Head',
-        };
+        $statusLabel = $topic->workflowStatusLabel();
         if ($topic->isAwaitingNoticeToProceed()) {
             $statusClass = 'bg-amber-100 text-amber-800';
-            $statusLabel = 'Approved - awaiting notice';
+            $statusLabel = 'Preparing final release';
         } elseif ($topic->isCompletedProject()) {
             $statusClass = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
             $statusLabel = 'Completed - archived';
@@ -27,13 +19,13 @@
         $backRoute = Auth::user()->isUsingWorkspace('research_head')
             ? route('research_head.dashboard')
             : (Auth::user()->isUsingWorkspace('faculty_researcher') ? route('research.index') : route('faculty.dashboard'));
-        $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true);
+        $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', 'lrec_review'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
         $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
         $isFacultyRevision = $isFacultyWorkspace && $topic->status === 'revision_requested' && $topic->user_id === Auth::id();
           $hasProjectAccess = $isResearchHead || $topic->isAccessibleTo(Auth::user());
-          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed())
+          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || ($isResearchHead && $topic->status === 'ready_for_signature'))
               && $hasProjectAccess;
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
               && $hasProjectAccess;
@@ -62,17 +54,17 @@
         ]);
         $reviewTabHash = 'proposal-review';
         $initialTopicTab = $resubmissionErrors->any()
-            || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*'])
+            || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*', 'committee_comments.*', 'initial_clearance_confirmed', 'lrec_clearance_confirmed', 'signature_file_ids'])
             || ($isFacultyWorkspace && $topic->status === 'revision_requested')
             ? 'review'
-            : ($noticeToProceedErrors
+            : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
                 ? 'notice'
                 : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
     @endphp
 
     <x-slot name="header">
         <div class="space-y-3">
-            <x-back-link href="{{ $backRoute }}">Back to dashboard</x-back-link>
+            <x-back-link :fixed="$isFacultyWorkspace" href="{{ $backRoute }}">Back to dashboard</x-back-link>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $topic->title }}</h2>
@@ -96,6 +88,8 @@
                 </div>
             </div>
         </div>
+            <x-proposal-workflow :topic="$topic" />
+            <a href="{{ route('similarity-checks.index', ['topic' => $topic]) }}" class="inline-flex text-sm font-semibold text-red-700 dark:text-red-300">{{ $isResearchHead ? 'Manage similarity checks' : 'Request or view similarity check' }}</a>
     </x-slot>
 
     <div
@@ -110,7 +104,7 @@
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
-                        : 'details'
+                        : @js($canDecide ? 'review' : 'details')
             ),
             setTopicTab(tab, hash) {
                 this.activeTopicTab = tab;
@@ -203,7 +197,7 @@
                 @if ($canViewNoticeToProceed)
                     <button id="notice-to-proceed-tab-button" type="button" role="tab" aria-controls="notice-to-proceed-tab" :aria-selected="activeTopicTab === 'notice'" @click="setTopicTab('notice', 'notice-to-proceed')" :class="activeTopicTab === 'notice' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /><path stroke-linecap="round" d="M9 13.5l2 2 4-4" /></svg>
-                        Notice to Proceed
+                        {{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}
                     </button>
                 @endif
                 <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
@@ -345,9 +339,23 @@
             </div>
         </section>
 
-        <section id="proposal-review-tab" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
+        @php
+            $initialResearchHeadDecision = old('status', request()->query('decision') === 'revision_requested' ? 'revision_requested' : '');
+            if (! array_key_exists($initialResearchHeadDecision, $researchHeadDecisionOptions)) {
+                $initialResearchHeadDecision = '';
+            }
+        @endphp
+        <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
+            @if ($canDecide)
+                <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
+                    <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Review submitted papers <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
+                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true, 'decisionFormId' => 'research-head-decision-form', 'prioritizeRevisedFiles' => true])
+                    @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
+                </section>
+            @endif
             @if ($isFacultyRevision)
                 <x-proposal-revision-form
+                    :comment-response-rows="$commentResponseRows"
                     :topic="$topic"
                     :pending-file-revisions="$pendingFileRevisions"
                     :staged-revision-files="$stagedRevisionFiles"
@@ -368,7 +376,11 @@
                         @elseif ($topic->status === 'approved')
                             Your Notice to Proceed has been issued. The proposal is now an active research project and monitoring is open.
                         @elseif ($topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                            The review is complete. Only the papers with official signature blocks are waiting for their signed final PDFs.
+                            Reviews are complete. The research office is collecting signed papers and the signed Notice to Proceed. They will be released together.
+                        @elseif ($topic->status === 'lrec_queued')
+                            Initial review is complete. Await the LREC presentation schedule from the research office.
+                        @elseif ($topic->status === 'lrec_review')
+                            The proposal is under LREC review. The research office will share committee revisions or move it to signing.
                         @elseif ($topic->status === 'rejected')
                             This proposal received a final rejection.
                         @else
@@ -378,7 +390,7 @@
                 </div>
             @endif
 
-            @if ($isResearchHead && $headUploadWorkspace && (! $canDecide || $headUploadWorkspace['supplementalHeadUploads']->isNotEmpty()))
+            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && (! $canDecide || $headUploadWorkspace['supplementalHeadUploads']->isNotEmpty()))
                 <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide && $topic->status !== \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE" />
             @endif
 
@@ -489,6 +501,22 @@
                                         <p @class(['whitespace-pre-line', 'mt-1' => $review->decision === 'rejected'])>{{ $review->comment }}</p>
                                     </div>
                                 @endif
+                                <p class="mt-2 text-xs text-gray-500">{{ $review->review_stage === 'lrec' ? 'LREC review' : 'Initial review' }}</p>
+                                @if ($review->decision === 'revision_requested')
+                                    @can('generateCommentResponseForm', $topic)
+                                        <a href="{{ route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]) }}" class="mt-2 inline-block text-sm font-semibold text-red-700 dark:text-red-300">Download this round’s Comment-Response PDF</a>
+                                    @endcan
+                                    @foreach ($review->committee_comments ?? [] as $commentIndex => $committeeComment)
+                                        <div class="mt-3 rounded-lg border border-gray-200 p-3 text-sm dark:border-slate-700">
+                                            <p class="font-semibold">LREC · {{ $committeeComment['reviewer'] }}</p>
+                                            <p class="text-xs text-gray-500">{{ $committeeComment['location'] ?? '' }}</p>
+                                            <p class="mt-2 whitespace-pre-line">{{ $committeeComment['comment'] }}</p>
+                                            @if ($answer = ($review->feedback_responses['committee_'.$commentIndex] ?? null))
+                                                <p class="mt-2 font-semibold">Faculty response</p><p class="whitespace-pre-line">{{ $answer['response'] }}</p><p class="text-xs text-gray-500">{{ $answer['remarks'] ?? '' }}</p>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                @endif
                                 @if ($review->fileRevisions->isNotEmpty())
                                     <div class="mt-3 space-y-2">
                                         @foreach ($review->fileRevisions as $fileRevision)
@@ -520,20 +548,25 @@
                 </div>
             </details>
 
+            @if ($isResearchHead && $topic->status === 'lrec_queued')
+                <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="space-y-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                    @csrf @method('PATCH')
+                    <input type="hidden" name="status" value="lrec_review">
+                    <input type="hidden" name="redirect_to" value="topic">
+                    <h3 class="font-semibold text-gray-950 dark:text-white">Awaiting LREC presentation</h3>
+                    <p class="text-sm text-gray-600 dark:text-slate-300">After the presentation, record the committee comments or its clearance for signing.</p>
+                    <button type="submit" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Presentation complete — record outcome</button>
+                </form>
+            @endif
+
             @if ($canDecide)
-                @php
-                    $initialResearchHeadDecision = old(
-                        'status',
-                        request()->query('decision') === 'revision_requested' ? 'revision_requested' : '',
-                    );
-                @endphp
                 <details class="group rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden" open data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
                     <summary class="flex cursor-pointer items-center justify-between gap-4 bg-red-50 px-5 py-4 sm:px-6 hover:bg-red-100 transition">
                         <div class="flex items-center gap-4">
                             <svg class="h-5 w-5 shrink-0 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                             <div>
                                 <p class="text-xs font-black uppercase tracking-wider text-red-700">Action required</p>
-                                <h3 class="text-base font-black text-gray-900">Record the Research Head decision</h3>
+                                <h3 class="text-base font-black text-gray-900">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : 'Complete the initial review' }}</h3>
                                 @if ($latestVersion)
                                     <p class="mt-1 text-xs font-bold text-red-800">Reviewing Version {{ $latestVersion->version_number }} &mdash; latest submitted package</p>
                                 @endif
@@ -547,7 +580,6 @@
                             action="{{ route('research_head.topics.updateStatus', $topic) }}"
                             method="POST"
                             x-data="{
-                                decision: @js($initialResearchHeadDecision),
                                 submitting: false,
                                 async submitDecision(event) {
                                     const form = event.currentTarget;
@@ -582,11 +614,14 @@
                             class="space-y-5 p-5 sm:p-6"
                         >
                             @csrf @method('PATCH')
+                            @if ($errors->any())
+                                <div role="alert" class="text-sm text-red-700 dark:text-red-300">@foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach</div>
+                            @endif
                             <input type="hidden" name="redirect_to" value="topic">
                             <fieldset>
                                 <legend class="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">Review decision</legend>
                                 <div class="flex flex-wrap gap-2" data-review-decision-options>
-                                    @foreach (['revision_requested' => 'Request revisions', 'rejected' => 'Reject proposal'] as $decisionValue => $decisionLabel)
+                                    @foreach ($researchHeadDecisionOptions as $decisionValue => $decisionLabel)
                                         <label
                                             class="inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition focus-within:ring-2 focus-within:ring-red-600 focus-within:ring-offset-2 dark:focus-within:ring-offset-gray-900"
                                             :class="decision === @js($decisionValue) ? 'border-red-700 bg-red-50 text-red-800 dark:border-red-500 dark:bg-red-950/30 dark:text-red-200' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'"
@@ -598,6 +633,31 @@
                                 </div>
                                 @error('status')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
                             </fieldset>
+
+                            <section x-show="decision === 'lrec_queued'" x-cloak>
+                                <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+                                    <input type="checkbox" name="initial_clearance_confirmed" value="1" :disabled="decision !== 'lrec_queued'" :required="decision === 'lrec_queued'" class="mt-1 rounded border-gray-300 text-red-700">
+                                    <span>The Research Head and Co-evaluator have cleared this version for LREC presentation.</span>
+                                </label>
+                            </section>
+                            <section x-show="decision === 'ready_for_signature'" x-cloak class="space-y-3">
+                                <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+                                    <input type="checkbox" name="lrec_clearance_confirmed" value="1" :disabled="decision !== 'ready_for_signature'" :required="decision === 'ready_for_signature'" class="mt-1 rounded border-gray-300 text-red-700">
+                                    <span>LREC has cleared this version and all committee comments have been addressed.</span>
+                                </label>
+                                <p class="text-sm font-semibold text-gray-900 dark:text-white">Required signed papers</p>
+                                <div class="space-y-2">
+                                    @foreach ($submittedFiles->whereIn('document_type', \App\Services\ProposalSignatureWorkflow::REQUIRED_DOCUMENT_TYPES) as $signatureFile)
+                                        <p class="text-sm text-gray-700 dark:text-slate-200">
+                                            {{ $signatureFile->label() }}
+                                        </p>
+                                    @endforeach
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Attachment C and Estimated Expense Breakdown do not require signatures. All five listed papers require signed PDFs before final release.</p>
+                            </section>
+                            @if ($topic->review_stage === 'lrec')
+                                @include('topics.partials.lrec-comments')
+                            @endif
 
                             <section x-show="decision === 'rejected'" x-cloak class="space-y-3" aria-labelledby="rejection-reason-heading">
                                 <label id="rejection-reason-heading" class="block text-sm font-medium text-gray-900 dark:text-gray-100" for="rejection_reason">Reason for rejection</label>
@@ -611,22 +671,10 @@
                                 @error('rejection_confirmed')<p class="text-sm text-red-600">{{ $message }}</p>@enderror
                             </section>
 
-                            <section
-                                x-show="decision !== 'rejected'"
-                                class="border-t border-gray-200 pt-4 dark:border-gray-700"
-                                aria-labelledby="file-review-checklist-heading"
-                            >
-                                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                    <div>
-                                        <h4 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Submitted documents <span class="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">Version {{ $latestVersion?->version_number ?? 1 }}</span></h4>
-                                    </div>
-                                </div>
-                                @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true])
-                                @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
-                            </section>
+                            <p x-show="decision === 'revision_requested'" x-cloak class="text-sm text-gray-600 dark:text-gray-300">Select the papers that need further changes in the document list above.</p>
 
                             <button type="submit" :disabled="submitting || !decision" class="inline-flex items-center justify-center rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-text="submitting ? 'Saving decision…' : (decision === 'rejected' ? 'Reject proposal' : 'Send revision request')">Send revision request</span>
+                                <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', lrec_queued: 'Send to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
                             </button>
                         </form>
                     </div>
@@ -672,7 +720,14 @@
         </section>
 
         @if ($canViewNoticeToProceed)
-            <section id="notice-to-proceed-tab" x-show="activeTopicTab === 'notice'" x-cloak role="tabpanel" aria-labelledby="notice-to-proceed-tab-button">
+            <section id="notice-to-proceed-tab" x-show="activeTopicTab === 'notice'" x-cloak role="tabpanel" aria-labelledby="notice-to-proceed-tab-button" class="space-y-5">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
+                    <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
+                </div>
+                @if ($isResearchHead && $headUploadWorkspace)
+                    <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="false" />
+                @endif
                 @include('topics.partials.notice-to-proceed')
             </section>
         @endif

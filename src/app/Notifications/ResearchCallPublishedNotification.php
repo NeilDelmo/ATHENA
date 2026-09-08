@@ -31,7 +31,7 @@ class ResearchCallPublishedNotification extends Notification implements ShouldQu
     {
         return [
             'title' => 'New research call available',
-            'message' => 'The research call “'.$this->researchCallTitle.'” is now open for proposals.',
+            'message' => 'The research call “'.$this->researchCallTitle.'” has been published. You can submit proposals anytime from your Proposal Workspace.',
             'url' => $this->url,
             'level' => 'info',
             'research_call_id' => $this->researchCallId,

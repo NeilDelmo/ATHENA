@@ -8,7 +8,6 @@ use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalTemplate;
-use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Support\ProposalBudgetConsistency;
@@ -64,12 +63,10 @@ class ProposalDraftController extends Controller
             ->latest()
             ->paginate(12, ['*'], 'submitted-page')
             ->withQueryString();
-        $hasOpenResearchCall = ResearchCall::query()->acceptingSubmissions()->exists();
 
         return view('faculty.proposal-drafts.index', compact(
             'proposalDrafts',
             'submittedProposals',
-            'hasOpenResearchCall',
         ));
     }
 
@@ -77,16 +74,7 @@ class ProposalDraftController extends Controller
     {
         Gate::authorize('create', ProposalDraft::class);
 
-        $researchCalls = ResearchCall::query()
-            ->acceptingSubmissions()
-            ->orderBy('closes_at')
-            ->get();
-
-        $requestedResearchCallId = $request->integer('research_call_id');
-        $selectedResearchCallId = $researchCalls->firstWhere('id', $requestedResearchCallId)?->id
-            ?? ($researchCalls->count() === 1 ? $researchCalls->first()->id : null);
-
-        return view('faculty.proposal-drafts.create', compact('researchCalls', 'selectedResearchCallId'));
+        return view('faculty.proposal-drafts.create');
     }
 
     public function store(StoreProposalDraftRequest $request): RedirectResponse
@@ -208,8 +196,7 @@ class ProposalDraftController extends Controller
     ): RedirectResponse {
         abort_unless(
             $topic->user_id === $request->user()->id
-                && $topic->status === 'revision_requested'
-                && $topic->research_call_id !== null,
+                && $topic->status === 'revision_requested',
             403,
         );
 

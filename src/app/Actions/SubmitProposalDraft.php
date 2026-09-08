@@ -231,19 +231,8 @@ class SubmitProposalDraft
                 }
 
                 $primaryFile = $this->packageService->primaryFile($permanentFiles);
-                $currentCall = ResearchCall::query()
-                    ->whereKey($lockedDraft->research_call_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $currentCall?->isAcceptingSubmissions()) {
-                    throw ValidationException::withMessages([
-                        'research_call' => 'The research call submission window has closed. Your proposal was not sent and the draft remains available.',
-                    ]);
-                }
-
                 $topic = $user->proposals()->create([
-                    'research_call_id' => $currentCall->id,
+                    'research_call_id' => $lockedDraft->research_call_id,
                     'title' => $lockedDraft->project_title,
                     'estimated_duration_months' => $lockedDraft->duration_months,
                     'status' => 'pending',
@@ -360,6 +349,7 @@ class SubmitProposalDraft
     ): array {
         $sourceData = [
             ...($document->source_data ?? []),
+            ...$draft->signatoryFields('detailed_proposal'),
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
         ];
@@ -428,6 +418,7 @@ class SubmitProposalDraft
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
             'entries' => $document->source_data['entries'] ?? null,
+            ...$draft->signatoryFields('work_plan'),
             'prepared_by' => $draft->project_leader,
         ];
         $validated = Validator::make(
@@ -458,6 +449,7 @@ class SubmitProposalDraft
         );
         $sourceData = [
             ...$lineItemBudgetSource,
+            ...$draft->signatoryFields('line_item_budget'),
             'project_title' => $draft->project_title,
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
@@ -562,6 +554,7 @@ class SubmitProposalDraft
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
         ];
+        $sourceData = [...$sourceData, ...$draft->signatoryFields('gad_checklist')];
         $checklist = GADChecklistData::fromValidated($sourceData);
 
         return $this->packageService->storeGeneratedGADChecklist(
@@ -581,6 +574,8 @@ class SubmitProposalDraft
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
         ];
+
+        $sourceData = [...$sourceData, ...$draft->signatoryFields('initial_screening_form')];
 
         return $this->packageService->storeGeneratedInitialScreeningForm(
             $this->initialScreeningFormDocumentService->generate($sourceData),

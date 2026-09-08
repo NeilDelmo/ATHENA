@@ -8,7 +8,7 @@
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Build the official BatStateU-FO-RES-02 Work Plan from structured inputs.</p>
             </div>
-            <x-back-link data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments" class="w-full shrink-0 sm:w-auto">Exit editor</x-back-link>
+            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
         </div>
     </x-slot>
 
@@ -179,14 +179,7 @@
                 <button type="button" x-on:click="addEntry" x-bind:disabled="!canAddEntry()" x-bind:title="canAddEntry() ? 'Add another objective' : 'No unassigned project month is available for another objective.'" class="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50">Add another objective</button>
             </section>
 
-            <section data-revision-section="section-signatories" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-gray-500">Checked &amp; Verified by</p>
-                    <p class="mt-2 font-black text-gray-900">{{ config('work_plan.verifier.name') }}</p>
-                    <p class="text-xs text-gray-600">{{ config('work_plan.verifier.role') }}</p>
-                    <p class="mt-2 text-xs text-gray-500">Both Date Signed fields remain blank for handwritten signatures.</p>
-                </div>
-            </section>
+            <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="work_plan" />
 
             <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:flex-wrap sm:justify-end">
                 <button type="button" x-on:click="generatePreview" x-bind:disabled="previewLoading" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-900 px-5 py-3 text-sm font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"><span x-show="!previewLoading">Preview paper</span><span x-show="previewLoading" x-cloak>Generating…</span></button>

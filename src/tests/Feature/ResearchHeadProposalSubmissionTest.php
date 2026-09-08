@@ -5,6 +5,11 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ProposalSignatureWorkflow;
+use App\Support\ProposalPaperCatalog;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -104,6 +109,38 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('2 package files')
         ->assertSee(route('topics.show', $topic).'#version-history', false)
         ->assertSeeInOrder(['Faculty Directory', 'Proposal Submissions', 'Project Monitoring']);
+
+    $review = $topic->reviews()->create([
+        'reviewer_id' => $this->researchHead->id,
+        'decision' => 'revision_requested',
+    ]);
+    $returnedFile = $revision->files()->where('document_type', 'work_plan')->first();
+    $review->fileRevisions()->create([
+        'proposal_version_file_id' => $initialSubmission->files()->first()->id,
+        'resolved_by_version_file_id' => $returnedFile->id,
+        'document_type' => 'work_plan',
+        'original_filename' => 'work-plan-v1.pdf',
+        'resolution_type' => 'file_revised',
+        'resolved_at' => now(),
+        'faculty_response' => 'Updated the schedule as requested.',
+    ]);
+
+    $page = $this->get(route('topics.show', $topic));
+    $page->assertOk()
+        ->assertSeeInOrder([
+            'Review submitted papers',
+            'Papers returned for review',
+            'Updated the schedule as requested.',
+            'Other submitted papers',
+            'Review decision',
+        ])
+        ->assertSee('form="research-head-decision-form"', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($page->getContent());
+    $xpath = new DOMXPath($document);
+    $otherPapers = $xpath->query('//details[summary[contains(., "Other submitted papers")]]');
+    expect($otherPapers->length)->toBe(1)
+        ->and($otherPapers->item(0)->hasAttribute('open'))->toBeFalse();
 });
 
 test('proposal submissions can be searched and filtered by type and status', function () {
@@ -156,6 +193,65 @@ test('proposal submissions are restricted to research heads', function () {
         ->assertForbidden();
 });
 
+test('signing automatically requires five papers and exempts CV and expense breakdown', function (bool $sendOldSelection) {
+    Notification::fake();
+    Storage::fake('local');
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'title' => 'Fixed signature requirements',
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty);
+    foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
+        $path = 'signature-tests/'.$paper['document_type'].'.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.4 original');
+        $version->files()->create([
+            'document_type' => $paper['document_type'], 'position' => 0,
+            'file_path' => $path, 'original_filename' => basename($path),
+            'mime_type' => 'application/pdf', 'file_size' => 20,
+        ]);
+    }
+    $exemptFiles = $version->files()->whereIn('document_type', ['curriculum_vitae', 'expense_breakdown'])->get();
+    $payload = ['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'lrec_clearance_confirmed' => '1'];
+    if ($sendOldSelection) {
+        $payload['signature_file_ids'] = $exemptFiles->pluck('id')->all();
+    }
+    $this->actingAs($this->researchHead)->get(route('topics.show', $topic))
+        ->assertOk()->assertDontSee('name="signature_file_ids[]"', false);
+    $this->patch(route('research_head.topics.updateStatus', $topic), $payload)
+        ->assertSessionHasNoErrors()->assertRedirect();
+
+    $workflow = app(ProposalSignatureWorkflow::class);
+    $required = $workflow->requiredFiles($version->fresh());
+    expect($required)->toHaveCount(5)
+        ->and($required->pluck('document_type')->all())->not->toContain('curriculum_vitae', 'expense_breakdown')
+        ->and($topic->reviews()->latest('id')->firstOrFail()->required_signature_file_ids)->toHaveCount(5);
+    $this->get(route('topics.show', $topic))->assertOk()->assertSee('Upload the required signed PDFs');
+
+    foreach ($exemptFiles as $file) {
+        $this->post(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $file->id, 'purpose' => 'signed',
+            'review_file' => UploadedFile::fake()->create('signed.pdf', 10, 'application/pdf'),
+        ])->assertSessionHasErrors('source_file_id', null, 'headUpload');
+    }
+    foreach ($required as $index => $file) {
+        $this->patch(route('research_head.topics.finalizeApproval', $topic))->assertSessionHasErrors('status');
+        $this->post(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $file->id, 'purpose' => 'signed',
+            'review_file' => UploadedFile::fake()->create('signed-'.$index.'.pdf', 10, 'application/pdf'),
+        ])->assertRedirect();
+        expect($workflow->isComplete($version->fresh()))->toBe($index === 4);
+    }
+    $this->patch(route('research_head.topics.finalizeApproval', $topic))
+        ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
+    expect($topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
+
+    $incompleteVersion = $version->fresh('files');
+    $incompleteVersion->setRelation('files', $incompleteVersion->files->where('document_type', '!=', 'initial_screening_form'));
+    expect($workflow->isComplete($incompleteVersion))->toBeFalse();
+})->with([false, true]);
+
 function createProposalSubmission(TopicProposal $topic, User $submitter, array $overrides = []): ProposalVersion
 {
     return $topic->versions()->create(array_merge([
@@ -172,3 +268,44 @@ function createProposalSubmission(TopicProposal $topic, User $submitter, array $
         'estimated_duration_months' => 12,
     ], $overrides));
 }
+
+test('LREC requires a submitted faculty revision and is hidden on first review', function () {
+    Notification::fake();
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Revision Before LREC',
+        'status' => 'pending',
+    ]);
+    createProposalSubmission($topic, $this->faculty);
+
+    $this->actingAs($this->researchHead)->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('value="revision_requested"', false)
+        ->assertSee('value="rejected"', false)
+        ->assertDontSee('value="lrec_queued"', false);
+
+    foreach (['pending', 'expert_review', 'for_final_decision', 'resubmitted'] as $status) {
+        $topic->update(['status' => $status]);
+        $this->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_LREC_QUEUED,
+            'initial_clearance_confirmed' => '1',
+        ])->assertSessionHasErrors('status');
+        expect($topic->fresh()->status)->toBe($status);
+    }
+
+    $topic->update(['status' => 'revision_requested']);
+    expect($topic->canRecordDecision(TopicProposal::STATUS_LREC_QUEUED))->toBeFalse();
+    createProposalSubmission($topic, $this->faculty, [
+        'version_number' => 2,
+        'submission_type' => 'revision',
+    ]);
+    $topic->update(['status' => 'resubmitted']);
+    $this->get(route('topics.show', $topic))->assertOk()->assertSee('value="lrec_queued"', false);
+    $this->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => TopicProposal::STATUS_LREC_QUEUED,
+        'initial_clearance_confirmed' => '1',
+    ])->assertSessionHasNoErrors()->assertRedirect();
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_QUEUED)
+        ->and($topic->fresh()->review_stage)->toBe('lrec');
+});

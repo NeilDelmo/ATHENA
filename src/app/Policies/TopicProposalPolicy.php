@@ -29,8 +29,7 @@ class TopicProposalPolicy
 
     public function generateCommentResponseForm(User $user, TopicProposal $topicProposal): bool
     {
-        return $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
-            && $topicProposal->user_id === $user->id
-            && $topicProposal->status === 'revision_requested';
+        return $this->view($user, $topicProposal)
+            && ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $topicProposal->user_id === $user->id);
     }
 }

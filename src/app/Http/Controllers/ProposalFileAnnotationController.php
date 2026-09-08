@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Storage;
 class ProposalFileAnnotationController extends Controller
 {
     /** @var list<string> */
-    private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision'];
+    private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision', 'lrec_review'];
 
     public function __construct(private readonly ProposalRevisionTargetCatalog $revisionTargets, private readonly ProposalRevisionSectionMap $sectionMap) {}
 
@@ -61,7 +61,15 @@ class ProposalFileAnnotationController extends Controller
                 'annotation_count' => $fileAnnotations->count(),
             ])
             ->values();
+        $lastCoEvaluatorName = ProposalFileAnnotation::query()
+            ->where('reviewer_id', $request->user()->id)
+            ->where('feedback_source', ProposalFileAnnotation::SOURCE_CO_EVALUATOR)
+            ->whereHas('file.version', fn ($query) => $query->where('topic_id', $topic->id))
+            ->latest('id')->value('co_evaluator_name');
         $annotationConfiguration = [
+            'researchHeadName' => $isResearchHead ? $request->user()->name : ($annotations->first()?->reviewer?->name ?? 'Research Head'),
+            'researchHeadAvatar' => $isResearchHead ? $request->user()->avatar : $annotations->first()?->reviewer?->avatar,
+            'coEvaluatorName' => $lastCoEvaluatorName ?? '',
             'pdfUrl' => route('topics.versions.files.view', [$topic, $version, $file]),
             'storeUrl' => route('topics.versions.files.annotations.store', [$topic, $version, $file]),
             'updateUrlTemplate' => route('topics.versions.files.annotations.update', [$topic, $version, $file, '__ANNOTATION__']),
@@ -108,6 +116,9 @@ class ProposalFileAnnotationController extends Controller
         $sections = $this->sectionMap->forFile($file);
         $annotation = $file->annotations()->create([
             'reviewer_id' => $request->user()->id,
+            'feedback_source' => $validated['feedback_source'] ?? ProposalFileAnnotation::SOURCE_HEAD,
+            'co_evaluator_name' => ($validated['feedback_source'] ?? null) === ProposalFileAnnotation::SOURCE_CO_EVALUATOR
+                ? trim($validated['co_evaluator_name']) : null,
             'annotation_type' => $validated['annotation_type'],
             'page_number' => $validated['page_number'],
             'selected_text' => $validated['annotation_type'] === ProposalFileAnnotation::TYPE_TEXT
@@ -218,6 +229,11 @@ class ProposalFileAnnotationController extends Controller
             'editorTarget' => $annotation->editor_target,
             'editorTargetLabel' => $this->revisionTargets->labelFor($file, $annotation->editor_target),
             'reviewer' => $annotation->reviewer?->name ?? 'Research Head',
+            'feedbackSource' => $annotation->feedback_source ?? ProposalFileAnnotation::SOURCE_HEAD,
+            'feedbackLabel' => $annotation->feedbackLabel(),
+            'coEvaluatorName' => $annotation->co_evaluator_name,
+            'feedbackAuthor' => $annotation->feedback_source === ProposalFileAnnotation::SOURCE_CO_EVALUATOR
+                ? $annotation->co_evaluator_name : ($annotation->reviewer?->name ?? 'Research Head'),
             'createdAt' => $annotation->created_at?->format('M j, Y g:i A'),
             'state' => match (true) {
                 $annotation->topic_review_file_revision_id === null => 'draft',

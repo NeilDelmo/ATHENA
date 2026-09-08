@@ -94,8 +94,7 @@ class ProposalDraftReadiness
         return $this->projectDetailsAreComplete($draft)
             && $this->allPapersAreComplete($draft)
             && $this->proposalBudgetConsistency->compare($draft)['consistent']
-            && $this->submissionFilesArePrepared($draft)
-            && $draft->researchCall?->isAcceptingSubmissions();
+            && $this->submissionFilesArePrepared($draft);
     }
 
     public function submissionFilesArePrepared(ProposalDraft $draft): bool
@@ -148,16 +147,10 @@ class ProposalDraftReadiness
 
         if ($budgetComparison['over_budget']) {
             $errors['budget_limit'] = sprintf(
-                'The project budget exceeds the research call limit of Php %s by Php %s.',
+                'The project budget exceeds the project budget limit of Php %s by Php %s.',
                 number_format($budgetComparison['budget_ceiling'], 2),
                 number_format($budgetComparison['overage'], 2),
             );
-        }
-
-        if ($draft->researchCall === null) {
-            $errors['research_call'] = 'An open research call must be selected before preparing submission PDFs. The proposal owner can use Choose research call; your draft remains available.';
-        } elseif (! $draft->researchCall->isAcceptingSubmissions()) {
-            $errors['research_call'] = 'This research call is no longer accepting submissions. Your draft remains available.';
         }
 
         return $errors;

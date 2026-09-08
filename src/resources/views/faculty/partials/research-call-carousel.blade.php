@@ -21,7 +21,7 @@
 
                         @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
                             <div data-research-call-submit-overlay class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gray-950/55 opacity-0 backdrop-blur-[1px] transition-all duration-300 group-hover:pointer-events-auto group-hover:opacity-100">
-                                <a href="{{ route('faculty.proposal-drafts.create', ['research_call_id' => $carouselItem['researchCallId']]) }}" class="translate-y-3 cursor-pointer rounded-xl bg-red-700 px-5 py-3 text-xs font-black text-white opacity-0 shadow-xl shadow-red-950/30 transition duration-300 hover:scale-105 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-700 group-hover:translate-y-0 group-hover:opacity-100">Start a proposal</a>
+                                <a href="{{ route('faculty.proposal-drafts.create') }}" class="translate-y-3 cursor-pointer rounded-xl bg-red-700 px-5 py-3 text-xs font-black text-white opacity-0 shadow-xl shadow-red-950/30 transition duration-300 hover:scale-105 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-700 group-hover:translate-y-0 group-hover:opacity-100">Start a proposal</a>
                             </div>
                         @endif
                     </div>

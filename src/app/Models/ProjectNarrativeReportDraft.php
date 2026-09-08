@@ -11,11 +11,13 @@ class ProjectNarrativeReportDraft extends Model
         'topic_id',
         'user_id',
         'source_data',
+        'report_type',
         'lock_version',
     ];
 
     protected $attributes = [
         'lock_version' => 0,
+        'report_type' => 'progress',
     ];
 
     protected function casts(): array

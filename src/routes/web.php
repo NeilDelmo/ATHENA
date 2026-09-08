@@ -30,6 +30,8 @@ use App\Http\Controllers\ProposalDraftPaperController;
 use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalFileAnnotationController;
+use App\Http\Controllers\ProposalSignatoryController;
+use App\Http\Controllers\ProposalSimilarityCheckController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchAssistantDocumentController;
@@ -146,7 +148,6 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
         Route::get('/{proposalDraft}/papers/{paper}/{document}/download', [ProposalDraftPaperController::class, 'download'])->name('papers.download');
         Route::delete('/{proposalDraft}/papers/{paper}/{document}', [ProposalDraftPaperController::class, 'remove'])->name('papers.remove');
         Route::get('/{proposalDraft}/review', [ProposalDraftSubmissionController::class, 'show'])->name('review');
-        Route::put('/{proposalDraft}/research-call', [ProposalDraftSubmissionController::class, 'assignResearchCall'])->name('research-call.update');
         Route::post('/{proposalDraft}/submission-files/prepare', [ProposalDraftSubmissionController::class, 'prepare'])->name('submission-files.prepare');
         Route::get('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'download'])->name('submission-files.download');
         Route::put('/{proposalDraft}/submission-files/{paper}', [ProposalDraftSubmissionController::class, 'replace'])->name('submission-files.replace');
@@ -158,9 +159,18 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::post('/faculty/work-plans/preview', [WorkPlanController::class, 'preview'])->name('faculty.work-plans.preview');
     Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
-    Route::get('/faculty/topics/{topic}/comment-response-form/preview', [TopicCommentResponseFormController::class, 'preview'])->name('faculty.topics.comment-response-form.preview');
-    Route::get('/faculty/topics/{topic}/comment-response-form/download', [TopicCommentResponseFormController::class, 'download'])->name('faculty.topics.comment-response-form.download');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
+});
+
+Route::middleware(['auth', 'workspace:faculty|faculty_researcher|research_head'])->group(function () {
+    Route::get('/faculty/topics/{topic}/comment-response-form/preview', [TopicCommentResponseFormController::class, 'preview'])->name('faculty.topics.comment-response-form.preview');
+    Route::get('/faculty/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('faculty.topics.comment-response-form.pdf');
+    Route::get('/faculty/topics/{topic}/comment-response-form/download', [TopicCommentResponseFormController::class, 'download'])->name('faculty.topics.comment-response-form.download');
+});
+
+Route::middleware(['auth', 'workspace:research_head'])->group(function () {
+    Route::get('/research-head/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('research_head.topics.comment-response-form.pdf');
+    Route::get('/research-head/topics/{topic}/comment-response-form/download', [TopicCommentResponseFormController::class, 'download'])->name('research_head.topics.comment-response-form.download');
 });
 
 Route::get('/proposal-templates/{proposalTemplate}/download', [ProposalTemplateController::class, 'download'])
@@ -290,6 +300,15 @@ Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}', [ProjectN
 
 Route::middleware('auth')->group(function () {
     Route::get('/research-support', [ResearchSupportController::class, 'index'])->name('research-support.index');
+    Route::get('/research-head/signatories', [ProposalSignatoryController::class, 'index'])->name('signatories.index');
+    Route::post('/research-head/signatories', [ProposalSignatoryController::class, 'store'])->name('signatories.store');
+    Route::patch('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'update'])->name('signatories.update');
+    Route::get('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'edit'])->name('signatories.edit');
+    Route::put('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'select'])->name('signatories.select');
+    Route::get('/research-support/similarity-checks', [ProposalSimilarityCheckController::class, 'index'])->name('similarity-checks.index');
+    Route::post('/topics/{topic}/similarity-checks', [ProposalSimilarityCheckController::class, 'store'])->name('similarity-checks.store');
+    Route::patch('/research-support/similarity-checks/{check}', [ProposalSimilarityCheckController::class, 'update'])->name('similarity-checks.update');
+    Route::get('/research-support/similarity-checks/{check}/report', [ProposalSimilarityCheckController::class, 'download'])->name('similarity-checks.download');
     Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])
         ->middleware('throttle:60,1')
         ->name('research-support.history');

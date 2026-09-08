@@ -4,54 +4,34 @@ namespace App\Services;
 
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
-use App\Models\TopicProposal;
-use App\Models\TopicReview;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
 class ProposalSignatureWorkflow
 {
+    public const REQUIRED_DOCUMENT_TYPES = [
+        ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+        ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+    ];
+
     /** @return Collection<int, ProposalVersionFile> */
     public function requiredFiles(ProposalVersion $version): Collection
     {
         $version->loadMissing('files');
 
-        $selectionRecord = TopicReview::query()
-            ->where('topic_id', $version->topic_id)
-            ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
-            ->where('signature_proposal_version_id', $version->id)
-            ->whereNull('signature_superseded_at')
-            ->latest('id')
-            ->first();
-
-        if (! $selectionRecord) {
-            $selectionRecord = TopicReview::query()
-                ->where('topic_id', $version->topic_id)
-                ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                ->whereNull('signature_proposal_version_id')
-                ->whereNull('signature_superseded_at')
-                ->latest('id')
-                ->first();
-        }
-        $selectedFileIds = collect($selectionRecord?->required_signature_file_ids ?? [])
-            ->map(fn (mixed $fileId): int => (int) $fileId)
-            ->unique();
-
-        if ($selectedFileIds->isEmpty()) {
-            $legacySelectionRecord = $version->files
-                ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-                ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['decision'] ?? null) === TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                ->sortByDesc('id')
-                ->first();
-            $selectedFileIds = collect($legacySelectionRecord?->source_data['required_signature_file_ids'] ?? [])
-                ->map(fn (mixed $fileId): int => (int) $fileId)
-                ->unique();
-        }
-
         return $version->files
-            ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->whereIn('id', $selectedFileIds)
+            ->whereIn('document_type', self::REQUIRED_DOCUMENT_TYPES)
             ->values();
+    }
+
+    public function hasRequiredPapers(ProposalVersion $version): bool
+    {
+        return collect(self::REQUIRED_DOCUMENT_TYPES)
+            ->diff($this->requiredFiles($version)->pluck('document_type'))
+            ->isEmpty();
     }
 
     /** @return Collection<int, int> */
@@ -82,7 +62,7 @@ class ProposalSignatureWorkflow
 
     public function isComplete(ProposalVersion $version): bool
     {
-        return $this->requiredFiles($version)->isNotEmpty()
+        return $this->hasRequiredPapers($version)
             && $this->missingRequiredFiles($version)->isEmpty();
     }
 }

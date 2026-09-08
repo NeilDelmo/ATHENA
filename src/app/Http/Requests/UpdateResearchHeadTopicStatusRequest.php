@@ -23,9 +23,18 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
         return [
             'status' => ['required', Rule::in([
                 TopicProposal::STATUS_READY_FOR_SIGNATURE,
+                TopicProposal::STATUS_LREC_QUEUED,
+                TopicProposal::STATUS_LREC_REVIEW,
                 'revision_requested',
                 'rejected',
             ])],
+            'initial_clearance_confirmed' => ['exclude_unless:status,lrec_queued', 'accepted'],
+            'lrec_clearance_confirmed' => ['exclude_unless:status,ready_for_signature', 'accepted'],
+            'committee_comments' => ['exclude_unless:status,revision_requested', 'nullable', 'array', 'max:100'],
+            'committee_comments.*' => ['array:reviewer,comment,location'],
+            'committee_comments.*.reviewer' => ['required', 'string', 'max:160'],
+            'committee_comments.*.comment' => ['required', 'string', 'max:5000'],
+            'committee_comments.*.location' => ['nullable', 'string', 'max:300'],
             'redirect_to' => ['nullable', Rule::in(['topic'])],
             'revision_file_ids' => ['nullable', 'array'],
             'revision_file_ids.*' => [
@@ -50,22 +59,7 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
                 'exclude_unless:status,rejected',
                 'accepted',
             ],
-            'signature_file_ids' => [
-                'nullable',
-                'required_if:status,'.TopicProposal::STATUS_READY_FOR_SIGNATURE,
-                'array',
-                'min:1',
-            ],
-            'signature_file_ids.*' => [
-                'integer',
-                'distinct',
-                Rule::exists('proposal_version_files', 'id')
-                    ->where(fn ($query) => $query->where(
-                        'document_type',
-                        '!=',
-                        ProposalVersionFile::TYPE_HEAD_UPLOAD,
-                    )),
-            ],
+            'signature_file_ids' => ['exclude'],
         ];
     }
 
@@ -73,8 +67,6 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'signature_file_ids.required_if' => 'Select at least one paper that actually needs a signed final PDF.',
-            'signature_file_ids.min' => 'Select at least one paper that actually needs a signed final PDF.',
             'rejection_reason.required' => 'Provide a clear rejection reason before finalizing this decision.',
             'rejection_confirmed.accepted' => 'Confirm that this rejection is final before continuing.',
         ];

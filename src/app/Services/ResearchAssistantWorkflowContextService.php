@@ -254,6 +254,8 @@ PROMPT;
                             'type' => $annotation->annotation_type,
                             'selected_text' => $this->plainValue($annotation->selected_text, 350),
                             'comment' => $this->plainValue($annotation->comment, 500),
+                            'feedback_source' => $annotation->feedback_source,
+                            'co_evaluator_name' => $annotation->co_evaluator_name,
                         ])->values()->all(),
                     ])->values()->all(),
             ])->values()->all(),

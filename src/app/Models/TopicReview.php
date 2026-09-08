@@ -8,8 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TopicReview extends Model
 {
+    protected $attributes = ['review_stage' => 'initial'];
+
     protected $fillable = [
         'reviewer_id',
+        'review_stage',
+        'committee_comments',
+        'feedback_responses',
         'decision',
         'comment',
         'required_signature_file_ids',
@@ -21,6 +26,8 @@ class TopicReview extends Model
     {
         return [
             'required_signature_file_ids' => 'array',
+            'committee_comments' => 'array',
+            'feedback_responses' => 'array',
             'signature_superseded_at' => 'datetime',
         ];
     }

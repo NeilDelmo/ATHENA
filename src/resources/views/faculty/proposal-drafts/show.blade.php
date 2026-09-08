@@ -2,15 +2,16 @@
     <x-slot name="header">
         <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div class="min-w-0">
-                <x-back-link href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
+                <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
                 <p class="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Proposal workspace</p>
                 <h2 class="mt-1 break-words text-2xl font-black tracking-tight text-gray-950 dark:text-white">{{ $proposalDraft->project_title }}</h2>
                 <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                    <span>{{ $proposalDraft->researchCall?->title ?? 'No research call selected yet' }} &middot; Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
+                    <span>Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                     <span class="inline-flex items-center gap-1.5 font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</span>
                 </div>
             </div>
             <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                <a href="{{ route('signatories.edit', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300">Choose signatories</a>
                 <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-11" aria-label="Open recovery history{{ $historyCount > 0 ? ' ('.$historyCount.' points)' : '' }}" title="Recovery history">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     <span class="sr-only">Recovery history</span>
@@ -64,19 +65,6 @@
             </x-proposal-alert>
         @endif
 
-        @if (isset($readinessErrors['research_call']))
-            <div role="alert" class="flex flex-col gap-4 border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm text-red-950 dark:bg-red-950/30 dark:text-red-100 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <p class="font-black">Submission is currently unavailable</p>
-                    <p class="mt-1">{{ $readinessErrors['research_call'] }}</p>
-                </div>
-                @can('submit', $proposalDraft)
-                    <a href="{{ route('faculty.proposal-drafts.review', $proposalDraft) }}" data-select-research-call class="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $proposalDraft->researchCall === null ? 'Choose research call' : 'Change research call' }}<svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></a>
-                @else
-                    <p class="font-bold sm:max-w-xs sm:text-right">Only {{ $proposalDraft->owner->name }} can choose or change the research call.</p>
-                @endcan
-            </div>
-        @endif
 
         <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
 
@@ -118,10 +106,6 @@
                             <p class="mt-2 text-sm leading-6 text-gray-500 dark:text-slate-400">Shared information used automatically in Attachment A and the submitted proposal record.</p>
                         </div>
 
-                        <div class="mx-5 mt-5 flex flex-col gap-1 border-l-2 border-red-600 bg-gray-50 px-4 py-3 text-sm text-gray-800 dark:bg-slate-800/70 dark:text-slate-200 sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
-                            <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-500 dark:text-slate-400">Research call</p>
-                            <p class="font-bold">{{ $proposalDraft->researchCall?->title ?? 'Choose a research call when you are ready to turn in.' }}</p>
-                        </div>
 
                         <form data-paper-form data-project-details-autosave-form action="{{ route('faculty.proposal-drafts.details.update', $proposalDraft) }}" method="POST" class="space-y-6 px-5 pb-5 pt-6 sm:px-6 sm:pb-6">
                             @csrf

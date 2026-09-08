@@ -1,144 +1,49 @@
 @page {
     size: 8.5in 13in;
-    margin: 0;
+    margin: 0.6in;
 }
 
-* {
-    box-sizing: border-box;
+* { box-sizing: border-box; }
+body { margin: 0; background: #e5e7eb; color: #111; font-family: "Times New Roman", Times, serif; font-size: 11pt; line-height: 1.3; }
+.preview-toolbar { max-width: 8.5in; margin: 20px auto; padding: 0 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font: 14px/1.5 Arial, sans-serif; }
+.preview-toolbar a { background: #b91c1c; color: white; padding: 9px 14px; border-radius: 8px; text-decoration: none; }
+.comment-response-sheet { width: 8.5in; min-height: 13in; margin: 0 auto 24px; padding: 0.6in; background: white; box-shadow: 0 8px 30px #0002; }
+.university-header { display: flex; align-items: center; gap: 22px; border-bottom: 1px solid #111; padding-bottom: 20px; text-align: center; }
+.university-header img { width: 1in; height: 1in; object-fit: contain; }
+.university-header div { flex: 1; }
+.university-header strong { display: block; font-size: 17pt; }
+.university-header span { display: block; color: #b91c1c; font-family: Arial, sans-serif; font-weight: bold; }
+h1 { margin: 20px 0 28px; text-align: center; font-size: 14pt; }
+p { margin: 16px 0; overflow-wrap: anywhere; }
+.evaluation { line-height: 1.7; }
+.evaluation span { padding-left: 15px; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+th, td { border: 1px solid #333; padding: 7px; vertical-align: top; overflow-wrap: anywhere; }
+th { background: #f1f1f1; text-align: center; font-size: 9pt; }
+.researchers { font-size: 9pt; margin-bottom: 26px; }
+.feedback .number { width: 6%; }
+.feedback .comments { width: 40%; }
+.feedback .response { width: 29%; }
+.feedback .remarks { width: 25%; }
+.feedback td { min-height: 36px; }
+th small { display: block; font-weight: normal; margin-top: 6px; }
+.reviewer, .location { display: block; font-size: 9pt; }
+.location { color: #444; margin: 4px 0 10px; }
+.comment { white-space: pre-wrap; }
+.signatures { break-inside: avoid; margin-top: 24px; }
+.signature-name { padding-top: 22px; }
+.review-signatures { display: flex; gap: 30px; padding-top: 20px; }
+.review-signatures p { flex: 1; font-size: 10pt; }
+footer { margin-top: 30px; color: #b91c1c; font-size: 9pt; font-style: italic; overflow-wrap: anywhere; }
+@media screen and (max-width: 850px) {
+    .comment-response-sheet { width: 100%; min-height: 0; padding: 24px; }
+    .university-header { gap: 10px; }
+    .university-header strong { font-size: 13pt; }
 }
-
-html,
-body {
-    min-height: 100%;
-    margin: 0;
-}
-
-body {
-    color: #000;
-    background: #e5e7eb;
-    font-family: "Times New Roman", Times, serif;
-}
-
-.comment-response-preview-page {
-    min-width: 8.5in;
-    padding: 24px;
-}
-
-.comment-response-sheet {
-    position: relative;
-    width: 8.5in;
-    height: 13in;
-    margin: 0 auto;
-    overflow: hidden;
-    background: #fff;
-    box-shadow: 0 18px 45px rgb(15 23 42 / 0.2);
-}
-
-.comment-response-source {
-    position: absolute;
-    inset: 0;
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-
-.comment-response-project-title,
-.comment-response-researcher,
-.comment-response-prepared-by,
-.comment-response-footer-title {
-    position: absolute;
-    z-index: 1;
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.comment-response-project-title {
-    top: 3.27in;
-    left: 0.71in;
-    max-width: 7.02in;
-    padding: 0 0.04in;
-    border-bottom: 1px solid #000;
-    background: #fff;
-    font-size: 10pt;
-    line-height: 0.19in;
-}
-
-.comment-response-researcher {
-    height: 0.20in;
-    padding: 0.02in 0.035in 0;
-    font-size: 7pt;
-    line-height: 0.17in;
-    text-overflow: ellipsis;
-}
-
-.comment-response-leader {
-    top: 4.30in;
-}
-
-.comment-response-staff-1 {
-    top: 4.51in;
-}
-
-.comment-response-staff-2 {
-    top: 4.72in;
-}
-
-.comment-response-name {
-    left: 1.81in;
-    width: 2.51in;
-}
-
-.comment-response-campus {
-    left: 4.33in;
-    width: 1.15in;
-}
-
-.comment-response-college {
-    left: 5.48in;
-    width: 1.09in;
-}
-
-.comment-response-department {
-    left: 6.57in;
-    width: 1.22in;
-}
-
-.comment-response-prepared-by {
-    top: 7.43in;
-    left: 0.70in;
-    width: 3.2in;
-    height: 0.24in;
-    background: #fff;
-    font-size: 10pt;
-    font-weight: 700;
-    line-height: 0.22in;
-}
-
-.comment-response-footer-title {
-    top: 12.55in;
-    left: 2.02in;
-    width: 5.35in;
-    height: 0.18in;
-    background: #fff;
-    color: #f00;
-    font-size: 8pt;
-    font-style: italic;
-    line-height: 0.16in;
-    text-overflow: ellipsis;
-}
-
 @media print {
-    html,
-    body {
-        background: #fff;
-    }
-
-    .comment-response-preview-page {
-        min-width: 0;
-        padding: 0;
-    }
-
-    .comment-response-sheet {
-        box-shadow: none;
-    }
+    body { background: white; }
+    .preview-toolbar { display: none; }
+    .comment-response-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+    thead { display: table-header-group; }
+    th { print-color-adjust: exact; }
 }

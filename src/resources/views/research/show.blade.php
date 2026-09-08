@@ -22,7 +22,7 @@
 
     <x-slot name="header">
         <div class="space-y-3">
-            <x-back-link href="{{ route('research.index') }}">Back to research list</x-back-link>
+            <x-back-link fixed href="{{ route('research.index') }}">Back to research list</x-back-link>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="min-w-0">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $topic->title }}</h2>

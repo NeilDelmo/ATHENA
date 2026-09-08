@@ -1,4 +1,4 @@
-@props(['topic', 'pendingFileRevisions', 'stagedRevisionFiles', 'displayProjectCost'])
+@props(['topic', 'pendingFileRevisions', 'stagedRevisionFiles', 'displayProjectCost', 'commentResponseRows' => []])
 
 @php
     $revisionErrors = $errors->getBag('resubmission');
@@ -43,6 +43,38 @@
             <p class="whitespace-pre-line border-l-2 border-red-300 pl-3 text-sm leading-6 text-gray-700 dark:border-red-800 dark:text-slate-200">{{ $latestRevisionReview->comment }}</p>
         @endif
     </header>
+
+    @can('generateCommentResponseForm', $topic)
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+            <div>
+                <p class="text-sm font-semibold text-gray-950 dark:text-white">Comment-Response Form</p>
+                <p class="mt-1 text-xs text-gray-600 dark:text-slate-300">All reviewers’ comments and your responses in one form. Complete your responses below before resubmitting.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-4 text-sm font-semibold">
+                <a href="{{ route('faculty.topics.comment-response-form.preview', $topic) }}" target="_blank" rel="noopener" class="text-gray-700 hover:underline dark:text-slate-200">Preview</a>
+                <a href="{{ route('faculty.topics.comment-response-form.pdf', $topic) }}" class="text-red-700 hover:underline dark:text-red-300">Download PDF</a>
+                <a href="{{ route('faculty.topics.comment-response-form.download', $topic) }}" class="text-gray-700 hover:underline dark:text-slate-200">Word (editable)</a>
+            </div>
+        </div>
+    @endcan
+
+    @if ($commentResponseRows !== [])
+        <input type="hidden" name="feedback_review_id" value="{{ $latestRevisionReview?->id }}">
+        <section class="space-y-3" aria-labelledby="comment-response-heading">
+            <h4 id="comment-response-heading" class="text-base font-semibold text-gray-950 dark:text-white">Respond to the review comments</h4>
+            <p class="text-xs text-gray-600 dark:text-slate-300">These answers will appear in the Comment-Response Form when you submit this revision. Use Remarks for revised page/paragraph references, or explain when a reference does not apply.</p>
+            @foreach ($revisionErrors->get('feedback_responses*') as $feedbackErrors)
+                @foreach ((array) $feedbackErrors as $feedbackError)<p class="text-sm text-red-700">{{ $feedbackError }}</p>@endforeach
+            @endforeach
+            @foreach ($commentResponseRows as $item)
+                <article class="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                    <div><p class="text-sm font-semibold text-gray-950 dark:text-white">{{ $loop->iteration }}. {{ $item['reviewer'] }}</p><p class="text-xs text-gray-500">{{ $item['location'] }}</p><p class="mt-2 whitespace-pre-line text-sm text-gray-700 dark:text-slate-200">{{ $item['comment'] }}</p></div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-200">Action and response<textarea name="feedback_responses[{{ $item['key'] }}][response]" rows="2" maxlength="5000" required class="mt-1 block w-full rounded-lg border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea></label>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-slate-200">Remarks / revised page and paragraph<input name="feedback_responses[{{ $item['key'] }}][remarks]" maxlength="300" value="{{ old('feedback_responses.'.$item['key'].'.remarks', $item['remarks']) }}" class="mt-1 block w-full rounded-lg border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+                </article>
+            @endforeach
+        </section>
+    @endif
 
     <div class="space-y-4" data-requested-revision-files>
         @foreach ($revisionGroups as $documentType => $fileRevisions)

@@ -23,22 +23,50 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectMonitoringController extends Controller
 {
-    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View
+    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View|RedirectResponse
     {
         $this->ensureResearcherCanPrepareReport($request, $topic);
 
+        $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
+        $quarterService = app(MonitoringQuarterService::class);
+        $quarters = $quarterService->summaryRows($topic->progressReports()->with('nextVersion')->get(), $topic);
+        $requestedDate = $request->input('reporting_date');
+        $data = $formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report'), $requestedDate);
+        $draftDate = data_get($data['monitoringDraft']?->source_data, 'reporting_date');
+        if ($draftDate && $requestedDate && $data['revisionReport'] === null && $quarterService->forDate($draftDate, $topic)['start']->ne($quarterService->forDate($requestedDate, $topic)['start'])) {
+            return redirect()->route('project-progress.create', ['topic' => $topic, 'reporting_date' => $draftDate])
+                ->with('success', 'Your unfinished quarterly draft was reopened. Submit this report before starting another quarter.');
+        }
+        $quarterOptions = $quarters->filter(fn (array $row): bool => $row['reporting_date'] !== null && ($row['report'] === null || $row['report']->isPrepared()))->values();
+        if ($quarterOptions->isEmpty() && $data['revisionReport'] === null) {
+            return redirect()->to(route('topics.show', $topic).'#project-monitoring')
+                ->withErrors(['monitoring' => 'No reporting period is open for a new report. Check the schedule below.']);
+        }
+        $selectedReportingDate = $data['revisionReport']?->reporting_date?->toDateString()
+            ?? $draftDate ?? $requestedDate ?? $quarterOptions->first()['reporting_date'] ?? null;
+        if ($requestedDate && $data['revisionReport'] === null) {
+            $requestedQuarter = $quarterService->forDate($requestedDate, $topic);
+            $row = $quarters->first(fn (array $row): bool => $row['start']->eq($requestedQuarter['start']));
+            if (! $row || $row['reporting_date'] === null || ($row['report'] && ! $row['report']->isPrepared())) {
+                return redirect()->to(route('topics.show', $topic).'#project-monitoring')
+                    ->withErrors(['monitoring' => 'This quarter is not open for a new report. Open its existing report to view or revise it.']);
+            }
+        }
+
         return view('faculty.monitoring-tools.create', [
-            'topic' => $topic,
-            ...$formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report')),
+            'topic' => $topic, ...$data, 'quarterOptions' => $quarterOptions,
+            'selectedReportingDate' => $selectedReportingDate,
         ]);
     }
 
@@ -121,10 +149,10 @@ class ProjectMonitoringController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
         $sourceReport = $this->revisionSourceReport($request, $topic);
-        $period = $monitoringQuarterService->forDate($validated['reporting_date']);
+        $period = $monitoringQuarterService->forDate($validated['reporting_date'], $topic);
 
         if ($sourceReport !== null) {
-            $sourcePeriod = $monitoringQuarterService->forReport($sourceReport);
+            $sourcePeriod = $monitoringQuarterService->forDate($sourceReport->reporting_date, $topic);
 
             if ($sourcePeriod['year'] !== $period['year'] || $sourcePeriod['quarter'] !== $period['quarter']) {
                 return back()->withInput()->withErrors([
@@ -168,6 +196,8 @@ class ProjectMonitoringController extends Controller
                 $request->file('attachment'),
                 $sourceReport,
             );
+        } catch (ValidationException $exception) {
+            throw $exception;
         } catch (\Throwable $exception) {
             report($exception);
 
@@ -184,7 +214,11 @@ class ProjectMonitoringController extends Controller
             ->forSource($sourceReport)
             ->delete();
 
-        return back()->with(
+        return redirect()->route('project-progress.create', [
+            'topic' => $topic,
+            'reporting_date' => $report->reporting_date->toDateString(),
+            'revise_monitoring_report' => $sourceReport?->id,
+        ])->with(
             'success',
             $report->quarter_label.' '.$report->version_label.' PDF prepared. Review it, then submit the exact file to the Research Head.',
         );
@@ -222,10 +256,17 @@ class ProjectMonitoringController extends Controller
             ]);
         }
 
-        $report->update([
-            'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
-            'submitted_at' => now(),
-        ]);
+        DB::transaction(function () use ($topic, $report, $request): void {
+            $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            $lockedReport = ProjectProgressReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared() || $lockedReport->submitted_by !== $request->user()->id) {
+                throw ValidationException::withMessages(['preparation' => 'This report is no longer available for submission. Reload the quarter.']);
+            }
+            $lockedReport->update([
+                'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
+                'submitted_at' => now(),
+            ]);
+        });
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
             title: $report->version_number > 1
@@ -239,7 +280,7 @@ class ProjectMonitoringController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
-        return back()->with('success', 'Official monitoring tool submitted for Research Head review.');
+        return redirect()->to(route('topics.show', $topic).'#monitoring-tool-'.$report->id)->with('success', 'Quarterly monitoring report submitted for Research Head review.');
     }
 
     public function discardPrepared(
@@ -247,8 +288,15 @@ class ProjectMonitoringController extends Controller
         TopicProposal $topic,
         ProjectProgressReport $report,
     ): RedirectResponse {
+        DB::transaction(function () use ($topic, $report): void {
+            TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            $lockedReport = ProjectProgressReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if (! $lockedReport->isPrepared()) {
+                throw ValidationException::withMessages(['preparation' => 'A submitted report cannot be discarded.']);
+            }
+            $lockedReport->delete();
+        });
         $this->deletePreparedReportFiles($report);
-        $report->delete();
 
         return back()->with('success', 'Prepared Monitoring Tool discarded. You can now prepare a new PDF.');
     }
@@ -260,12 +308,14 @@ class ProjectMonitoringController extends Controller
     ): RedirectResponse {
         $validated = $request->validated();
         $workPlan = collect($validated['work_plan']);
-        $period = $monitoringQuarterService->forDate($validated['reporting_date']);
+        $period = $monitoringQuarterService->forDate($validated['reporting_date'], $topic);
 
         $validated['topic_id'] = $topic->id;
         $validated['submitted_by'] = $request->user()->id;
         $validated['reporting_year'] = $period['year'];
         $validated['reporting_quarter'] = $period['quarter'];
+        $validated['period_start'] = $period['start']->toDateString();
+        $validated['period_end'] = $period['end']->toDateString();
         $validated['version_number'] = 1;
         $validated['progress_percentage'] = (int) round($workPlan->sum(
             fn (array $entry): float => (float) $entry['accomplished_percentage'],
@@ -373,6 +423,10 @@ class ProjectMonitoringController extends Controller
             ])],
         ]);
 
+        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic) || ! $topic->narrativeReports()->submitted()->where('report_type', 'terminal')->where('review_status', 'reviewed')->exists())) {
+            return back()->withErrors(['project_status' => 'Complete the project after its end date and after the terminal report has been submitted and reviewed.']);
+        }
+
         $topic->update($validated);
 
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
@@ -460,10 +514,10 @@ class ProjectMonitoringController extends Controller
             ->whereBelongsTo($topic, 'topic')
             ->where(function ($query) use ($period): void {
                 $query->where(function ($query) use ($period): void {
-                    $query->where('reporting_year', $period['year'])
+                    $query->whereNotNull('period_start')->where('reporting_year', $period['year'])
                         ->where('reporting_quarter', $period['quarter']);
                 })->orWhere(function ($query) use ($period): void {
-                    $query->whereNull('reporting_year')
+                    $query->whereNull('period_start')
                         ->whereBetween('reporting_date', [
                             $period['start']->toDateString(),
                             $period['end']->toDateString(),

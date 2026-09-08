@@ -104,6 +104,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
 
         $this->replace([
             ...$merged,
+            ...$draft->signatoryFields('detailed_proposal'),
             'project_title' => $draft->project_title,
         ]);
     }

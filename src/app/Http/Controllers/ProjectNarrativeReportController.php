@@ -13,9 +13,11 @@ use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\SidebarAttentionService;
+use App\Support\TerminalReportData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,38 +37,45 @@ class ProjectNarrativeReportController extends Controller
 
         abort_unless($topic->isMonitoringAvailable() && $topic->isAccessibleTo($request->user()), 404);
 
+        $schedule = app(MonitoringQuarterService::class);
+        abort_unless($request->query('report_type') === 'terminal' ? $schedule->canSubmitTerminal($topic) : $schedule->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])), 403, 'This report is not open yet. Check the project reporting schedule.');
+
         return view('faculty.progress-reports.create', [
             'topic' => $topic,
-            ...$formData->narrativeProgress($request->user(), $topic),
+            ...$formData->narrativeProgress($request->user(), $topic, $request->query('report_type') === 'terminal' ? 'terminal' : 'progress'),
         ]);
     }
 
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
-        $validated = $request->validated();
-        $figureIndexes = range(1, (int) config('progress_report.max_figures'));
+        $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
+        $figureIndexes = range(1, ($validated['report_type'] ?? 'progress') === 'terminal' ? 30 : (int) config('progress_report.max_figures'));
         $photoFields = collect($figureIndexes)
             ->flatMap(fn (int $index): array => [
                 'photo_'.$index,
                 'photo_caption_'.$index,
                 'photo_section_'.$index,
+                'reuse_photo_'.$index,
+                'photo_after_paragraph_'.$index,
             ])
             ->all();
-        $photos = collect($figureIndexes)
-            ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
-            ->map(fn (int $index): array => [
-                'preview_file_input' => "photo_{$index}",
-                'caption' => $validated["photo_caption_{$index}"],
-                'section' => $validated["photo_section_{$index}"],
-            ])
-            ->values()
-            ->all();
+        $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
+            ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), true)
+            : collect($figureIndexes)
+                ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
+                ->map(fn (int $index): array => [
+                    'preview_file_input' => "photo_{$index}",
+                    'caption' => $validated["photo_caption_{$index}"],
+                    'section' => $validated["photo_section_{$index}"],
+                ])
+                ->values()
+                ->all();
 
         $report = new ProjectNarrativeReport([
             ...collect($validated)->except($photoFields)->all(),
             'topic_id' => $topic->id,
             'submitted_by' => $request->user()->id,
-            'budget' => $topic->estimated_budget,
+            'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
             'accomplishment_summary' => collect($validated['accomplishments'])
                 ->pluck('actual')
                 ->implode("\n"),
@@ -75,7 +84,7 @@ class ProjectNarrativeReportController extends Controller
         $report->setRelation('topic', $topic->loadMissing('user'));
         $report->setRelation('submitter', $request->user());
 
-        return view('faculty.progress-reports.preview', compact('report'));
+        return view($report->report_type === 'terminal' ? 'faculty.progress-reports.terminal-preview' : 'faculty.progress-reports.preview', compact('report'));
     }
 
     public function prepare(
@@ -83,15 +92,22 @@ class ProjectNarrativeReportController extends Controller
         TopicProposal $topic,
         PrepareProjectNarrativeReport $prepareProjectNarrativeReport,
     ): RedirectResponse {
+        if ($request->input('report_type') === 'terminal') {
+            $missing = app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic);
+            if ($missing !== []) {
+                return back()->withInput()->withErrors(['preparation' => 'Complete the required monitoring reports before preparing the Terminal Report: '.implode(', ', $missing).'.'], 'narrativeProgress');
+            }
+        }
         $existingPreparedReport = ProjectNarrativeReport::query()
             ->prepared()
             ->whereBelongsTo($topic, 'topic')
             ->where('submitted_by', $request->user()->id)
+            ->where('report_type', $request->input('report_type', 'progress'))
             ->exists();
 
         if ($existingPreparedReport) {
             return back()->withErrors([
-                'preparation' => 'Discard the prepared Progress Report before preparing another one.',
+                'preparation' => 'Discard the prepared report of this type before preparing another one.',
             ], 'narrativeProgress');
         }
 
@@ -99,7 +115,7 @@ class ProjectNarrativeReportController extends Controller
             $prepareProjectNarrativeReport->handle(
                 $topic,
                 $request->user(),
-                $request->validated(),
+                app(TerminalReportData::class)->normalize($topic, $request->validated()),
                 $request->allFiles(),
             );
         } catch (Throwable $exception) {
@@ -108,16 +124,17 @@ class ProjectNarrativeReportController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'preparation' => 'The Progress Report PDF could not be prepared. Your form data was kept, so you can try again.',
+                    'preparation' => 'The report PDF could not be prepared. Your form data was kept, so you can try again.',
                 ], 'narrativeProgress');
         }
 
         ProjectNarrativeReportDraft::query()
             ->whereBelongsTo($topic, 'topic')
             ->whereBelongsTo($request->user(), 'user')
+            ->where('report_type', $request->input('report_type', 'progress'))
             ->delete();
 
-        return back()->with('success', 'Progress Report PDF prepared. Review it, then submit the exact file to the Research Head.');
+        return back()->with('success', ($request->input('report_type') === 'terminal' ? 'Terminal Report' : 'Progress Report').' PDF prepared. Review it, then submit the exact file to the Research Head.');
     }
 
     public function saveDraft(
@@ -125,7 +142,7 @@ class ProjectNarrativeReportController extends Controller
         TopicProposal $topic,
         SaveProjectNarrativeReportDraft $saveProjectNarrativeReportDraft,
     ): JsonResponse {
-        $validated = $request->validated();
+        $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
         $draft = $saveProjectNarrativeReportDraft->handle(
             $topic,
             $request->user(),
@@ -156,8 +173,8 @@ class ProjectNarrativeReportController extends Controller
         ]);
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            'Progress report submitted',
-            $request->user()->name.' submitted a progress report for '.$topic->title.'.',
+            ucfirst($report->report_label).' submitted',
+            $request->user()->name.' submitted a '.strtolower($report->report_label).' for '.$topic->title.'.',
             route('topics.show', $topic).'#project-monitoring',
             'info',
             $topic->id,
@@ -165,7 +182,7 @@ class ProjectNarrativeReportController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
-        return back()->with('success', 'Official progress report submitted for Research Head review.');
+        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for Research Head review.');
     }
 
     public function discardPrepared(
@@ -173,20 +190,42 @@ class ProjectNarrativeReportController extends Controller
         TopicProposal $topic,
         ProjectNarrativeReport $report,
     ): RedirectResponse {
+        if ($report->report_type === 'terminal') {
+            $sourceData = $report->only(['report_type', 'tracking_number', 'researchers', 'funding_agency', 'accomplishments', 'introduction', 'rationale', 'objectives', 'methodology', 'results_discussion', 'terminal_data']);
+            foreach (['submission_date', 'implementation_start', 'implementation_end'] as $field) {
+                $sourceData[$field] = $report->$field?->toDateString();
+            }
+            foreach ($report->photos ?? [] as $index => $photo) {
+                if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
+                    $sourceData['reuse_photo_'.($index + 1)] = $photo['source_report_id'].':'.$photo['source_photo_index'];
+                }
+                $sourceData['photo_caption_'.($index + 1)] = $photo['caption'];
+                $sourceData['photo_section_'.($index + 1)] = $photo['section'];
+                $sourceData['photo_after_paragraph_'.($index + 1)] = $photo['after_paragraph'] ?? 0;
+            }
+            ProjectNarrativeReportDraft::query()->firstOrCreate(
+                ['topic_id' => $topic->id, 'user_id' => $request->user()->id, 'report_type' => 'terminal'],
+                ['source_data' => $sourceData, 'lock_version' => 1],
+            );
+        }
         $this->deletePreparedReportFiles($report);
         $report->delete();
 
-        return back()->with('success', 'Prepared Progress Report discarded. You can now prepare a new PDF.');
+        return back()->with('success', $report->report_type === 'terminal'
+            ? 'Prepared Terminal Report discarded. Your text was kept as a draft. Select any new image uploads again before preparing the replacement PDF.'
+            : 'Prepared Progress Report discarded. You can now prepare a new PDF.');
     }
 
     public function store(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): RedirectResponse
     {
-        $validated = $request->validated();
+        $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
         $storedPaths = [];
 
         try {
-            $figureIndexes = range(1, (int) config('progress_report.max_figures'));
-            $photos = collect($figureIndexes)
+            $figureIndexes = range(1, ($validated['report_type'] ?? 'progress') === 'terminal' ? 30 : (int) config('progress_report.max_figures'));
+            $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
+            ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), false, $storedPaths)
+            : collect($figureIndexes)
                 ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
                 ->map(function (int $index) use ($request, $topic, $validated, &$storedPaths): array {
                     $file = $request->file("photo_{$index}");
@@ -210,6 +249,8 @@ class ProjectNarrativeReportController extends Controller
                     'photo_'.$index,
                     'photo_caption_'.$index,
                     'photo_section_'.$index,
+                    'reuse_photo_'.$index,
+                    'photo_after_paragraph_'.$index,
                 ])
                 ->all();
 
@@ -217,7 +258,7 @@ class ProjectNarrativeReportController extends Controller
                 ...collect($validated)->except($photoFields)->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $request->user()->id,
-                'budget' => $topic->estimated_budget,
+                'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
                 'accomplishment_summary' => collect($validated['accomplishments'])
                     ->pluck('actual')
                     ->implode("\n"),
@@ -230,7 +271,7 @@ class ProjectNarrativeReportController extends Controller
         }
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
-            'Progress report submitted',
+            ucfirst($report->report_label).' submitted',
             $request->user()->name.' submitted a progress report for “'.$topic->title.'”.',
             route('topics.show', $topic).'#project-monitoring',
             'info',
@@ -239,7 +280,7 @@ class ProjectNarrativeReportController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
-        return back()->with('success', 'Official progress report submitted for Research Head review.');
+        return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for Research Head review.');
     }
 
     public function review(
@@ -310,7 +351,7 @@ class ProjectNarrativeReportController extends Controller
 
         return response()->streamDownload(
             static fn () => print $pdf,
-            Str::slug($report->topic->title).'-progress-report.pdf',
+            Str::slug($report->terminal_data['project_title'] ?? $report->topic->title).'-'.Str::slug($report->report_label).'.pdf',
             ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
         );
     }

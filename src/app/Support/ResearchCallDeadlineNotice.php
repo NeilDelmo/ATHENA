@@ -15,7 +15,7 @@ class ResearchCallDeadlineNotice
 
     public function forUser(?User $user): ?ResearchCall
     {
-        if (! $this->isEligibleUser($user)) {
+        if (! $this->isEligibleUser($user) || ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
             return null;
         }
 
@@ -63,7 +63,7 @@ class ResearchCallDeadlineNotice
 
     public function canBeDismissedBy(?User $user, ResearchCall $researchCall): bool
     {
-        if (! $this->isEligibleUser($user)) {
+        if (! $this->isEligibleUser($user) || ! $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
             return false;
         }
 

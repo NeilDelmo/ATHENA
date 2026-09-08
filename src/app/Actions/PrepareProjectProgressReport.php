@@ -9,8 +9,10 @@ use App\Models\User;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class PrepareProjectProgressReport
@@ -36,8 +38,8 @@ class PrepareProjectProgressReport
         try {
             $workPlan = collect($validated['work_plan']);
             $period = $supersedesReport === null
-                ? $this->monitoringQuarterService->forDate($validated['reporting_date'])
-                : $this->monitoringQuarterService->forReport($supersedesReport);
+                ? $this->monitoringQuarterService->forDate($validated['reporting_date'], $topic)
+                : $this->monitoringQuarterService->forDate($supersedesReport->reporting_date, $topic);
             $attachmentPath = $attachment?->store('progress-reports/'.$topic->id, 'local');
 
             if ($attachmentPath !== null) {
@@ -50,6 +52,8 @@ class PrepareProjectProgressReport
                 'submitted_by' => $user->id,
                 'reporting_year' => $period['year'],
                 'reporting_quarter' => $period['quarter'],
+                'period_start' => $period['start']->toDateString(),
+                'period_end' => $period['end']->toDateString(),
                 'version_number' => $supersedesReport === null ? 1 : $supersedesReport->version_number + 1,
                 'supersedes_report_id' => $supersedesReport?->id,
                 'progress_percentage' => (int) round($workPlan->sum(
@@ -85,7 +89,23 @@ class PrepareProjectProgressReport
                 'official_pdf_checksum' => hash('sha256', $pdf),
                 'official_pdf_size' => strlen($pdf),
             ]);
-            $report->save();
+            DB::transaction(function () use ($topic, $report, $period, $supersedesReport): void {
+                $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+                if (! $lockedTopic->isMonitoringAvailable()) {
+                    throw ValidationException::withMessages(['preparation' => 'Monitoring is no longer open for this project.']);
+                }
+                $existing = $lockedTopic->progressReports()->where('reporting_year', $period['year'])->where('reporting_quarter', $period['quarter']);
+                if ($supersedesReport === null && $existing->exists()) {
+                    throw ValidationException::withMessages(['preparation' => 'This quarter already has a prepared or submitted report. Open that report instead.']);
+                }
+                if ($supersedesReport !== null) {
+                    $source = ProjectProgressReport::query()->whereKey($supersedesReport->id)->lockForUpdate()->firstOrFail();
+                    if ($source->topic_id !== $topic->id || $source->review_status !== 'revision_requested' || $source->nextVersion()->exists()) {
+                        throw ValidationException::withMessages(['preparation' => 'This report can no longer be revised. Reload its review record.']);
+                    }
+                }
+                $report->save();
+            });
 
             return $report;
         } catch (Throwable $exception) {

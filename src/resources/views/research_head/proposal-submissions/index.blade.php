@@ -2,6 +2,8 @@
     <x-slot name="header">
         <div>
             <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Proposal Submissions</h2>
+            <a href="{{ route('signatories.index') }}" class="mt-2 mr-4 inline-flex text-sm font-semibold text-red-700 dark:text-red-300">Manage signatory names</a>
+            <a href="{{ route('similarity-checks.index') }}" class="mt-2 inline-flex text-sm font-semibold text-red-700 dark:text-red-300">Similarity-check requests</a>
             <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Receive active proposal packages, review their current status, and retain every submitted version.</p>
         </div>
     </x-slot>
@@ -43,6 +45,8 @@
                 @forelse ($activeProposals as $proposal)
                     @php
                         [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
+                            'lrec_queued' => ['Awaiting LREC presentation', 'Initial review is cleared. Record the outcome after the presentation.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
+                            'lrec_review' => ['LREC review', 'Record committee feedback or clear the proposal for signing.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
                             'expert_review' => ['Under expert review', 'The assigned expert is evaluating this package.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
                             'for_final_decision' => ['Awaiting decision', 'The review stage is complete and the proposal needs a Research Head decision.', 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200'],
                             'revision_requested' => ['Revision requested', 'The faculty member is preparing the requested corrections.', 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200'],
@@ -154,6 +158,8 @@
                     'pending' => 'Pending',
                     'expert_review' => 'Awaiting Research Head',
                     'for_final_decision' => 'Awaiting Research Head',
+                    'lrec_queued' => 'Awaiting LREC presentation',
+                    'lrec_review' => 'LREC review',
                     'revision_requested' => 'Revision requested',
                     'resubmitted' => 'Resubmitted',
                     'ready_for_signature' => 'Ready for signature',

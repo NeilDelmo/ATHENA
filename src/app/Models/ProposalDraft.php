@@ -24,6 +24,7 @@ class ProposalDraft extends Model
         'project_leader',
         'status',
         'lock_version',
+        'signatory_selections',
     ];
 
     protected $attributes = [
@@ -37,12 +38,31 @@ class ProposalDraft extends Model
             'planned_start' => 'date',
             'planned_end' => 'date',
             'lock_version' => 'integer',
+            'signatory_selections' => 'array',
         ];
     }
 
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function signatoryFields(string $paper): array
+    {
+        $fields = [];
+        foreach (ProposalSignatory::FIELDS[$paper] ?? [] as $key => $label) {
+            $selection = $this->signatory_selections[$key] ?? null;
+            if ($selection === null) {
+                continue;
+            }
+            $fields[$key] = $selection['name'];
+            $roleKey = ['verified_by' => 'verified_role', 'certified_by' => 'certified_role', 'verifier_name' => 'verifier_role'][$key] ?? null;
+            if ($roleKey) {
+                $fields[$roleKey] = $selection['position'];
+            }
+        }
+
+        return $fields;
     }
 
     public function researchCall(): BelongsTo

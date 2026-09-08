@@ -63,6 +63,7 @@ class ProposalDraftGADChecklistController extends Controller
     private function gadChecklistData(ProposalDraft $proposalDraft): array
     {
         return [
+            ...$proposalDraft->signatoryFields('gad_checklist'),
             'project_title' => (string) $proposalDraft->project_title,
             'project_leader' => (string) $proposalDraft->project_leader,
         ];

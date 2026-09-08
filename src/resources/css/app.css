@@ -147,6 +147,37 @@
     background: rgb(239 68 68 / 0.2);
 }
 
+.pdf-annotation-mark[data-feedback-source='co_evaluator'],
+.pdf-annotation-pending-mark[data-feedback-source='co_evaluator'],
+.pdf-annotation-area-preview[data-feedback-source='co_evaluator'] {
+    border-color: rgb(29 78 216 / 0.8);
+    background: rgb(59 130 246 / 0.24);
+}
+.pdf-annotation-mark[data-feedback-source='co_evaluator']:hover,
+.pdf-annotation-mark[data-feedback-source='co_evaluator']:focus-visible {
+    background: rgb(59 130 246 / 0.38);
+    box-shadow: 0 0 0 2px rgb(29 78 216 / 0.6);
+}
+.pdf-annotation-mark-selected[data-feedback-source='co_evaluator'] {
+    background: rgb(59 130 246 / 0.45);
+    box-shadow: 0 0 0 4px rgb(191 219 254 / 0.95), 0 0 0 6px rgb(29 78 216 / 0.8);
+}
+.pdf-annotation-mark[data-feedback-source='co_evaluator'] .pdf-annotation-number,
+.pdf-annotation-pin[data-feedback-source='co_evaluator'] {
+    background: #1d4ed8;
+}
+.pdf-annotation-viewer[data-active-reviewer='co_evaluator'] .textLayer ::selection {
+    background: rgb(59 130 246 / 0.42);
+}
+@keyframes reviewer-lock-confirm {
+    0% { transform: scale(.8) rotate(-12deg); }
+    60% { transform: scale(1.15) rotate(3deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .reviewer-lock-confirmed { animation: reviewer-lock-confirm 280ms ease-out; }
+}
+
 .pdf-annotation-area-mode .pdf-annotation-page,
 .pdf-annotation-area-mode .pdf-annotation-page .textLayer {
     cursor: crosshair;
@@ -661,4 +692,9 @@ html.dark .revision-embedded [data-proposal-autosave-status] {
 
 .revision-embedded [data-revision-shared-summary].revision-section-revealed {
     display: block;
+}
+
+/* Keep the final form controls clear of the persistent back button. */
+body:has([data-fixed-back-link]) main {
+    padding-bottom: 7rem;
 }

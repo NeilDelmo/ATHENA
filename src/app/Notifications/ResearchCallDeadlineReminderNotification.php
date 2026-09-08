@@ -35,7 +35,7 @@ class ResearchCallDeadlineReminderNotification extends Notification implements S
 
         return [
             'title' => $isFinalReminder ? 'Research call closes in about 24 hours' : 'Research call deadline approaching',
-            'message' => 'The research call “'.$this->researchCallTitle.'” closes on '.$this->closesAt->timezone(config('app.timezone'))->format('M j, Y \a\t g:i A').' PHT.',
+            'message' => 'The research call “'.$this->researchCallTitle.'” closes on '.$this->closesAt->timezone(config('app.timezone'))->format('M j, Y \a\t g:i A').' PHT. Proposal submissions remain available anytime in your Proposal Workspace.',
             'url' => $this->url,
             'level' => $isFinalReminder ? 'warning' : 'info',
             'research_call_id' => $this->researchCallId,

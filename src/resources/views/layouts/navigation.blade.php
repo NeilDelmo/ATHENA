@@ -479,6 +479,7 @@
             </div>
         @endif
 
+        @if (Auth::user()->isUsingWorkspace('research_head'))
         <a
             wire:navigate
             href="{{ route('research-calls.index') }}"
@@ -495,5 +496,6 @@
             </svg>
             <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>
         </a>
+        @endif
     </div>
 </aside>

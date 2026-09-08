@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class SubmitPreparedProjectProgressReportRequest extends FormRequest
@@ -19,6 +20,7 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
             && $report->isPrepared()
             && $this->user()?->id === $report->submitted_by
             && $topic->isMonitoringAvailable()
+            && app(MonitoringQuarterService::class)->canSubmitForDate($topic, $report->reporting_date)
             && $topic->isAccessibleTo($this->user());
     }
 
