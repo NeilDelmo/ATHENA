@@ -148,6 +148,11 @@
                dark:scrollbar-thumb-slate-700"
     >
         @if (Auth::user()->isUsingWorkspace('research_head'))
+            <a wire:navigate href="{{ route('similarity-checks.index') }}" aria-label="Similarity Checks" title="Similarity Checks"
+                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition {{ request()->routeIs('similarity-checks.*') ? 'bg-white text-[#7A0019] ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-800' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900' }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Similarity Checks</span>
+            </a>
             <a
                 wire:navigate
                 href="{{ route('research_head.dashboard') }}"
@@ -441,10 +446,9 @@
                         class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
                     >
                         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>RRL Finder</span>
+                        <span>Literature Search and Source Organizer</span>
                     </a>
 
-                    @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
                     <a
                         href="{{ route('research-support.index') }}#turnitin"
                         @click="
@@ -460,6 +464,7 @@
                         <span>Turnitin</span>
                     </a>
 
+                    @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
                     <a
                         href="{{ route('research-support.index') }}#conference-finder"
                         @click="

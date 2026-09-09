@@ -27,15 +27,20 @@ test('similarity checks keep version identity and restrict requests and private 
     Storage::disk('local')->put('proposal.pdf', '%PDF-1.4 original');
     $input = ['proposal_version_file_id' => $file->id];
     $this->actingAs($other)->post(route('similarity-checks.store', $topic), $input)->assertForbidden();
-    $this->actingAs($faculty)->get(route('similarity-checks.index'))->assertOk()->assertSee($topic->title);
+    $this->actingAs($faculty)->get(route('similarity-checks.index'))->assertOk()->assertSee($topic->title)->assertDontSee('Detailed Proposal')->assertDontSee('data-similarity-report-upload', false);
     $this->post(route('similarity-checks.store', $topic), $input)->assertRedirect()->assertSessionHasNoErrors();
     $this->post(route('similarity-checks.store', $topic), $input)->assertRedirect();
     expect(ProposalSimilarityCheck::count())->toBe(1);
     $check = ProposalSimilarityCheck::firstOrFail();
     $this->patch(route('similarity-checks.update', $check), ['status' => 'in_progress'])->assertForbidden();
-    $this->actingAs($head)->get(route('similarity-checks.index'))->assertOk()->assertSee('Download this proposal version');
+    $this->actingAs($head)->get(route('similarity-checks.index'))->assertOk()->assertSee('Download submitted document')
+        ->assertSeeInOrder(['data-turnitin-resource', 'id="similarity-requests"', 'data-similarity-report-upload'], false)
+        ->assertSee('aria-label="Similarity Checks"', false)
+        ->assertDontSee('Research Help Facility')
+        ->assertDontSee('Detailed Proposal');
     $this->patch(route('similarity-checks.update', $check), ['status' => 'in_progress'])->assertSessionHasNoErrors();
     $this->patch(route('similarity-checks.update', $check), ['status' => 'completed'])->assertSessionHasErrors('report');
+    $this->patch(route('similarity-checks.update', $check), ['status' => 'completed', 'report' => UploadedFile::fake()->create('notes.txt', 10, 'text/plain')])->assertSessionHasErrors('report');
     $this->patch(route('similarity-checks.update', $check), ['status' => 'completed', 'similarity_score' => 18.5, 'report' => UploadedFile::fake()->create('turnitin.pdf', 10, 'application/pdf')])->assertSessionHasNoErrors();
     expect($check->fresh()->status)->toBe('completed')->and($topic->fresh()->status)->toBe('pending');
     $this->actingAs($faculty)->get(route('similarity-checks.download', $check))->assertDownload('similarity-report-version-1.pdf');

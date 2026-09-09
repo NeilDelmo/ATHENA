@@ -22,7 +22,7 @@
     @endphp
 
     <div
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
+        class="mx-auto w-full space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-paper-editor
         data-paper-draft-save="true"
         data-detailed-proposal-autosave="true"
@@ -92,6 +92,16 @@
             </div>
         @endunless
 
+        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex gap-2" aria-label="Proposal editor view">
+                <button type="button" @click="previewTab = 'edit'" :aria-pressed="previewTab === 'edit'" class="proposal-mobile-tab rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white">Edit</button>
+                <button type="button" @click="showProposalPreview()" :aria-pressed="previewTab === 'preview'" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white">Preview</button>
+                <button type="button" @click="previewPaneOpen = !previewPaneOpen" :aria-expanded="previewPaneOpen" aria-controls="proposal-preview-panel" class="proposal-desktop-toggle rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
+            </div>
+            <span class="text-xs text-slate-500 dark:text-slate-400">Refresh the preview to include your latest edits.</span>
+        </div>
+        <div class="proposal-preview-workspace" :class="{ 'preview-collapsed': !previewPaneOpen, 'preview-tab-active': previewTab === 'preview' }" @keydown.escape.window="previewFullscreen = false">
+        <div class="proposal-edit-pane space-y-6" aria-label="Proposal editing form">
         <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -109,7 +119,7 @@
             </dl>
         </section>
 
-        <form data-paper-form data-detailed-proposal-autosave-form x-ref="form" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
+        <form data-paper-form data-detailed-proposal-autosave-form x-ref="form" @input="markProposalPreviewStale()" @change="markProposalPreviewStale()" action="{{ route('faculty.proposal-drafts.detailed-proposal.update', $proposalDraft) }}" method="POST" enctype="multipart/form-data" class="space-y-6" novalidate>
             @csrf
             @method('PUT')
             <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">
@@ -494,7 +504,7 @@
                         <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-900 lg:overflow-y-auto sm:p-6">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
-                                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Editable RRL paragraph</p>
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Editable research notes</p>
                                     <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Generate a cautious draft from the visible evidence or write your own. Adding it to the RRL also creates its synchronized reference.</p>
                                 </div>
                                 <button type="button" x-on:click="generateLiteratureReviewDraft()" x-bind:disabled="literatureReviewGenerating || !hasLiteratureReviewEvidence()" class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-red-700 px-3.5 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40" x-text="literatureReviewGenerating ? 'Drafting...' : 'Draft from evidence'"></button>
@@ -760,9 +770,27 @@
         </form>
 
         <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="previewError || downloadError"></div>
-        <section x-show="previewHtml" x-cloak class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-            <div class="mb-4 flex items-start justify-between gap-3"><div><h3 class="text-base font-black text-gray-900">Detailed proposal content preview</h3><p class="mt-1 text-xs text-gray-500">Use the Word download for the exact official page layout.</p></div><button type="button" x-on:click="printPreview" x-bind:disabled="!previewReady" class="rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 disabled:opacity-50">Print preview</button></div>
-            <iframe x-ref="previewFrame" x-bind:srcdoc="previewHtml" x-on:load="previewReady = true" title="Detailed Research Proposal content preview" class="h-[80vh] w-full rounded-xl border border-gray-200 bg-white"></iframe>
+        </div>
+        <section id="proposal-preview-panel" class="proposal-preview-pane rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" :class="{ 'proposal-preview-fullscreen': previewFullscreen }" :role="previewFullscreen ? 'dialog' : 'region'" :aria-modal="previewFullscreen ? 'true' : null" aria-labelledby="proposal-preview-title">
+            <div class="space-y-3 border-b border-slate-200 p-4 dark:border-slate-700">
+                <h3 id="proposal-preview-title" class="text-base font-black text-slate-900 dark:text-white">Detailed proposal content preview</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Use the Word download for the exact official page layout.</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" @click="generatePreview()" :disabled="previewLoading" class="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50" x-text="previewLoading ? 'Generating…' : 'Refresh preview'"></button>
+                    <label class="text-xs font-bold text-slate-700 dark:text-slate-200">Zoom
+                        <select aria-label="Preview zoom" :value="previewZoom" @change="setProposalPreviewZoom($event.target.value)" class="rounded-lg border-slate-300 py-1 text-xs dark:bg-slate-800">
+                            <option value="50">50%</option><option value="75">75%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option>
+                        </select>
+                    </label>
+                    <button type="button" @click="toggleProposalPreviewFullscreen()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold dark:text-white" x-text="previewFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                    <button type="button" @click="printPreview()" :disabled="!previewReady" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50 dark:text-white">Print preview</button>
+                </div>
+                <p x-show="previewStale" x-cloak role="status" class="text-xs font-semibold text-amber-700 dark:text-amber-300">Your edits are newer than this preview. Refresh to update it.</p>
+                <p x-show="previewError || validationMessage" x-cloak role="alert" class="text-sm text-red-700 dark:text-red-300" x-text="previewError || validationMessage"></p>
+            </div>
+            <p x-show="!previewHtml" class="p-6 text-sm text-slate-500 dark:text-slate-400" x-text="previewLoading ? 'Preparing your proposal preview…' : 'Select Refresh preview to see your current proposal here.'"></p>
+            <iframe x-ref="previewFrame" x-show="previewHtml" x-bind:srcdoc="previewHtml" x-on:load="proposalPreviewLoaded()" title="Detailed Research Proposal content preview" class="min-h-0 w-full flex-1 rounded-b-2xl bg-white"></iframe>
         </section>
+        </div>
     </div>
 </x-app-layout>

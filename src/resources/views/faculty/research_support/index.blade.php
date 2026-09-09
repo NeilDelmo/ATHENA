@@ -26,7 +26,7 @@
 
                 this.activeResearchTool = @js($canUseResearcherTools)
                     ? (researcherTools[window.location.hash] ?? 'rrl')
-                    : 'rrl';
+                    : (window.location.hash === '#turnitin' ? 'turnitin' : 'rrl');
             },
         }"
         x-init="syncActiveResearchTool()"
@@ -48,9 +48,8 @@
                     class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition"
                 >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
-                    RRL Finder
+                    Literature Search and Source Organizer
                 </button>
-                @if ($canUseResearcherTools)
                 <button
                     type="button"
                     role="tab"
@@ -63,6 +62,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12.8 2.3 2.2L15 9.8M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     Turnitin
                 </button>
+                @if ($canUseResearcherTools)
                 <button
                     type="button"
                     role="tab"
@@ -87,55 +87,11 @@
             />
         </div>
 
-        @if ($canUseResearcherTools)
         <div x-show="activeResearchTool === 'turnitin'" x-cloak>
-            <section id="turnitin" class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-2xl bg-slate-950 shadow-lg shadow-slate-900/10" aria-labelledby="turnitin-heading">
-                <div class="relative grid gap-4 px-4 py-4 sm:px-5 sm:py-5 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-center">
-                    <div class="absolute inset-y-0 right-0 hidden w-2/5 bg-gradient-to-l from-emerald-500/20 to-transparent sm:block" aria-hidden="true"></div>
-
-                    <div class="relative">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded-full bg-emerald-400 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-slate-950">Academic integrity</span>
-                            <span class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">External resource</span>
-                        </div>
-                        <h3 id="turnitin-heading" class="mt-3 text-lg font-black leading-tight text-white sm:text-xl">Review similarity before submitting your report.</h3>
-                        <p class="mt-1.5 max-w-2xl text-xs leading-5 text-slate-300">Open Turnitin to generate and review a similarity report, revisit attribution, and strengthen citations before submitting a research paper or project report.</p>
-                        <div class="mt-4 flex flex-wrap items-center gap-3">
-                            <a
-                                href="https://www.turnitin.com/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="Visit the Turnitin website (opens in a new tab)"
-                                class="inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
-                            >
-                                Visit Turnitin
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H18m0 0v4.5M18 6l-7.5 7.5M10.5 7.5H7.1A1.1 1.1 0 0 0 6 8.6v8.3A1.1 1.1 0 0 0 7.1 18h8.3a1.1 1.1 0 0 0 1.1-1.1v-3.4" /></svg>
-                            </a>
-                            <span class="text-[11px] font-semibold text-slate-400">Institutional access may be required</span>
-                        </div>
-                    </div>
-
-                    <div class="relative hidden rounded-xl border border-white/10 bg-white/10 p-3 shadow-xl backdrop-blur-sm lg:block" aria-hidden="true">
-                        <div class="flex items-center gap-2.5">
-                            <span class="grid h-8 w-8 place-items-center rounded-lg bg-emerald-400 text-slate-950">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12.8 2.3 2.2L15 9.8M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            </span>
-                            <div>
-                                <p class="text-[10px] font-black uppercase tracking-wider text-white">Similarity report</p>
-                                <p class="text-[9px] text-slate-400">Review your matched text</p>
-                            </div>
-                        </div>
-                        <div class="mt-3 space-y-2">
-                            <div class="h-1.5 w-4/5 rounded-full bg-white/40"></div>
-                            <div class="h-1.5 w-2/3 rounded-full bg-emerald-400/80"></div>
-                            <div class="h-1.5 w-11/12 rounded-full bg-white/30"></div>
-                            <div class="h-1.5 w-1/2 rounded-full bg-amber-300/80"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <x-turnitin-resource />
         </div>
 
+        @if ($canUseResearcherTools)
         <div x-show="activeResearchTool === 'conference'" x-cloak>
 
     <section id="conference-finder" class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm" aria-labelledby="conference-finder-heading">

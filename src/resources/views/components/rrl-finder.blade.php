@@ -9,7 +9,7 @@
     x-data="{ workspaceMode: 'find', saveOptionsOpen: false }"
     x-init="$store.literatureSearch.initializeLibrary($el)"
     class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_24px_70px_-36px_rgba(15,23,42,0.35)] ring-1 ring-slate-950/[0.025] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30 dark:ring-white/5"
-    aria-label="RRL Finder"
+    aria-label="Literature Search and Source Organizer"
     data-rrl-workspace
     data-literature-library-save-url="{{ route('research-support.literature-library.store') }}"
     data-literature-synthesis-url="{{ route('research-support.literature-synthesis') }}"
@@ -171,14 +171,27 @@
                     <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Year<input x-model="$store.literatureSearch.externalSource.year" type="number" min="1900" max="{{ now()->year }}" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
                     <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Venue<input x-model="$store.literatureSearch.externalSource.venue" maxlength="500" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
                 </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Enter authors in given-name surname order, separated by commas. Add the publication details below to complete the IEEE reference.</p>
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    @foreach (['volume' => 'Volume', 'issue' => 'Issue / number', 'pages' => 'Pages (e.g. 15-24)', 'publisher' => 'Publisher'] as $field => $label)
+                        <label class="text-xs font-bold text-slate-600 dark:text-slate-300">{{ $label }}
+                            <input x-model="$store.literatureSearch.externalSource.{{ $field }}" maxlength="{{ $field === 'publisher' ? 500 : 100 }}" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                        </label>
+                    @endforeach
+                </div>
                 <div class="grid gap-3 sm:grid-cols-2">
                     <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">DOI<input x-model="$store.literatureSearch.externalSource.doi" maxlength="255" placeholder="10.xxxx/example" class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
                     <label class="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Public source URL<input x-model="$store.literatureSearch.externalSource.url" type="url" maxlength="2048" placeholder="https://..." class="mt-1 block h-10 w-full rounded-lg border-slate-200 bg-white text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white"></label>
                 </div>
                 <label class="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Paste citation, BibTeX, or RIS <span class="normal-case font-medium tracking-normal">(optional; fields are filled when recognizable)</span><textarea x-model="$store.literatureSearch.externalSource.citation" @blur="$store.literatureSearch.parseExternalCitation()" rows="5" maxlength="10000" class="mt-1 block w-full rounded-lg border-slate-200 bg-white text-xs leading-5 dark:border-slate-700 dark:bg-slate-900 dark:text-white"></textarea></label>
-                <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-[10px] leading-4 text-slate-500 dark:text-slate-400">A selected proposal is linked privately; an RRL paragraph still needs review and confirmation before insertion.</p><button type="submit" :disabled="$store.literatureSearch.isSavingExternalSource" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-slate-900"><span x-text="$store.literatureSearch.isSavingExternalSource ? 'Saving...' : 'Save external source'"></span></button></div>
+                <div class="flex flex-wrap items-center justify-between gap-3"><p class="text-[10px] leading-4 text-slate-500 dark:text-slate-400">A selected proposal is linked privately; cite the source in your own writing to add its IEEE reference.</p><button type="submit" :disabled="$store.literatureSearch.isSavingExternalSource" class="rounded-lg bg-slate-900 px-4 py-2 text-xs font-black text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-slate-900"><span x-text="$store.literatureSearch.isSavingExternalSource ? 'Saving...' : 'Save source and create IEEE reference'"></span></button></div>
             </form>
         </details>
+        <div x-show="$store.literatureSearch.externalReference" x-cloak class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950" role="status">
+            <label for="manual-ieee-reference" class="text-sm font-bold text-slate-800 dark:text-white">IEEE reference</label>
+            <textarea id="manual-ieee-reference" readonly rows="4" x-bind:value="$store.literatureSearch.externalReference" @focus="$el.select()" class="mt-2 w-full rounded-lg border-slate-300 bg-white text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-white"></textarea>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Select to copy. Verify the publication details. ATHENA assigns [1], [2], and subsequent numbers when you cite the source in your proposal.</p>
+        </div>
     </div>
 
     <section id="shared-literature-library" x-show="workspaceMode === 'library'" x-cloak x-transition class="border-b border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/35 sm:p-6" aria-labelledby="shared-literature-heading" role="tabpanel">
@@ -425,7 +438,7 @@
                             <div class="mt-3 grid gap-2">
                                 <button type="button" @click="$store.literatureSearch.prepareSynthesis($store.literatureSearch.selectedResult(), 'rrl')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-left text-xs font-black text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/50"><span>Prepare for RRL</span><span class="font-semibold text-red-600 dark:text-red-300">Review first →</span></button>
                                 <button type="button" @click="$store.literatureSearch.saveResult($store.literatureSearch.selectedResult(), 'reference')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-xs font-black text-slate-800 transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:border-red-900 dark:hover:bg-red-950/30"><span>Add reference</span><span class="font-semibold text-slate-500 dark:text-slate-400">Section XVI →</span></button>
-                                <button type="button" @click="$store.literatureSearch.prepareSynthesis($store.literatureSearch.selectedResult(), 'both')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="min-h-11 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">Prepare RRL + reference</button>
+                                <button type="button" @click="$store.literatureSearch.prepareSynthesis($store.literatureSearch.selectedResult(), 'both')" :disabled="!$store.literatureSearch.selectedProposalId || $store.literatureSearch.isSavingResult($store.literatureSearch.selectedResult())" class="min-h-11 rounded-xl bg-red-700 px-3.5 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">Create research notes</button>
                             </div>
                         @endif
 
@@ -513,11 +526,11 @@
                 <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700 sm:px-6">
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h2 id="literature-synthesis-title" class="text-lg font-black text-slate-950 dark:text-white">Prepare the RRL paragraph</h2>
+                            <h2 id="literature-synthesis-title" class="text-lg font-black text-slate-950 dark:text-white">Create editable research notes</h2>
                             <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800 dark:bg-amber-950/50 dark:text-amber-200" x-text="$store.literatureSearch.synthesisBasis === 'full_text' ? 'Loaded open-access full text' : 'Indexed abstract only'"></span>
                             <span class="sr-only">Abstract only</span>
                         </div>
-                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Compare the evidence with the editable wording before anything is inserted into the proposal.</p>
+                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Save abstract-based notes for reading. Inserting text into Section XI requires full-paper evidence and your review.</p>
                     </div>
                     <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close RRL preparation dialog">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -554,7 +567,7 @@
                     <section class="flex min-h-[28rem] flex-col p-5 dark:bg-slate-900 lg:overflow-y-auto sm:p-6">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <label for="literature-synthesis-draft" class="text-sm font-black text-slate-950 dark:text-white">Editable RRL paragraph</label>
+                                <label for="literature-synthesis-draft" class="text-sm font-black text-slate-950 dark:text-white">Editable research notes</label>
                                 <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Revise the wording so it fits your study. Do not treat this as a direct quotation.</p>
                             </div>
                             <button type="button" x-show="$store.literatureSearch.hasSynthesisEvidence()" @click="$store.literatureSearch.generateSynthesis()" :disabled="$store.literatureSearch.isSynthesizing" class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3.5 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30">
@@ -565,7 +578,7 @@
 
                         <div x-show="$store.literatureSearch.isSynthesizing && !$store.literatureSearch.synthesisDraft" class="mt-4 flex min-h-56 flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-red-200 bg-red-50/60 p-6 text-center dark:border-red-900 dark:bg-red-950/20" role="status">
                             <span class="h-8 w-8 animate-spin rounded-full border-2 border-red-200 border-t-red-700 dark:border-red-950 dark:border-t-red-300"></span>
-                            <p class="mt-4 text-sm font-black text-red-900 dark:text-red-100">Preparing a complete evidence-based draft</p>
+                            <p class="mt-4 text-sm font-black text-red-900 dark:text-red-100">Preparing editable research notes</p>
                             <p class="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">ATHENA is constrained to the evidence shown on the left.</p>
                         </div>
 
@@ -575,7 +588,7 @@
                             x-model="$store.literatureSearch.synthesisDraft"
                             rows="12"
                             maxlength="5000"
-                            placeholder="Generate a 120–180-word evidence-based draft, or write your own synthesis after reviewing the paper."
+                            placeholder="Write research notes or summarize the available evidence. Abstract-based notes stay in your library."
                             class="mt-4 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
                         ></textarea>
 
@@ -592,8 +605,8 @@
                             <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
                             <button type="button" @click="$store.literatureSearch.discardSynthesisDraft()" :disabled="$store.literatureSearch.isDiscardingDraft || !$store.literatureSearch.synthesisDraft" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30">Discard draft</button>
                             <button type="button" @click="$store.literatureSearch.persistSynthesisDraft('draft')" :disabled="$store.literatureSearch.isSavingDraft || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" x-text="$store.literatureSearch.isSavingDraft ? 'Saving...' : 'Save draft'"></button>
-                            <button type="button" @click="$store.literatureSearch.confirmSynthesis()" :disabled="$store.literatureSearch.isSynthesizing || $store.literatureSearch.isSavingDraft || $store.literatureSearch.isSavingResult($store.literatureSearch.synthesisSource) || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">
-                                <span x-text="$store.literatureSearch.synthesisApplyTo === 'both' ? 'Insert RRL + add reference' : 'Insert into Section XI'"></span>
+                            <button type="button" @click="$store.literatureSearch.confirmSynthesis()" :disabled="$store.literatureSearch.isSynthesizing || $store.literatureSearch.isSavingDraft || $store.literatureSearch.isSavingResult($store.literatureSearch.synthesisSource) || $store.literatureSearch.synthesisDraft.trim().length < 40 || $store.literatureSearch.synthesisBasis !== 'full_text'" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">
+                                <span x-text="$store.literatureSearch.synthesisApplyTo === 'both' ? 'Insert reviewed text + IEEE reference' : 'Insert reviewed text'"></span>
                             </button>
                         </div>
                     </section>

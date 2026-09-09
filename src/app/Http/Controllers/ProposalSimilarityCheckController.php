@@ -49,10 +49,10 @@ class ProposalSimilarityCheckController extends Controller
             return ProposalSimilarityCheck::firstOrCreate(['proposal_version_file_id' => $file->id], ['requested_by' => $request->user()->id, 'status' => 'requested']);
         });
         if ($check->wasRecentlyCreated) {
-            User::role('research_head')->get()->each->notify(new ProposalActivityNotification('Similarity check requested', 'A Detailed Proposal similarity check was requested for '.$topic->title.'.', route('similarity-checks.index', ['topic' => $topic]), 'info', $topic->id, workspace: 'research_head'));
+            User::role('research_head')->get()->each->notify(new ProposalActivityNotification('Similarity check requested', 'A document similarity check was requested for '.$topic->title.'.', route('similarity-checks.index', ['topic' => $topic]), 'info', $topic->id, workspace: 'research_head'));
         }
 
-        return redirect()->route('similarity-checks.index', ['topic' => $topic])->with('success', $check->wasRecentlyCreated ? 'Similarity check requested for the latest submitted Detailed Proposal.' : 'This proposal version already has a similarity-check record.');
+        return redirect()->route('similarity-checks.index', ['topic' => $topic])->with('success', $check->wasRecentlyCreated ? 'Similarity check requested for the latest submitted document.' : 'This proposal version already has a similarity-check record.');
     }
 
     public function update(UpdateProposalSimilarityCheckRequest $request, ProposalSimilarityCheck $check): RedirectResponse

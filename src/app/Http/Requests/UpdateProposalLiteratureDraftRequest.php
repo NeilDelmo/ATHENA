@@ -26,11 +26,23 @@ class UpdateProposalLiteratureDraftRequest extends FormRequest
     {
         return [
             'rrl_note' => ['required', 'string', 'min:40', 'max:5000'],
-            'rrl_evidence_basis' => ['required', Rule::in(['abstract', 'full_text'])],
+            'rrl_evidence_basis' => ['required', Rule::in(
+                $this->input('rrl_draft_status') === ProposalDraftLiteratureSource::DRAFT_CONFIRMED
+                    ? ['full_text']
+                    : ['abstract', 'full_text'],
+            )],
             'rrl_draft_status' => ['required', Rule::in([
                 ProposalDraftLiteratureSource::DRAFT_SAVED,
                 ProposalDraftLiteratureSource::DRAFT_CONFIRMED,
             ])],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'rrl_evidence_basis.in' => 'Save abstract-based research notes as a draft. Review full-paper evidence before confirming text for insertion.',
         ];
     }
 }

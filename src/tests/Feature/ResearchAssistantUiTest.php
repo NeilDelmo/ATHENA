@@ -123,7 +123,7 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertOk()
         ->assertSee('Research Support')
         ->assertDontSee('AI Research Assistant')
-        ->assertSee('RRL Finder')
+        ->assertSee('Literature Search and Source Organizer')
         ->assertSee('role="tablist"', false)
         ->assertSee('role="tab"', false)
         ->assertSee('activeResearchTool', false)
@@ -181,7 +181,11 @@ test('faculty and faculty researchers can open the research help facility', func
         $response
             ->assertSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
             ->assertSee('aria-controls="turnitin"', false)
-            ->assertSee('Review similarity before submitting your report.')
+            ->assertSee('Original research.')
+            ->assertSee('Confident submission.')
+            ->assertSee('Request a similarity check')
+            ->assertSee('href="'.route('similarity-checks.index').'"', false)
+            ->assertSee('Read the report guide')
             ->assertSee('href="https://www.turnitin.com/"', false)
             ->assertSee('target="_blank"', false)
             ->assertSee('rel="noopener noreferrer"', false)
@@ -193,9 +197,9 @@ test('faculty and faculty researchers can open the research help facility', func
             ->assertSee('Scraped source: WikiCFP');
     } else {
         $response
-            ->assertDontSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
-            ->assertDontSee('aria-controls="turnitin"', false)
-            ->assertDontSee('href="https://www.turnitin.com/"', false)
+            ->assertSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
+            ->assertSee('aria-controls="turnitin"', false)
+            ->assertSee('href="https://www.turnitin.com/"', false)
             ->assertDontSee("x-show=\"activeResearchTool === 'conference'\"", false)
             ->assertDontSee('Conference Finder');
     }
@@ -215,7 +219,7 @@ test('research heads can open the assistant workspace without faculty researcher
         ->assertDontSee('href="https://www.turnitin.com/"', false)
         ->assertDontSee('Conference Finder')
         ->assertSee('Ask ATHENA')
-        ->assertDontSee('RRL Finder');
+        ->assertDontSee('Literature Search and Source Organizer');
 })->with(['research_head']);
 
 test('proposal owners can launch athena with the current proposal selected', function () {

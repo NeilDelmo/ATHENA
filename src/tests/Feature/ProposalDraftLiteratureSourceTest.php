@@ -47,6 +47,52 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('manual publication details are preserved in the IEEE reference and proposal link', function () {
+    $saved = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), [
+            ...$this->sourcePayload,
+            'source' => 'External: Other',
+            'volume' => '12',
+            'issue' => '3',
+            'pages' => '15-24',
+            'publisher' => 'Coastal Press',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('source.volume', '12')
+        ->assertJsonPath('source.issue', '3')
+        ->assertJsonPath('source.pages', '15-24')
+        ->assertJsonPath('source.publisher', 'Coastal Press')
+        ->json('source');
+
+    expect($saved['reference'])
+        ->toContain('M. Santos and L. Cruz,', 'vol. 12,', 'no. 3,', 'pp. 15-24,', 'Coastal Press,', '2024.', 'doi: 10.1234/mangrove.2024.');
+
+    $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved['id']]))
+        ->assertCreated()
+        ->assertJsonPath('source.reference', $saved['reference']);
+});
+
+test('abstract notes can be saved but only full paper notes can be confirmed for insertion', function () {
+    $saved = $this->actingAs($this->faculty)
+        ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()->json('source.id');
+    $link = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $saved]))
+        ->assertCreated()->json('source.id');
+    $route = route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $link]);
+    $notes = [
+        'rrl_note' => 'This abstract describes community involvement in monitoring. Read the full paper to assess the methods and limitations.',
+        'rrl_evidence_basis' => 'abstract',
+        'rrl_draft_status' => 'draft',
+    ];
+
+    $this->putJson($route, $notes)->assertOk();
+    $response = $this->putJson($route, [...$notes, 'rrl_draft_status' => 'confirmed']);
+    expect($response->status())->toBe(422);
+    expect($response->json('errors.rrl_evidence_basis'))->toBeArray()->not->toBeEmpty();
+    $this->putJson($route, [...$notes, 'rrl_evidence_basis' => 'full_text', 'rrl_draft_status' => 'confirmed'])
+        ->assertOk();
+});
+
 test('faculty share one canonical literature record instead of creating duplicate papers', function () {
     $route = route('research-support.literature-library.store');
 
@@ -420,13 +466,13 @@ test('the research support page exposes shared papers collections and optional p
         ->assertSee('Environment')
         ->assertSee('Use with proposal')
         ->assertSee('Create shared collection')
-        ->assertSee('Prepare the RRL paragraph')
+        ->assertSee('Create editable research notes')
         ->assertSee('Abstract only')
-        ->assertSee('Editable RRL paragraph')
+        ->assertSee('Editable research notes')
         ->assertSee('data-literature-synthesis-url', false)
         ->assertSee('Section XI')
         ->assertSee('Section XVI')
-        ->assertSee('Prepare RRL + reference')
+        ->assertSee('Create research notes')
         ->assertSee('data-literature-library-save-url', false)
         ->assertSee('data-literature-attach-url-template', false)
         ->assertDontSee('Proposal literature library')

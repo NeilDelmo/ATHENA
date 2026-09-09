@@ -3,6 +3,7 @@ import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.e
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
+import { proposalPreviewWorkspace } from './proposal-preview-workspace';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
@@ -2464,7 +2465,12 @@ Alpine.store('literatureSearch', {
         doi: '',
         url: '',
         citation: '',
+        volume: '',
+        issue: '',
+        pages: '',
+        publisher: '',
     },
+    externalReference: '',
     isSavingExternalSource: false,
     synthesisReviewOpen: false,
     synthesisSource: null,
@@ -2761,6 +2767,10 @@ Alpine.store('literatureSearch', {
         this.externalSource.authors ||= bibtex('author')?.replaceAll(' and ', ', ') || ris('AU') || ris('A1') || '';
         this.externalSource.year ||= bibtex('year') || ris('PY')?.match(/\d{4}/)?.[0] || year || '';
         this.externalSource.venue ||= bibtex('journal') || bibtex('booktitle') || ris('JO') || ris('JF') || '';
+        this.externalSource.volume ||= bibtex('volume') || ris('VL') || '';
+        this.externalSource.issue ||= bibtex('number') || ris('IS') || '';
+        this.externalSource.pages ||= bibtex('pages')?.replaceAll('--', '-') || [ris('SP'), ris('EP')].filter(Boolean).join('-');
+        this.externalSource.publisher ||= bibtex('publisher') || ris('PB') || '';
         this.externalSource.doi ||= bibtex('doi') || ris('DO') || doi || '';
         this.externalSource.url ||= bibtex('url') || ris('UR') || url || '';
     },
@@ -2792,6 +2802,10 @@ Alpine.store('literatureSearch', {
                 authors: String(this.externalSource.authors || '').trim() || null,
                 year: this.numberOrNull(this.externalSource.year),
                 venue: String(this.externalSource.venue || '').trim() || null,
+                volume: String(this.externalSource.volume || '').trim() || null,
+                issue: String(this.externalSource.issue || '').trim() || null,
+                pages: String(this.externalSource.pages || '').trim() || null,
+                publisher: String(this.externalSource.publisher || '').trim() || null,
                 doi: String(this.externalSource.doi || '').trim() || null,
                 url: String(this.externalSource.url || '').trim() || null,
                 source: `External: ${String(this.externalSource.provider || 'Other').trim() || 'Other'}`,
@@ -2803,6 +2817,8 @@ Alpine.store('literatureSearch', {
             const saved = await this.saveResult(result);
 
             if (!saved?.id) return;
+
+            this.externalReference = saved.reference || '';
 
             if (Number(this.selectedProposalId)) {
                 await this.attachSourceToProposal(saved, null, null, false);
@@ -2817,9 +2833,13 @@ Alpine.store('literatureSearch', {
                 doi: '',
                 url: '',
                 citation: '',
+                volume: '',
+                issue: '',
+                pages: '',
+                publisher: '',
             };
             this.saveNotice = Number(this.selectedProposalId)
-                ? 'External source saved and linked to the selected proposal. Review and confirm its RRL paragraph before inserting it.'
+                ? 'Source saved and linked to the selected proposal. Cite it in your writing to add its numbered IEEE reference.'
                 : 'External source saved to the shared library. Link it to a proposal when you are ready.';
         } finally {
             this.isSavingExternalSource = false;
@@ -2918,7 +2938,7 @@ Alpine.store('literatureSearch', {
         if (!source || !['rrl', 'both'].includes(applyTo)) return;
 
         if (!Number(this.selectedProposalId)) {
-            this.saveError = 'Choose an editable proposal before preparing an RRL paragraph.';
+            this.saveError = 'Choose an editable proposal before saving research notes.';
             return;
         }
 
@@ -3038,6 +3058,10 @@ Alpine.store('literatureSearch', {
     },
 
     async confirmSynthesis() {
+        if (this.synthesisBasis !== 'full_text') {
+            this.synthesisError = 'Abstract-based notes can be saved for research. Review the full paper before inserting text into the proposal.';
+            return;
+        }
         const draft = this.synthesisDraft.trim();
         const source = this.synthesisSource;
         const applyTo = this.synthesisApplyTo;
@@ -7691,6 +7715,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     nextId: 0,
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],
     selectedWorkspacePerson: '',
@@ -8812,6 +8837,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async saveLiteratureReview(addToRelatedLiterature = false) {
+        if (addToRelatedLiterature && this.literatureReviewBasis !== 'full_text') {
+            this.literatureReviewError = 'Save these abstract-based research notes for later. Review the full paper before inserting text into the proposal.';
+            return;
+        }
         const source = this.literatureReviewSource;
         const draft = this.literatureReviewDraft.trim();
 
@@ -9345,8 +9374,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     addLiteratureSourceToRrl(source, quiet = false) {
         const note = String(source?.rrl_note || '').trim();
 
-        if (!note || source?.rrl_draft_status !== 'confirmed') {
-            if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Return to the RRL Finder to review and confirm this draft first.';
+        if (!note || source?.rrl_draft_status !== 'confirmed' || source?.rrl_evidence_basis !== 'full_text') {
+            if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Review full-paper evidence in the literature organizer before inserting text.';
             return false;
         }
 
@@ -9850,6 +9879,11 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async generatePreview() {
+        if (this.previewLoading) return;
+        this.previewPaneOpen = true;
+        this.previewTab = 'preview';
+        const revision = this.previewRevision;
+        this.validationMessage = '';
         this.previewError = '';
         this.downloadError = '';
         this.previewLoading = true;
@@ -9873,6 +9907,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             if (!response.ok) throw new Error('The content preview could not be generated. Please try again.');
             this.previewHtml = await response.text();
+            this.previewStale = revision !== this.previewRevision;
         } catch (error) {
             this.previewHtml = '';
             this.previewError = error instanceof Error ? error.message : 'The content preview could not be generated.';
