@@ -97,7 +97,7 @@
                         label="project details"
                     />
 
-                    <section aria-labelledby="project-details-heading" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                    <section aria-labelledby="project-details-heading" class="overflow-visible rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                         <div class="border-b border-gray-200 border-l-4 border-l-red-600 px-5 py-5 dark:border-slate-800 sm:px-6">
                             <div class="flex flex-wrap items-center gap-2">
                                 <h3 id="project-details-heading" class="text-lg font-black text-gray-950 dark:text-white">Project Details</h3>

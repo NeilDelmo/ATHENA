@@ -163,6 +163,15 @@ class TopicProposal extends Model
             });
     }
 
+    public function scopeOccupiesSubmissionCapacity(Builder $query): Builder
+    {
+        return $query->where(function (Builder $query): void {
+            $query
+                ->awaitingApproval()
+                ->orWhere(fn (Builder $query): Builder => $query->occupiesCapacity());
+        });
+    }
+
     public function scopeAwaitingApproval(Builder $query): Builder
     {
         return $query->whereIn('status', self::AWAITING_APPROVAL_STATUSES);

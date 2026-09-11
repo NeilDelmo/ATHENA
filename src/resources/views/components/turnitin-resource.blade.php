@@ -12,23 +12,38 @@
         <div class="flex flex-col justify-center px-6 py-10 sm:px-10 sm:py-14">
             <p class="mb-5 text-sm font-semibold text-[#087e83]">{{ $isHead ? 'For the Research Head' : 'For faculty and faculty researchers' }}</p>
             <h3 id="turnitin-heading" class="max-w-xl text-4xl font-semibold leading-[1.08] tracking-tight text-[#003c46] sm:text-5xl">Original research.<br><span class="text-[#087e83]">Confident submission.</span></h3>
-            <p class="mt-6 max-w-lg text-base leading-7 text-slate-600">{{ $isHead ? 'Review submitted documents in Turnitin, then attach the result below to return it to the faculty member.' : 'Check your document with the Research Office. Review matched sources, improve attribution, and keep your similarity report with your research records.' }}</p>
+            <p class="mt-6 max-w-lg text-base leading-7 text-slate-600">{{ $isHead ? 'Review documents directly in Turnitin using the Research Office account. ATHENA provides access to the resource but does not submit documents to Turnitin or retrieve its results.' : 'Check your document with the Research Office. Review matched sources, improve attribution, and keep your similarity report with your research records.' }}</p>
             <div class="mt-8 flex flex-wrap items-center gap-4">
-                <a href="{{ $isHead ? '#similarity-requests' : route('similarity-checks.index') }}" class="inline-flex min-h-12 items-center justify-center gap-3 rounded-lg bg-[#003c46] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#087e83] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">{{ $isHead ? 'Manage similarity checks' : 'Request a similarity check' }} <span aria-hidden="true">→</span></a>
-                <a href="https://home.turnitin.com/" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center gap-2 px-1 text-sm font-bold text-[#003c46] underline decoration-slate-300 underline-offset-4 hover:decoration-teal-700">Sign in to Turnitin <span aria-hidden="true">↗</span></a>
+                @if ($isHead)
+                    <a href="https://home.turnitin.com/" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center justify-center gap-3 rounded-lg bg-[#003c46] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#087e83] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">Open Turnitin <span aria-hidden="true">↗</span></a>
+                    <a href="https://guides.turnitin.com/hc/en-us/articles/28310712438029-Accessing-the-Similarity-Report-and-similarity-score-via-Turnitin-Website" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center gap-2 px-1 text-sm font-bold text-[#003c46] underline decoration-slate-300 underline-offset-4 hover:decoration-teal-700">Read the report guide <span aria-hidden="true">↗</span></a>
+                @else
+                    <a href="{{ route('similarity-checks.index') }}" class="inline-flex min-h-12 items-center justify-center gap-3 rounded-lg bg-[#003c46] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#087e83] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">Request a similarity check <span aria-hidden="true">→</span></a>
+                    <a href="https://home.turnitin.com/" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-12 items-center gap-2 px-1 text-sm font-bold text-[#003c46] underline decoration-slate-300 underline-offset-4 hover:decoration-teal-700">Sign in to Turnitin <span aria-hidden="true">↗</span></a>
+                @endif
             </div>
-            <p class="mt-4 text-xs leading-5 text-slate-500">{{ $isHead ? 'Upload a PDF report to the matching request below. Faculty can download the returned result.' : 'Already requested a check? Open the request page to track it or download your report.' }} Institutional access may be required for direct Turnitin sign-in.</p>
+            <p class="mt-4 text-xs leading-5 text-slate-500">{{ $isHead ? 'Similarity findings should be interpreted in context and should not be treated as an automatic approval or rejection.' : 'Already requested a check? Open the request page to track it or download your report.' }} Institutional access may be required for direct Turnitin sign-in.</p>
         </div>
         <div class="relative flex flex-col justify-center overflow-hidden bg-[#dff5ef] px-6 py-10 sm:px-10 sm:py-14">
             <div aria-hidden="true" class="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full border-[48px] border-white/40"></div>
             <div class="relative">
-                <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#087e83]">Your path to a reviewed document</p>
-                <h4 class="mt-3 text-2xl font-semibold tracking-tight text-[#003c46]">From submission<br>to a clearer next step.</h4>
-                <ol class="mt-8 divide-y divide-teal-900/15">
-                    <li class="flex gap-5 pb-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">01</span><div><h5 class="text-base font-bold text-[#003c46]">Request your check</h5><p class="mt-1 text-sm leading-6 text-slate-600">Choose your submitted document in ATHENA.</p></div></li>
-                    <li class="flex gap-5 py-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">02</span><div><h5 class="text-base font-bold text-[#003c46]">The office reviews it</h5><p class="mt-1 text-sm leading-6 text-slate-600">The Research Office processes the request and attaches the Turnitin result.</p></div></li>
-                    <li class="flex gap-5 pt-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">03</span><div><h5 class="text-base font-bold text-[#003c46]">Read your report</h5><p class="mt-1 text-sm leading-6 text-slate-600">Download the result, examine matched passages, and review your citations.</p></div></li>
-                </ol>
+                @if ($isHead)
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#087e83]">Using Turnitin during review</p>
+                    <h4 class="mt-3 text-2xl font-semibold tracking-tight text-[#003c46]">Review externally.<br>Decide with context.</h4>
+                    <ol class="mt-8 divide-y divide-teal-900/15">
+                        <li class="flex gap-5 pb-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">01</span><div><h5 class="text-base font-bold text-[#003c46]">Open Turnitin</h5><p class="mt-1 text-sm leading-6 text-slate-600">Sign in through the institution's authorized Turnitin account.</p></div></li>
+                        <li class="flex gap-5 py-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">02</span><div><h5 class="text-base font-bold text-[#003c46]">Examine the document</h5><p class="mt-1 text-sm leading-6 text-slate-600">Review matched passages, sources, exclusions, and the overall similarity score in Turnitin.</p></div></li>
+                        <li class="flex gap-5 pt-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">03</span><div><h5 class="text-base font-bold text-[#003c46]">Use professional judgment</h5><p class="mt-1 text-sm leading-6 text-slate-600">Use the findings as supporting evidence when communicating citation or revision concerns.</p></div></li>
+                    </ol>
+                @else
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#087e83]">Your path to a reviewed document</p>
+                    <h4 class="mt-3 text-2xl font-semibold tracking-tight text-[#003c46]">From submission<br>to a clearer next step.</h4>
+                    <ol class="mt-8 divide-y divide-teal-900/15">
+                        <li class="flex gap-5 pb-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">01</span><div><h5 class="text-base font-bold text-[#003c46]">Request your check</h5><p class="mt-1 text-sm leading-6 text-slate-600">Choose your submitted document in ATHENA.</p></div></li>
+                        <li class="flex gap-5 py-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">02</span><div><h5 class="text-base font-bold text-[#003c46]">The office reviews it</h5><p class="mt-1 text-sm leading-6 text-slate-600">The Research Office processes the request and attaches the Turnitin result.</p></div></li>
+                        <li class="flex gap-5 pt-6"><span class="text-3xl font-light text-[#087e83]" aria-hidden="true">03</span><div><h5 class="text-base font-bold text-[#003c46]">Read your report</h5><p class="mt-1 text-sm leading-6 text-slate-600">Download the result, examine matched passages, and review your citations.</p></div></li>
+                    </ol>
+                @endif
             </div>
         </div>
     </div>

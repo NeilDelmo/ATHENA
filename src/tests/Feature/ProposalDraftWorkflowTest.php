@@ -453,6 +453,8 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertDontSee('data-paper-shortcuts-dropdown', false)
         ->assertSee('data-project-details-autosave="true"', false)
         ->assertSee('data-project-details-autosave-form', false)
+        ->assertSee('aria-labelledby="project-details-heading" class="overflow-visible', false)
+        ->assertDontSee('aria-labelledby="project-details-heading" class="overflow-hidden', false)
         ->assertDontSee('Upload PDF')
         ->assertSee('>Open Research Proposal</a>', false)
         ->assertSee('>Open Work Plan</a>', false)
@@ -1474,6 +1476,47 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
         ->and($refreshedLineItemBudget->source_data['amounts']['telephone_expenses'])->toEqual(6000.0)
         ->and($refreshedLineItemBudget->source_data['co_total'])->toEqual(0.0)
         ->and($refreshedLineItemBudget->source_data['project_total'])->toEqual(6000.0);
+});
+
+test('a prepared third proposal remains a draft until a submission slot becomes available', function () {
+    Notification::fake();
+    $draft = ($this->completeDraft)(($this->createDraft)([
+        'project_title' => 'Third Coastal Research Proposal',
+    ]));
+    $firstProposal = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'First Submitted Proposal',
+        'status' => 'pending',
+    ]);
+    TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Second Submitted Proposal',
+        'status' => 'revision_requested',
+    ]);
+    $stagedPaths = $draft->documents->pluck('file_path')->filter()->values();
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect()
+        ->assertSessionHasErrors([
+            'status' => 'Submission cannot continue. Faculty Owner is already participating in the maximum of 2 submitted or active research projects. A slot becomes available when a proposal is rejected or an approved project is completed.',
+        ]);
+
+    expect($draft->fresh()->status)->toBe(ProposalDraft::STATUS_DRAFT)
+        ->and(TopicProposal::query()->count())->toBe(2);
+    $stagedPaths->each(fn (string $path) => Storage::disk('local')->assertExists($path));
+
+    $firstProposal->update(['status' => 'rejected']);
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    expect(TopicProposal::query()->where('status', 'pending')->count())->toBe(1)
+        ->and(ProposalDraft::query()->whereKey($draft->id)->exists())->toBeFalse();
 });
 
 test('final submission creates one immutable package then rejects a duplicate request', function () {

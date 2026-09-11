@@ -13,6 +13,7 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\CurriculumVitaeDocumentService;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\ExpenseBreakdownDocumentService;
+use App\Services\FacultyProjectCapacityService;
 use App\Services\GADChecklistDocumentService;
 use App\Services\InitialScreeningFormDocumentService;
 use App\Services\LineItemBudgetDocumentService;
@@ -49,6 +50,7 @@ class SubmitProposalDraft
         private readonly WorkPlanDocumentService $workPlanDocumentService,
         private readonly LineItemBudgetDocumentService $lineItemBudgetDocumentService,
         private readonly ExpenseBreakdownDocumentService $expenseBreakdownDocumentService,
+        private readonly FacultyProjectCapacityService $facultyProjectCapacityService,
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
@@ -188,6 +190,7 @@ class SubmitProposalDraft
                 }
 
                 $lockedDraft->load(['researchCall', 'members']);
+                $this->facultyProjectCapacityService->ensureSubmissionAvailableFor($lockedDraft);
                 $collaboratorIds = $lockedDraft->members
                     ->filter(fn (ProposalDraftMember $member): bool => $member->isAccepted() && $member->user_id !== $user->id)
                     ->pluck('user_id')

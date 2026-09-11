@@ -31,11 +31,17 @@ test('head manages signatories and faculty selections are private role checked a
     $this->actingAs($faculty)->post(route('signatories.store'), $input)->assertForbidden();
     $this->actingAs($head)->post(route('signatories.store'), $input)->assertSessionHasNoErrors();
     $person = ProposalSignatory::firstOrFail();
-    $this->get(route('signatories.index'))->assertOk()->assertSee('Original Name');
+    $this->get(route('signatories.index'))
+        ->assertOk()
+        ->assertSee('Original Name')
+        ->assertSee('aria-label="Signatory Directory"', false);
     $this->actingAs($other)->get(route('signatories.edit', $draft))->assertForbidden();
     $this->actingAs($faculty)->get(route('signatories.edit', $draft))->assertOk()->assertSee('Original Name');
     $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['certified_by' => $person->id]])->assertSessionHasErrors('signatories.certified_by');
-    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['verified_by' => $person->id]])->assertSessionHasNoErrors();
+    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['verified_by' => $person->id]])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
+        ->assertSessionHas('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
     expect($draft->fresh()->signatoryFields('work_plan'))->toBe(['verified_by' => 'Original Name', 'verified_role' => 'Research Head']);
     expect($paper->fresh()->file_path)->toBeNull()->and($paper->fresh()->lock_version)->toBe(1);
     $this->actingAs($head)->patch(route('signatories.update', $person), [...$input, 'name' => 'New Name', 'active' => 0])->assertSessionHasNoErrors();

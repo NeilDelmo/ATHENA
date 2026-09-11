@@ -13,9 +13,9 @@
     aria-live="assertive"
     aria-atomic="true"
     aria-hidden="{{ $livewireTarget ? 'false' : 'true' }}"
-    class="fixed inset-0 z-[110] overflow-y-auto bg-gray-950/70 px-4 py-8 backdrop-blur-sm"
+    class="fixed inset-0 z-[110] items-center justify-center overflow-y-auto bg-gray-950/70 px-4 py-8 backdrop-blur-sm"
 >
-    <div class="flex min-h-full items-center justify-center">
+    <div class="flex min-h-full w-full items-center justify-center">
         <div class="w-full max-w-md overflow-hidden rounded-3xl border border-white/20 bg-white shadow-2xl">
             <div class="flex flex-col items-center px-6 py-8 text-center sm:px-8 sm:py-10">
                 <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 ring-1 ring-red-100">

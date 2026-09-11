@@ -698,13 +698,25 @@ function initializeProposalVersionMonitors() {
         if (monitor.dataset.proposalVersionMonitorReady === 'true') return;
 
         monitor.dataset.proposalVersionMonitorReady = 'true';
-        const loadedVersion = Number(monitor.dataset.loadedVersion || 0);
+        const editor = monitor.closest('[data-paper-editor]');
+        const saveInFlight = () => Boolean(editor && Alpine.$data(editor).autoSaveInFlight);
+        const savedVersion = () => {
+            const form = editor?.querySelector('[data-paper-form]');
+            const version = form?.querySelector('[name="document_version"]')
+                || form?.querySelector('[name="draft_version"]');
+
+            return Number(version?.value ?? monitor.dataset.loadedVersion ?? 0);
+        };
         const stateUrl = monitor.dataset.stateUrl;
 
         if (!stateUrl) return;
 
+        let checking = false;
+
         const refresh = async () => {
-            if (document.hidden || !document.body.contains(monitor)) return;
+            if (checking || document.hidden || !document.body.contains(monitor) || saveInFlight()) return;
+
+            checking = true;
 
             try {
                 const response = await fetch(stateUrl, {
@@ -723,14 +735,19 @@ function initializeProposalVersionMonitors() {
                 }
 
                 const state = await response.json();
+                if (!document.body.contains(monitor) || saveInFlight()) return;
+
                 const currentVersion = Number(state.version || 0);
+                const warning = monitor.querySelector('[data-proposal-stale-warning]');
                 const monitorStatus = monitor.querySelector('[data-proposal-monitor-status]');
                 const checkedAt = new Intl.DateTimeFormat(undefined, {
                     hour: 'numeric',
                     minute: '2-digit',
                 }).format(new Date());
 
-                if (currentVersion === loadedVersion) {
+                if (currentVersion <= savedVersion() && !state.is_removed) {
+                    if (warning instanceof HTMLElement) warning.hidden = true;
+
                     if (monitorStatus instanceof HTMLElement) {
                         monitorStatus.textContent = `Up to date · checked ${checkedAt}`;
                     }
@@ -738,16 +755,15 @@ function initializeProposalVersionMonitors() {
                     return;
                 }
 
-                const warning = monitor.querySelector('[data-proposal-stale-warning]');
                 const message = monitor.querySelector('[data-proposal-stale-message]');
-                const actor = state.updated_by || 'A teammate';
+                const actor = state.updated_by;
                 const timestamp = formatProposalVersionTimestamp(state.updated_at);
                 const documentLabel = monitor.dataset.documentLabel || 'paper';
 
                 if (message instanceof HTMLElement) {
                     message.textContent = state.is_removed
-                        ? `${actor} removed this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`
-                        : `${actor} saved version ${currentVersion} of this ${documentLabel}${timestamp ? ` on ${timestamp}` : ''}.`;
+                        ? `${actor ? `${actor} removed this ${documentLabel}` : `This ${documentLabel} was removed`}${timestamp ? ` on ${timestamp}` : ''}.`
+                        : `${actor ? `${actor} saved version ${currentVersion}` : `Version ${currentVersion} was saved`}${timestamp ? ` on ${timestamp}` : ''}.`;
                 }
 
                 if (monitorStatus instanceof HTMLElement) monitorStatus.textContent = 'Newer version available';
@@ -758,6 +774,8 @@ function initializeProposalVersionMonitors() {
                 if (monitorStatus instanceof HTMLElement) {
                     monitorStatus.textContent = 'Check unavailable · save protection remains on';
                 }
+            } finally {
+                checking = false;
             }
         };
 
@@ -3726,7 +3744,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             if (response.status === 422 && autoSaveHasStaleVersionError(payload)) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.projectDetailsStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.projectDetailsStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -3755,7 +3773,7 @@ Alpine.data('proposalDraftProjectDetails', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved newer project details')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.projectDetailsStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.projectDetailsStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -4322,22 +4340,15 @@ Alpine.data('notificationMenu', (config) => ({
     },
 
     async openNotification(item) {
+        await this.markNotificationRead(item);
+
         if (item.data.action_url && !item.data.action_completed) {
             await this.acceptProposalInvitation(item);
 
             return;
         }
 
-        if (!this.requiresCompletedReview(item)) {
-            await this.markNotificationRead(item);
-        }
-
         if (item.data.url) window.location.assign(item.data.url);
-    },
-
-    requiresCompletedReview(item) {
-        return this.workspace === 'research_head'
-            && ['proposal_submissions', 'project_monitoring'].includes(item.data?.sidebar_area);
     },
 
     levelClass(level) {
@@ -5976,7 +5987,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
                     this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                    this.workPlanAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                    this.workPlanAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                     return;
                 }
@@ -6015,7 +6026,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.workPlanAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.workPlanAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -6569,7 +6580,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
                     this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                    this.lineItemBudgetAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                    this.lineItemBudgetAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                     return;
                 }
@@ -6608,7 +6619,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.lineItemBudgetAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.lineItemBudgetAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -7087,7 +7098,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
                     this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                    this.expenseBreakdownAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                    this.expenseBreakdownAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                     return;
                 }
@@ -7126,7 +7137,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.expenseBreakdownAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.expenseBreakdownAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -7575,7 +7586,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
                 if (autoSaveHasStaleVersionError(payload)) {
                     this.autoSaveBlocked = true;
                     this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                    this.curriculumVitaeAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                    this.curriculumVitaeAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                     return;
                 }
@@ -7614,7 +7625,7 @@ Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.curriculumVitaeAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.curriculumVitaeAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }
@@ -9316,7 +9327,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             if (error instanceof Error && error.message.includes('A teammate saved a newer version of this paper')) {
                 this.autoSaveBlocked = true;
                 this.$el.querySelector('[data-proposal-stale-warning]')?.removeAttribute('hidden');
-                this.detailedProposalAutoSaveStatus('A newer teammate change is available. Load the latest version before saving.', 'error');
+                this.detailedProposalAutoSaveStatus('A newer saved version is available. Load the latest version before saving.', 'error');
 
                 return;
             }

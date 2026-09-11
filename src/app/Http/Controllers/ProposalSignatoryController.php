@@ -66,6 +66,8 @@ class ProposalSignatoryController extends Controller
             }
         });
 
-        return back()->with('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
     }
 }

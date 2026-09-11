@@ -6,7 +6,6 @@ use App\Actions\AcceptProposalWorkspaceInvitation;
 use App\Models\ProposalDraftMember;
 use App\Models\User;
 use App\Services\FacultyProjectCapacityService;
-use App\Services\SidebarAttentionService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -44,8 +43,6 @@ class NotificationController extends Controller
         ],
     ];
 
-    public function __construct(private readonly SidebarAttentionService $sidebarAttention) {}
-
     public function index(Request $request): JsonResponse|View
     {
         $notifications = $request->user()->visibleNotifications();
@@ -80,10 +77,6 @@ class NotificationController extends Controller
         $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
         abort_unless($storedNotification, 404);
 
-        if ($this->sidebarAttention->notificationRequiresCompletedReview($request->user(), $storedNotification)) {
-            return response()->json(['read' => false]);
-        }
-
         $storedNotification->markAsRead();
 
         return response()->json(['read' => true]);
@@ -93,12 +86,7 @@ class NotificationController extends Controller
     {
         $user = $request->user();
         $unreadNotifications = $user->visibleNotifications()->whereNull('read_at');
-        $pendingReviewNotifications = $unreadNotifications
-            ->filter(fn (DatabaseNotification $notification): bool => $this->sidebarAttention
-                ->notificationRequiresCompletedReview($user, $notification));
-
         $unreadNotifications
-            ->reject(fn (DatabaseNotification $notification): bool => $pendingReviewNotifications->contains('id', $notification->id))
             ->each(fn (DatabaseNotification $notification) => $notification->markAsRead());
 
         if (! $request->expectsJson()) {
@@ -107,8 +95,8 @@ class NotificationController extends Controller
 
         return response()->json([
             'read' => true,
-            'unread_count' => $pendingReviewNotifications->count(),
-            'preserved_ids' => $pendingReviewNotifications->pluck('id')->values(),
+            'unread_count' => 0,
+            'preserved_ids' => [],
         ]);
     }
 
@@ -116,9 +104,7 @@ class NotificationController extends Controller
     {
         $storedNotification = $request->user()->visibleNotifications()->firstWhere('id', $notification);
         abort_unless($storedNotification, 404);
-        if (! $this->sidebarAttention->notificationRequiresCompletedReview($request->user(), $storedNotification)) {
-            $storedNotification->markAsRead();
-        }
+        $storedNotification->markAsRead();
 
         return redirect()->to($this->safeNotificationUrl($storedNotification->data['url'] ?? null));
     }

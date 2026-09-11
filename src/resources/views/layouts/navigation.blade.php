@@ -148,11 +148,6 @@
                dark:scrollbar-thumb-slate-700"
     >
         @if (Auth::user()->isUsingWorkspace('research_head'))
-            <a wire:navigate href="{{ route('similarity-checks.index') }}" aria-label="Similarity Checks" title="Similarity Checks"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition {{ request()->routeIs('similarity-checks.*') ? 'bg-white text-[#7A0019] ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-800' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900' }}">
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Similarity Checks</span>
-            </a>
             <a
                 wire:navigate
                 href="{{ route('research_head.dashboard') }}"
@@ -168,23 +163,6 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
                 </svg>
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Research Head Dashboard</span>
-            </a>
-
-            <a
-                wire:navigate
-                href="{{ route('research_head.faculty-directory.index') }}"
-                aria-label="Faculty Directory"
-                title="Faculty Directory"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.faculty-directory.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-            >
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0A17.9 17.9 0 0 1 12 21.75c-2.68 0-5.22-.59-7.5-1.65Z" />
-                </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Directory</span>
             </a>
 
             <form method="POST" action="{{ route('sidebar-attention.open', 'proposal_submissions') }}">
@@ -229,37 +207,59 @@
 
             <a
                 wire:navigate
-                href="{{ route('research_head.proposal-templates.index') }}"
-                aria-label="Proposal Templates"
-                title="Proposal Templates"
+                href="{{ route('research_head.faculty-directory.index') }}"
+                aria-label="Faculty Directory"
+                title="Faculty Directory"
                 class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
                        transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.proposal-templates.*')
+                       {{ request()->routeIs('research_head.faculty-directory.*')
                             ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
                             : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0A17.9 17.9 0 0 1 12 21.75c-2.68 0-5.22-.59-7.5-1.65Z" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Templates</span>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Directory</span>
             </a>
 
             <a
                 wire:navigate
-                href="{{ route('research_head.assistant-knowledge.index') }}"
-                aria-label="Athena Knowledge"
-                title="Athena Knowledge"
+                href="{{ route('signatories.index') }}"
+                aria-label="Signatory Directory"
+                title="Signatory Directory"
                 class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
                        transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.assistant-knowledge.*')
+                       {{ request()->routeIs('signatories.index')
                             ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
                             : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a4.5 4.5 0 0 0-4.5 4.5c0 1.72.966 3.214 2.385 3.972V18h4.23v-2.778A4.502 4.502 0 0 0 12 6.75Z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 21h4.5M12 3V1.5M4.575 5.325 3.45 4.2m16.1 0-1.125 1.125M4.5 12H3m18 0h-1.5" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0M18 9.75v6m3-3h-6" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Athena Knowledge</span>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Signatory Directory</span>
+            </a>
+
+            <a
+                wire:navigate
+                href="{{ route('research-calls.index') }}"
+                aria-label="Research Calls"
+                title="Research Calls"
+                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
+                       transition-all duration-200 ease-out hover:translate-x-0.5
+                       {{ request()->routeIs('research-calls.*')
+                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
+                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+            >
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5" />
+                </svg>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>
+            </a>
+
+            <a wire:navigate href="{{ route('similarity-checks.index') }}" aria-label="Similarity Checks" title="Similarity Checks"
+                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition {{ request()->routeIs('similarity-checks.*') ? 'bg-white text-[#7A0019] ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-800' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900' }}">
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Similarity Checks</span>
             </a>
         @endif
 
@@ -484,23 +484,5 @@
             </div>
         @endif
 
-        @if (Auth::user()->isUsingWorkspace('research_head'))
-        <a
-            wire:navigate
-            href="{{ route('research-calls.index') }}"
-            aria-label="Research Calls"
-            title="Research Calls"
-            class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                   transition-all duration-200 ease-out hover:translate-x-0.5
-                   {{ request()->routeIs('research-calls.*')
-                        ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                        : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-        >
-            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5" />
-            </svg>
-            <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>
-        </a>
-        @endif
     </div>
 </aside>

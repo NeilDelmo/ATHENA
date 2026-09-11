@@ -79,6 +79,7 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
 test('turning in a proposal shows a blocking progress screen after confirmation', function () {
     $reviewPackage = file_get_contents(resource_path('views/faculty/proposal-drafts/_review-package.blade.php'));
     $appJavaScript = file_get_contents(resource_path('js/app.js'));
+    $modal = file_get_contents(resource_path('views/components/modal.blade.php'));
     $loadingScreen = Blade::render('<x-proposal-submission-loading-screen />');
 
     expect($reviewPackage)
@@ -91,6 +92,11 @@ test('turning in a proposal shows a blocking progress screen after confirmation'
         ->toContain('Turning in prepared package')
         ->toContain('sending the seven PDFs you reviewed')
         ->toContain('Please keep this page open until the submission is confirmed.')
+        ->toContain('items-center justify-center overflow-y-auto')
+        ->toContain('min-h-full w-full items-center justify-center')
+        ->and($modal)
+        ->toContain('shadow-xl transition-all')
+        ->not->toContain('shadow-xl transform transition-all')
         ->and($appJavaScript)
         ->toContain('showProposalSubmissionLoadingScreen(form)')
         ->toContain("form.dataset.proposalSubmitting = 'true'")
@@ -117,6 +123,8 @@ test('preparing submission PDFs shows a blocking progress screen', function () {
         ->toContain('Generating submission PDFs')
         ->toContain('preparing the seven final PDFs')
         ->toContain('Please keep this page open')
+        ->toContain('items-center justify-center overflow-y-auto')
+        ->toContain('min-h-full w-full items-center justify-center')
         ->and($appJavaScript)
         ->toContain('showProposalPdfPreparationLoadingScreen(form)')
         ->toContain("form.dataset.proposalPreparing = 'true'")
@@ -371,13 +379,12 @@ test('repeatable paper editors collapse earlier entries and focus the newly adde
         ->toContain('[data-line-item-budget-custom-input="${item.id}"]');
 });
 
-test('opening a Research Head review notification does not auto-mark it as read', function () {
+test('opening notifications marks them read without requiring a completed review', function () {
     $script = file_get_contents(resource_path('js/app.js'));
 
     expect($script)
-        ->toContain('if (!this.requiresCompletedReview(item))')
-        ->toContain("this.workspace === 'research_head'")
-        ->toContain("['proposal_submissions', 'project_monitoring'].includes(item.data?.sidebar_area)")
+        ->toContain('await this.markNotificationRead(item);')
+        ->not->toContain('this.requiresCompletedReview(item)')
         ->toContain('if (!response.ok || payload.read === false) return false;')
         ->toContain('const preservedIds = new Set(payload.preserved_ids || []);')
         ->toContain('this.unreadCount = payload.unread_count ?? 0;');

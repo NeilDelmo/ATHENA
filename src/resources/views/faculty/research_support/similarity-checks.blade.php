@@ -38,8 +38,9 @@
                 </div>
             </section>
         @endif
+        @if ($checks->isNotEmpty())
         <section id="similarity-requests" class="scroll-mt-6 space-y-3" aria-label="Similarity-check requests">
-            @forelse ($checks as $check)
+            @foreach ($checks as $check)
                 @php
                     $version = $check->file->version;
                     $topic = $version->topic;
@@ -90,10 +91,9 @@
                         </form>
                     @endif
                 </article>
-            @empty
-                <p class="rounded-xl border border-dashed border-gray-300 p-6 text-sm text-gray-500">No similarity-check requests yet.</p>
-            @endforelse
+            @endforeach
             {{ $checks->links() }}
         </section>
+        @endif
     </div>
 </x-app-layout>

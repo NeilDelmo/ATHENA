@@ -108,7 +108,17 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('1 package file')
         ->assertSee('2 package files')
         ->assertSee(route('topics.show', $topic).'#version-history', false)
-        ->assertSeeInOrder(['Faculty Directory', 'Proposal Submissions', 'Project Monitoring']);
+        ->assertSeeInOrder([
+            'Research Head Dashboard',
+            'Proposal Submissions',
+            'Project Monitoring',
+            'Faculty Directory',
+            'Signatory Directory',
+            'Research Calls',
+            'Similarity Checks',
+        ])
+        ->assertDontSee('aria-label="Proposal Templates"', false)
+        ->assertDontSee('aria-label="Athena Knowledge"', false);
 
     $review = $topic->reviews()->create([
         'reviewer_id' => $this->researchHead->id,

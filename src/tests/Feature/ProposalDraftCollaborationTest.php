@@ -408,7 +408,7 @@ test('a stale collaborator save cannot overwrite a newer teammate paper or proje
         ->get(route('faculty.proposal-drafts.work-plan.edit', $this->draft))
         ->assertOk()
         ->assertSee('name="document_version" value="0"', false)
-        ->assertSee('Collaboration protection is on.');
+        ->assertSee('Save protection is on.');
 
     $this->actingAs($this->collaborator)
         ->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), $staleWorkPlan)

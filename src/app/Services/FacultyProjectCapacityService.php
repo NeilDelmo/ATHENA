@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -66,6 +67,31 @@ class FacultyProjectCapacityService
         }
     }
 
+    public function ensureSubmissionAvailableFor(ProposalDraft $draft): void
+    {
+        $draft->loadMissing(['members', 'researchCall']);
+        $participants = $this->participantsForDraft($draft, lockForUpdate: true);
+        $limit = $this->limitFor($draft->researchCall);
+        $blockedParticipants = [];
+
+        foreach ($participants as $participant) {
+            $occupiedSlots = $this->participatingTopicsQuery($participant)
+                ->occupiesSubmissionCapacity()
+                ->count();
+
+            if ($occupiedSlots >= $limit) {
+                $blockedParticipants[] = 'Submission cannot continue. '.$participant->name
+                    .' is already participating in the maximum of '.$limit
+                    .' submitted or active research '.str('project')->plural($limit)
+                    .'. A slot becomes available when a proposal is rejected or an approved project is completed.';
+            }
+        }
+
+        if ($blockedParticipants !== []) {
+            throw ValidationException::withMessages(['status' => $blockedParticipants]);
+        }
+    }
+
     /**
      * @return Collection<int, User>
      */
@@ -73,16 +99,41 @@ class FacultyProjectCapacityService
     {
         $topic->loadMissing('collaborators');
 
-        $participantIds = $topic->collaborators
-            ->whereNotNull('accepted_at')
+        return $this->participatingUsers(
+            $topic->user_id,
+            $topic->collaborators,
+            $lockForUpdate,
+        );
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private function participantsForDraft(ProposalDraft $draft, bool $lockForUpdate = false): Collection
+    {
+        return $this->participatingUsers(
+            $draft->user_id,
+            $draft->members,
+            $lockForUpdate,
+        );
+    }
+
+    /**
+     * @param  Collection<int, mixed>  $members
+     * @return Collection<int, User>
+     */
+    private function participatingUsers(int $ownerId, Collection $members, bool $lockForUpdate): Collection
+    {
+        $acceptedMembers = $members->whereNotNull('accepted_at');
+
+        $participantIds = $acceptedMembers
             ->pluck('user_id')
             ->filter()
-            ->push($topic->user_id)
+            ->push($ownerId)
             ->unique()
             ->sort()
             ->values();
-        $unlinkedEmails = $topic->collaborators
-            ->whereNotNull('accepted_at')
+        $unlinkedEmails = $acceptedMembers
             ->whereNull('user_id')
             ->pluck('email')
             ->filter()

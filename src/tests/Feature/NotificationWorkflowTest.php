@@ -242,3 +242,67 @@ test('the notification inbox segregates activity and marks an opened item as rea
 
     expect($faculty->unreadNotifications()->count())->toBe(0);
 });
+
+test('Research Head notifications stay read after opening or marking them read', function (string $action, ?string $area) {
+    Role::firstOrCreate(['name' => 'research_head']);
+
+    $head = User::factory()->create();
+    $head->assignRole(['faculty', 'research_head']);
+    $head->notify(new ProposalActivityNotification(
+        title: 'New proposal submitted',
+        message: 'This review still needs a decision.',
+        url: route('research_head.proposal-submissions.index'),
+        workspace: User::WORKSPACE_RESEARCH_HEAD,
+        sidebarArea: $area,
+    ));
+    $notification = $head->notifications()->sole();
+
+    $head->notify(new ProposalActivityNotification(
+        title: 'Faculty workspace update',
+        message: 'This notification belongs to another workspace.',
+        url: route('faculty.dashboard'),
+        workspace: User::WORKSPACE_FACULTY,
+    ));
+    $facultyNotification = $head->notifications()->where('id', '!=', $notification->id)->sole();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->actingAs($head);
+
+    if ($action === 'open') {
+        $this->post(route('notifications.open', $notification))
+            ->assertRedirect(route('research_head.proposal-submissions.index'));
+    } elseif ($action === 'read') {
+        $this->patchJson(route('notifications.read', $notification))
+            ->assertOk()
+            ->assertJsonPath('read', true);
+    } else {
+        $this->patchJson(route('notifications.read-all'))
+            ->assertOk()
+            ->assertJsonPath('unread_count', 0)
+            ->assertJsonCount(0, 'preserved_ids');
+    }
+
+    $notification->refresh();
+    $readAt = $notification->read_at;
+    expect($readAt)->not->toBeNull()
+        ->and($facultyNotification->fresh()->read_at)->toBeNull();
+
+    $this->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(1, 'notifications')
+        ->assertJsonPath('notifications.0.id', $notification->id)
+        ->assertJsonPath('notifications.0.read_at', $readAt->toIso8601String())
+        ->assertJsonPath('unread_count', 0);
+
+    $this->travel(1)->minutes();
+
+    $this->patchJson(route('notifications.read', $notification))
+        ->assertOk()
+        ->assertJsonPath('read', true);
+
+    expect($notification->fresh()->read_at->equalTo($readAt))->toBeTrue();
+})->with(['open', 'read', 'read-all'])->with([
+    'proposal review' => ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
+    'project monitoring' => ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
+    'legacy review' => null,
+]);

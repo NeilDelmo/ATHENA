@@ -12,7 +12,7 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
-test('Research Head review notifications stay unread when their sidebar area is opened', function () {
+test('Research Head review notifications stay unread on sidebar navigation but can be explicitly read', function () {
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $head->notify(new ProposalActivityNotification(
@@ -64,23 +64,23 @@ test('Research Head review notifications stay unread when their sidebar area is 
         ->post(route('notifications.open', $proposalNotification))
         ->assertRedirect(route('research_head.proposal-submissions.index'));
 
-    expect($proposalNotification->fresh()->read_at)->toBeNull();
+    expect($proposalNotification->fresh()->read_at)->not->toBeNull();
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->actingAs($head)
         ->patchJson(route('notifications.read', $proposalNotification))
         ->assertOk()
-        ->assertJsonPath('read', false);
+        ->assertJsonPath('read', true);
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->actingAs($head)
         ->patchJson(route('notifications.read-all'))
         ->assertOk()
-        ->assertJsonPath('unread_count', 2)
-        ->assertJsonCount(2, 'preserved_ids');
+        ->assertJsonPath('unread_count', 0)
+        ->assertJsonCount(0, 'preserved_ids');
 
-    expect($proposalNotification->fresh()->read_at)->toBeNull()
-        ->and($monitoringNotification->fresh()->read_at)->toBeNull()
+    expect($proposalNotification->fresh()->read_at)->not->toBeNull()
+        ->and($monitoringNotification->fresh()->read_at)->not->toBeNull()
         ->and($generalNotification->fresh()->read_at)->not->toBeNull();
 });
 

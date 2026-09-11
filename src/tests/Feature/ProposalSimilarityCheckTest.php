@@ -27,7 +27,14 @@ test('similarity checks keep version identity and restrict requests and private 
     Storage::disk('local')->put('proposal.pdf', '%PDF-1.4 original');
     $input = ['proposal_version_file_id' => $file->id];
     $this->actingAs($other)->post(route('similarity-checks.store', $topic), $input)->assertForbidden();
-    $this->actingAs($faculty)->get(route('similarity-checks.index'))->assertOk()->assertSee($topic->title)->assertDontSee('Detailed Proposal')->assertDontSee('data-similarity-report-upload', false);
+    $this->actingAs($faculty)->get(route('similarity-checks.index'))
+        ->assertOk()
+        ->assertSee($topic->title)
+        ->assertDontSee('No similarity reports have been added yet.')
+        ->assertDontSee('No similarity-check requests yet.')
+        ->assertDontSee('id="similarity-requests"', false)
+        ->assertDontSee('Detailed Proposal')
+        ->assertDontSee('data-similarity-report-upload', false);
     $this->post(route('similarity-checks.store', $topic), $input)->assertRedirect()->assertSessionHasNoErrors();
     $this->post(route('similarity-checks.store', $topic), $input)->assertRedirect();
     expect(ProposalSimilarityCheck::count())->toBe(1);
@@ -35,7 +42,22 @@ test('similarity checks keep version identity and restrict requests and private 
     $this->patch(route('similarity-checks.update', $check), ['status' => 'in_progress'])->assertForbidden();
     $this->actingAs($head)->get(route('similarity-checks.index'))->assertOk()->assertSee('Download submitted document')
         ->assertSeeInOrder(['data-turnitin-resource', 'id="similarity-requests"', 'data-similarity-report-upload'], false)
+        ->assertSee('Using Turnitin during review')
+        ->assertSee('Use professional judgment')
+        ->assertDontSee('Your path to a reviewed document')
+        ->assertDontSee('Request your check')
         ->assertSee('aria-label="Similarity Checks"', false)
+        ->assertSeeInOrder([
+            'aria-label="Research Head Dashboard"',
+            'aria-label="Proposal Submissions"',
+            'aria-label="Project Monitoring"',
+            'aria-label="Faculty Directory"',
+            'aria-label="Signatory Directory"',
+            'aria-label="Research Calls"',
+            'aria-label="Similarity Checks"',
+        ], false)
+        ->assertDontSee('aria-label="Proposal Templates"', false)
+        ->assertDontSee('aria-label="Athena Knowledge"', false)
         ->assertDontSee('Research Help Facility')
         ->assertDontSee('Detailed Proposal');
     $this->patch(route('similarity-checks.update', $check), ['status' => 'in_progress'])->assertSessionHasNoErrors();
