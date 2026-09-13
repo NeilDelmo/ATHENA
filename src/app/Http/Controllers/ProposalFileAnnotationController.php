@@ -35,6 +35,7 @@ class ProposalFileAnnotationController extends Controller
         $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
         $annotations = $file->annotations()
             ->with(['reviewer', 'fileRevision'])
+            ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
             ->when(! $isResearchHead, fn ($query) => $query->whereNotNull('topic_review_file_revision_id'))
             ->oldest()
             ->get();
@@ -47,6 +48,7 @@ class ProposalFileAnnotationController extends Controller
         $draftAnnotations = $latestVersion
             ? ProposalFileAnnotation::query()
                 ->whereNull('topic_review_file_revision_id')
+                ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                 ->whereHas('file', fn ($query) => $query
                     ->where('proposal_version_id', $latestVersion->id)
                     ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD))
@@ -61,15 +63,9 @@ class ProposalFileAnnotationController extends Controller
                 'annotation_count' => $fileAnnotations->count(),
             ])
             ->values();
-        $lastCoEvaluatorName = ProposalFileAnnotation::query()
-            ->where('reviewer_id', $request->user()->id)
-            ->where('feedback_source', ProposalFileAnnotation::SOURCE_CO_EVALUATOR)
-            ->whereHas('file.version', fn ($query) => $query->where('topic_id', $topic->id))
-            ->latest('id')->value('co_evaluator_name');
         $annotationConfiguration = [
             'researchHeadName' => $isResearchHead ? $request->user()->name : ($annotations->first()?->reviewer?->name ?? 'Research Head'),
             'researchHeadAvatar' => $isResearchHead ? $request->user()->avatar : $annotations->first()?->reviewer?->avatar,
-            'coEvaluatorName' => $lastCoEvaluatorName ?? '',
             'pdfUrl' => route('topics.versions.files.view', [$topic, $version, $file]),
             'storeUrl' => route('topics.versions.files.annotations.store', [$topic, $version, $file]),
             'updateUrlTemplate' => route('topics.versions.files.annotations.update', [$topic, $version, $file, '__ANNOTATION__']),
@@ -116,9 +112,8 @@ class ProposalFileAnnotationController extends Controller
         $sections = $this->sectionMap->forFile($file);
         $annotation = $file->annotations()->create([
             'reviewer_id' => $request->user()->id,
-            'feedback_source' => $validated['feedback_source'] ?? ProposalFileAnnotation::SOURCE_HEAD,
-            'co_evaluator_name' => ($validated['feedback_source'] ?? null) === ProposalFileAnnotation::SOURCE_CO_EVALUATOR
-                ? trim($validated['co_evaluator_name']) : null,
+            'feedback_source' => ProposalFileAnnotation::SOURCE_HEAD,
+            'co_evaluator_name' => null,
             'annotation_type' => $validated['annotation_type'],
             'page_number' => $validated['page_number'],
             'selected_text' => $validated['annotation_type'] === ProposalFileAnnotation::TYPE_TEXT
@@ -169,6 +164,7 @@ class ProposalFileAnnotationController extends Controller
         abort_unless($this->canAnnotate($topic, $version), 403);
         abort_unless($annotation->proposal_version_file_id === $file->id, 404);
         abort_unless($annotation->reviewer_id === $request->user()->id, 403);
+        abort_unless($annotation->feedback_source === ProposalFileAnnotation::SOURCE_HEAD, 403);
         abort_unless($annotation->topic_review_file_revision_id === null, 409);
     }
 

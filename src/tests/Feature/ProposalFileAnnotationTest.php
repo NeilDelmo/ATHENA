@@ -7,6 +7,7 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\CommentResponseFeedback;
 use App\Services\ProposalRevisionSectionMap;
 use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Http\UploadedFile;
@@ -86,13 +87,15 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertDontSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
         ->assertDontSee('Back to proposal workspace')
-        ->assertSee('Drag over the part that needs revision, then add a comment.')
+        ->assertSee('Drag over the part that needs revision, then add a Research Head comment.')
         ->assertDontSee('Highlight text')
         ->assertDontSee('Mark an area')
         ->assertDontSee('Place a pin')
         ->assertSee('<meta name="app-url" content="'.url('/').'">', false)
         ->assertSee('Add comment')
         ->assertSee('What needs to change?')
+        ->assertSee('data-file-details', false)
+        ->assertDontSee('<summary class="cursor-pointer">File details</summary>', false)
         ->assertDontSee('Where should the faculty make this change?')
         ->assertSee('Restore mangrove plots', false)
         ->assertDontSee('Link to an editor field (optional)')
@@ -277,7 +280,7 @@ test('research head can draft highlights while a legacy review is in progress', 
         ->assertDontSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
         ->assertSee('Comments remain drafts until you send the revision request.')
-        ->assertSee('Drag over the part that needs revision, then add a comment.')
+        ->assertSee('Drag over the part that needs revision, then add a Research Head comment.')
         ->assertDontSee('Highlight text')
         ->assertDontSee('Mark an area')
         ->assertDontSee('Send revision request');
@@ -634,8 +637,8 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->and($xpath->query($card.'//button[@data-revision-open]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
-        ->and($xpath->query('//details[@data-revision-proposal-details][not(@open)]')->length)->toBe(1)
-        ->and($xpath->query('//details[summary//h3[contains(., "Decision history")]][not(@open)]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="false"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-decision-history][@data-initially-open="false"]//button[@aria-controls="decision-history-list"]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
 
     $this->actingAs($this->head)->get(route('topics.show', $this->topic))
@@ -715,7 +718,7 @@ test('revision validation opens invalid metadata and rejects unrequested files',
     $dom = new DOMDocument;
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
-    expect($xpath->query('//details[@data-revision-proposal-details][@open]')->length)->toBe(1)
+    expect($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="true"]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="estimated_budget"][@value="-1"]')->length)->toBe(1)
         ->and($response->getContent())->not->toContain('Replace another file');
@@ -1016,43 +1019,114 @@ test('a highlight automatically opens the matching section and comment for facul
     ]))->assertOk()->assertSee('section-schedule')->assertSee('Move planting to June.');
 });
 
-test('research head records both feedback sources and publishes them together with attribution', function () {
+test('an extracted co evaluator narrative can support a revision without a duplicate Research Head highlight', function () {
+    $initialScreening = $this->version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        'position' => 0,
+        'file_path' => 'proposal-packages/initial-screening.docx',
+        'original_filename' => 'initial-screening.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+    ]);
+    $this->version->files()->create([
+        'source_version_file_id' => $initialScreening->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 0,
+        'file_path' => 'proposal-packages/completed-initial-screening.docx',
+        'original_filename' => 'completed-initial-screening.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 100,
+        'checksum' => str_repeat('d', 64),
+        'source_data' => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'co_evaluator_name' => 'Dr. Maria Santos',
+            'narrative_evaluation' => 'Clarify the sampling frame and recruitment procedure.',
+        ],
+        'uploaded_by' => $this->head->id,
+    ]);
+
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested',
+        'revision_file_ids' => [$this->file->id],
+    ])->assertSessionHasNoErrors();
+
+    $review = $this->topic->reviews()->where('decision', 'revision_requested')->sole();
+    $rows = app(CommentResponseFeedback::class)->rows($review);
+
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and($review->fileRevisions()->sole()->proposal_version_file_id)->toBe($this->file->id)
+        ->and(ProposalFileAnnotation::count())->toBe(0)
+        ->and($rows)->toHaveCount(1)
+        ->and($rows[0]['form_source'])->toBe(CommentResponseFeedback::FORM_CO_EVALUATOR)
+        ->and($rows[0]['comment'])->toBe('Clarify the sampling frame and recruitment procedure.');
+});
+
+test('PDF annotations are always recorded and published as Research Head feedback', function () {
     Notification::fake();
     $this->mock(ProposalRevisionSectionMap::class)->shouldReceive('forFile')->andReturn([]);
     $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
-    $payload = ['annotation_type' => 'area', 'page_number' => 1,
+    $payload = [
+        'annotation_type' => 'area',
+        'page_number' => 1,
         'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
-        'comment' => 'Clarify the timeline.'];
-    $this->actingAs($this->head)->postJson($url, $payload)->assertCreated()->assertJsonPath('feedbackSource', 'research_head');
-    $co = $this->postJson($url, $payload + ['feedback_source' => 'co_evaluator', 'co_evaluator_name' => 'Dr. Maria Santos', 'reviewer_id' => $this->faculty->id])
-        ->assertCreated()->assertJsonPath('feedbackAuthor', 'Dr. Maria Santos')->assertJsonPath('reviewer', $this->head->name)->json();
-    expect(ProposalFileAnnotation::find($co['id'])->reviewer_id)->toBe($this->head->id);
+        'comment' => 'Clarify the timeline.',
+        'feedback_source' => 'co_evaluator',
+        'co_evaluator_name' => 'Dr. Maria Santos',
+        'reviewer_id' => $this->faculty->id,
+    ];
+
+    $stored = $this->actingAs($this->head)->postJson($url, $payload)
+        ->assertCreated()
+        ->assertJsonPath('feedbackSource', ProposalFileAnnotation::SOURCE_HEAD)
+        ->assertJsonPath('feedbackAuthor', $this->head->name)
+        ->json();
+    $annotation = ProposalFileAnnotation::findOrFail($stored['id']);
+
+    expect($annotation->reviewer_id)->toBe($this->head->id)
+        ->and($annotation->feedback_source)->toBe(ProposalFileAnnotation::SOURCE_HEAD)
+        ->and($annotation->co_evaluator_name)->toBeNull();
+
     $index = route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]);
-    $preview = $this->get($index)->assertOk()->assertViewHas('annotationConfiguration', fn ($config) => $config['coEvaluatorName'] === 'Dr. Maria Santos');
-    if ($path = getenv('ATHENA_REVIEW_PREVIEW')) {
-        file_put_contents($path, $preview->getContent());
-    }
+    $this->get($index)->assertOk()
+        ->assertDontSee('Choose reviewer')
+        ->assertDontSee('Co-evaluator · Blue');
     $this->actingAs($this->faculty)->get($index)->assertNotFound();
-    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), ['status' => 'revision_requested', 'revision_file_ids' => [$this->file->id]])->assertSessionHasNoErrors();
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested',
+        'revision_file_ids' => [$this->file->id],
+    ])->assertSessionHasNoErrors();
+
     expect($this->topic->fresh()->status)->toBe('revision_requested')
-        ->and(ProposalFileAnnotation::whereNotNull('topic_review_file_revision_id')->count())->toBe(2);
-    $this->actingAs($this->faculty)->get($index)->assertOk()->assertViewHas('annotationConfiguration', fn ($config) => count($config['annotations']) === 2 && $config['annotations'][1]['feedbackLabel'] === 'Co-evaluator · Dr. Maria Santos');
-    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Co-evaluator · Dr. Maria Santos');
-    $this->actingAs($this->head)->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $co['id']]), ['comment' => 'Change published feedback'])->assertForbidden();
+        ->and(ProposalFileAnnotation::whereNotNull('topic_review_file_revision_id')->count())->toBe(1);
+    $this->actingAs($this->faculty)->get($index)->assertOk()
+        ->assertViewHas('annotationConfiguration', fn ($config) => count($config['annotations']) === 1
+            && $config['annotations'][0]['feedbackLabel'] === 'Research Head');
 });
 
-test('co evaluator feedback requires a name and faculty cannot enter it', function () {
-    $payload = ['annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]], 'comment' => 'Feedback', 'feedback_source' => 'co_evaluator'];
+test('faculty cannot enter PDF annotation feedback', function () {
+    $payload = ['annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]], 'comment' => 'Feedback'];
     $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
-    $this->actingAs($this->head)->postJson($url, $payload + ['co_evaluator_name' => '   '])->assertUnprocessable()->assertJsonValidationErrors('co_evaluator_name');
-    $this->postJson($url, array_replace($payload, ['feedback_source' => 'administrator']))->assertUnprocessable()->assertJsonValidationErrors('feedback_source');
-    $this->actingAs($this->faculty)->postJson($url, $payload + ['co_evaluator_name' => 'Dr. Santos'])->assertForbidden();
+
+    $this->actingAs($this->faculty)->postJson($url, $payload)->assertForbidden();
 });
 
-test('editing feedback preserves the original co evaluator and recorder', function () {
-    $annotation = $this->file->annotations()->create(['reviewer_id' => $this->head->id, 'feedback_source' => 'co_evaluator', 'co_evaluator_name' => 'Dr. Santos', 'annotation_type' => 'area', 'page_number' => 1, 'rectangles' => [], 'comment' => 'Original feedback']);
-    $this->actingAs($this->head)->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), ['comment' => 'Corrected transcription', 'feedback_source' => 'research_head', 'co_evaluator_name' => 'Different name', 'reviewer_id' => $this->faculty->id])
-        ->assertOk()->assertJsonPath('feedbackSource', 'co_evaluator')->assertJsonPath('feedbackAuthor', 'Dr. Santos')->assertJsonPath('comment', 'Corrected transcription');
-    expect($annotation->fresh()->reviewer_id)->toBe($this->head->id);
-    $this->deleteJson(route('topics.versions.files.annotations.destroy', [$this->topic, $this->version, $this->file, $annotation]))->assertNoContent();
+test('legacy co evaluator annotations are hidden and locked in the PDF annotation tool', function () {
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'feedback_source' => ProposalFileAnnotation::SOURCE_CO_EVALUATOR,
+        'co_evaluator_name' => 'Dr. Santos',
+        'annotation_type' => 'area',
+        'page_number' => 1,
+        'rectangles' => [],
+        'comment' => 'Original feedback',
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()
+        ->assertViewHas('annotationConfiguration', fn ($config) => $config['annotations']->isEmpty());
+    $this->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), ['comment' => 'Corrected transcription'])->assertForbidden();
+    $this->deleteJson(route('topics.versions.files.annotations.destroy', [$this->topic, $this->version, $this->file, $annotation]))->assertForbidden();
 });

@@ -11,6 +11,7 @@ use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\CommentResponseFeedback;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -562,8 +563,8 @@ test('decision history is collapsed and organized newest first', function () {
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
 
-    expect($xpath->query('//details[@data-decision-history][not(@open)]')->length)->toBe(1)
-        ->and($xpath->query('//details[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2);
+    expect($xpath->query('//section[@data-decision-history][@data-initially-open="false"]//button[@aria-controls="decision-history-list"]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2);
 });
 
 test('legacy review records do not block the Research Head from starting final signing', function () {
@@ -692,6 +693,7 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->assertSee('Submit revision')
         ->assertSee('data-revision-proposal-details-button', false)
         ->assertSee('aria-controls="proposal-details-fields"', false)
+        ->assertSee('data-initially-open="false"', false)
         ->assertDontSee('<summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700', false)
         ->assertSee('data-topic-file-dropzone="detailed_proposal"', false)
         ->assertSee('data-topic-file-dropzone="curricula_vitae"', false)
@@ -827,7 +829,7 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         ->get(route('faculty.topics.comment-response-form.download', $topic))
         ->assertOk()
         ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        ->assertDownload('coastal-habitat-restoration-comment-response-form.docx');
+        ->assertDownload('coastal-habitat-restoration-research-head-comment-response-form.docx');
 
     $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-comment-response-test-');
     expect($temporaryPath)->not->toBeFalse();
@@ -899,6 +901,118 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         $template->close();
         unlink($temporaryPath);
     }
+});
+
+test('Research Head and co evaluator feedback generate separate Comment-Response Forms', function () {
+    $this->withoutVite();
+    $head = User::factory()->create(['name' => 'Prof. Neil Delmo']);
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create(['name' => 'Dr. Aurora Reyes']);
+    $faculty->assignRole('faculty');
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Mangrove Recovery Study',
+        'estimated_budget' => 25000,
+        'estimated_duration_months' => 12,
+        'status' => 'revision_requested',
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposals/mangrove.pdf',
+        'original_filename' => 'mangrove.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+        'title' => $topic->title,
+        'estimated_budget' => 25000,
+        'estimated_duration_months' => 12,
+    ]);
+    $detailedProposal = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => 'proposals/mangrove-detailed.pdf',
+        'original_filename' => 'mangrove-detailed.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('d', 64),
+        'source_data' => ['project_leader' => $faculty->name],
+    ]);
+    $initialScreening = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        'position' => 0,
+        'file_path' => 'proposals/initial-screening.docx',
+        'original_filename' => 'initial-screening.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 100,
+        'checksum' => str_repeat('e', 64),
+    ]);
+    $evaluation = $version->files()->create([
+        'source_version_file_id' => $initialScreening->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 0,
+        'file_path' => 'proposals/completed-initial-screening.docx',
+        'original_filename' => 'completed-initial-screening.docx',
+        'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'file_size' => 100,
+        'checksum' => str_repeat('f', 64),
+        'source_data' => [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'co_evaluator_name' => 'Dr. Maria Santos',
+            'narrative_evaluation' => 'The methodology needs a clearer sampling frame.',
+        ],
+        'uploaded_by' => $head->id,
+    ]);
+    $review = $topic->reviews()->create([
+        'reviewer_id' => $head->id,
+        'decision' => 'revision_requested',
+    ]);
+    $fileRevision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $detailedProposal->id,
+        'document_type' => $detailedProposal->document_type,
+        'original_filename' => $detailedProposal->original_filename,
+    ]);
+    $detailedProposal->annotations()->create([
+        'reviewer_id' => $head->id,
+        'topic_review_file_revision_id' => $fileRevision->id,
+        'feedback_source' => ProposalFileAnnotation::SOURCE_HEAD,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 2,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
+        'comment' => 'Clarify the participant recruitment timeline.',
+    ]);
+
+    $headQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD, 'review' => $review->id];
+    $coEvaluatorQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_CO_EVALUATOR, 'review' => $review->id];
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.preview', $headQuery))
+        ->assertOk()
+        ->assertSee('Research Head Comment-Response Form')
+        ->assertSee('Clarify the participant recruitment timeline.')
+        ->assertDontSee('The methodology needs a clearer sampling frame.');
+    $this->get(route('faculty.topics.comment-response-form.preview', $coEvaluatorQuery))
+        ->assertOk()
+        ->assertSee('Co-evaluator Comment-Response Form')
+        ->assertSee('Dr. Maria Santos')
+        ->assertSee('The methodology needs a clearer sampling frame.')
+        ->assertDontSee('Clarify the participant recruitment timeline.');
+    $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
+        ->assertOk()
+        ->assertDownload('mangrove-recovery-study-research-head-comment-response-form.docx');
+    $this->get(route('faculty.topics.comment-response-form.download', $coEvaluatorQuery))
+        ->assertOk()
+        ->assertDownload('mangrove-recovery-study-co-evaluator-comment-response-form.docx');
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Research Head Comment-Response Form')
+        ->assertSee('Co-evaluator Comment-Response Form')
+        ->assertSee('data-comment-response-source="research_head"', false)
+        ->assertSee('data-comment-response-source="co_evaluator"', false);
+
+    expect($evaluation->source_data['narrative_evaluation'])->toBe('The methodology needs a clearer sampling frame.');
 });
 
 test('Comment-Response Form generation is private to the revision owner', function () {

@@ -24,14 +24,15 @@
 
 <div data-research-head-file-workspace {{ $attributes->merge(['class' => 'space-y-5']) }}>
     @if ($showFacultyFiles)
-    <section class="rounded-2xl border border-red-200 bg-white p-5 shadow-sm dark:border-red-950 dark:bg-gray-950 sm:p-6">
+    <section class="relative overflow-hidden rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 via-white to-white p-5 shadow-sm dark:border-red-950 dark:from-red-950/40 dark:via-gray-950 dark:to-gray-950 sm:p-7">
+        <div class="absolute inset-y-0 left-0 w-1.5 bg-red-700" aria-hidden="true"></div>
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-3xl">
-                <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-400">Research Head workspace</p>
-                <h3 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Review faculty files</h3>
-                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Open the faculty original, highlight PDF revisions when needed, and attach a reviewed copy only when there is a separate file to return. Scanned PDFs can be marked by area; corrections and signatures are verified manually.</p>
+                <p class="text-sm font-bold text-red-700 dark:text-red-300">Research Head workspace</p>
+                <h3 class="mt-1 font-serif text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review faculty files</h3>
+                <p class="mt-3 text-base leading-7 text-gray-700 dark:text-gray-200">Open the faculty original, highlight PDF revisions when needed, and attach a reviewed copy only when there is a separate file to return. Scanned PDFs can be marked by area; corrections and signatures are verified manually.</p>
             </div>
-            <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-950 px-3 py-1.5 text-xs font-black uppercase tracking-wider text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">
+            <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-950 px-3.5 py-2 text-sm font-bold text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number.' · '.$headUploadedFiles->count().' uploaded' : 'No submitted version' }}
             </span>
         </div>
@@ -49,11 +50,11 @@
         <section aria-labelledby="signature-progress-heading" class="rounded-2xl border border-red-300 bg-white p-5 shadow-sm dark:border-red-900 dark:bg-gray-950 sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-400">Final signing</p>
-                    <h3 id="signature-progress-heading" class="mt-1 text-xl font-black text-gray-950 dark:text-white">
+                    <p class="text-sm font-bold text-red-700 dark:text-red-300">Final signing</p>
+                    <h3 id="signature-progress-heading" class="mt-1 font-serif text-2xl font-bold tracking-tight text-gray-950 dark:text-white">
                         {{ $topic->status === 'approved' ? 'Released signed copies' : 'Upload the required signed PDFs' }}
                     </h3>
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">Signed PDFs are required for all five listed proposal papers. Attachment C and Estimated Expense Breakdown stay in the package without signatures.</p>
+                    <p class="mt-3 max-w-3xl text-base leading-7 text-gray-700 dark:text-gray-200">Signed PDFs are required for all five listed proposal papers. Attachment C and Estimated Expense Breakdown stay in the package without signatures.</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full {{ $missingSignatureFiles->isEmpty() ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-3 py-1.5 text-sm font-black">
                     {{ $requiredSignatureFiles->count() - $missingSignatureFiles->count() }}/{{ $requiredSignatureFiles->count() }} uploaded
@@ -70,12 +71,12 @@
                     <article x-data="{ previewOpen: false }" class="grid gap-4 bg-white p-4 dark:bg-gray-950 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.9fr)] lg:items-start">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-2">
-                                <h4 class="text-base font-black text-gray-950 dark:text-white">{{ $requiredSignatureFile->label() }}</h4>
-                                <span class="rounded-full {{ $hasSignedCopy ? 'bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-xs font-black">
+                                <h4 class="font-serif text-lg font-bold text-gray-950 dark:text-white">{{ $requiredSignatureFile->label() }}</h4>
+                                <span class="rounded-full {{ $hasSignedCopy ? 'bg-emerald-700 text-white dark:bg-emerald-500 dark:text-emerald-950' : 'border border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-sm font-bold">
                                     {{ $hasSignedCopy ? 'Signed PDF uploaded' : 'Waiting for signed PDF' }}
                                 </span>
                             </div>
-                            <p class="mt-2 text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Required faculty paper</p>
+                            <p class="mt-2 text-sm font-semibold text-gray-500 dark:text-gray-400">Required faculty paper</p>
                             <p class="mt-2 break-all text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $requiredSignatureFile->original_filename }}</p>
                         </div>
 
@@ -92,7 +93,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                    <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
                                         <div class="rounded-xl bg-white/80 px-3 py-2.5 dark:bg-gray-950/70">
                                             <p class="font-bold text-emerald-800 dark:text-emerald-300">File size</p>
                                             <p class="mt-1 font-black text-emerald-950 dark:text-emerald-100">{{ $activeSignedCopy->file_size ? \Illuminate\Support\Number::fileSize($activeSignedCopy->file_size) : 'Size unavailable' }}</p>
@@ -124,7 +125,7 @@
                                     <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                                         <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
                                             {{ $hasSignedCopy ? 'Replace signed final PDF' : 'Signed final PDF' }}
-                                            <span class="mt-1 block text-xs font-medium leading-5 text-gray-500 dark:text-gray-400">{{ $hasSignedCopy ? 'Use this only if the uploaded copy needs to be replaced.' : 'PDF only. The uploaded copy will appear here for preview.' }}</span>
+                                            <span class="mt-1 block text-sm font-medium leading-6 text-gray-500 dark:text-gray-400">{{ $hasSignedCopy ? 'Use this only if the uploaded copy needs to be replaced.' : 'PDF only. The uploaded copy will appear here for preview.' }}</span>
                                             <input name="review_file" type="file" accept=".pdf" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 focus:border-red-700 focus:outline-none focus:ring-2 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white dark:focus:border-red-400 dark:focus:ring-red-400">
                                         </label>
                                         <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 sm:w-auto dark:focus:ring-offset-gray-950">
@@ -140,9 +141,9 @@
                                 <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
                                     <div>
                                         <p class="text-sm font-black text-gray-950 dark:text-white">Signed PDF preview</p>
-                                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Check the uploaded copy here before finalizing approval.</p>
+                                        <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Check the uploaded copy here before finalizing approval.</p>
                                     </div>
-                                    <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-black text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-800 dark:focus:ring-gray-400 dark:focus:ring-offset-gray-950">Open in new tab</a>
+                                    <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-800 dark:focus:ring-gray-400 dark:focus:ring-offset-gray-950">Open in new tab</a>
                                 </div>
                                 <iframe data-signed-copy-preview src="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" title="Preview of {{ $activeSignedCopy->original_filename }}" class="h-[34rem] w-full rounded-xl border border-gray-300 bg-white shadow-inner dark:border-gray-700"></iframe>
                             </section>
@@ -174,8 +175,8 @@
     @if ($showFacultyFiles)
     <section aria-labelledby="head-upload-files-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-6">
         <div>
-            <h3 id="head-upload-files-heading" class="text-xl font-black text-gray-950 dark:text-white">Faculty-submitted files</h3>
-            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">These are the faculty originals. They are never overwritten by a reviewed or signed copy.</p>
+            <h3 id="head-upload-files-heading" class="font-serif text-2xl font-bold tracking-tight text-gray-950 dark:text-white">Faculty-submitted files</h3>
+            <p class="mt-2 text-base leading-7 text-gray-700 dark:text-gray-200">These are the faculty originals. They are never overwritten by a reviewed or signed copy.</p>
         </div>
 
         <div class="mt-5 grid gap-4">
@@ -183,19 +184,24 @@
                 @php
                     $facultyFileAvailable = $availableFileIds->contains($facultyFile->id);
                     $facultyFileViewable = $viewableFileIds->contains($facultyFile->id);
-                    $facultyFileAnnotationCount = $facultyFile->annotations->count();
+                    $facultyFileAnnotationCount = $facultyFile->annotations
+                        ->where('feedback_source', \App\Models\ProposalFileAnnotation::SOURCE_HEAD)
+                        ->count();
+                    $isInitialScreeningForm = $facultyFile->document_type === \App\Models\ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM;
                     $researchHeadCopies = $headUploadsBySource->get($facultyFile->id, collect())
                         ->reject(fn ($copy) => ($copy->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED);
                 @endphp
                 <article class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                     <div class="grid gap-4 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                         <div class="flex min-w-0 gap-4">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl {{ $facultyFileAvailable ? 'bg-red-700 text-white' : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300' }} text-[11px] font-black">FILE</span>
+                            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl {{ $facultyFileAvailable ? 'bg-red-700 text-white' : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300' }}" aria-hidden="true">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3" /></svg>
+                            </span>
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="text-base font-black text-gray-950 dark:text-white">{{ $facultyFile->label() }}</h4>
-                                    <span class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-black text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Faculty original</span>
-                                    @unless ($facultyFileAvailable)<span class="rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-black text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Unavailable</span>@endunless
+                                    <h4 class="font-serif text-lg font-bold text-gray-950 dark:text-white">{{ $facultyFile->label() }}</h4>
+                                    <span class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Faculty original</span>
+                                    @unless ($facultyFileAvailable)<span class="rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-sm font-bold text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Unavailable</span>@endunless
                                 </div>
                                 <p class="mt-2 break-all text-sm font-bold text-gray-800 dark:text-gray-200">{{ $facultyFile->original_filename }}</p>
                                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $facultyFile->file_size ? \Illuminate\Support\Number::fileSize($facultyFile->file_size) : 'Size unavailable' }} · Submitted {{ $latestVersion->created_at->diffForHumans() }}</p>
@@ -216,7 +222,7 @@
 
                     @if ($researchHeadCopies->isNotEmpty())
                         <div class="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60 sm:p-5">
-                            <p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-gray-400">Research Head copies</p>
+                            <p class="text-sm font-bold text-gray-700 dark:text-gray-300">Research office copies</p>
                             <div class="mt-3 grid gap-3">
                                 @foreach ($researchHeadCopies as $researchHeadCopy)
                                     @php
@@ -227,9 +233,16 @@
                                         <div class="min-w-0">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <p class="break-all text-sm font-black text-gray-950 dark:text-white">{{ $researchHeadCopy->original_filename }}</p>
-                                                <span class="rounded-full border border-gray-300 px-2 py-0.5 text-xs font-black text-gray-700 dark:border-gray-700 dark:text-gray-300">{{ $researchHeadCopy->headUploadPurposeLabel() }}</span>
+                                                <span class="rounded-full border border-gray-300 px-2.5 py-1 text-sm font-bold text-gray-700 dark:border-gray-700 dark:text-gray-300">{{ $researchHeadCopy->headUploadPurposeLabel() }}</span>
                                             </div>
-                                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Uploaded by {{ $researchHeadCopy->uploadedBy?->name ?? 'Research Head' }} · {{ $researchHeadCopy->created_at->format('M j, Y g:i A') }}</p>
+                                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Uploaded by {{ $researchHeadCopy->uploadedBy?->name ?? 'Research Head' }} · {{ $researchHeadCopy->created_at->format('M j, Y g:i A') }}</p>
+                                            @if (($researchHeadCopy->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
+                                                <div class="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
+                                                    <p class="font-black">Co-evaluator · {{ $researchHeadCopy->source_data['co_evaluator_name'] ?? 'Name unavailable' }}</p>
+                                                    <p class="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">Extracted Narrative Evaluation</p>
+                                                    <p class="mt-1 whitespace-pre-line text-base leading-7">{{ $researchHeadCopy->source_data['narrative_evaluation'] ?? 'No narrative was extracted.' }}</p>
+                                                </div>
+                                            @endif
                                         </div>
                                         <div class="flex gap-2">
                                             @if ($copyViewable)<a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $researchHeadCopy]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white sm:flex-none">View</a>@endif
@@ -242,15 +255,29 @@
                     @endif
 
                     @if ($canUploadRevisionCopy)
-                        <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="grid gap-3 border-t border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950 sm:p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                        <form action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" data-co-evaluator-screening-panel="{{ $isInitialScreeningForm ? 'true' : 'false' }}" class="grid gap-4 border-t {{ $isInitialScreeningForm ? 'border-blue-200 bg-blue-50/60 dark:border-blue-900 dark:bg-blue-950/20' : 'border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950' }} p-4 sm:p-6 {{ $isInitialScreeningForm ? 'md:grid-cols-2' : 'md:grid-cols-[minmax(0,1fr)_auto]' }} md:items-end">
                             @csrf
                             <input type="hidden" name="source_file_id" value="{{ $facultyFile->id }}">
-                            <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION }}">
-                            <label class="block text-sm font-bold text-gray-800 dark:text-gray-200">
-                                Attach a reviewed copy for revision
-                                <input name="review_file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white">
+                            <input type="hidden" name="purpose" value="{{ $isInitialScreeningForm ? \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION : \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION }}">
+                            @if ($isInitialScreeningForm)
+                                <div class="flex items-start gap-4 md:col-span-2">
+                                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white dark:bg-blue-500 dark:text-blue-950" aria-hidden="true">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                                    </span>
+                                    <div>
+                                        <p class="font-serif text-xl font-bold text-gray-950 dark:text-white">Add the co-evaluator’s completed Initial Screening Form</p>
+                                        <p class="mt-2 text-base leading-7 text-gray-700 dark:text-gray-200">ATHENA extracts only the Narrative Evaluation and places it in a separate Co-evaluator Comment-Response Form. The original upload remains in the proposal record.</p>
+                                    </div>
+                                </div>
+                                <label class="block text-base font-bold text-gray-800 dark:text-gray-100">Co-evaluator name
+                                    <input name="co_evaluator_name" type="text" maxlength="160" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-blue-700 focus:ring-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                </label>
+                            @endif
+                            <label class="block text-base font-bold text-gray-800 dark:text-gray-100">
+                                {{ $isInitialScreeningForm ? 'Completed Initial Screening Form' : 'Attach a reviewed copy for revision' }}
+                                <input name="review_file" type="file" accept="{{ $isInitialScreeningForm ? '.pdf,.docx' : '.pdf,.doc,.docx,.xls,.xlsx' }}" required class="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-2.5 text-base text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2.5 file:text-sm file:font-bold file:text-gray-800 hover:file:bg-gray-200 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:file:bg-gray-800 dark:file:text-white">
                             </label>
-                            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 md:w-auto">Upload reviewed copy</button>
+                            <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 md:w-auto {{ $isInitialScreeningForm ? 'md:col-span-2 md:justify-self-end' : '' }}">{{ $isInitialScreeningForm ? 'Upload and extract evaluation' : 'Upload reviewed copy' }}</button>
                         </form>
                     @endif
                 </article>
@@ -265,16 +292,24 @@
     @endif
 
     @if (! $isSigningStage)
-    <details class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-5 sm:p-6">
-            <div>
-                <h3 class="text-lg font-black text-gray-950 dark:text-white">Administrative and supplemental papers</h3>
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Use this only for a separate paper received from another office or source.</p>
-            </div>
-            <span class="rounded-full bg-gray-950 px-3 py-1.5 text-xs font-black text-white dark:bg-white dark:text-gray-950">{{ $supplementalHeadUploads->count() }}</span>
-        </summary>
+    <section x-data="{ open: false }" data-supplemental-papers-disclosure data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+        <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="supplemental-papers-content" class="flex min-h-16 w-full items-center justify-between gap-4 p-5 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:p-6">
+            <span class="flex items-start gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-200" aria-hidden="true">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h6l1.5 2.25h9v9.75a1.5 1.5 0 0 1-1.5 1.5H5.25a1.5 1.5 0 0 1-1.5-1.5v-12Z" /></svg>
+                </span>
+                <span>
+                    <span class="block font-serif text-xl font-bold text-gray-950 dark:text-white">Administrative and supplemental papers</span>
+                    <span class="mt-1 block text-base font-normal leading-6 text-gray-600 dark:text-gray-300">Use this only for a separate paper received from another office or source.</span>
+                </span>
+            </span>
+            <span class="flex shrink-0 items-center gap-3">
+                <span class="rounded-full bg-gray-950 px-3 py-1.5 text-sm font-bold text-white dark:bg-white dark:text-gray-950">{{ $supplementalHeadUploads->count() }}</span>
+                <span class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 transition-transform duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
+            </span>
+        </button>
 
-        <div class="border-t border-gray-200 p-5 dark:border-gray-800 sm:p-6">
+        <div id="supplemental-papers-content" x-show="open" x-cloak x-transition class="border-t border-gray-200 p-5 dark:border-gray-800 sm:p-6">
             @if ($supplementalHeadUploads->isNotEmpty())
                 <div class="grid gap-3">
                     @foreach ($supplementalHeadUploads as $supplementalPaper)
@@ -284,9 +319,9 @@
                         @endphp
                         <article class="grid gap-3 rounded-xl border border-gray-200 p-4 dark:border-gray-800 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                             <div class="min-w-0">
-                                <h4 class="text-sm font-black text-gray-950 dark:text-white">{{ $supplementalPaper->label() }}</h4>
+                                <h4 class="font-serif text-lg font-bold text-gray-950 dark:text-white">{{ $supplementalPaper->label() }}</h4>
                                 <p class="mt-1 break-all text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $supplementalPaper->original_filename }}</p>
-                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Uploaded by {{ $supplementalPaper->uploadedBy?->name ?? 'Research Head' }}@if ($supplementalPaper->source_data['issuing_office'] ?? null) · {{ $supplementalPaper->source_data['issuing_office'] }}@endif · {{ $supplementalPaper->created_at->format('M j, Y g:i A') }}</p>
+                                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Uploaded by {{ $supplementalPaper->uploadedBy?->name ?? 'Research Head' }}@if ($supplementalPaper->source_data['issuing_office'] ?? null) · {{ $supplementalPaper->source_data['issuing_office'] }}@endif · {{ $supplementalPaper->created_at->format('M j, Y g:i A') }}</p>
                             </div>
                             <div class="flex gap-2">
                                 @if ($supplementalViewable)<a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $supplementalPaper]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white sm:flex-none">View</a>@endif
@@ -319,7 +354,7 @@
                 </form>
             @endif
         </div>
-    </details>
+    </section>
 
     @if ($headUploadsBySource->get(0, collect())->isNotEmpty())
         <section class="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/30 sm:p-6">

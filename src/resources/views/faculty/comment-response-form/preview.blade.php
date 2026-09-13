@@ -3,14 +3,14 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Comment-Response Form — {{ $commentResponseForm['project_title'] }}</title>
+        <title>{{ $commentResponseForm['form_label'] }} — {{ $commentResponseForm['project_title'] }}</title>
         @vite('resources/css/comment-response-form-print.css')
     </head>
     <body>
         <nav class="preview-toolbar" aria-label="Form actions">
-            <span>Shared review feedback and faculty responses</span>
-            <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => request('review')]) }}">Download PDF</a>
-            <span><a href="{{ route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'review' => request('review')]) }}" style="background: transparent; color: inherit; text-decoration: underline;">Word (editable)</a></span>
+            <span>{{ $commentResponseForm['form_label'] }}</span>
+            <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}">Download PDF</a>
+            <span><a href="{{ route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}" style="background: transparent; color: inherit; text-decoration: underline;">Word (editable)</a></span>
         </nav>
         <main class="comment-response-sheet" aria-label="BatStateU Comment-Response Form">
             <header class="university-header">
@@ -18,6 +18,7 @@
                 <div>Republic of the Philippines<strong>BATANGAS STATE UNIVERSITY</strong><span>The National Engineering University</span></div>
             </header>
             <h1>COMMENT-RESPONSE FORM</h1>
+            <p><strong>REVIEW SOURCE:</strong> {{ $commentResponseForm['form_label'] }}</p>
             <p class="evaluation">PREVIOUS EVALUATION DONE:<br>☐ Initial Screening<br>☐ Evaluation by the Local Research Evaluation Committee (LREC)<br><span>(date presented: ______________)</span></p>
             <p><strong>TITLE OF RESEARCH PROPOSAL:</strong><br>{{ $commentResponseForm['project_title'] }}</p>
             <p><strong>RESEARCHERS:</strong></p>
@@ -55,7 +56,7 @@
                     <p>____________________________<br>Vice Chancellor for Research,<br>Development and Extension Services<br>Member, LREC</p>
                 </div>
             </section>
-            <footer>Comment-Response Form | {{ $commentResponseForm['project_title'] }}</footer>
+            <footer>{{ $commentResponseForm['form_label'] }} | {{ $commentResponseForm['project_title'] }}</footer>
         </main>
     </body>
 </html>

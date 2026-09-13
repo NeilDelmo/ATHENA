@@ -113,7 +113,7 @@ class ProposalVersionFile extends Model
     private function headUploadLabel(): string
     {
         if (($this->source_data['purpose'] ?? null) === self::HEAD_UPLOAD_PURPOSE_EVALUATION) {
-            return $this->source_data['document_title'] ?? 'External evaluation document';
+            return $this->source_data['document_title'] ?? 'Completed Initial Screening Form';
         }
 
         if (($this->source_data['purpose'] ?? null) === self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL) {
@@ -137,7 +137,7 @@ class ProposalVersionFile extends Model
             self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
             self::HEAD_UPLOAD_PURPOSE_SIGNED => $this->superseded_at ? 'Superseded signed copy' : 'Signed official copy',
             self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL => 'Supplemental paper',
-            self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'External evaluation',
+            self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Co-evaluator evaluation',
             default => 'Research Head copy',
         };
     }

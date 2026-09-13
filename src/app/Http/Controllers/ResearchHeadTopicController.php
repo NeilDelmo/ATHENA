@@ -53,6 +53,11 @@ class ResearchHeadTopicController extends Controller
                 ProposalVersionFile::TYPE_HEAD_UPLOAD,
             ]);
         $committeeComments = $topic->review_stage === 'lrec' ? ($validated['committee_comments'] ?? []) : [];
+        $hasCoEvaluatorNarrative = $latestVersion->files
+            ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
+                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
+                && filled($file->source_data['narrative_evaluation'] ?? null));
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
@@ -84,6 +89,7 @@ class ResearchHeadTopicController extends Controller
                 ->filter(fn (ProposalVersionFile $file): bool => $this->canAnnotateRevisionFile($file));
             $highlightedFileIds = ProposalFileAnnotation::query()
                 ->whereIn('proposal_version_file_id', $annotatableRevisionFiles->pluck('id'))
+                ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                 ->whereNull('topic_review_file_revision_id')
                 ->distinct()
                 ->pluck('proposal_version_file_id');
@@ -91,7 +97,7 @@ class ResearchHeadTopicController extends Controller
                 ->whereNotIn('id', $highlightedFileIds)
                 ->values();
 
-            if ($filesMissingHighlights->isNotEmpty() && $committeeComments === []) {
+            if ($filesMissingHighlights->isNotEmpty() && $committeeComments === [] && ! $hasCoEvaluatorNarrative) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'Add and save at least one highlighted comment to each selected PDF before requesting revision: '.$filesMissingHighlights->map->label()->join(', ').'.',
                 ]);
@@ -101,7 +107,7 @@ class ResearchHeadTopicController extends Controller
                 ->reject(fn (ProposalVersionFile $file): bool => $this->canAnnotateRevisionFile($file))
                 ->filter(fn (ProposalVersionFile $file): bool => blank($validated['revision_file_notes'][$file->id] ?? null));
 
-            if ($filesMissingInstructions->isNotEmpty() && $committeeComments === []) {
+            if ($filesMissingInstructions->isNotEmpty() && $committeeComments === [] && ! $hasCoEvaluatorNarrative) {
                 throw ValidationException::withMessages(
                     $filesMissingInstructions->mapWithKeys(fn (ProposalVersionFile $file): array => [
                         'revision_file_notes.'.$file->id => 'Give exact revision instructions for '.$file->label().' because this file cannot be highlighted in the PDF viewer.',
@@ -213,6 +219,7 @@ class ResearchHeadTopicController extends Controller
                 foreach ($fileRevisions as $fileRevision) {
                     ProposalFileAnnotation::query()
                         ->where('proposal_version_file_id', $fileRevision->proposal_version_file_id)
+                        ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                         ->whereNull('topic_review_file_revision_id')
                         ->update(['topic_review_file_revision_id' => $fileRevision->id]);
                 }
@@ -250,7 +257,7 @@ class ResearchHeadTopicController extends Controller
             $notificationDetails[1] = ($selectedRevisionFiles->isNotEmpty()
                 ? $selectedRevisionFiles->count().' proposal file(s) require changes in '
                 : 'Changes were requested for ')
-                .'“'.$topic->title.'”. Review the highlighted comments and file-specific instructions, then submit a new version.';
+                .'“'.$topic->title.'”. Review the Comment-Response Forms and the selected papers, then submit a new version.';
 
             if ($returningFromSigning) {
                 $notificationDetails[1] .= ' Final signing is paused; previous signed copies were retained as superseded records and cannot be reused.';
@@ -323,6 +330,7 @@ class ResearchHeadTopicController extends Controller
         }
 
         $annotation = ProposalFileAnnotation::query()
+            ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
             ->whereHas('fileRevision.review', fn ($query) => $query->where('topic_id', $topic->id))
             ->whereHas('file', fn ($query) => $query->where('proposal_version_id', $latestVersion->id))
             ->with('file')

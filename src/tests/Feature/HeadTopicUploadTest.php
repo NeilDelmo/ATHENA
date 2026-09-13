@@ -112,6 +112,58 @@ test('research head can attach reviewed files to exact faculty submissions', fun
     expect($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
 });
 
+test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function () {
+    $initialScreening = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
+        ->sole();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-screening-test-');
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE))->toBeTrue();
+        $archive->addFromString('word/document.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:p><w:r><w:t>Narrative Evaluation:</w:t></w:r></w:p>
+<w:p><w:r><w:t>The objectives are relevant, but the sampling plan must explain how participants will be selected.</w:t></w:r></w:p>
+<w:p><w:r><w:t>Prepared by:</w:t></w:r></w:p>
+<w:p><w:r><w:t>Dr. Maria Santos</w:t></w:r></w:p>
+</w:body></w:document>
+XML);
+        $archive->close();
+        $contents = file_get_contents($temporaryPath);
+        expect($contents)->not->toBeFalse();
+
+        $response = $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                'source_file_id' => $initialScreening->id,
+                'review_file' => UploadedFile::fake()->createWithContent('completed-initial-screening.docx', $contents),
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+                'co_evaluator_name' => 'Dr. Maria Santos',
+            ]);
+
+        $response->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+            ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.');
+
+        $evaluation = $this->version->files()
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->sole();
+        expect($evaluation->source_version_file_id)->toBe($initialScreening->id)
+            ->and($evaluation->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
+            ->and($evaluation->source_data['co_evaluator_name'])->toBe('Dr. Maria Santos')
+            ->and($evaluation->source_data['narrative_evaluation'])->toBe('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
+
+        $this->get(route('topics.head-uploads.index', $this->topic))
+            ->assertOk()
+            ->assertSee('Extracted Narrative Evaluation')
+            ->assertSee('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
+    } finally {
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
 test('replacing a signed copy preserves the superseded audit record before final approval', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
 
@@ -455,6 +507,8 @@ test('research head can upload a standalone supplemental paper after faculty tur
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Administrative and supplemental papers')
+        ->assertSee('data-supplemental-papers-disclosure', false)
+        ->assertSee('aria-controls="supplemental-papers-content"', false)
         ->assertSee('Regional Endorsement Memorandum')
         ->assertSee('Office of the Regional Director');
 });
@@ -525,7 +579,10 @@ test('the proposal review shows files shared by the Research Head', function () 
 
     $response->assertOk()
         ->assertSee('Review & decision')
+        ->assertSee('data-review-decision-disclosure', false)
+        ->assertSee('aria-controls="review-decision-content"', false)
         ->assertSee('Research Head documents')
+        ->assertSee('data-review-documents-disclosure', false)
         ->assertSee('reviewed-work-plan.pdf')
         ->assertSee('Work Plan (for revision)');
 });

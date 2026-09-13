@@ -16,6 +16,7 @@ use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
+use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalPackageService;
@@ -38,6 +39,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -746,6 +748,7 @@ class TopicController extends Controller
         StoreResearchHeadFileRequest $request,
         TopicProposal $topic,
         ProposalPackageService $packageService,
+        InitialScreeningNarrativeExtractor $narrativeExtractor,
     ): RedirectResponse {
         $validated = $request->validated();
 
@@ -759,12 +762,19 @@ class TopicController extends Controller
 
         $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
         $isSignedCopy = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
+        $isEvaluation = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
         $sourceFile = $isSupplemental
             ? null
             : $latestVersion->files()
                 ->whereKey($validated['source_file_id'])
                 ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
                 ->firstOrFail();
+
+        if ($isEvaluation && $sourceFile?->document_type !== ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM) {
+            return back()
+                ->withInput()
+                ->withErrors(['source_file_id' => 'A completed evaluation must be linked to the Initial Screening Form.'], 'headUpload');
+        }
 
         if ($isSignedCopy && $topic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
             return back()
@@ -788,6 +798,18 @@ class TopicController extends Controller
         }
 
         $file = $request->file('review_file');
+        $narrativeEvaluation = null;
+
+        if ($isEvaluation) {
+            try {
+                $narrativeEvaluation = $narrativeExtractor->extract($file);
+            } catch (RuntimeException $exception) {
+                return back()
+                    ->withInput()
+                    ->withErrors(['review_file' => $exception->getMessage()], 'headUpload');
+            }
+        }
+
         $directory = 'proposal-packages/'.$topic->user_id.'/'.$topic->id.'/head-uploads/'.Str::uuid();
         $storedPath = null;
         $replacedSignedCopy = false;
@@ -803,6 +825,8 @@ class TopicController extends Controller
                     'document_title' => $validated['document_title'] ?? null,
                     'issuing_office' => $validated['issuing_office'] ?? null,
                     'note' => $validated['note'] ?? null,
+                    'co_evaluator_name' => $validated['co_evaluator_name'] ?? null,
+                    'narrative_evaluation' => $narrativeEvaluation,
                 ],
             );
             $storedPath = $attributes['file_path'];
@@ -862,11 +886,13 @@ class TopicController extends Controller
 
         return redirect()
             ->to(route('topics.show', $topic).(in_array($topic->status, ['ready_for_signature', 'approved'], true) ? '#notice-to-proceed' : '#proposal-review'))
-            ->with('success', $isSupplemental
+            ->with('success', $isEvaluation
+                ? 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.'
+                : ($isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : ($replacedSignedCopy
                     ? 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.'
-                    : 'Research Head file attached to the faculty submission.'));
+                    : 'Research Head file attached to the faculty submission.')));
     }
 
     /**

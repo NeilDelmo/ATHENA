@@ -43,8 +43,6 @@ class StoreProposalFileAnnotationRequest extends FormRequest
             'rectangles.*.width' => ['required', 'numeric', 'gt:0', 'max:1'],
             'rectangles.*.height' => ['required', 'numeric', 'gt:0', 'max:1'],
             'comment' => ['required', 'string', 'max:5000'],
-            'feedback_source' => ['sometimes', Rule::in([ProposalFileAnnotation::SOURCE_HEAD, ProposalFileAnnotation::SOURCE_CO_EVALUATOR])],
-            'co_evaluator_name' => ['nullable', 'required_if:feedback_source,co_evaluator', 'string', 'max:160'],
             'editor_target' => ['nullable', 'string', Rule::in($editorTargets)],
         ];
     }
@@ -53,7 +51,6 @@ class StoreProposalFileAnnotationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'co_evaluator_name.required_if' => 'Enter the co-evaluator’s name before adding their feedback.',
             'editor_target.in' => 'Choose a field from this paper, or select paper-level feedback.',
         ];
     }

@@ -8,6 +8,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -16,50 +17,56 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TopicCommentResponseFormController extends Controller
 {
-    public function preview(TopicProposal $topic): View
+    public function preview(Request $request, TopicProposal $topic): View
     {
         Gate::authorize('generateCommentResponseForm', $topic);
 
-        $commentResponseForm = $this->commentResponseFormData($topic);
+        $commentResponseForm = $this->commentResponseFormData($topic, $this->formSource($request), $request->integer('review'));
 
         return view('faculty.comment-response-form.preview', compact('commentResponseForm', 'topic'));
     }
 
     public function download(
+        Request $request,
         TopicProposal $topic,
         CommentResponseFormDocumentService $documentService,
     ): StreamedResponse {
         Gate::authorize('generateCommentResponseForm', $topic);
 
-        $contents = $documentService->generate($this->commentResponseFormData($topic));
+        $source = $this->formSource($request);
+        $contents = $documentService->generate($this->commentResponseFormData($topic, $source, $request->integer('review')));
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
+        $sourceSlug = Str::of($source)->replace('_', '-')->toString();
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-comment-response-form.docx',
+            $filenameBase.'-'.$sourceSlug.'-comment-response-form.docx',
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
         );
     }
 
     public function downloadPdf(
+        Request $request,
         TopicProposal $topic,
         CommentResponseFormDocumentService $documentService,
         DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         Gate::authorize('generateCommentResponseForm', $topic);
 
-        $contents = $pdfConverter->convertDocx(
-            $documentService->generate($this->commentResponseFormData($topic)),
-        );
+        $source = $this->formSource($request);
+        $contents = $pdfConverter->convertDocx($documentService->generate(
+            $this->commentResponseFormData($topic, $source, $request->integer('review')),
+        ));
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
+        $sourceSlug = Str::of($source)->replace('_', '-')->toString();
 
         return response()->streamDownload(
             static function () use ($contents): void {
                 echo $contents;
             },
-            $filenameBase.'-comment-response-form.pdf',
+            $filenameBase.'-'.$sourceSlug.'-comment-response-form.pdf',
             ['Content-Type' => 'application/pdf'],
         );
     }
@@ -71,11 +78,14 @@ class TopicCommentResponseFormController extends Controller
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
+     *     form_source: string,
+     *     form_label: string,
+     *     review_id: int|null,
      *     feedback: list<array{reviewer: string, location: string, comment: string}>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }
      */
-    private function commentResponseFormData(TopicProposal $topic): array
+    private function commentResponseFormData(TopicProposal $topic, string $source, int $reviewId): array
     {
         $topic->loadMissing(['user:id,name,college', 'latestVersion.files']);
         $files = $topic->latestVersion?->files ?? collect();
@@ -113,20 +123,35 @@ class TopicCommentResponseFormController extends Controller
                 $detailedProposal['proponent_department'] ?? null,
             ),
             'staff' => $this->staffRows($detailedProposal, $lineItemBudget),
-            'feedback' => $this->feedbackRows($topic),
+            'form_source' => $source,
+            'form_label' => app(CommentResponseFeedback::class)->formLabel($source),
+            'review_id' => $reviewId ?: null,
+            'feedback' => $this->feedbackRows($topic, $source, $reviewId),
         ];
     }
 
     /** @return list<array{reviewer: string, location: string, comment: string}> */
-    private function feedbackRows(TopicProposal $topic): array
+    private function feedbackRows(TopicProposal $topic, string $source, int $reviewId): array
     {
         $review = $topic->reviews()->where('decision', 'revision_requested')
-            ->when(request()->filled('review'), fn ($query) => $query->whereKey(request()->integer('review')))
+            ->when($reviewId > 0, fn ($query) => $query->whereKey($reviewId))
             ->latest('id')->first();
 
-        abort_if(request()->filled('review') && $review === null, 404);
+        abort_if($reviewId > 0 && $review === null, 404);
 
-        return app(CommentResponseFeedback::class)->rows($review);
+        return app(CommentResponseFeedback::class)->rowsForSource($review, $source);
+    }
+
+    private function formSource(Request $request): string
+    {
+        $source = $request->string('source', CommentResponseFeedback::FORM_RESEARCH_HEAD)->toString();
+
+        abort_unless(in_array($source, [
+            CommentResponseFeedback::FORM_RESEARCH_HEAD,
+            CommentResponseFeedback::FORM_CO_EVALUATOR,
+        ], true), 404);
+
+        return $source;
     }
 
     /** @return array<string, mixed> */

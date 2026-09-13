@@ -31,6 +31,7 @@ class StoreResearchHeadFileRequest extends FormRequest
             : null;
         $isSupplemental = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
         $isSignedCopy = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
+        $isEvaluation = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
 
         return [
             'source_file_id' => [
@@ -45,7 +46,9 @@ class StoreResearchHeadFileRequest extends FormRequest
             ],
             'review_file' => [
                 'required',
-                File::types($isSignedCopy ? ['pdf'] : ['pdf', 'doc', 'docx', 'xls', 'xlsx'])->max('25mb'),
+                File::types($isSignedCopy
+                    ? ['pdf']
+                    : ($isEvaluation ? ['pdf', 'docx'] : ['pdf', 'doc', 'docx', 'xls', 'xlsx']))->max('25mb'),
             ],
             'purpose' => [
                 'required',
@@ -53,8 +56,10 @@ class StoreResearchHeadFileRequest extends FormRequest
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
+                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
                 ]),
             ],
+            'co_evaluator_name' => [Rule::requiredIf($isEvaluation), 'nullable', 'string', 'max:160'],
             'document_title' => [Rule::requiredIf($isSupplemental), 'nullable', 'string', 'max:255'],
             'issuing_office' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
@@ -70,10 +75,13 @@ class StoreResearchHeadFileRequest extends FormRequest
             'review_file.required' => 'Select the reviewed or signed file to upload.',
             'review_file.mimes' => $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
                 ? 'The signed final copy must be a PDF.'
-                : 'The upload must be a PDF, Word, or Excel document.',
+                : ($this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
+                    ? 'The completed Initial Screening Form must be a PDF or DOCX document.'
+                    : 'The upload must be a PDF, Word, or Excel document.'),
             'review_file.max' => 'The upload may not be larger than 25 MB.',
-            'purpose.in' => 'Choose whether this is a revision copy, signed copy, or supplemental paper.',
+            'purpose.in' => 'Choose whether this is a revision copy, completed evaluation, signed copy, or supplemental paper.',
             'document_title.required' => 'Enter a title for the supplemental paper.',
+            'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
         ];
     }
 }

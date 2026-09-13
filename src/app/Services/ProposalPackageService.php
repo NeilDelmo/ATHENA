@@ -449,7 +449,7 @@ class ProposalPackageService
     }
 
     /**
-     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>}  $meta
+     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, narrative_evaluation?: string|null}  $meta
      * @return array<string, mixed>
      */
     public function storeHeadUpload(
@@ -483,6 +483,8 @@ class ProposalPackageService
                 'note' => $meta['note'] ?? null,
                 'decision' => $meta['decision'] ?? null,
                 'required_signature_file_ids' => $meta['required_signature_file_ids'] ?? [],
+                'co_evaluator_name' => $meta['co_evaluator_name'] ?? null,
+                'narrative_evaluation' => $meta['narrative_evaluation'] ?? null,
             ],
         ];
     }
