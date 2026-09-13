@@ -126,7 +126,9 @@ class MonitoringToolDocumentService
             $cells = $this->cells($xpath, $rows[$index + 7], 7);
             $entry = $entries[$index] ?? [];
             $values = $entry === [] ? array_fill(0, 7, '') : [
-                (string) ($entry['activity'] ?? ''),
+                filled($entry['objective'] ?? null)
+                    ? 'Objective: '.$entry['objective']."\nActivity: ".($entry['activity'] ?? '')
+                    : (string) ($entry['activity'] ?? ''),
                 $this->percentage((float) ($entry['percent_weight'] ?? 0)),
                 (string) ($entry['physical_target'] ?? ''),
                 $this->date((string) ($entry['target_completion_date'] ?? '')),

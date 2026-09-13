@@ -14,6 +14,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\MonitoringQuarterService;
 use App\Services\MonitoringToolDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
@@ -34,8 +35,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ProjectMonitoringController extends Controller
 {
-    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View|RedirectResponse
-    {
+    public function create(
+        Request $request,
+        TopicProposal $topic,
+        ProjectMonitoringFormDataService $formData,
+        ApprovedWorkPlanMonitoringService $approvedWorkPlan,
+    ): View|RedirectResponse {
         $this->ensureResearcherCanPrepareReport($request, $topic);
 
         $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
@@ -54,7 +59,11 @@ class ProjectMonitoringController extends Controller
                 ->withErrors(['monitoring' => 'No reporting period is open for a new report. Check the schedule below.']);
         }
         $selectedReportingDate = $data['revisionReport']?->reporting_date?->toDateString()
-            ?? $draftDate ?? $requestedDate ?? $quarterOptions->first()['reporting_date'] ?? null;
+            ?? $draftDate
+            ?? $request->old('reporting_date')
+            ?? $requestedDate
+            ?? $quarterOptions->first()['reporting_date']
+            ?? null;
         if ($requestedDate && $data['revisionReport'] === null) {
             $requestedQuarter = $quarterService->forDate($requestedDate, $topic);
             $row = $quarters->first(fn (array $row): bool => $row['start']->eq($requestedQuarter['start']));
@@ -64,9 +73,34 @@ class ProjectMonitoringController extends Controller
             }
         }
 
+        $approvedWorkPlanByPeriod = $quarters
+            ->mapWithKeys(fn (array $row): array => [
+                $row['year'].'-'.$row['quarter'] => $approvedWorkPlan->defaultsForDate($topic, $row['end']),
+            ])
+            ->all();
+        $selectedPeriod = $selectedReportingDate
+            ? $quarterService->forDate($selectedReportingDate, $topic)
+            : null;
+        $savedWorkPlanRows = data_get($data['monitoringDraft']?->source_data, 'work_plan')
+            ?? $data['revisionReport']?->work_plan
+            ?? [];
+        $initialWorkPlanRows = $selectedReportingDate
+            ? $approvedWorkPlan->synchronizeForDate(
+                $topic,
+                $selectedReportingDate,
+                is_array($savedWorkPlanRows) ? $savedWorkPlanRows : [],
+            )
+            : [];
+
         return view('faculty.monitoring-tools.create', [
             'topic' => $topic, ...$data, 'quarterOptions' => $quarterOptions,
             'selectedReportingDate' => $selectedReportingDate,
+            'approvedWorkPlanByPeriod' => $approvedWorkPlanByPeriod,
+            'approvedWorkPlanAvailable' => $approvedWorkPlan->hasApprovedWorkPlan($topic),
+            'selectedPeriodKey' => $selectedPeriod ? $selectedPeriod['year'].'-'.$selectedPeriod['quarter'] : null,
+            'selectedReportNumber' => $selectedPeriod['quarter'] ?? null,
+            'monitoringReportCount' => $quarters->count(),
+            'initialWorkPlanRows' => $initialWorkPlanRows,
         ]);
     }
 
@@ -399,7 +433,7 @@ class ProjectMonitoringController extends Controller
         $report->submitter->notify(new ProposalActivityNotification(
             title: $validated['review_status'] === 'reviewed'
                 ? $report->quarter_label.' Monitoring Tool Reviewed'
-                : $report->quarter_label.' Monitoring Tool Needs Revision',
+                : $report->quarter_label.' Monitoring Tool Corrections Requested',
             message: 'Project: '.$report->topic->title."\nReporting Period: ".$report->reporting_period_label,
             url: route('topics.show', $report->topic).'#monitoring-tool-'.$report->id,
             level: $validated['review_status'] === 'reviewed' ? 'success' : 'warning',

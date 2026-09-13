@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -279,6 +280,21 @@ class TopicProposal extends Model
     {
         return $this->status === 'approved'
             && $this->project_status === self::PROJECT_STATUS_COMPLETED;
+    }
+
+    public function isDisseminationAvailable(): bool
+    {
+        return $this->isMonitoringAvailable() || $this->isCompletedProject();
+    }
+
+    public function conferences(): HasMany
+    {
+        return $this->hasMany(ProjectConference::class, 'topic_id');
+    }
+
+    public function publications(): BelongsToMany
+    {
+        return $this->belongsToMany(ResearchPublication::class, 'research_publication_topic', 'topic_id', 'research_publication_id')->withTimestamps();
     }
 
     public function isVisibleInResearcherWorkspace(): bool

@@ -315,7 +315,7 @@ class ProjectNarrativeReportController extends Controller
         $report->topic->user->notify(new ProposalActivityNotification(
             $validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED
                 ? 'Progress report reviewed'
-                : 'Progress report needs revision',
+                : 'Progress report corrections requested',
             'The Research Head reviewed your progress report for “'.$report->topic->title.'”.',
             route('topics.show', $report->topic).'#project-monitoring',
             $validated['review_status'] === ProjectNarrativeReport::STATUS_REVIEWED ? 'success' : 'warning',

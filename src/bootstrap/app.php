@@ -28,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*')
                 || $request->routeIs('research-support.chat')
+                || ($request->expectsJson() && $request->routeIs('research.dissemination.*'))
                 || $request->routeIs(
                     'research-support.literature-*',
                     'research-support.conference-search',

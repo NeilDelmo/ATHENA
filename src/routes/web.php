@@ -12,6 +12,7 @@ use App\Http\Controllers\LiteratureSynthesisController;
 use App\Http\Controllers\NoticeToProceedController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectDisseminationController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
 use App\Http\Controllers\ProposalDraftController;
@@ -362,6 +363,24 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::post('/research-support/conference-search', ConferenceSearchController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.conference-search');
+});
+
+// RESEARCH HEAD ROUTES
+Route::middleware(['auth', 'workspace:faculty_researcher|research_head'])->prefix('research/{topic}/dissemination')->name('research.dissemination.')->group(function () {
+    Route::get('/', [ProjectDisseminationController::class, 'show'])->name('show');
+    Route::middleware('throttle:12,1')->group(function () {
+        Route::post('/authors', [ProjectDisseminationController::class, 'authors'])->name('authors');
+        Route::post('/profile', [ProjectDisseminationController::class, 'profile'])->name('profile');
+        Route::post('/papers', [ProjectDisseminationController::class, 'papers'])->name('papers');
+        Route::post('/doi', [ProjectDisseminationController::class, 'doi'])->name('doi');
+        Route::post('/import', [ProjectDisseminationController::class, 'import'])->name('import');
+        Route::post('/conferences/search', [ProjectDisseminationController::class, 'searchConferences'])->name('conferences.search');
+    });
+    Route::post('/publications', [ProjectDisseminationController::class, 'manual'])->name('manual');
+    Route::post('/publications/link', [ProjectDisseminationController::class, 'link'])->name('link');
+    Route::delete('/publications/{publication}', [ProjectDisseminationController::class, 'unlink'])->name('unlink');
+    Route::post('/conferences', [ProjectDisseminationController::class, 'storeConference'])->name('conferences.store');
+    Route::patch('/conferences/{conference}', [ProjectDisseminationController::class, 'updateConference'])->name('conferences.update');
 });
 
 // RESEARCH HEAD ROUTES

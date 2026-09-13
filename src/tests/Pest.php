@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -15,7 +16,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
-    ->use(RefreshDatabase::class)
+    ->use(getenv('ATHENA_TEST_PRESERVE_DATABASE') === '1' ? DatabaseTransactions::class : RefreshDatabase::class)
     ->in('Feature');
 
 /*

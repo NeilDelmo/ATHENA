@@ -81,7 +81,13 @@
                     <tbody>
                         @foreach ($workPlan as $entry)
                             <tr>
-                                <td>{{ $entry['activity'] }}</td>
+                                <td>
+                                    @if (filled($entry['objective'] ?? null))
+                                        <strong>Objective:</strong> {{ $entry['objective'] }}<br>
+                                        <strong>Activity:</strong>
+                                    @endif
+                                    {{ $entry['activity'] }}
+                                </td>
                                 <td class="monitoring-number">{{ $percentage((float) $entry['percent_weight']) }}</td>
                                 <td>{{ $entry['physical_target'] }}</td>
                                 <td class="monitoring-date">{{ \Illuminate\Support\Carbon::parse($entry['target_completion_date'])->format('M j, Y') }}</td>

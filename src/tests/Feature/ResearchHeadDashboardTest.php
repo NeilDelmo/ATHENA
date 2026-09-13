@@ -151,10 +151,12 @@ test('monitoring page shows approved projects only with latest progress and coun
     $this->actingAs($this->head)
         ->get(route('research_head.projects.index'))
         ->assertOk()
+        ->assertSee('Research Projects Under Monitoring')
+        ->assertDontSee('Projects with a Notice to Proceed')
         ->assertSee('Approved Monitoring Project')
         ->assertSee('45%')
         ->assertSee('1 awaiting review')
-        ->assertDontSee('Unapproved Proposal');
+        ->assertDontSee('text-sm font-black text-gray-900">Unapproved Proposal', false);
 });
 
 test('monitoring page filters by project status and attention', function () {

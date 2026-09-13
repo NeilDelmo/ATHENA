@@ -1,6 +1,7 @@
 
 import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Swal from 'sweetalert2';
+import { projectDissemination } from './project-dissemination';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
@@ -51,6 +52,7 @@ import {
 } from './proposal-paper-autosave';
 
 window.Alpine = Alpine;
+Alpine.data('projectDissemination', projectDissemination);
 window.Swal = Swal;
 
 const themeStorageKey = 'athena-theme';
@@ -4647,6 +4649,10 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             accomplished_percentage: '',
             findings: '',
         }],
+    periodEntries: config.periodEntries && typeof config.periodEntries === 'object' ? config.periodEntries : {},
+    approvedWorkPlanAvailable: Boolean(config.approvedWorkPlanAvailable),
+    currentPeriodKey: config.initialPeriodKey || '',
+    reportCount: Number(config.reportCount || 0),
     autoSaveTimer: null,
     autoSaveInFlight: false,
     autoSaveBlocked: false,
@@ -4659,6 +4665,82 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
 
     updateEntryProgress(entry) {
         entry.accomplished_percentage = Number((Number(entry.percent_weight || 0) * Number(entry.completion || 0) / 100).toFixed(2));
+        this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+    },
+
+    isApprovedEntry(entry) {
+        return Number.isInteger(Number(entry?.source_work_plan_index))
+            && entry?.source_work_plan_index !== ''
+            && entry?.source_work_plan_index !== null;
+    },
+
+    hasApprovedEntries() {
+        return this.entries.some(entry => this.isApprovedEntry(entry));
+    },
+
+    currentReportNumber() {
+        const parts = String(this.currentPeriodKey).split('-');
+        const number = Number(parts.at(-1));
+
+        return Number.isFinite(number) && number > 0 ? number : '—';
+    },
+
+    totalProjectProgress() {
+        return this.entries.reduce(
+            (total, entry) => total + Number(entry.accomplished_percentage || 0),
+            0,
+        );
+    },
+
+    monthLabel(months) {
+        if (!Array.isArray(months) || months.length === 0) return '';
+
+        const ordered = [...months].map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+
+        if (ordered.length === 0) return '';
+        if (ordered.length === 1) return `Month ${ordered[0]}`;
+
+        return `Months ${ordered[0]}–${ordered.at(-1)}`;
+    },
+
+    formatPlanDate(value) {
+        if (!value) return '—';
+
+        const date = new Date(`${value}T00:00:00`);
+
+        return Number.isNaN(date.getTime())
+            ? value
+            : new Intl.DateTimeFormat(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            }).format(date);
+    },
+
+    selectReportingPeriod(planKey) {
+        if (!planKey || planKey === this.currentPeriodKey) return;
+
+        this.currentPeriodKey = planKey;
+        const rows = Array.isArray(this.periodEntries[planKey])
+            ? this.periodEntries[planKey]
+            : [];
+        this.entries = rows.length > 0
+            ? rows.map(entry => ({
+                ...entry,
+                completion: Number(entry.percent_weight) > 0
+                    ? Number((Number(entry.accomplished_percentage || 0) / Number(entry.percent_weight) * 100).toFixed(2))
+                    : 0,
+            }))
+            : [{
+                activity: '',
+                completion: 0,
+                percent_weight: '',
+                physical_target: '',
+                target_completion_date: '',
+                actual_accomplishment: '',
+                accomplished_percentage: '',
+                findings: '',
+            }];
         this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
     },
 

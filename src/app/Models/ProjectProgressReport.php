@@ -128,4 +128,13 @@ class ProjectProgressReport extends Model
     {
         return 'Version '.$this->version_number;
     }
+
+    public function getReviewStatusLabelAttribute(): string
+    {
+        return match ($this->review_status) {
+            'revision_requested' => 'Corrections requested',
+            'reviewed' => 'Reviewed',
+            default => 'Awaiting review',
+        };
+    }
 }

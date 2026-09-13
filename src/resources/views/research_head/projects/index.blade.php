@@ -16,7 +16,7 @@
         </form>
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">Projects with a Notice to Proceed</h3><p class="mt-1 text-xs text-gray-400">Only projects whose notice has been issued enter monitoring. Delayed projects and projects with pending reports appear first.</p></div>
+            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">Research Projects Under Monitoring</h3><p class="mt-1 text-xs text-gray-400">Review implementation status and submitted reports. Delayed projects and projects with reports awaiting review appear first.</p></div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-100">
                     <thead class="bg-gray-50"><tr><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Project</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Status</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Latest progress</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Reports</th><th class="px-5 py-3"><span class="sr-only">Open</span></th></tr></thead>
@@ -34,7 +34,7 @@
                                 <td class="px-5 py-4 text-right"><a href="{{ route('topics.show', $project) }}#project-monitoring" class="inline-flex rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white">Open monitoring</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Projects appear here after their Notice to Proceed is issued.</p></td></tr>
+                            <tr><td colspan="5" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Approved projects appear here when implementation monitoring begins.</p></td></tr>
                         @endforelse
                     </tbody>
                 </table>

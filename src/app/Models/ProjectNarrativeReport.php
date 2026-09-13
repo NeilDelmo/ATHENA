@@ -114,4 +114,13 @@ class ProjectNarrativeReport extends Model
     {
         return $this->submission_status === self::SUBMISSION_STATUS_SUBMITTED;
     }
+
+    public function getReviewStatusLabelAttribute(): string
+    {
+        return match ($this->review_status) {
+            self::STATUS_REVISION_REQUESTED => 'Corrections requested',
+            self::STATUS_REVIEWED => 'Reviewed',
+            default => 'Awaiting review',
+        };
+    }
 }

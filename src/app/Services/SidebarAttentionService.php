@@ -166,7 +166,8 @@ class SidebarAttentionService
             'Project status updated',
             'Progress report reviewed',
             'Progress report needs revision',
-        ], true) || Str::endsWith($title, ['Monitoring Tool Reviewed', 'Monitoring Tool Needs Revision'])
+            'Progress report corrections requested',
+        ], true) || Str::endsWith($title, ['Monitoring Tool Reviewed', 'Monitoring Tool Needs Revision', 'Monitoring Tool Corrections Requested'])
             || Str::contains($url, '/research/')) {
             return ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS;
         }

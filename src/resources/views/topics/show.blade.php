@@ -71,6 +71,9 @@
                     <p class="mt-1 text-sm text-gray-600">Proposal #{{ $topic->id }} &middot; {{ $topic->user->name }} &middot; {{ $topic->researchCall?->title ?? 'Research proposal' }}</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2">
+                    @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace(['faculty_researcher', 'research_head']) && $hasProjectAccess)
+                        <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300">Conferences &amp; Publications</a>
+                    @endif
                     @if ($draftHistoryCount > 0 && ($isFacultyWorkspace || $isResearchHead))
                         <a href="{{ route('topics.draft-history.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50">Draft history ({{ $draftHistoryCount }})</a>
                     @endif

@@ -44,9 +44,9 @@
                 ],
                 [
                     'id' => 'completed-projects',
-                    'eyebrow' => 'Read-only records',
+                    'eyebrow' => 'Reporting complete',
                     'title' => 'Completed / Archive',
-                    'description' => 'Completed projects no longer occupy a capacity slot. Their approved papers, NTP, and submitted reports remain available.',
+                    'description' => 'Reports are archived and capacity is released. Continue finding conferences, tracking submissions, and linking publications.',
                     'projects' => $completedProjects,
                     'empty' => 'No completed projects have been archived yet.',
                     'tone' => 'completed',
@@ -74,7 +74,7 @@
                                 @elseif ($section['tone'] === 'awaiting')
                                     <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#7A0019] ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900">Awaiting Notice to Proceed</span>
                                 @else
-                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:bg-gray-900 dark:text-gray-400">Completed · Read only</span>
+                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:bg-gray-900 dark:text-gray-400">Completed · Reports archived</span>
                                 @endif
                             </div>
 
@@ -92,7 +92,10 @@
                                 </div>
                             </dl>
 
-                            <div class="mt-auto flex gap-2 pt-5">
+                            <div class="mt-auto flex flex-col gap-2 pt-5">
+                                @if ($topic->isDisseminationAvailable())
+                                    <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">Conferences &amp; Publications</a>
+                                @endif
                                 <a href="{{ route('research.show', $topic) }}{{ in_array($section['tone'], ['active', 'completed'], true) ? '#project-monitoring' : '#notice-to-proceed' }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-[#7A0019] dark:bg-white dark:text-gray-950 dark:hover:bg-red-200">
                                     {{ $section['tone'] === 'active' ? 'Project & monitoring' : 'View project record' }}
                                 </a>

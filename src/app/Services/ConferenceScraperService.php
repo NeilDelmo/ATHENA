@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -84,6 +86,11 @@ class ConferenceScraperService
     public function search(string $query): array
     {
         $this->failed = false;
+        $query = Str::squish($query);
+        $cacheKey = 'conference-search:v2:'.hash('sha256', Str::lower($query));
+        if ($cached = Cache::get($cacheKey)) {
+            return $cached;
+        }
 
         try {
             $response = Http::accept('text/html')
@@ -106,11 +113,20 @@ class ConferenceScraperService
             return $this->emptyPayload();
         }
 
-        return [
+        $payload = [
             'results' => $this->parseWikiCfpResults((string) $response->body(), $query),
             'failed_sources' => [],
             'sources' => [self::SOURCE],
+            'checked_at' => now()->toIso8601String(),
         ];
+        Cache::put($cacheKey, $payload, now()->addMinutes(30));
+
+        return $payload;
+    }
+
+    public function suggestedQuery(string $title): string
+    {
+        return Str::limit(implode(' ', array_slice($this->queryKeywords($title), 0, 7)), 140, '');
     }
 
     public function allSourcesFailed(): bool
@@ -166,16 +182,31 @@ class ConferenceScraperService
 
             $rowText = $this->cleanText($row->textContent);
             $nextRowText = $this->cleanText($this->nextElementText($row));
+            $metadata = $this->metadataCells($row);
+            $titleCells = $xpath->query('./td', $row);
+            if ($metadata !== [] && $titleCells?->length > 1) {
+                $longTitle = $this->cleanText($titleCells->item(1)->textContent);
+                if ($longTitle !== '' && ! Str::contains($title, $longTitle)) {
+                    $title .= ': '.$longTitle;
+                }
+            }
             $description = $this->description($rowText, $title, $nextRowText);
-            $location = $this->matchLabel($rowText, ['Where', 'Location']);
+            $location = $this->matchLabel($rowText, ['Where', 'Location']) ?? ($metadata[1] ?? null);
+            $deadline = $this->matchLabel($rowText, ['Submission Deadline', 'Deadline']) ?? ($metadata[2] ?? null);
+            $eventDate = $this->matchLabel($rowText, ['When', 'Event Date']) ?? ($metadata[0] ?? null);
+            $deadlineDate = $this->isoDate($deadline);
             $scope = $this->conferenceScope($location);
 
             $results[] = [
                 'title' => $title,
                 'description' => $description,
                 'location' => $location,
-                'deadline' => $this->matchLabel($rowText, ['Submission Deadline', 'Deadline', 'When']),
-                'event_date' => $this->matchLabel($rowText, ['When', 'Event Date']),
+                'deadline' => $deadline,
+                'event_date' => $eventDate,
+                'submission_deadline' => $deadlineDate,
+                'event_starts_on' => $this->isoDate($eventDate),
+                'deadline_status' => $deadlineDate === null ? 'unknown' : ($deadlineDate < now()->toDateString() ? 'closed' : 'open'),
+                'source_checked_at' => now()->toIso8601String(),
                 'url' => $url,
                 'source' => self::SOURCE,
                 'scope' => $scope['scope'],
@@ -191,6 +222,36 @@ class ConferenceScraperService
             ->take(12)
             ->values()
             ->all();
+    }
+
+    /** @return list<string> */
+    private function metadataCells(DOMElement $row): array
+    {
+        $next = $row->nextSibling;
+        while ($next && ! $next instanceof DOMElement) {
+            $next = $next->nextSibling;
+        }
+        if (! $next instanceof DOMElement || $next->getElementsByTagName('a')->length > 0) {
+            return [];
+        }
+        $cells = [];
+        foreach ($next->getElementsByTagName('td') as $cell) {
+            $cells[] = $this->cleanText($cell->textContent);
+        }
+
+        return count($cells) >= 3 ? $cells : [];
+    }
+
+    private function isoDate(?string $date): ?string
+    {
+        if (! $date || ! preg_match('/^([A-Za-z]{3,9} \\d{1,2}, \\d{4}|\\d{4}-\\d{2}-\\d{2})/', trim($date), $match)) {
+            return null;
+        }
+        try {
+            return CarbonImmutable::parse($match[1])->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function ancestorRow(DOMElement $node): ?DOMElement

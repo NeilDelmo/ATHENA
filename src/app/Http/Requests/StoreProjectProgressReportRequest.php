@@ -3,13 +3,39 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use App\Services\MonitoringQuarterService;
+use DateTimeImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreProjectProgressReportRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $topic = $this->route('topic');
+        $reportingDate = $this->input('reporting_date');
+
+        if (! $topic instanceof TopicProposal || ! is_string($reportingDate) || blank($reportingDate)) {
+            return;
+        }
+
+        $parsedReportingDate = DateTimeImmutable::createFromFormat('!Y-m-d', $reportingDate);
+
+        if (! $parsedReportingDate || $parsedReportingDate->format('Y-m-d') !== $reportingDate) {
+            return;
+        }
+
+        $this->merge([
+            'work_plan' => app(ApprovedWorkPlanMonitoringService::class)->synchronizeForDate(
+                $topic,
+                $parsedReportingDate,
+                is_array($this->input('work_plan')) ? $this->input('work_plan') : [],
+            ),
+        ]);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -37,10 +63,14 @@ class StoreProjectProgressReportRequest extends FormRequest
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
-            'work_plan.*.activity' => ['required', 'string', 'max:300'],
+            'work_plan.*.source_work_plan_index' => ['nullable', 'integer', 'min:0'],
+            'work_plan.*.objective' => ['nullable', 'string', 'max:500'],
+            'work_plan.*.activity' => ['required', 'string', 'max:1500'],
             'work_plan.*.percent_weight' => ['required', 'numeric', 'between:0,100'],
-            'work_plan.*.physical_target' => ['required', 'string', 'max:300'],
+            'work_plan.*.physical_target' => ['required', 'string', 'max:500'],
             'work_plan.*.target_completion_date' => ['required', 'date'],
+            'work_plan.*.work_plan_months' => ['nullable', 'array', 'max:120'],
+            'work_plan.*.work_plan_months.*' => ['integer', 'min:1', 'max:120'],
             'work_plan.*.actual_accomplishment' => ['required', 'string', 'max:500'],
             'work_plan.*.accomplished_percentage' => ['required', 'numeric', 'between:0,100'],
             'work_plan.*.findings' => ['nullable', 'string', 'max:500'],

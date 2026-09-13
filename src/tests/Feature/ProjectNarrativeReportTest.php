@@ -360,7 +360,7 @@ test('a researcher can discard a prepared progress report and its stored files',
     Storage::disk('local')->assertMissing([$pdfPath, $photoPath]);
 });
 
-test('the Research Head can request a progress report revision only with remarks', function () {
+test('the Research Head can request progress report corrections only with remarks', function () {
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.store', $this->topic), ($this->progressReportPayload)())
         ->assertSessionHasNoErrors();
@@ -395,6 +395,12 @@ test('the Research Head can request a progress report revision only with remarks
         ->assertRedirect();
 
     expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
+        ->and($report->fresh()->review_status_label)->toBe('Corrections requested')
         ->and($report->fresh()->reviewed_by)->toBe($this->head->id)
         ->and($notification->fresh()->read_at)->not->toBeNull();
+    Notification::assertSentTo(
+        $this->researcher,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === 'Progress report corrections requested',
+    );
 });

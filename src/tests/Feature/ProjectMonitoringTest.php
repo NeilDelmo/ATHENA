@@ -3,10 +3,12 @@
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\ApprovedWorkPlanMonitoringService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -94,6 +96,35 @@ beforeEach(function () {
         ],
         'prepared_by_date_signed' => now()->toDateString(),
     ], $overrides);
+
+    $this->attachApprovedWorkPlan = function (array $entries, int $durationMonths): void {
+        $version = $this->topic->versions()->create([
+            'submitted_by' => $this->researcher->id,
+            'version_number' => 1,
+            'submission_type' => 'initial',
+            'file_path' => 'approved-proposal.pdf',
+            'original_filename' => 'approved-proposal.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'checksum' => hash('sha256', 'approved-proposal'),
+            'title' => $this->topic->title,
+            'estimated_budget' => $this->topic->estimated_budget,
+            'estimated_duration_months' => $durationMonths,
+        ]);
+        $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+            'position' => 0,
+            'file_path' => 'approved-work-plan.pdf',
+            'original_filename' => 'approved-work-plan.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'checksum' => hash('sha256', 'approved-work-plan'),
+            'source_data' => [
+                'total_duration_months' => $durationMonths,
+                'entries' => $entries,
+            ],
+        ]);
+    };
 });
 
 test('report schedule blocks early submissions and opens terminal after project end', function () {
@@ -162,18 +193,95 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertOk()
         ->assertSee('Submit monitoring tool')
         ->assertSee('Prepare official PDF')
-        ->assertSee('Preview monitoring tool')
+        ->assertSee('Preview Monitoring Tool')
         ->assertSee('Changes save automatically.')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
         ->assertSee('data-proposal-autosave-status', false)
         ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
-        ->assertSee('Activities and progress')
-        ->assertSee('You can add up to 11 activities.')
+        ->assertSee('Approved Activities')
+        ->assertSee('Add Activity')
         ->assertSee('Spending this quarter')
         ->assertSee('Purchase Request')
         ->assertSee('Request of Payment');
+});
+
+test('approved Work Plan objectives and activities flow into their monitoring reports', function () {
+    ($this->attachApprovedWorkPlan)([
+        [
+            'objective' => 'Establish the community baseline',
+            'activity' => 'Conduct baseline interviews',
+            'expected_output' => 'Validated baseline dataset',
+            'months' => [1, 2, 3],
+        ],
+        [
+            'objective' => 'Develop the intervention',
+            'activity' => 'Build and pilot the training kit',
+            'expected_output' => 'Pilot-ready training kit',
+            'months' => [4, 5, 6],
+        ],
+        [
+            'objective' => 'Evaluate project outcomes',
+            'activity' => 'Analyze results and prepare recommendations',
+            'expected_output' => 'Outcome evaluation report',
+            'months' => [7, 8, 9],
+        ],
+    ], 9);
+    $this->topic->update([
+        'notice_to_proceed_issued_at' => '2026-01-01',
+        'estimated_duration_months' => 9,
+        'notice_to_proceed_data' => [
+            'approved_start_date' => '2026-01-01',
+            'approved_end_date' => '2026-09-30',
+            'approved_duration_months' => 9,
+        ],
+    ]);
+    $this->travelTo('2026-10-01 08:00:00');
+
+    $mapper = app(ApprovedWorkPlanMonitoringService::class);
+    expect($mapper->defaultsForDate($this->topic, '2026-03-31'))
+        ->toHaveCount(1)
+        ->and($mapper->defaultsForDate($this->topic, '2026-03-31')[0]['objective'])->toBe('Establish the community baseline')
+        ->and($mapper->defaultsForDate($this->topic, '2026-06-30')[0]['activity'])->toBe('Build and pilot the training kit')
+        ->and($mapper->defaultsForDate($this->topic, '2026-09-30')[0]['physical_target'])->toBe('Outcome evaluation report');
+
+    $this->actingAs($this->researcher)
+        ->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-03-31']))
+        ->assertOk()
+        ->assertSee('Report')
+        ->assertSee('of 3')
+        ->assertSee('Synced From Approved Work Plan')
+        ->assertSee('Only progress details are editable.');
+
+    $tampered = ($this->monitoringPayload)([
+        'reporting_date' => '2026-03-31',
+        'work_plan' => [[
+            'source_work_plan_index' => 0,
+            'objective' => 'Changed objective',
+            'activity' => 'Changed activity',
+            'percent_weight' => 99,
+            'physical_target' => 'Changed target',
+            'target_completion_date' => '2027-12-31',
+            'work_plan_months' => [9],
+            'actual_accomplishment' => 'Completed 18 baseline interviews',
+            'accomplished_percentage' => 15,
+            'findings' => 'Two respondents need follow-up interviews.',
+        ]],
+    ]);
+
+    $this->post(route('project-progress.prepare', $this->topic), $tampered)
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    $savedPlan = ProjectProgressReport::sole()->work_plan;
+    expect($savedPlan[0]['objective'])->toBe('Establish the community baseline')
+        ->and($savedPlan[0]['activity'])->toBe('Conduct baseline interviews')
+        ->and($savedPlan[0]['physical_target'])->toBe('Validated baseline dataset')
+        ->and($savedPlan[0]['percent_weight'])->toBe('33.33')
+        ->and($savedPlan[0]['target_completion_date'])->toBe('2026-03-31')
+        ->and($savedPlan[0]['work_plan_months'])->toBe([1, 2, 3])
+        ->and($savedPlan[0]['actual_accomplishment'])->toBe('Completed 18 baseline interviews');
 });
 
 test('a monitoring form auto-saves a private draft without preparing an official PDF', function () {
@@ -491,10 +599,16 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
         ])
         ->assertSessionHasNoErrors();
 
+    Notification::assertSentTo(
+        $this->researcher,
+        ProposalActivityNotification::class,
+        fn (ProposalActivityNotification $notification): bool => $notification->title === $original->quarter_label.' Monitoring Tool Corrections Requested',
+    );
+
     $this->actingAs($this->researcher)
         ->get(route('project-progress.create', ['topic' => $this->topic, 'revise_monitoring_report' => $original->id]))
         ->assertOk()
-        ->assertSee('Revise '.$original->quarter_label.' Monitoring Tool')
+        ->assertSee('Correct '.$original->quarter_label.' Monitoring Tool')
         ->assertSee('Please correct the accomplishment data.');
 
     $this->actingAs($this->researcher)
@@ -533,6 +647,7 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
         ->assertOk()
         ->assertSee('Quarterly reporting schedule')
         ->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2')
+        ->assertSee('Corrections requested')
         ->assertSee('Historical version')
         ->assertSee('Current submission');
 });
