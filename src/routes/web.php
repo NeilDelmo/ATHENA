@@ -4,6 +4,7 @@ use App\Http\Controllers\AnnouncementImageController;
 use App\Http\Controllers\Auth\ProviderController;
 use App\Http\Controllers\ConferenceSearchController;
 use App\Http\Controllers\FacultyDirectoryController;
+use App\Http\Controllers\JournalSearchController;
 use App\Http\Controllers\LiteratureCollectionController;
 use App\Http\Controllers\LiteratureFullTextPreviewController;
 use App\Http\Controllers\LiteratureSearchController;
@@ -360,6 +361,9 @@ Route::middleware(['auth', 'workspace:faculty', 'throttle:30,1'])->group(functio
 });
 
 Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
+    Route::post('/research-support/journal-search', JournalSearchController::class)
+        ->middleware('throttle:12,1')
+        ->name('research-support.journal-search');
     Route::post('/research-support/conference-search', ConferenceSearchController::class)
         ->middleware('throttle:12,1')
         ->name('research-support.conference-search');
@@ -369,6 +373,7 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
 Route::middleware(['auth', 'workspace:faculty_researcher|research_head'])->prefix('research/{topic}/dissemination')->name('research.dissemination.')->group(function () {
     Route::get('/', [ProjectDisseminationController::class, 'show'])->name('show');
     Route::middleware('throttle:12,1')->group(function () {
+        Route::post('/journals/search', JournalSearchController::class)->name('journals.search');
         Route::post('/authors', [ProjectDisseminationController::class, 'authors'])->name('authors');
         Route::post('/profile', [ProjectDisseminationController::class, 'profile'])->name('profile');
         Route::post('/papers', [ProjectDisseminationController::class, 'papers'])->name('papers');

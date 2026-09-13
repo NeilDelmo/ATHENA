@@ -25,17 +25,17 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
         ->assertDontSee('href="'.$researchHelpUrl.'#ai-research-assistant"', false)
         ->assertSee('href="'.$researchHelpUrl.'#rrl-finder"', false)
         ->assertSee('href="'.$researchHelpUrl.'#turnitin"', false)
-        ->assertDontSee('href="'.$researchHelpUrl.'#conference-finder"', false)
+        ->assertDontSee('href="'.$researchHelpUrl.'#journal-finder"', false)
         ->assertSee('id="rrl-finder"', false)
         ->assertSee('id="turnitin"', false)
         ->assertSee('data-turnitin-resource', false)
         ->assertSee('Request a similarity check')
         ->assertSee('Sign in to Turnitin')
         ->assertSee('Read your report')
-        ->assertDontSee('id="conference-finder"', false);
+        ->assertDontSee('id="journal-finder"', false);
 });
 
-test('faculty researcher sidebar includes turnitin and conference discovery', function () {
+test('faculty researcher sidebar includes turnitin and journal discovery', function () {
     Role::firstOrCreate(['name' => 'faculty_researcher']);
     $researcher = User::factory()->create();
     $researcher->assignRole('faculty_researcher');
@@ -45,9 +45,9 @@ test('faculty researcher sidebar includes turnitin and conference discovery', fu
     $this->actingAs($researcher)
         ->get($researchHelpUrl)
         ->assertOk()
-        ->assertSeeInOrder(['Research Help Facility', 'Literature Search and Source Organizer', 'Turnitin', 'Conference Finder'])
+        ->assertSeeInOrder(['Research Help Facility', 'Literature Search and Source Organizer', 'Turnitin', 'Journal Finder'])
         ->assertSee('href="'.$researchHelpUrl.'#turnitin"', false)
-        ->assertSee('href="'.$researchHelpUrl.'#conference-finder"', false)
+        ->assertSee('href="'.$researchHelpUrl.'#journal-finder"', false)
         ->assertSee('id="turnitin"', false)
-        ->assertSee('id="conference-finder"', false);
+        ->assertSee('id="journal-finder"', false);
 });

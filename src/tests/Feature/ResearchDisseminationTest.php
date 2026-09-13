@@ -35,9 +35,46 @@ function disseminationWork(string $author = 'A123'): array
     ];
 }
 
+function journalRecommendationWork(
+    string $workId,
+    string $title,
+    string $sourceId,
+    string $journal,
+    bool $openAccess = false,
+): array {
+    return [
+        'id' => 'https://openalex.org/'.$workId,
+        'display_name' => $title,
+        'publication_year' => now()->year - 1,
+        'type' => 'article',
+        'doi' => 'https://doi.org/10.1234/'.strtolower($workId),
+        'topics' => [['display_name' => 'Coastal monitoring']],
+        'primary_location' => [
+            'landing_page_url' => 'https://example.org/articles/'.$workId,
+            'source' => [
+                'id' => 'https://openalex.org/'.$sourceId,
+                'display_name' => $journal,
+                'type' => 'journal',
+                'host_organization_name' => 'Coastal Science Press',
+                'issn_l' => '1234-5678',
+                'is_oa' => $openAccess,
+                'is_in_doaj' => $openAccess,
+                'works_count' => 850,
+                'cited_by_count' => 4200,
+                'homepage_url' => 'https://journals.example.org/'.$sourceId,
+            ],
+        ],
+    ];
+}
+
 test('completed projects retain dissemination access and preserve archived monitoring', function () {
     $this->get(route('research.dissemination.show', $this->topic))
-        ->assertOk()->assertSee('Conferences &amp; Publications', false)->assertSee('Research reporting is complete');
+        ->assertOk()
+        ->assertSee('Journal Finder')
+        ->assertSee('It does not create a publication record')
+        ->assertDontSee('Add a missing publication manually')
+        ->assertDontSee('Add to project shortlist')
+        ->assertSee('Research reporting is complete');
     $this->post(route('research.dissemination.conferences.store', $this->topic), [
         'title' => 'Coastal Science 2027', 'url' => 'https://example.org/coastal-2027', 'status' => 'shortlisted',
     ])->assertSessionHasNoErrors();
@@ -52,6 +89,45 @@ test('completed projects retain dissemination access and preserve archived monit
         ->and($this->topic->fresh()->isMonitoringAvailable())->toBeFalse()
         ->and(ResearchPublication::count())->toBe(0);
     $this->post(route('project-progress.store', $this->topic))->assertForbidden();
+});
+
+test('journal finder ranks venues from related articles without creating publication records', function () {
+    Http::fake([
+        'api.openalex.org/works*' => Http::response([
+            'results' => [
+                journalRecommendationWork('W101', 'Community coastal monitoring systems', 'S100', 'Journal of Coastal Research', true),
+                journalRecommendationWork('W102', 'Coastal water quality monitoring', 'S100', 'Journal of Coastal Research', true),
+                journalRecommendationWork('W103', 'Citizen science for coastal communities', 'S200', 'Marine Community Studies'),
+            ],
+        ]),
+    ]);
+
+    $response = $this->postJson(route('research.dissemination.journals.search', $this->topic), [
+        'query' => 'community coastal monitoring',
+        'context' => 'Citizen science and coastal water quality',
+        'open_access' => false,
+        'recent_years' => 5,
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('results.0.name', 'Journal of Coastal Research')
+        ->assertJsonPath('results.0.evidence_count', 2)
+        ->assertJsonPath('results.0.is_in_doaj', true)
+        ->assertJsonPath('source', 'OpenAlex');
+
+    $this->postJson(route('research-support.journal-search'), [
+        'query' => 'community coastal monitoring',
+        'context' => 'Citizen science and coastal water quality',
+        'open_access' => false,
+        'recent_years' => 5,
+    ])->assertOk()->assertJsonPath('results.0.name', 'Journal of Coastal Research');
+
+    expect(ResearchPublication::count())->toBe(0)
+        ->and(ProjectConference::count())->toBe(0);
+
+    Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://api.openalex.org/works')
+        && str_contains((string) $request['filter'], 'type:article')
+        && str_contains((string) $request['search'], 'community coastal monitoring'));
 });
 
 test('dissemination prevents unrelated users cross-project writes and head mutations', function () {

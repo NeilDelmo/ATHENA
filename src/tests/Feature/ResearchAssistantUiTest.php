@@ -190,18 +190,18 @@ test('faculty and faculty researchers can open the research help facility', func
             ->assertSee('target="_blank"', false)
             ->assertSee('rel="noopener noreferrer"', false)
             ->assertSee('Institutional access may be required')
-            ->assertSee("x-show=\"activeResearchTool === 'conference'\"", false)
-            ->assertSee('Conference Finder')
-            ->assertSee('HTML scraping')
-            ->assertSee('Find conferences for publication')
-            ->assertSee('Scraped source: WikiCFP');
+            ->assertSee("x-show=\"activeResearchTool === 'journal'\"", false)
+            ->assertSee('Journal Finder')
+            ->assertSee('Find a journal for your paper')
+            ->assertSee('related indexed articles')
+            ->assertDontSee('Scraped source: WikiCFP');
     } else {
         $response
             ->assertSee("x-show=\"activeResearchTool === 'turnitin'\"", false)
             ->assertSee('aria-controls="turnitin"', false)
             ->assertSee('href="https://www.turnitin.com/"', false)
-            ->assertDontSee("x-show=\"activeResearchTool === 'conference'\"", false)
-            ->assertDontSee('Conference Finder');
+            ->assertDontSee("x-show=\"activeResearchTool === 'journal'\"", false)
+            ->assertDontSee('Journal Finder');
     }
 })->with(['faculty', 'faculty_researcher']);
 
@@ -217,7 +217,7 @@ test('research heads can open the assistant workspace without faculty researcher
         ->assertSee('Research Support')
         ->assertDontSee('Visit Turnitin')
         ->assertDontSee('href="https://www.turnitin.com/"', false)
-        ->assertDontSee('Conference Finder')
+        ->assertDontSee('Journal Finder')
         ->assertSee('Ask ATHENA')
         ->assertDontSee('Literature Search and Source Organizer');
 })->with(['research_head']);

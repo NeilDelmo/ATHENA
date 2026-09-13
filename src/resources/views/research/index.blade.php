@@ -94,7 +94,7 @@
 
                             <div class="mt-auto flex flex-col gap-2 pt-5">
                                 @if ($topic->isDisseminationAvailable())
-                                    <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">Conferences &amp; Publications</a>
+                                    <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2.5 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">Find journals</a>
                                 @endif
                                 <a href="{{ route('research.show', $topic) }}{{ in_array($section['tone'], ['active', 'completed'], true) ? '#project-monitoring' : '#notice-to-proceed' }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-950 px-3 py-2.5 text-xs font-black text-white transition hover:bg-[#7A0019] dark:bg-white dark:text-gray-950 dark:hover:bg-red-200">
                                     {{ $section['tone'] === 'active' ? 'Project & monitoring' : 'View project record' }}

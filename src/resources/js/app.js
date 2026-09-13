@@ -1,7 +1,7 @@
 
 import { Alpine, Livewire } from '../../vendor/livewire/livewire/dist/livewire.esm';
 import Swal from 'sweetalert2';
-import { projectDissemination } from './project-dissemination';
+import { journalFinder } from './journal-finder';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
@@ -52,7 +52,7 @@ import {
 } from './proposal-paper-autosave';
 
 window.Alpine = Alpine;
-Alpine.data('projectDissemination', projectDissemination);
+Alpine.data('journalFinder', journalFinder);
 window.Swal = Swal;
 
 const themeStorageKey = 'athena-theme';

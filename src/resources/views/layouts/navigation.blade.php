@@ -466,18 +466,18 @@
 
                     @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
                     <a
-                        href="{{ route('research-support.index') }}#conference-finder"
+                        href="{{ route('research-support.index') }}#journal-finder"
                         @click="
-                            activeResearchHelpSection = '#conference-finder';
+                            activeResearchHelpSection = '#journal-finder';
                             if (window.innerWidth < 640) sidebarOpen = false;
                         "
-                        :class="activeResearchHelpSection === '#conference-finder'
+                        :class="activeResearchHelpSection === '#journal-finder'
                             ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
                             : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
                         class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
                     >
                         <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>Conference Finder</span>
+                        <span>Journal Finder</span>
                     </a>
                     @endif
                 </div>

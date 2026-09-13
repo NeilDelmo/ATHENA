@@ -18,20 +18,13 @@ use Illuminate\View\View;
 
 class ProjectDisseminationController extends Controller
 {
-    public function show(ManageProjectDisseminationRequest $request, TopicProposal $topic, ConferenceScraperService $conferences): View
+    public function show(ManageProjectDisseminationRequest $request, TopicProposal $topic): View
     {
-        $canEdit = $request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user());
         $abstract = $topic->narrativeReports()->where('report_type', 'terminal')->latest('id')->first()?->terminal_data['abstract'] ?? $topic->description;
 
         return view('research.dissemination', [
             'topic' => $topic,
-            'canEdit' => $canEdit,
             'projectAbstract' => Str::limit(strip_tags((string) $abstract), 1500),
-            'suggestedQuery' => $conferences->suggestedQuery($topic->title),
-            'conferences' => $topic->conferences()->latest()->paginate(10, ['*'], 'conference_page'),
-            'publications' => $topic->publications()->with('user:id,name')->latest('research_publications.created_at')->paginate(10, ['*'], 'publication_page')->fragment('publications'),
-            'profile' => $canEdit ? ResearcherProfile::where('user_id', $request->user()->id)->first() : null,
-            'ownPublications' => $canEdit ? ResearchPublication::where('user_id', $request->user()->id)->latest()->limit(100)->get() : collect(),
         ]);
     }
 

@@ -82,15 +82,35 @@
         @endforeach
     </div>
 
-    <details data-revision-proposal-details @if ($metadataHasErrors) open @endif class="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700 hover:text-red-700 focus-visible:outline-red-700 dark:text-slate-200">Proposal details</summary>
-        <div class="grid gap-4 border-t border-gray-100 p-4 dark:border-slate-800 md:grid-cols-2">
-            <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Project title<input name="title" value="{{ old('title', $topic->title) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
-            <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Total project cost<input name="estimated_budget" type="number" min="0" max="{{ $topic->researchCall?->budgetCeiling() ?? \App\Models\ResearchCall::MAXIMUM_BUDGET }}" step="0.01" value="{{ old('estimated_budget', $displayProjectCost) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
-            <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200 md:col-span-2">Description<textarea name="description" rows="3" class="mt-2 block w-full rounded-xl border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old('description', $topic->description) }}</textarea></label>
-            <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200">Duration in months<input name="estimated_duration_months" type="number" min="1" max="120" value="{{ old('estimated_duration_months', $topic->estimated_duration_months) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+    <section
+        data-revision-proposal-details
+        x-data="{ open: @js($metadataHasErrors) }"
+        class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+        aria-labelledby="proposal-details-heading"
+    >
+        <button
+            type="button"
+            data-revision-proposal-details-button
+            @click="open = !open"
+            :aria-expanded="open"
+            aria-controls="proposal-details-fields"
+            class="flex min-h-14 w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-slate-800"
+        >
+            <span>
+                <span id="proposal-details-heading" class="block text-base font-bold text-gray-950 dark:text-white">Proposal details</span>
+                <span class="mt-0.5 block text-sm font-normal text-gray-500 dark:text-slate-400">Edit the title, cost, description, or duration when the review requires it.</span>
+            </span>
+            <svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 shrink-0 text-gray-500 transition-transform duration-200 dark:text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6"></path>
+            </svg>
+        </button>
+        <div id="proposal-details-fields" x-show="open" x-transition class="grid gap-5 border-t border-gray-100 p-4 dark:border-slate-800 md:grid-cols-2">
+            <label class="block text-base font-semibold text-gray-700 dark:text-slate-200">Project title<input name="title" value="{{ old('title', $topic->title) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+            <label class="block text-base font-semibold text-gray-700 dark:text-slate-200">Total project cost<input name="estimated_budget" type="number" min="0" max="{{ $topic->researchCall?->budgetCeiling() ?? \App\Models\ResearchCall::MAXIMUM_BUDGET }}" step="0.01" value="{{ old('estimated_budget', $displayProjectCost) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
+            <label class="block text-base font-semibold text-gray-700 dark:text-slate-200 md:col-span-2">Description<textarea name="description" rows="3" class="mt-2 block w-full rounded-xl border-gray-300 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old('description', $topic->description) }}</textarea></label>
+            <label class="block text-base font-semibold text-gray-700 dark:text-slate-200">Duration in months<input name="estimated_duration_months" type="number" min="1" max="120" value="{{ old('estimated_duration_months', $topic->estimated_duration_months) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
         </div>
-    </details>
+    </section>
 
     <div id="review-and-submit" class="space-y-4 border-t border-gray-200 pt-5 dark:border-slate-800">
         <label class="block text-sm font-semibold text-gray-700 dark:text-slate-200">
