@@ -11,6 +11,8 @@ use App\Models\ResearchCategory;
 use App\Models\ResearchPublication;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -46,8 +48,11 @@ class LifecycleDemoSeeder extends Seeder
         ['key' => 'completed-published-second', 'label' => 'Additional completed project with dissemination', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED],
     ];
 
-    public function run(ArchiveProposalDraftDocumentHistory $archiveHistory): void
-    {
+    public function run(
+        ArchiveProposalDraftDocumentHistory $archiveHistory,
+        ApprovedWorkPlanMonitoringService $approvedWorkPlan,
+        MonitoringQuarterService $quarterService,
+    ): void {
         $head = User::role('research_head')->orderBy('id')->first();
 
         if (! $head) {
@@ -59,7 +64,17 @@ class LifecycleDemoSeeder extends Seeder
         $call->categories()->sync($categories->modelKeys());
 
         foreach (self::SCENARIOS as $index => $scenario) {
-            if (TopicProposal::query()->where('description', 'like', self::MARKER.$scenario['key'].']%')->exists()) {
+            $existingTopic = TopicProposal::query()
+                ->where('description', 'like', self::MARKER.$scenario['key'].']%')
+                ->first();
+
+            if ($existingTopic) {
+                if ($existingTopic->project_status) {
+                    $this->seedImplementationRecords($existingTopic, $head, $approvedWorkPlan, $quarterService);
+                }
+
+                $this->command?->info('Updated existing sample: '.$existingTopic->title);
+
                 continue;
             }
 
@@ -80,7 +95,7 @@ class LifecycleDemoSeeder extends Seeder
             }
 
             $topic = $this->promoteDraft($draft, $call, $categories->get($index % max($categories->count(), 1)), $scenario, $archiveHistory);
-            $this->advanceProposal($topic, $head, $scenario);
+            $this->advanceProposal($topic, $head, $scenario, $approvedWorkPlan, $quarterService);
             $this->command?->info($scenario['label'].': '.$topic->title);
         }
 
@@ -209,8 +224,13 @@ class LifecycleDemoSeeder extends Seeder
     }
 
     /** @param array{key: string, label: string, final_status: string, project_status: ?string} $scenario */
-    private function advanceProposal(TopicProposal $topic, User $head, array $scenario): void
-    {
+    private function advanceProposal(
+        TopicProposal $topic,
+        User $head,
+        array $scenario,
+        ApprovedWorkPlanMonitoringService $approvedWorkPlan,
+        MonitoringQuarterService $quarterService,
+    ): void {
         $paths = [
             'pending' => [],
             'expert-review' => ['expert_review'],
@@ -258,7 +278,7 @@ class LifecycleDemoSeeder extends Seeder
                 ],
                 'project_status' => $scenario['project_status'],
             ]);
-            $this->seedImplementationRecords($topic, $head);
+            $this->seedImplementationRecords($topic, $head, $approvedWorkPlan, $quarterService);
         }
     }
 
@@ -337,115 +357,162 @@ class LifecycleDemoSeeder extends Seeder
         }
     }
 
-    private function seedImplementationRecords(TopicProposal $topic, User $head): void
-    {
+    private function seedImplementationRecords(
+        TopicProposal $topic,
+        User $head,
+        ApprovedWorkPlanMonitoringService $approvedWorkPlan,
+        MonitoringQuarterService $quarterService,
+    ): void {
+        $availablePeriods = $quarterService->projectPeriods($topic);
         $reportCount = match ($topic->project_status) {
-            TopicProposal::PROJECT_STATUS_ONGOING => 2,
-            TopicProposal::PROJECT_STATUS_DELAYED => 3,
-            TopicProposal::PROJECT_STATUS_COMPLETED => 4,
+            TopicProposal::PROJECT_STATUS_ONGOING => min(2, $availablePeriods->count()),
+            TopicProposal::PROJECT_STATUS_DELAYED => min(3, $availablePeriods->count()),
+            TopicProposal::PROJECT_STATUS_COMPLETED => $availablePeriods->count(),
             default => 0,
         };
 
         $start = $topic->notice_to_proceed_issued_at->copy()->startOfDay();
-        $previous = null;
+        $trackingNumbers = [];
 
-        for ($quarter = 1; $quarter <= $reportCount; $quarter++) {
-            $periodStart = $start->copy()->addMonths(($quarter - 1) * 3);
-            $periodEnd = $periodStart->copy()->addMonths(3)->subDay();
+        foreach ($availablePeriods->take($reportCount) as $period) {
+            $quarter = $period['quarter'];
+            $periodStart = $period['start'];
+            $periodEnd = $period['end'];
             $progress = min(100, $quarter * (int) floor(100 / $reportCount));
             $reviewStatus = $topic->project_status === TopicProposal::PROJECT_STATUS_DELAYED && $quarter === $reportCount
                 ? ProjectNarrativeReport::STATUS_REVISION_REQUESTED
                 : ProjectNarrativeReport::STATUS_REVIEWED;
+            $trackingNumber = 'LIFE-'.$topic->id.'-Q'.$quarter;
+            $trackingNumbers[] = $trackingNumber;
+            $workPlan = collect($approvedWorkPlan->defaultsForDate($topic, $periodEnd))
+                ->map(function (array $row) use ($reviewStatus): array {
+                    $activity = $row['activity'];
+                    $output = $row['physical_target'];
 
-            $previous = ProjectProgressReport::query()->create([
-                'topic_id' => $topic->id,
-                'submitted_by' => $topic->user_id,
-                'reporting_date' => $periodEnd,
-                'reporting_year' => $periodEnd->year,
-                'reporting_quarter' => $quarter,
-                'period_start' => $periodStart,
-                'period_end' => $periodEnd,
-                'version_number' => 1,
-                'supersedes_report_id' => null,
-                'tracking_number' => 'LIFE-'.$topic->id.'-Q'.$quarter,
-                'progress_percentage' => $quarter === $reportCount && $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETED ? 100 : $progress,
-                'accomplishments' => 'Completed milestone '.$quarter.': stakeholder coordination, field activities, validation, and documented outputs.',
-                'issues' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED ? 'Procurement delays affected the planned validation schedule.' : 'Minor scheduling adjustments were managed within the reporting period.',
-                'work_plan' => [['activity' => 'Lifecycle milestone '.$quarter, 'expected_output' => 'Validated milestone output', 'status' => 'completed']],
-                'budget_utilization' => [['category' => 'MOOE', 'allocated' => 25000, 'utilized' => 5000 * $quarter]],
-                'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
-                'submitted_at' => $periodEnd->copy()->addDay(),
-                'review_status' => $reviewStatus,
-                'research_head_remarks' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED ? 'Explain the recovery schedule and attach updated procurement dates.' : 'Reviewed. Continue with the approved work plan.',
-                'reviewed_by' => $head->id,
-                'reviewed_at' => $periodEnd->copy()->addDays(3),
-            ]);
+                    return [
+                        ...$row,
+                        'actual_accomplishment' => 'Completed '.$activity.' and documented '.$output.'.',
+                        'accomplished_percentage' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED ? '75' : '100',
+                        'findings' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED
+                            ? 'The approved output is partially complete because procurement dates moved beyond the planned window.'
+                            : 'The approved physical target was completed and verified during this reporting period.',
+                    ];
+                })
+                ->all();
+
+            ProjectProgressReport::query()->updateOrCreate(
+                ['topic_id' => $topic->id, 'tracking_number' => $trackingNumber],
+                [
+                    'submitted_by' => $topic->user_id,
+                    'reporting_date' => $periodEnd,
+                    'reporting_year' => $period['year'],
+                    'reporting_quarter' => $quarter,
+                    'period_start' => $periodStart,
+                    'period_end' => $periodEnd,
+                    'version_number' => 1,
+                    'supersedes_report_id' => null,
+                    'progress_percentage' => $quarter === $reportCount && $topic->project_status === TopicProposal::PROJECT_STATUS_COMPLETED ? 100 : $progress,
+                    'accomplishments' => collect($workPlan)->pluck('actual_accomplishment')->implode(' '),
+                    'issues' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED ? 'Procurement delays affected the planned validation schedule.' : 'Minor scheduling adjustments were managed within the reporting period.',
+                    'work_plan' => $workPlan,
+                    'budget_utilization' => [['category' => 'MOOE', 'allocated' => 25000, 'utilized' => 5000 * $quarter]],
+                    'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
+                    'submitted_at' => $periodEnd->copy()->addDay(),
+                    'review_status' => $reviewStatus,
+                    'research_head_remarks' => $reviewStatus === ProjectNarrativeReport::STATUS_REVISION_REQUESTED ? 'Explain the recovery schedule and attach updated procurement dates.' : 'Reviewed. Continue with the approved work plan.',
+                    'reviewed_by' => $head->id,
+                    'reviewed_at' => $periodEnd->copy()->addDays(3),
+                ],
+            );
         }
+
+        $topic->progressReports()
+            ->where('tracking_number', 'like', 'LIFE-'.$topic->id.'-Q%')
+            ->whereNotIn('tracking_number', $trackingNumbers)
+            ->delete();
 
         if ($topic->project_status !== TopicProposal::PROJECT_STATUS_COMPLETED) {
             return;
         }
 
-        ProjectNarrativeReport::query()->create([
-            'topic_id' => $topic->id,
-            'submitted_by' => $topic->user_id,
-            'report_type' => 'progress',
-            'submission_date' => $start->copy()->addMonths(6),
-            'tracking_number' => 'LIFE-'.$topic->id.'-NARRATIVE',
-            'researchers' => $topic->user->name,
-            'implementation_start' => $start,
-            'implementation_end' => $start->copy()->addMonths(12),
-            'budget' => $topic->estimated_budget,
-            'funding_agency' => 'Batangas State University',
-            'accomplishment_summary' => 'The project completed field validation and produced its planned technical and community outputs.',
-            'accomplishments' => [['activity' => 'Pilot implementation', 'output' => 'Validated system and evaluation dataset']],
-            'introduction' => 'This narrative consolidates implementation activities and measured outcomes.',
-            'rationale' => 'The project addressed a documented operational and community need.',
-            'objectives' => 'Develop, pilot, and evaluate the proposed intervention.',
-            'methodology' => 'The team used developmental research and mixed-method evaluation.',
-            'results_discussion' => 'Results show that the principal objectives and performance targets were achieved.',
-            'photos' => [],
-            'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
-            'submitted_at' => $start->copy()->addMonths(6),
-            'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
-            'reviewed_by' => $head->id,
-            'reviewed_at' => $start->copy()->addMonths(6)->addDays(3),
-        ]);
+        $implementationEnd = $availablePeriods->last()['end'];
+        $approvedAccomplishments = $topic->progressReports()
+            ->whereIn('tracking_number', $trackingNumbers)
+            ->get()
+            ->flatMap(fn (ProjectProgressReport $report) => collect($report->work_plan))
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->unique('source_work_plan_index')
+            ->values();
+        $narrativeAccomplishments = $approvedAccomplishments
+            ->map(fn (array $row): array => [
+                'activity' => $row['activity'],
+                'output' => $row['physical_target'],
+            ])
+            ->all();
+        $approvedObjectives = $approvedAccomplishments->pluck('objective')->unique()->implode("\n");
 
-        ProjectNarrativeReport::query()->create([
-            'topic_id' => $topic->id,
-            'submitted_by' => $topic->user_id,
-            'report_type' => 'terminal',
-            'submission_date' => $start->copy()->addMonths(12),
-            'tracking_number' => 'LIFE-'.$topic->id.'-TERMINAL',
-            'researchers' => $topic->user->name,
-            'implementation_start' => $start,
-            'implementation_end' => $start->copy()->addMonths(12),
-            'budget' => $topic->estimated_budget,
-            'funding_agency' => 'Batangas State University',
-            'accomplishment_summary' => 'All planned outputs were completed, validated, and prepared for dissemination.',
-            'accomplishments' => [['activity' => 'Final evaluation', 'output' => 'Terminal findings and dissemination package']],
-            'introduction' => 'The terminal report presents the complete implementation record.',
-            'rationale' => 'The completed research responds to the needs identified in the approved proposal.',
-            'objectives' => 'Complete and evaluate all approved project objectives.',
-            'methodology' => 'Implementation evidence was analyzed using quantitative summaries and stakeholder feedback.',
-            'results_discussion' => 'The project met its principal targets and generated publishable findings.',
-            'photos' => [],
-            'terminal_data' => [
-                'abstract' => 'This completed study developed, implemented, and evaluated the proposed intervention. Findings demonstrate measurable operational and stakeholder benefits and support continued dissemination.',
-                'literature_review' => 'The final analysis was interpreted alongside the literature cited in the approved proposal.',
-                'conclusions' => 'The project objectives were achieved and the intervention is suitable for further adoption.',
-                'recommendations' => 'Present the findings, pursue peer review, and continue implementation monitoring.',
-                'bibliography' => 'References are retained in the approved detailed proposal and terminal package.',
-                'source_monitoring_report_ids' => $topic->progressReports()->pluck('project_progress_reports.id')->all(),
+        ProjectNarrativeReport::query()->updateOrCreate(
+            ['topic_id' => $topic->id, 'tracking_number' => 'LIFE-'.$topic->id.'-NARRATIVE'],
+            [
+                'submitted_by' => $topic->user_id,
+                'report_type' => 'progress',
+                'submission_date' => $start->copy()->addMonths(6),
+                'researchers' => $topic->user->name,
+                'implementation_start' => $start,
+                'implementation_end' => $implementationEnd,
+                'budget' => $topic->estimated_budget,
+                'funding_agency' => 'Batangas State University',
+                'accomplishment_summary' => 'The project completed the activities and physical targets defined in its approved Work Plan.',
+                'accomplishments' => $narrativeAccomplishments,
+                'introduction' => 'This narrative consolidates implementation activities and measured outcomes.',
+                'rationale' => 'The project addressed a documented operational and community need.',
+                'objectives' => $approvedObjectives,
+                'methodology' => 'The team used developmental research and mixed-method evaluation.',
+                'results_discussion' => 'Results show that the principal objectives and performance targets were achieved.',
+                'photos' => [],
+                'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+                'submitted_at' => $start->copy()->addMonths(6),
+                'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
+                'reviewed_by' => $head->id,
+                'reviewed_at' => $start->copy()->addMonths(6)->addDays(3),
             ],
-            'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
-            'submitted_at' => $start->copy()->addMonths(12),
-            'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
-            'research_head_remarks' => 'Terminal report reviewed and accepted. Proceed with dissemination tracking.',
-            'reviewed_by' => $head->id,
-            'reviewed_at' => $start->copy()->addMonths(12)->addDays(5),
-        ]);
+        );
+
+        ProjectNarrativeReport::query()->updateOrCreate(
+            ['topic_id' => $topic->id, 'tracking_number' => 'LIFE-'.$topic->id.'-TERMINAL'],
+            [
+                'submitted_by' => $topic->user_id,
+                'report_type' => 'terminal',
+                'submission_date' => $implementationEnd,
+                'researchers' => $topic->user->name,
+                'implementation_start' => $start,
+                'implementation_end' => $implementationEnd,
+                'budget' => $topic->estimated_budget,
+                'funding_agency' => 'Batangas State University',
+                'accomplishment_summary' => 'All approved Work Plan activities and physical targets were completed and validated.',
+                'accomplishments' => $narrativeAccomplishments,
+                'introduction' => 'The terminal report presents the complete implementation record.',
+                'rationale' => 'The completed research responds to the needs identified in the approved proposal.',
+                'objectives' => $approvedObjectives,
+                'methodology' => 'Implementation evidence was analyzed using quantitative summaries and stakeholder feedback.',
+                'results_discussion' => 'The project met its principal targets and generated publishable findings.',
+                'photos' => [],
+                'terminal_data' => [
+                    'abstract' => 'This completed study developed, implemented, and evaluated the proposed intervention. Findings demonstrate measurable operational and stakeholder benefits and support continued dissemination.',
+                    'literature_review' => 'The final analysis was interpreted alongside the literature cited in the approved proposal.',
+                    'conclusions' => 'The project objectives were achieved and the intervention is suitable for further adoption.',
+                    'recommendations' => 'Present the findings, pursue peer review, and continue implementation monitoring.',
+                    'bibliography' => 'References are retained in the approved detailed proposal and terminal package.',
+                    'source_monitoring_report_ids' => $topic->progressReports()->whereIn('tracking_number', $trackingNumbers)->pluck('project_progress_reports.id')->all(),
+                ],
+                'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+                'submitted_at' => $implementationEnd->copy()->addDay(),
+                'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
+                'research_head_remarks' => 'Terminal report reviewed and accepted. Proceed with dissemination tracking.',
+                'reviewed_by' => $head->id,
+                'reviewed_at' => $implementationEnd->copy()->addDays(5),
+            ],
+        );
 
         $this->seedDissemination($topic);
     }
@@ -454,25 +521,27 @@ class LifecycleDemoSeeder extends Seeder
     {
         foreach (['shortlisted', 'submitted', 'accepted', 'presented'] as $index => $status) {
             $url = 'https://example.org/conferences/lifecycle-'.$topic->id.'-'.($index + 1);
-            $topic->conferences()->create([
-                'added_by' => $topic->user_id,
-                'fingerprint' => hash('sha256', $url),
-                'title' => ['Regional Research and Innovation Forum', 'International Conference on Applied Community Research', 'Sustainable Technology Research Congress', 'University Research Dissemination Colloquium'][$index],
-                'url' => $url,
-                'official_url' => $url,
-                'source' => 'Researcher entry',
-                'location' => $index % 2 === 0 ? 'Batangas City, Philippines' : 'Online',
-                'submission_deadline' => now()->addMonths($index + 1),
-                'event_date' => now()->addMonths($index + 3),
-                'attendance_mode' => $index % 2 === 0 ? 'in_person' : 'online',
-                'fees' => $index === 0 ? 'To be confirmed from the official call' : 'PHP '.number_format(2500 + $index * 500),
-                'publication_details' => 'Proceedings and indexing details must be confirmed with the organizer.',
-                'status' => $status,
-                'submitted_on' => in_array($status, ['submitted', 'accepted', 'presented'], true) ? now()->subMonths(4 - $index) : null,
-                'accepted_on' => in_array($status, ['accepted', 'presented'], true) ? now()->subMonths(2) : null,
-                'presented_on' => $status === 'presented' ? now()->subMonth() : null,
-                'notes' => 'Connected sample conference record for the completed project.',
-            ]);
+            $topic->conferences()->updateOrCreate(
+                ['fingerprint' => hash('sha256', $url)],
+                [
+                    'added_by' => $topic->user_id,
+                    'title' => ['Regional Research and Innovation Forum', 'International Conference on Applied Community Research', 'Sustainable Technology Research Congress', 'University Research Dissemination Colloquium'][$index],
+                    'url' => $url,
+                    'official_url' => $url,
+                    'source' => 'Researcher entry',
+                    'location' => $index % 2 === 0 ? 'Batangas City, Philippines' : 'Online',
+                    'submission_deadline' => now()->addMonths($index + 1),
+                    'event_date' => now()->addMonths($index + 3),
+                    'attendance_mode' => $index % 2 === 0 ? 'in_person' : 'online',
+                    'fees' => $index === 0 ? 'To be confirmed from the official call' : 'PHP '.number_format(2500 + $index * 500),
+                    'publication_details' => 'Proceedings and indexing details must be confirmed with the organizer.',
+                    'status' => $status,
+                    'submitted_on' => in_array($status, ['submitted', 'accepted', 'presented'], true) ? now()->subMonths(4 - $index) : null,
+                    'accepted_on' => in_array($status, ['accepted', 'presented'], true) ? now()->subMonths(2) : null,
+                    'presented_on' => $status === 'presented' ? now()->subMonth() : null,
+                    'notes' => 'Connected sample conference record for the completed project.',
+                ],
+            );
         }
 
         foreach (range(1, 3) as $number) {
