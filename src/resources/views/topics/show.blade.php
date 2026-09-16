@@ -393,8 +393,8 @@
                 </div>
             @endif
 
-            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && (! $canDecide || $headUploadWorkspace['supplementalHeadUploads']->isNotEmpty()))
-                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide && $topic->status !== \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE" />
+            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && $topic->status !== \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
+                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" />
             @endif
 
             @if ($reviewDocuments->isNotEmpty())
@@ -642,7 +642,7 @@
                             <section x-show="decision === 'lrec_queued'" x-cloak>
                                 <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
                                     <input type="checkbox" name="initial_clearance_confirmed" value="1" :disabled="decision !== 'lrec_queued'" :required="decision === 'lrec_queued'" class="mt-1 rounded border-gray-300 text-red-700">
-                                    <span>The Research Head and Co-evaluator have cleared this version for LREC presentation.</span>
+                                    <span>The completed GAD assessment and Co-evaluator Initial Screening Form are recorded for this version.</span>
                                 </label>
                             </section>
                             <section x-show="decision === 'ready_for_signature'" x-cloak class="space-y-3">

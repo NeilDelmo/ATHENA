@@ -174,7 +174,8 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('Preview progress report')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
-        ->assertSee('fixed bottom-4 right-4', false)
+        ->assertSee('data-monitoring-action-dock-fixed', false)
+        ->assertSee('fixed inset-x-4 bottom-4', false)
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('VI. Summary of Accomplishment for the Monitoring Period')
         ->assertSee('Target accomplishment')
@@ -350,7 +351,8 @@ test('a researcher can discard a prepared progress report and its stored files',
         ->get(route('project-narrative-reports.create', $this->topic))
         ->assertOk()
         ->assertSee('Progress report PDF prepared')
-        ->assertSee('Submit to Research Head');
+        ->assertSee('Submit to Research Head')
+        ->assertSee('data-monitoring-action-dock-fixed', false);
     $this->actingAs($this->researcher)
         ->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $report]))
         ->assertRedirect()

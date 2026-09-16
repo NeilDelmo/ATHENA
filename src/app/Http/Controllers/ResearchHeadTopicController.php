@@ -53,8 +53,17 @@ class ResearchHeadTopicController extends Controller
                 ProposalVersionFile::TYPE_HEAD_UPLOAD,
             ]);
         $committeeComments = $topic->review_stage === 'lrec' ? ($validated['committee_comments'] ?? []) : [];
+        $gadChecklist = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
+        $initialScreeningForm = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
+        $hasGadAssessment = $latestVersion->files
+            ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && $file->source_version_file_id === $gadChecklist?->id
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
+                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_GAD_CHECKLIST
+                && is_numeric($file->source_data['gad_score'] ?? null));
         $hasCoEvaluatorNarrative = $latestVersion->files
             ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && $file->source_version_file_id === $initialScreeningForm?->id
                 && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
                 && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
                 && filled($file->source_data['narrative_evaluation'] ?? null));
@@ -62,6 +71,23 @@ class ResearchHeadTopicController extends Controller
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
             && $validated['status'] === 'revision_requested';
+
+        if ($validated['status'] === TopicProposal::STATUS_LREC_QUEUED
+            && (! $hasGadAssessment || ! $hasCoEvaluatorNarrative)) {
+            $missingSteps = collect();
+
+            if (! $hasGadAssessment) {
+                $missingSteps->push('upload a completed GAD Checklist with a readable Total GAD Score');
+            }
+
+            if (! $hasCoEvaluatorNarrative) {
+                $missingSteps->push('upload the co-evaluator’s completed Initial Screening Form with a readable Narrative Evaluation');
+            }
+
+            throw ValidationException::withMessages([
+                'status' => 'Complete the latest version’s initial-review workflow before sending it to LREC: '.$missingSteps->join(', ', ', then ').'.',
+            ]);
+        }
 
         if ($validated['status'] === 'revision_requested') {
             $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);

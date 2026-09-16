@@ -82,8 +82,26 @@ beforeEach(function () {
     }
 });
 
-test('research head can attach reviewed files to exact faculty submissions', function () {
+test('research head workspace presents the GAD gate before co-evaluator screening', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $workspace = $this->actingAs($this->head)
+        ->get(route('topics.head-uploads.index', $this->topic));
+
+    $workspace->assertOk()
+        ->assertSee('Review PDF')
+        ->assertSee('Initial review workflow')
+        ->assertSee('Drop completed GAD checklist here')
+        ->assertSee('Upload &amp; read score', false)
+        ->assertSee('Upload the completed GAD assessment to unlock this step.')
+        ->assertDontSee('Upload screening form')
+        ->assertDontSee('Attach a reviewed copy for revision')
+        ->assertDontSee('Upload reviewed copy')
+        ->assertDontSee('Administrative and supplemental papers')
+        ->assertDontSee('Faculty originals are always preserved.');
+
+    expect(substr_count($workspace->getContent(), 'data-gad-checklist-dropzone'))->toBe(1)
+        ->and(substr_count($workspace->getContent(), 'data-co-evaluator-screening-panel="true"'))->toBe(0);
 
     $response = $this->actingAs($this->head)
         ->from(route('topics.head-uploads.index', $this->topic))
@@ -94,28 +112,121 @@ test('research head can attach reviewed files to exact faculty submissions', fun
             'note' => 'Annotated for the faculty revision.',
         ]);
 
-    $response->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
+    $response->assertRedirect(route('topics.head-uploads.index', $this->topic))
+        ->assertSessionHasErrors(['purpose'], null, 'headUpload');
 
-    $headUpload = $this->version->files()
-        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-        ->sole();
-
-    expect($headUpload->uploaded_by)->toBe($this->head->id)
-        ->and($headUpload->source_version_file_id)->toBe($workPlan->id)
-        ->and($headUpload->original_filename)->toBe('reviewed-work-plan.pdf')
-        ->and($headUpload->source_data['target_document_type'])->toBe(ProposalVersionFile::TYPE_WORK_PLAN)
-        ->and($headUpload->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION)
-        ->and($headUpload->source_data['note'])->toBe('Annotated for the faculty revision.')
-        ->and(Storage::disk('local')->exists($headUpload->file_path))->toBeTrue();
-
-    expect($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
+    expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0)
+        ->and($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(0);
 });
 
-test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function () {
+test('research head can upload a completed GAD checklist and extract its final score', function () {
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-gad-test-');
+    $archive = new ZipArchive;
+
+    try {
+        expect($archive->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE))->toBeTrue();
+        $archive->addFromString('word/document.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:p><w:r><w:t>Project Identification and Design Stages</w:t></w:r></w:p>
+<w:p><w:r><w:t>TOTAL GAD SCORE FOR THE PROJECT IDENTIFICATION AND DESIGN STAGES</w:t></w:r></w:p>
+<w:p><w:r><w:t>12.32</w:t></w:r></w:p>
+<w:p><w:r><w:t>Interpretation of GAD Scores</w:t></w:r></w:p>
+</w:body></w:document>
+XML);
+        $archive->close();
+        $contents = file_get_contents($temporaryPath);
+        expect($contents)->not->toBeFalse();
+
+        $response = $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                'source_file_id' => $gadChecklist->id,
+                'review_file' => UploadedFile::fake()->createWithContent('completed-gad-checklist.docx', $contents),
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            ]);
+
+        $response
+            ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+            ->assertSessionHas('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of 12.32 (Gender-sensitive).');
+
+        $assessment = $this->version->files()
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+            ->sole();
+
+        expect($assessment->source_version_file_id)->toBe($gadChecklist->id)
+            ->and($assessment->source_data['gad_score'])->toBe(12.32)
+            ->and($assessment->source_data['gad_rating'])->toBe('Gender-sensitive')
+            ->and($assessment->source_data['gad_interpretation'])->toBe('Proposed project is gender-sensitive (proposal passes the GAD test).')
+            ->and($assessment->source_data['gad_outcome'])->toBe('passed');
+
+        $workspace = $this->actingAs($this->head)
+            ->get(route('topics.head-uploads.index', $this->topic));
+
+        $workspace->assertOk()
+            ->assertSee('12.32')
+            ->assertSee('Gender-sensitive')
+            ->assertSee('Proposed project is gender-sensitive (proposal passes the GAD test).')
+            ->assertSee('Upload screening form')
+            ->assertDontSee('data-co-evaluator-step-locked', false);
+
+        expect(substr_count($workspace->getContent(), 'data-co-evaluator-screening-panel="true"'))->toBe(1);
+    } finally {
+        if (is_file($temporaryPath)) {
+            unlink($temporaryPath);
+        }
+    }
+});
+
+test('co-evaluator screening cannot be uploaded before the completed GAD assessment', function () {
     $initialScreening = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
         ->sole();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $initialScreening->id,
+            'review_file' => UploadedFile::fake()->create('completed-initial-screening.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
+        ])
+        ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
+
+    expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
+});
+
+test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function () {
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+    $initialScreening = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
+        ->sole();
+    $gadPath = 'head-uploads/completed-gad-checklist.pdf';
+    Storage::disk('local')->put($gadPath, 'completed GAD checklist');
+    $this->version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => $gadPath,
+        'original_filename' => 'completed-gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 23,
+        'checksum' => hash('sha256', 'completed GAD checklist'),
+        'uploaded_by' => $this->head->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 12.32,
+            'gad_rating' => 'Gender-sensitive',
+            'gad_interpretation' => 'Proposed project is gender-sensitive (proposal passes the GAD test).',
+            'gad_outcome' => 'passed',
+        ],
+    ]);
     $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-screening-test-');
     $archive = new ZipArchive;
 
@@ -142,11 +253,12 @@ XML);
                 'co_evaluator_name' => 'Dr. Maria Santos',
             ]);
 
-        $response->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        $response->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
             ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.');
 
         $evaluation = $this->version->files()
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
             ->sole();
         expect($evaluation->source_version_file_id)->toBe($initialScreening->id)
             ->and($evaluation->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
@@ -506,9 +618,10 @@ test('research head can upload a standalone supplemental paper after faculty tur
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Administrative and supplemental papers')
-        ->assertSee('data-supplemental-papers-disclosure', false)
-        ->assertSee('aria-controls="supplemental-papers-content"', false)
+        ->assertSee('Supplemental records')
+        ->assertSee('data-supplemental-paper-dropzone', false)
+        ->assertDontSee('Administrative and supplemental papers')
+        ->assertDontSee('data-supplemental-papers-disclosure', false)
         ->assertSee('Regional Endorsement Memorandum')
         ->assertSee('Office of the Regional Director');
 });
@@ -532,8 +645,9 @@ test('upload requires an exact faculty file from the latest version', function (
         ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => 999999,
-            'review_file' => UploadedFile::fake()->create('reviewed.pdf', 100, 'application/pdf'),
-            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+            'review_file' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
         ])
         ->assertSessionHasErrors(['source_file_id'], null, 'headUpload');
 
@@ -541,39 +655,55 @@ test('upload requires an exact faculty file from the latest version', function (
 });
 
 test('upload rejects unsupported file types and oversize files', function () {
-    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+    $initialScreening = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
+        ->sole();
 
     $this->actingAs($this->head)
         ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'source_file_id' => $workPlan->id,
-            'review_file' => UploadedFile::fake()->create('reviewed.txt', 100, 'text/plain'),
-            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+            'source_file_id' => $initialScreening->id,
+            'review_file' => UploadedFile::fake()->create('completed-evaluation.txt', 100, 'text/plain'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
         ])
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
 
     $this->actingAs($this->head)
         ->from(route('topics.head-uploads.index', $this->topic))
         ->post(route('topics.head-uploads.store', $this->topic), [
-            'source_file_id' => $workPlan->id,
+            'source_file_id' => $initialScreening->id,
             'review_file' => UploadedFile::fake()->create('huge.pdf', 26000, 'application/pdf'),
-            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
         ])
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('the proposal review shows files shared by the Research Head', function () {
+test('the proposal review still shows historical Research Head revision copies', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+    $path = 'head-uploads/reviewed-work-plan.pdf';
+    Storage::disk('local')->put($path, 'legacy reviewed work plan');
 
-    $this->actingAs($this->head)
-        ->post(route('topics.head-uploads.store', $this->topic), [
-            'source_file_id' => $workPlan->id,
-            'review_file' => UploadedFile::fake()->create('reviewed-work-plan.pdf', 100, 'application/pdf'),
+    $this->version->files()->create([
+        'source_version_file_id' => $workPlan->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => $path,
+        'original_filename' => 'reviewed-work-plan.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 25,
+        'checksum' => hash('sha256', 'legacy reviewed work plan'),
+        'uploaded_by' => $this->head->id,
+        'source_data' => [
+            'source_version_file_id' => $workPlan->id,
+            'target_document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
             'note' => 'Use these annotations for the next revision.',
-        ]);
+        ],
+    ]);
 
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic));
 

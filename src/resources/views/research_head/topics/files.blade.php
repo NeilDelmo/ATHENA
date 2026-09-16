@@ -3,11 +3,11 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <x-back-link href="{{ route('topics.show', $topic) }}#proposal-review">Back to submitted proposal</x-back-link>
-                <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Review and Upload Files</h2>
-                <p class="mt-1 text-sm leading-6 text-gray-600">Manage revision copies, required signed PDFs, and supplemental records for this proposal.</p>
+                <h2 class="mt-3 font-serif text-3xl font-bold tracking-tight text-gray-950">Proposal review workflow</h2>
+                <p class="mt-2 max-w-3xl text-base leading-7 text-gray-600">Review the faculty package, record the completed GAD assessment, then add the co-evaluator’s screening form.</p>
             </div>
-            <span class="inline-flex w-fit rounded-full bg-cyan-100 px-3 py-1.5 text-sm font-black text-cyan-800">
-                {{ $latestVersion ? 'Version '.$latestVersion->version_number.' · '.$headUploadedFiles->count().' uploaded' : 'No submitted version' }}
+            <span class="inline-flex w-fit rounded-full border border-gray-300 bg-white px-3.5 py-2 text-sm font-bold text-gray-700 shadow-sm">
+                {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No submitted version' }}
             </span>
         </div>
     </x-slot>

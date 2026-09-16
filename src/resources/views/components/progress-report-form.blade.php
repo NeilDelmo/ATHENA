@@ -15,23 +15,26 @@
                 <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
             </div>
-            <div class="flex shrink-0 flex-wrap gap-2">
-                <a href="{{ route('project-narrative-reports.download', $preparedReport) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-bold text-gray-900 shadow-sm hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Download prepared PDF</a>
+            <x-monitoring-action-dock :fixed="$standalone">
+                @if ($standalone)
+                    <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+                @endif
+                <a href="{{ route('project-narrative-reports.download', $preparedReport) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Download prepared PDF</a>
                 <form method="POST" action="{{ route('project-narrative-reports.submit-prepared', [$topic, $preparedReport]) }}">
                     @csrf
-                    <button class="inline-flex items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Submit to Research Head</button>
+                    <button class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">Submit to Research Head</button>
                 </form>
                 <form method="POST" action="{{ route('project-narrative-reports.discard-prepared', [$topic, $preparedReport]) }}">
                     @csrf
                     @method('DELETE')
-                    <button class="inline-flex items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-700 shadow-sm hover:bg-red-50">Discard</button>
+                    <button class="inline-flex min-h-12 items-center justify-center rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950">Discard</button>
                 </form>
-            </div>
+            </x-monitoring-action-dock>
         </div>
     </section>
 @else
 @if ($reportType === 'terminal')
-    <x-terminal-report-form :topic="$topic" :draft="$narrativeReportDraft" :defaults="$terminalDefaults" :evidence="$terminalEvidence" />
+    <x-terminal-report-form :topic="$topic" :draft="$narrativeReportDraft" :defaults="$terminalDefaults" :evidence="$terminalEvidence" :standalone="$standalone" />
 @else
 @php
     $proposalDraft = $topic->revisionDraft;
@@ -80,7 +83,7 @@
     </summary>
     @endif
 
-    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900" @submit="submitting = true">
+    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}" @submit="submitting = true">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
@@ -217,22 +220,26 @@
             @endforeach
         </section>
 
-        <div class="grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 sm:items-end">
+        <div class="rounded-xl bg-gray-50 p-4">
             <div>
                 <label for="progress_prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
                 <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
             </div>
-            <div class="flex flex-wrap justify-end gap-2">
-                <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-gray-300 bg-white px-5 py-3 text-xs font-bold text-gray-900 shadow-sm hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
-                    <span x-show="!previewLoading">Preview {{ strtolower($reportLabel) }}</span>
-                    <span x-show="previewLoading" x-cloak>Generating preview...</span>
-                </button>
-                <button type="submit" :disabled="submitting || previewLoading" class="rounded-xl bg-red-700 px-5 py-3 text-xs font-bold text-white shadow-sm hover:bg-red-800 disabled:cursor-wait disabled:opacity-60">
-                    <span x-show="!submitting">Prepare official PDF</span>
-                    <span x-show="submitting" x-cloak>Preparing PDF…</span>
-                </button>
-            </div>
         </div>
+
+        <x-monitoring-action-dock :fixed="$standalone">
+            @if ($standalone)
+                <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+            @endif
+            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
+                <span x-show="!previewLoading">Preview {{ strtolower($reportLabel) }}</span>
+                <span x-show="previewLoading" x-cloak>Generating preview...</span>
+            </button>
+            <button type="submit" :disabled="submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+                <span x-show="!submitting">Prepare official PDF</span>
+                <span x-show="submitting" x-cloak>Preparing PDF…</span>
+            </button>
+        </x-monitoring-action-dock>
 
         <p x-show="previewError" x-cloak x-text="previewError" class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700"></p>
 

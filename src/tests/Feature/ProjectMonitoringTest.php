@@ -193,10 +193,12 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertOk()
         ->assertSee('Submit monitoring tool')
         ->assertSee('Prepare official PDF')
-        ->assertSee('Preview Monitoring Tool')
+        ->assertSee('Preview monitoring tool')
         ->assertSee('Changes save automatically.')
         ->assertSee('Exit monitoring')
         ->assertSee('data-paper-cancel-exit', false)
+        ->assertSee('data-monitoring-action-dock-fixed', false)
+        ->assertSee('fixed inset-x-4 bottom-4', false)
         ->assertSee('data-proposal-autosave-status', false)
         ->assertSee('data-monitoring-tool-autosave-form', false)
         ->assertSee('x-ref="previewFrame"', false)
@@ -499,7 +501,8 @@ test('a researcher can discard a prepared monitoring tool and its stored PDF', f
         ->get(route('project-progress.create', $this->topic))
         ->assertOk()
         ->assertSee('Monitoring Tool PDF prepared')
-        ->assertSee('Submit to Research Head');
+        ->assertSee('Submit to Research Head')
+        ->assertSee('data-monitoring-action-dock-fixed', false);
     $this->actingAs($this->researcher)
         ->delete(route('project-progress.discard-prepared', [$this->topic, $report]))
         ->assertRedirect()

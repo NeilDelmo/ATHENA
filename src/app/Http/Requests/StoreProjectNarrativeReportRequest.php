@@ -96,6 +96,9 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             $rules['objectives'] = ['nullable', 'string', 'max:10000'];
             $rules['accomplishments'] = ['required', 'array', 'max:30'];
             $evidenceKeys = array_keys(app(TerminalReportData::class)->evidence($this->route('topic')));
+            $rules['cover_image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
+            $rules['reuse_cover_image'] = ['nullable', Rule::in($evidenceKeys)];
+            $rules['cover_image_caption'] = ['nullable', 'string', 'max:200', 'required_with:cover_image,reuse_cover_image'];
             foreach (range(1, 30) as $index) {
                 $rules['reuse_photo_'.$index] = ['nullable', Rule::in($evidenceKeys)];
                 $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:1000'];

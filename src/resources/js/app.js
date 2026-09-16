@@ -198,17 +198,22 @@ function initializeSemanticEditors() {
         if (!(textarea instanceof HTMLTextAreaElement) || textarea.dataset.semanticEditorReady === 'true') return;
 
         textarea.dataset.semanticEditorReady = 'true';
+        const largeEditor = textarea.dataset.semanticEditorSize === 'large';
         const container = document.createElement('div');
         container.className = 'mt-2 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-sm focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600';
         const toolbar = document.createElement('div');
         toolbar.className = 'flex flex-wrap gap-1 border-b border-gray-200 bg-gray-50 p-2';
         toolbar.setAttribute('aria-label', 'Text formatting');
         const formattingHint = document.createElement('p');
-        formattingHint.className = 'basis-full px-1 pb-1 text-[11px] font-medium text-gray-500';
+        formattingHint.className = largeEditor
+            ? 'basis-full px-2 pb-2 text-sm font-medium leading-6 text-gray-600'
+            : 'basis-full px-1 pb-1 text-[11px] font-medium text-gray-500';
         formattingHint.textContent = 'Select text, then choose a format. Changes appear here immediately. Shortcuts: Ctrl/Cmd+B, I, U.';
         toolbar.appendChild(formattingHint);
         const editor = document.createElement('div');
-        editor.className = 'min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
+        editor.className = largeEditor
+            ? 'min-h-48 p-4 text-base leading-7 text-gray-900 outline-none'
+            : 'min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
         editor.contentEditable = 'true';
         editor.setAttribute('role', 'textbox');
         editor.setAttribute('aria-multiline', 'true');
@@ -279,7 +284,9 @@ function initializeSemanticEditors() {
         actions.forEach(([command, label]) => {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'rounded-md border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1';
+            button.className = largeEditor
+                ? 'min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1'
+                : 'rounded-md border px-2.5 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-1';
             button.title = label;
             button.setAttribute('aria-label', label);
             button.setAttribute('aria-pressed', 'false');
@@ -4968,7 +4975,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         const formData = new FormData(form);
 
         [...formData.keys()]
-            .filter((name) => /^photo_\d+$/.test(name))
+            .filter((name) => name === 'cover_image' || /^photo_\d+$/.test(name))
             .forEach((name) => formData.delete(name));
 
         return formData;

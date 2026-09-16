@@ -32,6 +32,7 @@ class StoreResearchHeadFileRequest extends FormRequest
         $isSupplemental = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
         $isSignedCopy = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
         $isEvaluation = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
+        $isGadAssessment = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
 
         return [
             'source_file_id' => [
@@ -48,15 +49,15 @@ class StoreResearchHeadFileRequest extends FormRequest
                 'required',
                 File::types($isSignedCopy
                     ? ['pdf']
-                    : ($isEvaluation ? ['pdf', 'docx'] : ['pdf', 'doc', 'docx', 'xls', 'xlsx']))->max('25mb'),
+                    : ($isEvaluation || $isGadAssessment ? ['pdf', 'docx'] : ['pdf', 'doc', 'docx', 'xls', 'xlsx']))->max('25mb'),
             ],
             'purpose' => [
                 'required',
                 Rule::in([
-                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
                 ]),
             ],
             'co_evaluator_name' => [Rule::requiredIf($isEvaluation), 'nullable', 'string', 'max:160'],
@@ -72,14 +73,15 @@ class StoreResearchHeadFileRequest extends FormRequest
         return [
             'source_file_id.exists' => 'Choose a faculty-submitted file from the latest proposal version.',
             'source_file_id.required' => 'Choose the faculty-submitted file this upload belongs to.',
-            'review_file.required' => 'Select the reviewed or signed file to upload.',
-            'review_file.mimes' => $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
-                ? 'The signed final copy must be a PDF.'
-                : ($this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
-                    ? 'The completed Initial Screening Form must be a PDF or DOCX document.'
-                    : 'The upload must be a PDF, Word, or Excel document.'),
+            'review_file.required' => 'Select the file to upload.',
+            'review_file.mimes' => match ($this->input('purpose')) {
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED => 'The signed final copy must be a PDF.',
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'The completed Initial Screening Form must be a PDF or DOCX document.',
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'The completed GAD Checklist must be a PDF or DOCX document.',
+                default => 'The upload must be a PDF, Word, or Excel document.',
+            },
             'review_file.max' => 'The upload may not be larger than 25 MB.',
-            'purpose.in' => 'Choose whether this is a revision copy, completed evaluation, signed copy, or supplemental paper.',
+            'purpose.in' => 'Choose whether this is a completed GAD assessment, co-evaluator evaluation, signed copy, or supplemental paper.',
             'document_title.required' => 'Enter a title for the supplemental paper.',
             'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
         ];

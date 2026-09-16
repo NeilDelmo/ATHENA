@@ -142,13 +142,55 @@ test('terminal form and preview use final report sections without mandatory imag
         $this->withVite();
     }
     $form = $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
-        ->assertOk()->assertSee('BatStateU-REC-RES-04')->assertSee('Figures (optional)')->assertSee('Final total expenditure')->assertSee('Research tables');
+        ->assertOk()
+        ->assertSee('BatStateU-REC-RES-04')
+        ->assertSee('Add cover image')
+        ->assertSee('Add figure')
+        ->assertSee('Create table')
+        ->assertSee('Final total expenditure')
+        ->assertSee('data-terminal-cover-image', false)
+        ->assertSee('data-terminal-table-builder', false)
+        ->assertSee('data-monitoring-action-dock-fixed', false)
+        ->assertSee('fixed inset-x-4 bottom-4', false)
+        ->assertDontSee('More figures (4–30)');
     if (getenv('TERMINAL_REPORT_QA_PATH')) {
         file_put_contents(getenv('TERMINAL_REPORT_QA_PATH').'.html', $form->getContent());
     }
     $this->post(route('project-narrative-reports.preview', $this->topic), ($this->terminalPayload)())
         ->assertOk()->assertSee('IV. Abstract')->assertSee('Conclusions')->assertSee('Bibliography')->assertSee('81.89%')
         ->assertSee('Table 1. Evaluation findings')->assertDontSee('BatStateU-REC-RES-02');
+});
+
+test('terminal cover poster is previewed stored and embedded in the official document', function () {
+    $caption = 'Community coastal mapping project poster';
+    $previewPayload = ($this->terminalPayload)([
+        'cover_image' => UploadedFile::fake()->image('project-poster.jpg', 1600, 900),
+        'cover_image_caption' => $caption,
+    ]);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-narrative-reports.preview', $this->topic), $previewPayload)
+        ->assertOk()
+        ->assertSee('data-preview-file-input="cover_image"', false)
+        ->assertSee($caption);
+
+    $preparePayload = ($this->terminalPayload)([
+        'cover_image' => UploadedFile::fake()->image('project-poster.jpg', 1600, 900),
+        'cover_image_caption' => $caption,
+    ]);
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $preparePayload)
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectNarrativeReport::where('report_type', 'terminal')->firstOrFail();
+    expect($report->photos)->toHaveCount(1)
+        ->and($report->photos[0]['section'])->toBe('cover')
+        ->and($report->photos[0]['caption'])->toBe($caption);
+    Storage::disk('local')->assertExists($report->photos[0]['path']);
+
+    $xml = terminalDocumentXml($this->pdfConverter->sourceDocument);
+    expect($xml)->toContain('<w:drawing')
+        ->and(html_entity_decode(strip_tags($xml)))->toContain($caption)
+        ->not->toContain('Figure 1. '.$caption);
 });
 
 test('terminal preparation snapshots all sections and downloads the exact stored PDF', function () {

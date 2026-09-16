@@ -80,6 +80,9 @@ class PrepareProjectNarrativeReport
                     'reuse_photo_'.$index,
                     'photo_after_paragraph_'.$index,
                 ])
+                ->prepend('cover_image_caption')
+                ->prepend('reuse_cover_image')
+                ->prepend('cover_image')
                 ->all();
             $report = new ProjectNarrativeReport([
                 ...collect($validated)->except($photoFields)->all(),

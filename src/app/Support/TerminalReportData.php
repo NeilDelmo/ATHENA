@@ -72,6 +72,7 @@ class TerminalReportData
             'implementation_start' => '',
             'implementation_end' => '',
             'funding_agency' => $previous?->funding_agency ?? '',
+            'cover_image_caption' => 'Project poster for '.$snapshot['project_title'],
             'accomplishments' => $accomplishments->all(),
             'introduction' => $proposal['introduction'] ?? $previous?->introduction ?? '',
             'rationale' => $proposal['rationale'] ?? $previous?->rationale ?? '',
@@ -105,11 +106,19 @@ class TerminalReportData
                 }
                 unset($signatory);
             }
+            $figureIndex = 1;
             foreach ($lastTerminal->photos ?? [] as $index => $photo) {
-                $defaults['reuse_photo_'.($index + 1)] = $lastTerminal->id.':'.$index;
-                $defaults['photo_caption_'.($index + 1)] = $photo['caption'];
-                $defaults['photo_section_'.($index + 1)] = $photo['section'];
-                $defaults['photo_after_paragraph_'.($index + 1)] = $photo['after_paragraph'] ?? 0;
+                if (($photo['section'] ?? null) === 'cover') {
+                    $defaults['reuse_cover_image'] = $lastTerminal->id.':'.$index;
+                    $defaults['cover_image_caption'] = $photo['caption'] ?? $defaults['cover_image_caption'];
+
+                    continue;
+                }
+                $defaults['reuse_photo_'.$figureIndex] = $lastTerminal->id.':'.$index;
+                $defaults['photo_caption_'.$figureIndex] = $photo['caption'];
+                $defaults['photo_section_'.$figureIndex] = $photo['section'];
+                $defaults['photo_after_paragraph_'.$figureIndex] = $photo['after_paragraph'] ?? 0;
+                $figureIndex++;
             }
             $defaults['terminal_data']['supersedes_report_id'] = $lastTerminal->id;
         }
@@ -147,6 +156,7 @@ class TerminalReportData
             foreach ($report->photos ?? [] as $index => $photo) {
                 if (Storage::disk('local')->exists($photo['path'] ?? '')) {
                     $evidence[$report->id.':'.$index] = [...$photo, 'report_id' => $report->id, 'index' => $index,
+                        'preview_url' => route('project-narrative-reports.photos.download', [$report, $index]),
                         'label' => $report->report_label.' '.$report->submission_date->format('M j, Y').' — '.($photo['caption'] ?? 'Figure')];
                 }
             }
@@ -159,6 +169,31 @@ class TerminalReportData
     {
         $evidence = $this->evidence($topic);
         $photos = [];
+        $coverFile = $files['cover_image'] ?? null;
+        $coverSource = $evidence[$data['reuse_cover_image'] ?? ''] ?? null;
+        if ($coverFile instanceof UploadedFile || $coverSource !== null) {
+            $cover = [
+                'caption' => $data['cover_image_caption'] ?? 'Project poster',
+                'section' => 'cover',
+                'after_paragraph' => 0,
+            ];
+            if ($preview) {
+                $photos[] = $coverFile instanceof UploadedFile
+                    ? [...$cover, 'preview_file_input' => 'cover_image']
+                    : [...$cover, 'preview_url' => $coverSource['preview_url']];
+            } elseif ($coverFile instanceof UploadedFile) {
+                $path = $coverFile->store('narrative-progress-reports/'.$topic->id, 'local');
+                $storedPaths[] = $path;
+                $photos[] = [...$cover, 'path' => $path, 'original_name' => $coverFile->getClientOriginalName(), 'mime_type' => $coverFile->getMimeType(), 'size' => $coverFile->getSize()];
+            } else {
+                $path = 'narrative-progress-reports/'.$topic->id.'/'.Str::uuid().'.'.pathinfo($coverSource['path'], PATHINFO_EXTENSION);
+                if (! Storage::disk('local')->copy($coverSource['path'], $path)) {
+                    throw new \RuntimeException('The selected cover image could not be copied.');
+                }
+                $storedPaths[] = $path;
+                $photos[] = [...$cover, 'path' => $path, 'original_name' => $coverSource['original_name'], 'mime_type' => $coverSource['mime_type'], 'size' => $coverSource['size'], 'source_report_id' => $coverSource['report_id'], 'source_photo_index' => $coverSource['index']];
+            }
+        }
         foreach (range(1, 30) as $index) {
             $file = $files['photo_'.$index] ?? null;
             $source = $evidence[$data['reuse_photo_'.$index] ?? ''] ?? null;

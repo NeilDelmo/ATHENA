@@ -58,6 +58,9 @@ class ProjectNarrativeReportController extends Controller
                 'reuse_photo_'.$index,
                 'photo_after_paragraph_'.$index,
             ])
+            ->prepend('cover_image_caption')
+            ->prepend('reuse_cover_image')
+            ->prepend('cover_image')
             ->all();
         $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
             ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), true)
@@ -195,13 +198,23 @@ class ProjectNarrativeReportController extends Controller
             foreach (['submission_date', 'implementation_start', 'implementation_end'] as $field) {
                 $sourceData[$field] = $report->$field?->toDateString();
             }
+            $figureIndex = 1;
             foreach ($report->photos ?? [] as $index => $photo) {
-                if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
-                    $sourceData['reuse_photo_'.($index + 1)] = $photo['source_report_id'].':'.$photo['source_photo_index'];
+                if (($photo['section'] ?? null) === 'cover') {
+                    if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
+                        $sourceData['reuse_cover_image'] = $photo['source_report_id'].':'.$photo['source_photo_index'];
+                    }
+                    $sourceData['cover_image_caption'] = $photo['caption'] ?? '';
+
+                    continue;
                 }
-                $sourceData['photo_caption_'.($index + 1)] = $photo['caption'];
-                $sourceData['photo_section_'.($index + 1)] = $photo['section'];
-                $sourceData['photo_after_paragraph_'.($index + 1)] = $photo['after_paragraph'] ?? 0;
+                if (isset($photo['source_report_id'], $photo['source_photo_index'])) {
+                    $sourceData['reuse_photo_'.$figureIndex] = $photo['source_report_id'].':'.$photo['source_photo_index'];
+                }
+                $sourceData['photo_caption_'.$figureIndex] = $photo['caption'];
+                $sourceData['photo_section_'.$figureIndex] = $photo['section'];
+                $sourceData['photo_after_paragraph_'.$figureIndex] = $photo['after_paragraph'] ?? 0;
+                $figureIndex++;
             }
             ProjectNarrativeReportDraft::query()->firstOrCreate(
                 ['topic_id' => $topic->id, 'user_id' => $request->user()->id, 'report_type' => 'terminal'],
@@ -252,6 +265,9 @@ class ProjectNarrativeReportController extends Controller
                     'reuse_photo_'.$index,
                     'photo_after_paragraph_'.$index,
                 ])
+                ->prepend('cover_image_caption')
+                ->prepend('reuse_cover_image')
+                ->prepend('cover_image')
                 ->all();
 
             $report = ProjectNarrativeReport::create([

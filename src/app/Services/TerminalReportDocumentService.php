@@ -34,6 +34,14 @@ class TerminalReportDocumentService extends ProgressReportDocumentService
         $body->appendChild($this->paragraph($doc, 'I. Cover Page', true));
         $body->appendChild($this->paragraph($doc, 'Batangas State University', true, 'center', 28));
         $body->appendChild($this->paragraph($doc, 'The National Engineering University', false, 'center'));
+        $coverFigure = collect($figures)->firstWhere('section', 'cover');
+        if (is_array($coverFigure)) {
+            $coverFigure = $this->scaleCoverFigure($coverFigure);
+            $body->appendChild($this->figureParagraph($doc, $coverFigure, 0));
+            if (filled($coverFigure['caption'] ?? null)) {
+                $body->appendChild($this->captionParagraph($doc, (string) $coverFigure['caption']));
+            }
+        }
         $body->appendChild($this->paragraph($doc, $title, true, 'center', 30));
         $body->appendChild($this->paragraph($doc, $report->researchers, false, 'center'));
         $body->appendChild($this->paragraph($doc, $this->date($report->implementation_start).' – '.$this->date($report->implementation_end), false, 'center'));
@@ -216,6 +224,23 @@ class TerminalReportDocumentService extends ProgressReportDocumentService
     private function signatory(DOMElement $body, string $name, string $role, ?string $date): void
     {
         $body->appendChild($this->paragraph($body->ownerDocument, "______________________________\n".$name."\n".$role."\nDate signed: ".$this->date($date)));
+    }
+
+    /**
+     * @param  array<string, mixed>  $figure
+     * @return array<string, mixed>
+     */
+    private function scaleCoverFigure(array $figure): array
+    {
+        $width = max(1, (int) ($figure['width'] ?? 1));
+        $height = max(1, (int) ($figure['height'] ?? 1));
+        $scale = min(1, 5029200 / $width, 3657600 / $height);
+
+        return [
+            ...$figure,
+            'width' => (int) round($width * $scale),
+            'height' => (int) round($height * $scale),
+        ];
     }
 
     private function pageBreak(DOMDocument $doc): DOMElement

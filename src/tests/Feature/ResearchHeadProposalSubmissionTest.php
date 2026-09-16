@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\ProposalVersion;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -306,12 +307,73 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
 
     $topic->update(['status' => 'revision_requested']);
     expect($topic->canRecordDecision(TopicProposal::STATUS_LREC_QUEUED))->toBeFalse();
-    createProposalSubmission($topic, $this->faculty, [
+    $revisionVersion = createProposalSubmission($topic, $this->faculty, [
         'version_number' => 2,
         'submission_type' => 'revision',
     ]);
     $topic->update(['status' => 'resubmitted']);
     $this->get(route('topics.show', $topic))->assertOk()->assertSee('value="lrec_queued"', false);
+
+    $this->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => TopicProposal::STATUS_LREC_QUEUED,
+        'initial_clearance_confirmed' => '1',
+    ])->assertSessionHasErrors('status');
+
+    expect($topic->fresh()->status)->toBe('resubmitted');
+
+    $gadChecklist = $revisionVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        'position' => 1,
+        'file_path' => 'packages/revision-gad-checklist.pdf',
+        'original_filename' => 'revision-gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'is_carried_forward' => false,
+    ]);
+    $initialScreening = $revisionVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        'position' => 2,
+        'file_path' => 'packages/revision-initial-screening.pdf',
+        'original_filename' => 'revision-initial-screening.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+        'is_carried_forward' => false,
+    ]);
+    $revisionVersion->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/completed-gad.pdf',
+        'original_filename' => 'completed-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('d', 64),
+        'uploaded_by' => $this->researchHead->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 12.32,
+        ],
+    ]);
+    $revisionVersion->files()->create([
+        'source_version_file_id' => $initialScreening->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 91,
+        'file_path' => 'head-uploads/completed-initial-screening.pdf',
+        'original_filename' => 'completed-initial-screening.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('e', 64),
+        'uploaded_by' => $this->researchHead->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'narrative_evaluation' => 'The proposal is ready for LREC presentation.',
+        ],
+    ]);
+
     $this->patch(route('research_head.topics.updateStatus', $topic), [
         'status' => TopicProposal::STATUS_LREC_QUEUED,
         'initial_clearance_confirmed' => '1',

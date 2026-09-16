@@ -1,93 +1,319 @@
-@props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => []])
+@props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => [], 'standalone' => false])
 @php
     $data = array_replace($defaults, $draft?->source_data ?? []);
     $terminal = $data['terminal_data'] ?? [];
     $value = fn ($key, $fallback = '') => old($key, data_get($data, $key, $fallback));
-    $input = 'mt-1 block w-full rounded-xl border-gray-300 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-white';
+    $input = 'mt-2 block min-h-12 w-full rounded-xl border-gray-300 bg-white px-3 py-2.5 text-base text-gray-950 shadow-sm transition placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
     $authors = $value('terminal_data.authors', []);
     $accomplishments = $value('accomplishments', []) ?: [['objective' => '', 'target' => '', 'actual' => '']];
+    $selectedCover = $value('reuse_cover_image');
+    $coverPreview = $evidence[$selectedCover]['preview_url'] ?? '';
+    $usedFigureSlots = collect(range(1, 30))
+        ->filter(fn (int $index): bool => filled($value('reuse_photo_'.$index)) || filled($value('photo_caption_'.$index)))
+        ->max();
+    $initialFigureCount = max(1, (int) ($usedFigureSlots ?: 1));
 @endphp
-<section class="p-5 sm:p-6" data-narrative-progress-autosave="true" x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token())})">
-<form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-7 text-gray-800 dark:text-slate-200" @submit="submitting = true">
-    @csrf
-    <input type="hidden" name="report_type" value="terminal">
-    <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
-    <x-proposal-autosave-status />
-    @if ($errors->narrativeProgress->any())
-        <div role="alert" class="rounded-xl bg-red-50 p-4 text-sm text-red-800"><p class="font-bold">Please review these fields:</p><ul class="list-disc pl-5">@foreach ($errors->narrativeProgress->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>
-    @endif
-    <p class="rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-900 dark:bg-blue-950 dark:text-blue-100">Review the carried-over proposal content and confirm final dates, spending and findings. Text saves privately. Select new image files again if you leave before preparing the PDF.</p>
-    @if (($defaults['missing_monitoring_periods'] ?? []) !== [])
-        <p class="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">Before preparing the final PDF, complete monitoring reports for {{ implode(', ', $defaults['missing_monitoring_periods']) }}. You can save and preview this draft.</p>
-    @endif
-    <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700"><summary class="cursor-pointer font-bold">Earlier monitoring information</summary>
-        @forelse ($defaults['monitoring_reference'] ?? [] as $source)
-            <div class="mt-4 space-y-2 border-t border-gray-200 pt-3 dark:border-slate-700"><h4 class="font-semibold">{{ $source['period'] }}</h4><p class="whitespace-pre-line text-sm">{{ $source['accomplishments'] }}</p>
-                @foreach ($source['work_plan'] ?? [] as $activity)<p class="text-sm"><strong>{{ $activity['activity'] ?? '' }}:</strong> {{ $activity['actual_accomplishment'] ?? '' }} {{ $activity['findings'] ?? '' }}</p>@endforeach
-                @foreach ($source['budget_utilization'] ?? [] as $budget)<p class="text-xs">{{ $budget['type'] ?? '' }} — {{ $budget['details'] ?? '' }}: ₱{{ number_format((float) ($budget['actual_amount'] ?? 0), 2) }}</p>@endforeach
+
+<section
+    class="p-5 sm:p-8"
+    data-narrative-progress-autosave="true"
+    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token())})"
+>
+    <form
+        x-ref="form"
+        data-narrative-progress-autosave-form
+        method="POST"
+        action="{{ route('project-narrative-reports.prepare', $topic) }}"
+        enctype="multipart/form-data"
+        class="space-y-10 text-base leading-7 text-gray-800 dark:text-slate-200 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
+        @submit="submitting = true"
+    >
+        @csrf
+        <input type="hidden" name="report_type" value="terminal">
+        <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
+        <x-proposal-autosave-status />
+
+        <header class="overflow-hidden rounded-3xl bg-gray-950 text-white shadow-lg">
+            <div class="border-b border-white/10 px-6 py-7 sm:px-8">
+                <p class="font-semibold uppercase tracking-[0.18em] text-red-300">Terminal report composer</p>
+                <h2 class="mt-2 max-w-3xl font-serif text-3xl font-bold leading-tight sm:text-4xl">Build the final project record</h2>
+                <p class="mt-3 max-w-3xl text-base leading-7 text-gray-300">Bring the project story together with a cover poster, formatted narrative, figures, and research tables. Your text saves privately while you work.</p>
             </div>
-        @empty<p class="mt-3 text-sm">No submitted monitoring information is available yet.</p>@endforelse
-    </details>
-    <section class="space-y-4">
-        <h3 class="text-lg font-bold">I–II. Cover and project details</h3>
-        <div class="rounded-xl border border-gray-200 p-4 dark:border-slate-700"><p class="font-bold">{{ $terminal['project_title'] ?? $topic->title }}</p><p class="mt-2 text-sm">Approved period: {{ $terminal['approved_start'] ?? 'Not recorded' }} – {{ $terminal['approved_end'] ?? 'Not recorded' }} ({{ $terminal['approved_duration_months'] ?? $topic->estimated_duration_months }} months)</p><p class="text-sm">Approved budget: ₱{{ number_format((float) ($terminal['approved_budget'] ?? $topic->estimated_budget), 2) }}</p></div>
-        <div class="grid gap-4 sm:grid-cols-2">
-            @foreach (['submission_date' => 'Submission date', 'implementation_start' => 'Actual start date', 'implementation_end' => 'Actual completion date'] as $field => $label)
-                <label class="text-sm font-semibold">{{ $label }}<input type="date" name="{{ $field }}" value="{{ $value($field) }}" max="{{ now()->toDateString() }}" required class="{{ $input }}"></label>
+            <nav aria-label="Terminal report content tools" class="grid gap-px bg-white/10 sm:grid-cols-3">
+                <a href="#terminal-cover" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
+                    <span aria-hidden="true" class="text-xl">▣</span> Add cover image
+                </a>
+                <a href="#terminal-figures" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
+                    <span aria-hidden="true" class="text-xl">＋</span> Insert a figure
+                </a>
+                <a href="#terminal-tables" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
+                    <span aria-hidden="true" class="text-xl">▦</span> Create a table
+                </a>
+            </nav>
+        </header>
+
+        @if ($errors->narrativeProgress->any())
+            <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
+                <p class="font-bold">Please review these fields:</p>
+                <ul class="mt-2 list-disc space-y-1 pl-6">@foreach ($errors->narrativeProgress->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            </div>
+        @endif
+
+        <div class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-blue-950 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+            Review the carried-over proposal content and confirm the final dates, spending, and findings. Image files are not autosaved, so choose new uploads again if you leave before preparing the report.
+        </div>
+
+        @if (($defaults['missing_monitoring_periods'] ?? []) !== [])
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-900 dark:bg-amber-950">
+                Before preparing the official copy, complete monitoring reports for {{ implode(', ', $defaults['missing_monitoring_periods']) }}. You can still save and preview this draft.
+            </div>
+        @endif
+
+        <section class="rounded-2xl border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800/50" x-data="{ open: false }">
+            <button
+                type="button"
+                class="flex min-h-14 w-full items-center justify-between gap-4 rounded-2xl px-5 py-4 text-left font-bold text-gray-950 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:text-white dark:hover:bg-slate-800"
+                @click="open = !open"
+                :aria-expanded="open.toString()"
+                aria-controls="terminal-monitoring-reference"
+            >
+                <span>
+                    Earlier monitoring information
+                    <span class="mt-1 block font-normal text-gray-600 dark:text-slate-300">Use submitted monitoring records as references while writing the final report.</span>
+                </span>
+                <svg aria-hidden="true" class="h-6 w-6 shrink-0 transition-transform" :class="open && 'rotate-180'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div id="terminal-monitoring-reference" x-show="open" x-cloak class="border-t border-gray-200 px-5 pb-5 dark:border-slate-700">
+                @forelse ($defaults['monitoring_reference'] ?? [] as $source)
+                    <article class="mt-5 space-y-3 border-b border-gray-200 pb-5 last:border-0 dark:border-slate-700">
+                        <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">{{ $source['period'] }}</h4>
+                        <p class="whitespace-pre-line">{{ $source['accomplishments'] }}</p>
+                        @foreach ($source['work_plan'] ?? [] as $activity)
+                            <p><strong>{{ $activity['activity'] ?? '' }}:</strong> {{ $activity['actual_accomplishment'] ?? '' }} {{ $activity['findings'] ?? '' }}</p>
+                        @endforeach
+                        @foreach ($source['budget_utilization'] ?? [] as $budget)
+                            <p class="text-gray-600 dark:text-slate-300">{{ $budget['type'] ?? '' }} — {{ $budget['details'] ?? '' }}: ₱{{ number_format((float) ($budget['actual_amount'] ?? 0), 2) }}</p>
+                        @endforeach
+                    </article>
+                @empty
+                    <p class="pt-5">No submitted monitoring information is available yet.</p>
+                @endforelse
+            </div>
+        </section>
+
+        <section class="space-y-6" aria-labelledby="terminal-project-details">
+            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+                <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Sections I–II</p>
+                <h3 id="terminal-project-details" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Cover and project details</h3>
+            </div>
+
+            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
+                <p class="font-serif text-2xl font-bold text-gray-950 dark:text-white">{{ $terminal['project_title'] ?? $topic->title }}</p>
+                <div class="mt-3 grid gap-2 text-gray-600 sm:grid-cols-2 dark:text-slate-300">
+                    <p>Approved period: {{ $terminal['approved_start'] ?? 'Not recorded' }} – {{ $terminal['approved_end'] ?? 'Not recorded' }} ({{ $terminal['approved_duration_months'] ?? $topic->estimated_duration_months }} months)</p>
+                    <p>Approved budget: ₱{{ number_format((float) ($terminal['approved_budget'] ?? $topic->estimated_budget), 2) }}</p>
+                </div>
+            </div>
+
+            <section
+                id="terminal-cover"
+                data-terminal-cover-image
+                class="scroll-mt-24 overflow-hidden rounded-3xl border border-gray-300 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                x-data="{ previewUrl: @js($coverPreview), selected: @js($selectedCover), evidence: @js($evidence) }"
+            >
+                <div class="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]">
+                    <div class="relative flex min-h-80 items-center justify-center overflow-hidden bg-gray-950 p-6">
+                        <img x-show="previewUrl" :src="previewUrl" :alt="$refs.coverCaption?.value || 'Terminal report cover poster preview'" class="max-h-[28rem] w-full rounded-xl object-contain shadow-2xl">
+                        <div x-show="!previewUrl" class="max-w-sm text-center text-gray-300">
+                            <svg aria-hidden="true" class="mx-auto h-14 w-14 text-red-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                            <p class="mt-4 font-serif text-2xl font-bold text-white">Front-cover poster</p>
+                            <p class="mt-2">Add the project poster, featured output, or strongest visual from the completed study.</p>
+                        </div>
+                    </div>
+                    <div class="space-y-5 p-5 sm:p-6">
+                        <div>
+                            <h4 class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Cover image</h4>
+                            <p class="mt-1 text-gray-600 dark:text-slate-300">JPG or PNG, up to 10 MB. Landscape images work best on the cover.</p>
+                        </div>
+                        <label class="block font-bold">
+                            Upload a new image
+                            <input
+                                type="file"
+                                name="cover_image"
+                                accept=".jpg,.jpeg,.png"
+                                class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800"
+                                @change="if ($event.target.files[0]) { previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; }"
+                            >
+                        </label>
+                        <label class="block font-bold">
+                            Or reuse earlier evidence
+                            <select
+                                x-model="selected"
+                                name="reuse_cover_image"
+                                class="{{ $input }}"
+                                @change="if (evidence[selected]) { previewUrl = evidence[selected].preview_url; $refs.coverCaption.value = evidence[selected].caption || $refs.coverCaption.value; $refs.coverCaption.dispatchEvent(new Event('input', { bubbles: true })); } else { previewUrl = ''; }"
+                            >
+                                <option value="">No earlier image selected</option>
+                                @foreach ($evidence as $key => $photo)<option value="{{ $key }}">{{ $photo['label'] }}</option>@endforeach
+                            </select>
+                        </label>
+                        <label class="block font-bold">
+                            Cover caption and image description
+                            <input x-ref="coverCaption" name="cover_image_caption" value="{{ $value('cover_image_caption') }}" maxlength="200" class="{{ $input }}" placeholder="Describe what the image shows">
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <div class="grid gap-5 sm:grid-cols-2">
+                @foreach (['submission_date' => 'Submission date', 'implementation_start' => 'Actual start date', 'implementation_end' => 'Actual completion date'] as $field => $label)
+                    <label class="font-bold">{{ $label }}<input type="date" name="{{ $field }}" value="{{ $value($field) }}" max="{{ now()->toDateString() }}" required class="{{ $input }}"></label>
+                @endforeach
+                <label class="font-bold">Tracking number <span class="font-normal text-gray-500">(optional)</span><input name="tracking_number" value="{{ $value('tracking_number') }}" maxlength="100" class="{{ $input }}"></label>
+                <div x-data="{ spent: @js($value('terminal_data.total_expenditure')), budget: @js((float) ($terminal['approved_budget'] ?? $topic->estimated_budget)) }">
+                    <label class="font-bold">Final total expenditure (₱)<input type="number" min="0" step="0.01" name="terminal_data[total_expenditure]" x-model="spent" required class="{{ $input }}"></label>
+                    <p class="mt-2 font-semibold text-red-700 dark:text-red-300" x-text="budget > 0 && spent !== '' ? 'Budget utilization: ' + (Number(spent) / budget * 100).toFixed(2) + '%' : 'Budget utilization: N/A'"></p>
+                    <p class="mt-1 text-gray-500 dark:text-slate-400">Confirm the final total; do not add repeated cumulative monitoring amounts together.</p>
+                </div>
+                <label class="font-bold">Collaborating agency <span class="font-normal text-gray-500">(if any)</span><input name="terminal_data[collaborating_agency]" value="{{ $value('terminal_data.collaborating_agency') }}" maxlength="1000" placeholder="None" class="{{ $input }}"></label>
+            </div>
+
+            <div class="space-y-4" x-data="{ authors: @js($authors) }">
+                <div>
+                    <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">Authors and prepared-by signatures</h4>
+                    <p class="mt-1 text-gray-600 dark:text-slate-300">Names populate the cover, author list, and signature blocks. Leave signing dates blank until signed.</p>
+                </div>
+                <template x-for="(author, index) in authors" :key="index">
+                    <article class="grid gap-4 rounded-2xl border border-gray-200 p-5 sm:grid-cols-2 lg:grid-cols-3 dark:border-slate-700">
+                        <template x-for="field in ['name', 'rank', 'campus', 'college']" :key="field">
+                            <label class="font-bold"><span x-text="field === 'rank' ? 'Academic rank' : field.charAt(0).toUpperCase() + field.slice(1)"></span><input :name="`terminal_data[authors][${index}][${field}]`" x-model="author[field]" :required="field === 'name'" maxlength="255" class="{{ $input }}"></label>
+                        </template>
+                        <label class="font-bold">Project role<select :name="`terminal_data[authors][${index}][role]`" x-model="author.role" class="{{ $input }}"><option>Project Leader</option><option>Project Staff</option></select></label>
+                        <label class="font-bold">Date signed <span class="font-normal text-gray-500">(optional)</span><input type="date" :name="`terminal_data[authors][${index}][date_signed]`" x-model="author.date_signed" max="{{ now()->toDateString() }}" class="{{ $input }}"></label>
+                        <button type="button" @click="authors.splice(index, 1); $dispatch('input')" :disabled="authors.length === 1" class="min-h-11 justify-self-start rounded-xl border border-red-200 px-4 py-2 font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">Remove author</button>
+                    </article>
+                </template>
+                <button type="button" @click="authors.push({name:'',rank:'',campus:'',college:'',role:'Project Staff',date_signed:''}); $dispatch('input')" :disabled="authors.length >= 30" class="min-h-12 rounded-xl bg-gray-950 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another author</button>
+            </div>
+        </section>
+
+        <section class="space-y-5" x-data="{ rows: @js($accomplishments) }" aria-labelledby="terminal-accomplishments">
+            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+                <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Section III</p>
+                <h3 id="terminal-accomplishments" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Summary of accomplishment</h3>
+                <p class="mt-2 text-gray-600 dark:text-slate-300">Confirm each approved objective and its final outcome.</p>
+            </div>
+            <template x-for="(row, index) in rows" :key="index">
+                <article class="space-y-4 rounded-2xl border border-gray-200 p-5 dark:border-slate-700">
+                    <p class="font-serif text-xl font-bold text-gray-950 dark:text-white" x-text="'Objective ' + (index + 1)"></p>
+                    <div class="grid gap-4 lg:grid-cols-3">
+                        <template x-for="field in ['objective','target','actual']" :key="field">
+                            <label class="font-bold"><span x-text="field === 'objective' ? 'Approved objective' : (field === 'target' ? 'Target accomplishment' : 'Actual accomplishment')"></span><textarea :name="`accomplishments[${index}][${field}]`" x-model="row[field]" :maxlength="field === 'objective' ? 1000 : 2000" required rows="5" class="{{ $input }}"></textarea></label>
+                        </template>
+                    </div>
+                    <button type="button" @click="rows.splice(index, 1); $dispatch('input')" :disabled="rows.length === 1" class="min-h-11 rounded-xl border border-red-200 px-4 py-2 font-bold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300">Remove objective</button>
+                </article>
+            </template>
+            <button type="button" @click="rows.push({objective:'',target:'',actual:''}); $dispatch('input')" :disabled="rows.length >= 30" class="min-h-12 rounded-xl bg-gray-950 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another objective</button>
+        </section>
+
+        <section class="space-y-6" aria-labelledby="terminal-narrative">
+            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+                <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Sections IV–VII</p>
+                <h3 id="terminal-narrative" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Research narrative</h3>
+                <p class="mt-2 text-gray-600 dark:text-slate-300">Use the larger editor to format headings, emphasis, and lists. Figures and tables can be positioned after a paragraph in Methodology or Results and Discussion.</p>
+            </div>
+            <div x-data="{ abstract: @js(app(\App\Support\TerminalReportData::class)->plain($value('terminal_data.abstract'))) }">
+                <label class="block font-serif text-xl font-bold text-gray-950 dark:text-white">IV. Abstract <span class="font-sans text-base font-normal text-gray-500">(200–250 words)</span><textarea name="terminal_data[abstract]" x-model="abstract" required rows="8" class="{{ $input }}"></textarea></label>
+                <p class="mt-2 font-semibold" :class="(abstract.trim() ? abstract.trim().split(/\s+/).length : 0) >= 200 && (abstract.trim() ? abstract.trim().split(/\s+/).length : 0) <= 250 ? 'text-emerald-700' : 'text-amber-700'" x-text="(abstract.trim() ? abstract.trim().split(/\s+/).length : 0) + ' words'"></p>
+            </div>
+            @foreach (['introduction' => 'Introduction', 'rationale' => 'Rationale', 'terminal_data.literature_review' => 'Review of Literature', 'objectives' => 'General objective (optional)', 'methodology' => 'VI. Materials and Methods / Methodology', 'results_discussion' => 'VII. Results and Discussion', 'terminal_data.conclusions' => 'Conclusions', 'terminal_data.recommendations' => 'Recommendations', 'terminal_data.bibliography' => 'Bibliography'] as $field => $label)
+                <label class="block font-serif text-xl font-bold text-gray-950 dark:text-white">
+                    {{ $label }}
+                    <textarea id="terminal-{{ str_replace('.', '-', $field) }}" name="{{ str_contains($field, '.') ? 'terminal_data['.substr($field, 14).']' : $field }}" data-semantic-editor data-semantic-editor-size="large" rows="9" maxlength="100000" @required($field !== 'objectives') class="{{ $input }}">{{ $value($field) }}</textarea>
+                </label>
             @endforeach
-            <label class="text-sm font-semibold">Tracking number (optional)<input name="tracking_number" value="{{ $value('tracking_number') }}" maxlength="100" class="{{ $input }}"></label>
-            <div x-data="{spent: @js($value('terminal_data.total_expenditure')), budget: @js((float) ($terminal['approved_budget'] ?? $topic->estimated_budget))}"><label class="text-sm font-semibold">Final total expenditure (₱)<input type="number" min="0" step="0.01" name="terminal_data[total_expenditure]" x-model="spent" required class="{{ $input }}"></label><p class="mt-2 text-xs" x-text="budget > 0 && spent !== '' ? 'Budget utilization: ' + (Number(spent) / budget * 100).toFixed(2) + '%' : 'Budget utilization: N/A'"></p><p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Confirm the final total. Do not add repeated cumulative monitoring amounts together.</p></div>
-            <label class="text-sm font-semibold">Collaborating agency (if any)<input name="terminal_data[collaborating_agency]" value="{{ $value('terminal_data.collaborating_agency') }}" maxlength="1000" placeholder="None" class="{{ $input }}"></label>
-        </div>
-        <div class="space-y-3" x-data="{authors: @js($authors)}">
-            <h4 class="font-bold">Authors and prepared-by signatures</h4>
-            <template x-for="(author, index) in authors" :key="index"><div class="grid gap-3 rounded-xl border border-gray-200 p-4 sm:grid-cols-2 lg:grid-cols-3 dark:border-slate-700">
-                <template x-for="field in ['name', 'rank', 'campus', 'college']" :key="field"><label class="text-xs font-semibold"><span x-text="field === 'rank' ? 'Academic rank' : field.charAt(0).toUpperCase() + field.slice(1)"></span><input :name="`terminal_data[authors][${index}][${field}]`" x-model="author[field]" :required="field === 'name'" maxlength="255" class="{{ $input }}"></label></template>
-                <label class="text-xs font-semibold">Project role<select :name="`terminal_data[authors][${index}][role]`" x-model="author.role" class="{{ $input }}"><option>Project Leader</option><option>Project Staff</option></select></label>
-                <label class="text-xs font-semibold">Date signed (optional)<input type="date" :name="`terminal_data[authors][${index}][date_signed]`" x-model="author.date_signed" max="{{ now()->toDateString() }}" class="{{ $input }}"></label>
-                <button type="button" @click="authors.splice(index, 1); $nextTick(() => $el.dispatchEvent(new Event('input', {bubbles: true})))" :disabled="authors.length === 1" class="text-left text-xs font-bold text-red-600 disabled:opacity-40">Remove author</button>
-            </div></template>
-            <button type="button" @click="authors.push({name:'',rank:'',campus:'',college:'',role:'Project Staff',date_signed:''})" :disabled="authors.length >= 30" class="text-sm font-bold text-red-600">Add author</button>
-            <p class="text-xs text-gray-500 dark:text-slate-400">Names populate the cover, author list and prepared-by blocks. Leave signing dates blank until signed.</p>
-        </div>
-    </section>
-    <section class="space-y-3" x-data="{rows: @js($accomplishments)}">
-        <h3 class="text-lg font-bold">III. Summary of Accomplishment</h3><p class="text-sm">Confirm each approved objective and its final outcome. These objectives also populate the narrative objectives section.</p>
-        <template x-for="(row, index) in rows" :key="index"><div class="grid gap-3 rounded-xl border border-gray-200 p-4 lg:grid-cols-3 dark:border-slate-700">
-            <template x-for="field in ['objective','target','actual']" :key="field"><label class="text-sm font-semibold"><span x-text="field === 'objective' ? 'Objective '+(index+1) : (field === 'target' ? 'Target accomplishment' : 'Actual accomplishment')"></span><textarea :name="`accomplishments[${index}][${field}]`" x-model="row[field]" :maxlength="field === 'objective' ? 1000 : 2000" required rows="4" class="{{ $input }}"></textarea></label></template>
-            <button type="button" @click="rows.splice(index,1); $nextTick(() => $el.dispatchEvent(new Event('input', {bubbles:true})))" :disabled="rows.length === 1" class="text-left text-xs font-bold text-red-600 disabled:opacity-40">Remove row</button>
-        </div></template>
-        <button type="button" @click="rows.push({objective:'',target:'',actual:''})" :disabled="rows.length >= 30" class="text-sm font-bold text-red-600">Add objective</button>
-    </section>
-    <section class="space-y-5">
-        <div x-data="{abstract: @js(app(\App\Support\TerminalReportData::class)->plain($value('terminal_data.abstract')))}"><label class="block font-bold">IV. Abstract (200–250 words)<textarea name="terminal_data[abstract]" x-model="abstract" required rows="7" class="{{ $input }}"></textarea></label><p class="mt-2 text-xs" x-text="(abstract.trim() ? abstract.trim().split(/\s+/).length : 0) + ' words'"></p></div>
-        <h3 class="text-lg font-bold">V. Introduction, literature and objectives</h3>
-        @foreach (['introduction' => 'Introduction', 'rationale' => 'Rationale', 'terminal_data.literature_review' => 'Review of Literature', 'objectives' => 'General objective (optional)', 'methodology' => 'VI. Materials and Methods / Methodology', 'results_discussion' => 'VII. Results and Discussion', 'terminal_data.conclusions' => 'Conclusions', 'terminal_data.recommendations' => 'Recommendations', 'terminal_data.bibliography' => 'Bibliography'] as $field => $label)
-            <label class="block font-semibold">{{ $label }}<textarea id="terminal-{{ str_replace('.', '-', $field) }}" name="{{ str_contains($field, '.') ? 'terminal_data['.substr($field, 14).']' : $field }}" data-semantic-editor rows="7" maxlength="100000" @required($field !== 'objectives') class="{{ $input }}">{{ $value($field) }}</textarea></label>
-        @endforeach
-    </section>
-    <x-terminal-report-tables :tables="$value('terminal_data.tables', [])" />
-    <section class="space-y-3">
-        <h3 class="text-lg font-bold">Figures (optional)</h3><p class="text-sm">Use relevant JPG or PNG evidence, up to 10 MB each. Reuse an earlier figure or upload a replacement. A paragraph position of 0 places it at the end of the section.</p>
-        @foreach (range(1, 30) as $index)
-            @if ($index === 4)<details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700"><summary class="cursor-pointer font-bold">More figures (4–30)</summary><div class="mt-4 space-y-3">@endif
-            <div class="grid gap-3 rounded-xl border border-gray-200 p-4 sm:grid-cols-2 dark:border-slate-700" x-data="{caption: @js($value('photo_caption_'.$index)), section: @js($value('photo_section_'.$index, 'results_discussion')), evidence: @js($evidence)}">
-                <label class="text-sm font-semibold">Figure slot {{ $index }} — new upload<input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }}"></label>
-                <label class="text-sm font-semibold">Or reuse earlier evidence<select name="reuse_photo_{{ $index }}" @change="if (evidence[$event.target.value]) { caption = evidence[$event.target.value].caption; section = evidence[$event.target.value].section; }" class="{{ $input }}"><option value="">No earlier figure selected</option>@foreach ($evidence as $key => $photo)<option value="{{ $key }}" @selected($value('reuse_photo_'.$index) === $key)>{{ $photo['label'] }}</option>@endforeach</select></label>
-                <label class="text-sm font-semibold">Caption<input name="photo_caption_{{ $index }}" x-model="caption" maxlength="200" class="{{ $input }}"></label>
-                <div class="grid gap-3 sm:grid-cols-2"><label class="text-sm">Section<select name="photo_section_{{ $index }}" x-model="section" class="{{ $input }}"><option value="methodology">Methodology</option><option value="results_discussion">Results and Discussion</option></select></label><label class="text-sm">After paragraph (0 = end)<input type="number" min="0" max="1000" name="photo_after_paragraph_{{ $index }}" value="{{ $value('photo_after_paragraph_'.$index, 0) }}" class="{{ $input }}"></label></div>
+        </section>
+
+        <x-terminal-report-tables :tables="$value('terminal_data.tables', [])" />
+
+        <section id="terminal-figures" class="scroll-mt-24 space-y-5" x-data="{ figureCount: @js($initialFigureCount), evidence: @js($evidence) }" aria-labelledby="terminal-figures-heading">
+            <div class="flex flex-col gap-4 border-b-2 border-gray-950 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white">
+                <div>
+                    <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Visual evidence</p>
+                    <h3 id="terminal-figures-heading" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Figures and inserted images</h3>
+                    <p class="mt-2 max-w-3xl text-gray-600 dark:text-slate-300">Upload a JPG or PNG, or reuse evidence from an earlier report. Position 0 places the figure at the end of its section.</p>
+                </div>
+                <button type="button" @click="if (figureCount < 30) figureCount++" :disabled="figureCount >= 30" class="min-h-12 shrink-0 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-40">＋ Add figure</button>
             </div>
-            @if ($index === 30)</div></details>@endif
-        @endforeach
-    </section>
-    <section class="space-y-4"><h3 class="text-lg font-bold">Review and approval signatories</h3><p class="text-sm">Confirm names for each role. Leave dates blank for unsigned copies. Selecting a name does not apply a signature or approve the report.</p>
-        @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])
-            <div class="grid gap-3 sm:grid-cols-2"><label class="text-sm font-semibold">{{ $group }} — {{ $role }}<input name="terminal_data[signatories][{{ $key }}][name]" value="{{ $value('terminal_data.signatories.'.$key.'.name') }}" list="terminal-signatories" maxlength="255" required class="{{ $input }}"></label><label class="text-sm">Date signed (optional)<input type="date" name="terminal_data[signatories][{{ $key }}][date_signed]" value="{{ $value('terminal_data.signatories.'.$key.'.date_signed') }}" max="{{ now()->toDateString() }}" class="{{ $input }}"></label></div>
-        @endforeach
-        <datalist id="terminal-signatories">@foreach ($defaults['signatory_options'] ?? [] as $name)<option value="{{ $name }}">@endforeach</datalist>
-    </section>
-    <div class="flex flex-wrap justify-end gap-3"><button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rounded-xl border border-gray-300 px-5 py-3 text-sm font-bold">Preview Terminal report</button><button type="submit" :disabled="previewLoading || submitting" class="rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white">Prepare official PDF</button></div>
-    <p x-show="previewError" x-text="previewError" role="alert" class="text-sm text-red-600"></p>
-    <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3"><p class="text-sm">Review this draft preview. Prepare the PDF to review final pagination before submission.</p><iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Terminal report preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white"></iframe></section>
-</form>
+
+            @foreach (range(1, 30) as $index)
+                @php
+                    $selectedFigure = $value('reuse_photo_'.$index);
+                    $figurePreview = $evidence[$selectedFigure]['preview_url'] ?? '';
+                @endphp
+                <article
+                    x-show="figureCount >= {{ $index }}"
+                    x-cloak
+                    class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
+                    x-data="{ caption: @js($value('photo_caption_'.$index)), section: @js($value('photo_section_'.$index, 'results_discussion')), selected: @js($selectedFigure), previewUrl: @js($figurePreview) }"
+                >
+                    <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
+                        <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">Figure {{ $index }}</h4>
+                        <span class="rounded-full bg-white px-3 py-1 font-semibold text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">JPG / PNG</span>
+                    </div>
+                    <div class="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
+                        <div class="flex min-h-48 items-center justify-center overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 p-3 dark:border-slate-600 dark:bg-slate-800">
+                            <img x-show="previewUrl" :src="previewUrl" :alt="caption || 'Figure preview'" class="max-h-52 w-full object-contain">
+                            <p x-show="!previewUrl" class="text-center font-semibold text-gray-500 dark:text-slate-400">Image preview appears here</p>
+                        </div>
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <label class="block font-bold">
+                                Upload a new image
+                                <input type="file" name="photo_{{ $index }}" accept=".jpg,.jpeg,.png" class="{{ $input }} cursor-pointer file:mr-4 file:rounded-lg file:border-0 file:bg-red-700 file:px-4 file:py-2 file:font-bold file:text-white hover:file:bg-red-800" @change="if ($event.target.files[0]) { previewUrl = URL.createObjectURL($event.target.files[0]); selected = ''; }">
+                            </label>
+                            <label class="block font-bold">
+                                Or reuse earlier evidence
+                                <select x-model="selected" name="reuse_photo_{{ $index }}" class="{{ $input }}" @change="if (evidence[selected]) { caption = evidence[selected].caption || ''; section = ['methodology','results_discussion'].includes(evidence[selected].section) ? evidence[selected].section : 'results_discussion'; previewUrl = evidence[selected].preview_url; } else { previewUrl = ''; }">
+                                    <option value="">No earlier image selected</option>
+                                    @foreach ($evidence as $key => $photo)<option value="{{ $key }}">{{ $photo['label'] }}</option>@endforeach
+                                </select>
+                            </label>
+                            <label class="block font-bold sm:col-span-2">Caption and image description<input name="photo_caption_{{ $index }}" x-model="caption" maxlength="200" class="{{ $input }}" placeholder="Explain what this figure shows"></label>
+                            <label class="block font-bold">Insert in section<select name="photo_section_{{ $index }}" x-model="section" class="{{ $input }}"><option value="methodology">Methodology</option><option value="results_discussion">Results and Discussion</option></select></label>
+                            <label class="block font-bold">After paragraph<input type="number" min="0" max="1000" name="photo_after_paragraph_{{ $index }}" value="{{ $value('photo_after_paragraph_'.$index, 0) }}" class="{{ $input }}"><span class="mt-1 block font-normal text-gray-500">Use 0 to place it at the section end.</span></label>
+                        </div>
+                    </div>
+                </article>
+            @endforeach
+        </section>
+
+        <section class="space-y-5" aria-labelledby="terminal-signatories">
+            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+                <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Final approval</p>
+                <h3 id="terminal-signatories" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Review and approval signatories</h3>
+                <p class="mt-2 text-gray-600 dark:text-slate-300">Confirm the name for each role. Selecting a name does not apply a signature or approve the report.</p>
+            </div>
+            @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])
+                <div class="grid gap-4 rounded-2xl border border-gray-200 p-5 sm:grid-cols-2 dark:border-slate-700">
+                    <label class="font-bold">{{ $group }} — {{ $role }}<input name="terminal_data[signatories][{{ $key }}][name]" value="{{ $value('terminal_data.signatories.'.$key.'.name') }}" list="terminal-signatories" maxlength="255" required class="{{ $input }}"></label>
+                    <label class="font-bold">Date signed <span class="font-normal text-gray-500">(optional)</span><input type="date" name="terminal_data[signatories][{{ $key }}][date_signed]" value="{{ $value('terminal_data.signatories.'.$key.'.date_signed') }}" max="{{ now()->toDateString() }}" class="{{ $input }}"></label>
+                </div>
+            @endforeach
+            <datalist id="terminal-signatories">@foreach ($defaults['signatory_options'] ?? [] as $name)<option value="{{ $name }}">@endforeach</datalist>
+        </section>
+
+        <x-monitoring-action-dock :fixed="$standalone">
+            @if ($standalone)
+                <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+            @endif
+            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 px-6 py-3 font-bold text-gray-900 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50 dark:border-slate-600 dark:text-white dark:hover:bg-slate-800">Preview terminal report</button>
+            <button type="submit" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl bg-red-700 px-6 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50">Prepare official PDF</button>
+        </x-monitoring-action-dock>
+        <p x-show="previewError" x-text="previewError" role="alert" class="rounded-xl bg-red-50 p-4 font-semibold text-red-700"></p>
+        <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3">
+            <p>Review this draft preview. Prepare the official copy to confirm final pagination before submission.</p>
+            <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Terminal report preview" class="h-[75vh] w-full rounded-2xl border border-gray-300 bg-white shadow-lg"></iframe>
+        </section>
+    </form>
 </section>

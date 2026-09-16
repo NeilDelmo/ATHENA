@@ -450,7 +450,7 @@ class ProgressReportDocumentService
                 'height' => $height,
                 'caption' => (string) ($photo['caption'] ?? ''),
                 'after_paragraph' => (int) ($photo['after_paragraph'] ?? 0),
-                'section' => in_array($photo['section'] ?? null, ['methodology', 'results_discussion'], true)
+                'section' => in_array($photo['section'] ?? null, ['cover', 'methodology', 'results_discussion'], true)
                     ? $photo['section']
                     : 'results_discussion',
             ];

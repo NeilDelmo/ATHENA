@@ -16,6 +16,7 @@ use App\Models\TopicReviewFileRevision;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
+use App\Services\GADChecklistScoreExtractor;
 use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
@@ -748,21 +749,26 @@ class TopicController extends Controller
         StoreResearchHeadFileRequest $request,
         TopicProposal $topic,
         ProposalPackageService $packageService,
+        GADChecklistScoreExtractor $gadScoreExtractor,
         InitialScreeningNarrativeExtractor $narrativeExtractor,
     ): RedirectResponse {
         $validated = $request->validated();
+        $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
+        $isSignedCopy = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
+        $isEvaluation = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
+        $isGadAssessment = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
+        $isInitialReviewUpload = $isGadAssessment || $isEvaluation;
 
         $latestVersion = $topic->latestVersion()->first();
 
         if (! $latestVersion instanceof ProposalVersion) {
-            return back()
-                ->withInput()
-                ->withErrors(['review_file' => 'This proposal does not have a submitted version to attach files to.'], 'headUpload');
+            return $this->headUploadErrorResponse(
+                $topic,
+                $isInitialReviewUpload,
+                ['review_file' => 'This proposal does not have a submitted version to attach files to.'],
+            );
         }
 
-        $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
-        $isSignedCopy = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
-        $isEvaluation = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
         $sourceFile = $isSupplemental
             ? null
             : $latestVersion->files()
@@ -770,10 +776,28 @@ class TopicController extends Controller
                 ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD)
                 ->firstOrFail();
 
+        if ($isGadAssessment && $sourceFile?->document_type !== ProposalVersionFile::TYPE_GAD_CHECKLIST) {
+            return $this->headUploadErrorResponse(
+                $topic,
+                true,
+                ['source_file_id' => 'The completed GAD assessment must be linked to the original GAD Checklist in the latest proposal version.'],
+            );
+        }
+
         if ($isEvaluation && $sourceFile?->document_type !== ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM) {
-            return back()
-                ->withInput()
-                ->withErrors(['source_file_id' => 'A completed evaluation must be linked to the Initial Screening Form.'], 'headUpload');
+            return $this->headUploadErrorResponse(
+                $topic,
+                true,
+                ['source_file_id' => 'A completed co-evaluator evaluation must be linked to the original Initial Screening Form in the latest proposal version.'],
+            );
+        }
+
+        if ($isEvaluation && ! $this->hasCompletedGadAssessment($latestVersion)) {
+            return $this->headUploadErrorResponse(
+                $topic,
+                true,
+                ['review_file' => 'Upload the completed GAD Checklist and verify its Total GAD Score before adding the co-evaluator evaluation.'],
+            );
         }
 
         if ($isSignedCopy && $topic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
@@ -790,23 +814,31 @@ class TopicController extends Controller
                 ->withErrors(['source_file_id' => $sourceFile->label().' does not require a signed copy.'], 'headUpload');
         }
 
-        if ($validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION
-            && in_array($topic->status, [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved', 'rejected'], true)) {
-            return back()
-                ->withInput()
-                ->withErrors(['purpose' => 'Revision copies cannot be added after the proposal enters final signing.'], 'headUpload');
-        }
-
         $file = $request->file('review_file');
         $narrativeEvaluation = null;
+        $gadAssessment = null;
+
+        if ($isGadAssessment) {
+            try {
+                $gadAssessment = $gadScoreExtractor->extract($file);
+            } catch (RuntimeException $exception) {
+                return $this->headUploadErrorResponse(
+                    $topic,
+                    true,
+                    ['review_file' => $exception->getMessage()],
+                );
+            }
+        }
 
         if ($isEvaluation) {
             try {
                 $narrativeEvaluation = $narrativeExtractor->extract($file);
             } catch (RuntimeException $exception) {
-                return back()
-                    ->withInput()
-                    ->withErrors(['review_file' => $exception->getMessage()], 'headUpload');
+                return $this->headUploadErrorResponse(
+                    $topic,
+                    true,
+                    ['review_file' => $exception->getMessage()],
+                );
             }
         }
 
@@ -827,19 +859,35 @@ class TopicController extends Controller
                     'note' => $validated['note'] ?? null,
                     'co_evaluator_name' => $validated['co_evaluator_name'] ?? null,
                     'narrative_evaluation' => $narrativeEvaluation,
+                    'gad_score' => $gadAssessment['gad_score'] ?? null,
+                    'gad_rating' => $gadAssessment['gad_rating'] ?? null,
+                    'gad_interpretation' => $gadAssessment['gad_interpretation'] ?? null,
+                    'gad_outcome' => $gadAssessment['gad_outcome'] ?? null,
                 ],
             );
             $storedPath = $attributes['file_path'];
 
-            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $sourceFile, &$replacedSignedCopy): void {
+            DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $isGadAssessment, $isEvaluation, $sourceFile, &$replacedSignedCopy): void {
                 $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
-                if ($isSignedCopy && ($lockedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE || $lockedTopic->latestVersion()->value('id') !== $latestVersion->id)) {
+
+                if ($isSignedCopy && $lockedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
                     throw ValidationException::withMessages(['review_file' => 'Signing is closed or the proposal version changed. Reload the proposal.']);
                 }
+
+                if (($isSignedCopy || $isGadAssessment || $isEvaluation)
+                    && $lockedTopic->latestVersion()->value('id') !== $latestVersion->id) {
+                    throw ValidationException::withMessages(['review_file' => 'A newer proposal version is available. Reload the initial-review workflow before uploading this file.']);
+                }
+
                 $lockedVersion = ProposalVersion::query()
                     ->whereKey($latestVersion->id)
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                if ($isEvaluation && ! $this->hasCompletedGadAssessment($lockedVersion)) {
+                    throw ValidationException::withMessages(['review_file' => 'Upload the completed GAD Checklist and verify its Total GAD Score before adding the co-evaluator evaluation.']);
+                }
+
                 $existingSignedCopies = $isSignedCopy
                     ? $lockedVersion->files()
                         ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
@@ -874,25 +922,49 @@ class TopicController extends Controller
                 ]);
             });
 
-        } catch (Throwable) {
+        } catch (ValidationException $exception) {
             if ($storedPath !== null) {
                 Storage::disk('local')->delete($storedPath);
             }
 
-            return back()
-                ->withInput()
-                ->withErrors(['review_file' => 'The Research Head file could not be stored. Please try again.'], 'headUpload');
+            return $this->headUploadErrorResponse(
+                $topic,
+                $isInitialReviewUpload,
+                $exception->errors(),
+            );
+        } catch (Throwable $exception) {
+            if ($storedPath !== null) {
+                Storage::disk('local')->delete($storedPath);
+            }
+
+            report($exception);
+
+            return $this->headUploadErrorResponse(
+                $topic,
+                $isInitialReviewUpload,
+                ['review_file' => 'The Research Head file could not be stored. Please try again.'],
+            );
+        }
+
+        if ($isGadAssessment) {
+            return redirect()
+                ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+                ->with('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of '.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].').');
+        }
+
+        if ($isEvaluation) {
+            return redirect()
+                ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+                ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.');
         }
 
         return redirect()
             ->to(route('topics.show', $topic).(in_array($topic->status, ['ready_for_signature', 'approved'], true) ? '#notice-to-proceed' : '#proposal-review'))
-            ->with('success', $isEvaluation
-                ? 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.'
-                : ($isSupplemental
+            ->with('success', $isSupplemental
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : ($replacedSignedCopy
                     ? 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.'
-                    : 'Research Head file attached to the faculty submission.')));
+                    : 'Research Head file attached to the faculty submission.'));
     }
 
     /**
@@ -906,7 +978,9 @@ class TopicController extends Controller
      *     viewableFileIds: Collection<int, int>,
      *     requiredSignatureFiles: Collection<int, ProposalVersionFile>,
      *     signedSourceFileIds: Collection<int, int>,
-     *     missingSignatureFiles: Collection<int, ProposalVersionFile>
+     *     missingSignatureFiles: Collection<int, ProposalVersionFile>,
+     *     gadAssessment: ProposalVersionFile|null,
+     *     coEvaluatorEvaluation: ProposalVersionFile|null
      * }
      */
     private function headUploadWorkspaceData(TopicProposal $topic, ?ProposalVersion $latestVersion = null): array
@@ -930,10 +1004,22 @@ class TopicController extends Controller
         $supplementalHeadUploads = $headUploadedFiles
             ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
             ->values();
+        $gadChecklist = $facultySubmittedFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
+        $initialScreeningForm = $facultySubmittedFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
+        $gadAssessment = $headUploadedFiles->first(fn (ProposalVersionFile $file): bool => $file->source_version_file_id === $gadChecklist?->id
+            && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
+            && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_GAD_CHECKLIST
+            && is_numeric($file->source_data['gad_score'] ?? null));
+        $coEvaluatorEvaluation = $headUploadedFiles->first(fn (ProposalVersionFile $file): bool => $file->source_version_file_id === $initialScreeningForm?->id
+            && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
+            && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
+            && filled($file->source_data['narrative_evaluation'] ?? null));
         $headUploadsBySource = $headUploadedFiles
             ->reject(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
                 ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
                 ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             ], true))
             ->groupBy(
                 fn (ProposalVersionFile $file): int => $file->source_version_file_id
@@ -974,7 +1060,43 @@ class TopicController extends Controller
             'signedSourceFileIds',
             'missingSignatureFiles',
             'signaturesComplete',
+            'gadAssessment',
+            'coEvaluatorEvaluation',
         );
+    }
+
+    private function hasCompletedGadAssessment(ProposalVersion $version): bool
+    {
+        $gadChecklistId = $version->files()
+            ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+            ->value('id');
+
+        if ($gadChecklistId === null) {
+            return false;
+        }
+
+        return $version->files()
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->where('source_version_file_id', $gadChecklistId)
+            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+            ->where('source_data->target_document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+            ->get()
+            ->contains(fn (ProposalVersionFile $file): bool => is_numeric($file->source_data['gad_score'] ?? null));
+    }
+
+    /** @param array<string, string|array<int, string>> $errors */
+    private function headUploadErrorResponse(
+        TopicProposal $topic,
+        bool $isInitialReviewUpload,
+        array $errors,
+    ): RedirectResponse {
+        $response = $isInitialReviewUpload
+            ? redirect()->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+            : back();
+
+        return $response
+            ->withInput()
+            ->withErrors($errors, 'headUpload');
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void

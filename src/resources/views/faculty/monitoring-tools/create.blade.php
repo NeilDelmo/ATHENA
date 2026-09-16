@@ -6,7 +6,9 @@
                 <h2 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Quarterly monitoring report</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $topic->title }}</p>
             </div>
-            <x-back-link fixed data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+            @unless ($selectedReportingDate || $preparedReport)
+                <x-back-link fixed href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
+            @endunless
         </div>
     </x-slot>
 
