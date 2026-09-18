@@ -14,34 +14,40 @@
     @endphp
 
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div class="max-w-2xl">
-                <h2 class="text-2xl font-black tracking-tight text-gray-950 dark:text-white">Faculty research</h2>
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
-                    Welcome back, <span class="font-bold text-gray-950 dark:text-white">{{ Auth::user()->name }}</span>.
-                    Manage your drafts, review feedback, and submitted proposals.
-                </p>
-            </div>
+        <div class="relative overflow-hidden rounded-3xl border border-rose-100 bg-gradient-to-br from-white via-rose-50/80 to-white px-5 py-6 shadow-bubble sm:px-7 dark:border-red-950/70 dark:from-slate-900 dark:via-red-950/25 dark:to-slate-900">
+            <div class="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-gradient-to-br from-rose-200/70 to-red-300/40 blur-2xl dark:from-red-900/50 dark:to-red-950/40" aria-hidden="true"></div>
+            <div class="pointer-events-none absolute -bottom-20 right-40 h-40 w-40 rounded-full border-[14px] border-rose-100/80 dark:border-red-950/60" aria-hidden="true"></div>
+            <div class="pointer-events-none absolute -left-8 top-8 h-16 w-16 rounded-full border-[6px] border-rose-100 dark:border-red-950/60" aria-hidden="true"></div>
+            <div class="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="max-w-2xl">
+                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-[#7A0019] dark:text-red-300">Faculty workspace</p>
+                    <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Faculty research</h2>
+                    <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                        Welcome back, <span class="font-bold text-gray-950 dark:text-white">{{ Auth::user()->name }}</span>.
+                        Manage your drafts, review feedback, and submitted proposals.
+                    </p>
+                </div>
 
-            <div class="flex w-full sm:w-auto">
-                                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
+                <div class="flex w-full sm:w-auto">
+                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#7A0019] px-5 py-2.5 text-xs font-black text-white shadow-bubble-sm transition hover:-translate-y-0.5 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New proposal
                     </a>
+                </div>
             </div>
         </div>
     </x-slot>
 
     <div class="space-y-5" data-dashboard-palette="red-black-white">
         @if (session('success'))
-            <div class="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+            <div class="flex items-start gap-3 rounded-3xl border border-rose-100 bg-white px-4 py-3 text-sm text-gray-700 shadow-bubble-sm dark:border-red-950/70 dark:bg-slate-950 dark:text-gray-300">
                 <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
                 <p class="font-semibold">{{ session('success') }}</p>
             </div>
         @endif
 
         @if ($errors->resubmission->any())
-            <div class="rounded-xl border border-red-200 border-l-4 border-l-[#7A0019] bg-red-50 px-4 py-3 text-sm text-[#7A0019] dark:border-red-950 dark:border-l-red-500 dark:bg-red-950/30 dark:text-red-200">
+            <div class="rounded-3xl border border-rose-200 border-l-4 border-l-[#7A0019] bg-rose-50 px-4 py-3 text-sm text-[#7A0019] dark:border-red-950 dark:border-l-red-500 dark:bg-red-950/30 dark:text-red-200">
                 <p class="font-black">Please review your submission.</p>
                 <ul class="mt-2 list-disc space-y-1 pl-5">
                     @foreach ($errors->resubmission->all() as $error)
