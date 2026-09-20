@@ -412,3 +412,16 @@ test('the collaboration monitor keeps a persistent save confirmation', function 
 
     expect($removedHtml)->not->toContain('data-proposal-save-confirmation');
 });
+
+test('proposal review screens consistently inherit the application font', function () {
+    foreach ([
+        'resources/views/components/proposal-workflow.blade.php',
+        'resources/views/components/proposal-revision-form.blade.php',
+        'resources/views/components/research-head-file-workspace.blade.php',
+        'resources/views/topics/show.blade.php',
+    ] as $viewPath) {
+        expect(file_get_contents(base_path($viewPath)))
+            ->not->toContain('font-serif')
+            ->not->toContain('font-mono');
+    }
+});

@@ -13,6 +13,7 @@ use App\Http\Controllers\LiteratureSynthesisController;
 use App\Http\Controllers\NoticeToProceedController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectBudgetUtilizationController;
 use App\Http\Controllers\ProjectDisseminationController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
@@ -33,7 +34,6 @@ use App\Http\Controllers\ProposalDraftSubmissionController;
 use App\Http\Controllers\ProposalDraftWorkPlanController;
 use App\Http\Controllers\ProposalFileAnnotationController;
 use App\Http\Controllers\ProposalSignatoryController;
-use App\Http\Controllers\ProposalSimilarityCheckController;
 use App\Http\Controllers\ProposalTemplateController;
 use App\Http\Controllers\ResearchAssistantController;
 use App\Http\Controllers\ResearchAssistantDocumentController;
@@ -161,6 +161,7 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::post('/faculty/work-plans/preview', [WorkPlanController::class, 'preview'])->name('faculty.work-plans.preview');
     Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
+    Route::get('/faculty/topics/{topic}/revision', [TopicController::class, 'revision'])->name('faculty.topics.revision');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });
 
@@ -292,9 +293,18 @@ Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController
 Route::get('/progress-reports/{report}/monitoring-tool', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
     ->middleware('auth')
     ->name('project-progress.monitoring-tool');
+
+Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-secretary')->name('research_secretary.')->group(function () {
+    Route::get('/projects', [ProjectBudgetUtilizationController::class, 'index'])->name('dashboard');
+    Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('projects.budget.edit');
+    Route::put('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'update'])->name('projects.budget.update');
+});
 Route::get('/narrative-progress-reports/{report}/document', [ProjectNarrativeReportController::class, 'download'])
     ->middleware('auth')
     ->name('project-narrative-reports.download');
+Route::get('/narrative-progress-reports/{report}/signed-copy', [ProjectNarrativeReportController::class, 'downloadSignedCopy'])
+    ->middleware('auth')
+    ->name('project-narrative-reports.signed-copy.download');
 Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}', [ProjectNarrativeReportController::class, 'downloadPhoto'])
     ->middleware('auth')
     ->whereNumber('photoIndex')
@@ -307,10 +317,6 @@ Route::middleware('auth')->group(function () {
     Route::patch('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'update'])->name('signatories.update');
     Route::get('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'edit'])->name('signatories.edit');
     Route::put('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'select'])->name('signatories.select');
-    Route::get('/research-support/similarity-checks', [ProposalSimilarityCheckController::class, 'index'])->name('similarity-checks.index');
-    Route::post('/topics/{topic}/similarity-checks', [ProposalSimilarityCheckController::class, 'store'])->name('similarity-checks.store');
-    Route::patch('/research-support/similarity-checks/{check}', [ProposalSimilarityCheckController::class, 'update'])->name('similarity-checks.update');
-    Route::get('/research-support/similarity-checks/{check}/report', [ProposalSimilarityCheckController::class, 'download'])->name('similarity-checks.download');
     Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])
         ->middleware('throttle:60,1')
         ->name('research-support.history');
@@ -395,6 +401,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
+    Route::patch('/research-head/projects/{topic}/research-secretary', [ProjectBudgetUtilizationController::class, 'assign'])->name('research_head.projects.research-secretary');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
     Route::post('/research-head/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('research_head.topics.notice-to-proceed.preview');
@@ -404,6 +411,7 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/projects/{topic}/status', [ProjectMonitoringController::class, 'updateProjectStatus'])->name('research_head.projects.update-status');
     Route::patch('/research-head/progress-reports/{report}', [ProjectMonitoringController::class, 'review'])->name('research_head.progress-reports.review');
     Route::patch('/research-head/narrative-progress-reports/{report}', [ProjectNarrativeReportController::class, 'review'])->name('research_head.narrative-progress-reports.review');
+    Route::post('/research-head/narrative-progress-reports/{report}/signed-copy', [ProjectNarrativeReportController::class, 'storeSignedCopy'])->name('research_head.narrative-progress-reports.signed-copy.store');
     Route::post('/research-calls/extract-image', [ResearchCallController::class, 'extractImage'])->name('research-calls.extract-image');
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::put('/research-calls/{researchCall}', [ResearchCallController::class, 'update'])->name('research-calls.update');

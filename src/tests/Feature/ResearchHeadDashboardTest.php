@@ -74,6 +74,46 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertSee('Received proposal inbox');
 });
 
+test('dashboard shows completion percentages for every active project', function () {
+    $reportedProject = createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Reported Active Project',
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+    ]);
+    createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Unreported Active Project',
+        'status' => 'approved',
+        'project_status' => 'delayed',
+    ]);
+    createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Completed Project',
+        'status' => 'approved',
+        'project_status' => 'completed',
+    ]);
+    ProjectProgressReport::create([
+        'topic_id' => $reportedProject->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(),
+        'progress_percentage' => 64,
+        'accomplishments' => 'Completed the scheduled field activities.',
+        'review_status' => 'reviewed',
+    ]);
+
+    Livewire::actingAs($this->head)
+        ->test(ResearchHeadDashboard::class)
+        ->assertViewHas('activeProjects', fn ($projects): bool => $projects->pluck('title')->all() === [
+            'Reported Active Project',
+            'Unreported Active Project',
+        ])
+        ->assertSee('Project completion')
+        ->assertSee('Reported Active Project')
+        ->assertSee('64%')
+        ->assertSeeHtml('aria-valuenow="64"')
+        ->assertSee('Unreported Active Project')
+        ->assertSee('No monitoring tool submitted')
+        ->assertSeeHtml('aria-valuenow="0"');
+});
+
 test('proposal dashboard shows received files and opens the submitted package', function () {
     Storage::fake('local');
 
@@ -159,6 +199,34 @@ test('monitoring page shows approved projects only with latest progress and coun
         ->assertDontSee('text-sm font-black text-gray-900">Unapproved Proposal', false);
 });
 
+test('monitoring page presents active projects at 100 percent as completion pending', function () {
+    $project = createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Implementation Finished Project',
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+    ]);
+    ProjectProgressReport::create([
+        'topic_id' => $project->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(),
+        'progress_percentage' => 100,
+        'accomplishments' => 'All implementation activities are complete.',
+        'review_status' => 'reviewed',
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.projects.index', ['status' => 'completion_pending']))
+        ->assertOk()
+        ->assertViewHas('projects', fn ($projects): bool => $projects->contains('id', $project->id))
+        ->assertSee('Completion pending')
+        ->assertSee('100%');
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.projects.index', ['status' => 'ongoing']))
+        ->assertOk()
+        ->assertViewHas('projects', fn ($projects): bool => ! $projects->contains('id', $project->id));
+});
+
 test('monitoring page filters by project status and attention', function () {
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Delayed Priority Project', 'status' => 'approved', 'project_status' => 'delayed']);
     createDashboardTopic($this->researcher, $this->call, ['title' => 'Completed Stable Project', 'status' => 'approved', 'project_status' => 'completed']);
@@ -166,8 +234,8 @@ test('monitoring page filters by project status and attention', function () {
     $this->actingAs($this->head)
         ->get(route('research_head.projects.index', ['status' => 'delayed', 'attention' => 'needs_attention']))
         ->assertOk()
-        ->assertSee('Delayed Priority Project')
-        ->assertDontSee('Completed Stable Project');
+        ->assertViewHas('projects', fn ($projects): bool => $projects->contains('title', 'Delayed Priority Project')
+            && ! $projects->contains('title', 'Completed Stable Project'));
 });
 
 test('monitoring page filters projects with reports awaiting review', function () {
@@ -187,8 +255,8 @@ test('monitoring page filters projects with reports awaiting review', function (
     $this->actingAs($this->head)
         ->get(route('research_head.projects.index', ['attention' => 'pending_reports']))
         ->assertOk()
-        ->assertSee('Pending Report Project')
-        ->assertDontSee('Reviewed Report Project');
+        ->assertViewHas('projects', fn ($projects): bool => $projects->contains('id', $pending->id)
+            && ! $projects->contains('id', $reviewed->id));
 });
 
 test('monitoring search is paginated and preserves all filters', function () {

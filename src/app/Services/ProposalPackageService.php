@@ -449,7 +449,7 @@ class ProposalPackageService
     }
 
     /**
-     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, narrative_evaluation?: string|null, gad_score?: float|null, gad_rating?: string|null, gad_interpretation?: string|null, gad_outcome?: string|null}  $meta
+     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, narrative_evaluation?: string|null, gad_score?: float|null, gad_rating?: string|null, gad_interpretation?: string|null, gad_outcome?: string|null, gad_signature_detected?: bool, gad_signature_confirmed?: bool, gad_signature_detection_method?: string|null}  $meta
      * @return array<string, mixed>
      */
     public function storeHeadUpload(
@@ -489,6 +489,9 @@ class ProposalPackageService
                 'gad_rating' => $meta['gad_rating'] ?? null,
                 'gad_interpretation' => $meta['gad_interpretation'] ?? null,
                 'gad_outcome' => $meta['gad_outcome'] ?? null,
+                'gad_signature_detected' => $meta['gad_signature_detected'] ?? false,
+                'gad_signature_confirmed' => $meta['gad_signature_confirmed'] ?? false,
+                'gad_signature_detection_method' => $meta['gad_signature_detection_method'] ?? null,
             ],
         ];
     }

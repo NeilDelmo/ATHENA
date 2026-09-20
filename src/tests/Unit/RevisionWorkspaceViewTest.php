@@ -77,7 +77,7 @@ test('requested documents open a single dialog with submitted PDF left and the e
         ->and($xpath->query('//form//*[@data-revision-submit-overlay]//*[@data-revision-submit-status]')->length)->toBe(1)
         ->and($xpath->query('//form[@novalidate]')->length)->toBe(1)
         ->and($xpath->query('//form//button[@data-revision-submit-button]//*[@data-revision-submit-button-spinner][@hidden]')->length)->toBe(1)
-        ->and($html)->toContain('disabled:bg-gray-400', 'disabled:opacity-100', 'dark:disabled:bg-slate-700')
+        ->and($html)->toContain('disabled:bg-slate-300', 'disabled:opacity-100', 'dark:disabled:bg-slate-700')
         ->and($xpath->query($dialog.'//*[@data-revision-dialog-submit-error][@role="alert"][@hidden]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
@@ -127,4 +127,36 @@ test('embedded PDF uses the same annotation renderer without nested sidebars or 
 
     expect($html)->toContain('pdfAnnotationWorkspace', 'revision-pdf-pages', '"fitWidth":true', 'x-ref="viewer"')
         ->not->toContain('<aside', 'Expand paper', 'Exit focus');
+});
+
+test('revision steps use the light application surface instead of a solid black panel', function () {
+    $view = file_get_contents(resource_path('views/faculty/topics/revision.blade.php'));
+
+    expect($view)
+        ->toContain('data-revision-step-panel', 'data-revision-summary', '1 of 4 steps', 'In progress')
+        ->not->toContain('bg-slate-950 text-white');
+});
+
+test('revision introduction uses a light surface instead of an unconditional black background', function () {
+    $html = view('components.proposal-revision-form', [
+        'topic' => $this->topic, 'pendingFileRevisions' => collect([$this->revision]),
+        'stagedRevisionFiles' => collect(), 'displayProjectCost' => 3000,
+    ])->render();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($html);
+    $xpath = new DOMXPath($dom);
+    $introClasses = $xpath->query('//*[@data-revision-intro]')->item(0)->getAttribute('class');
+
+    expect($introClasses)
+        ->toContain('bg-white', 'border-slate-200', 'rounded-2xl')
+        ->not->toContain('bg-slate-950');
+});
+
+test('revision workspace follows the compact mockup card hierarchy', function () {
+    $page = file_get_contents(resource_path('views/faculty/topics/revision.blade.php'));
+    $form = file_get_contents(resource_path('views/components/proposal-revision-form.blade.php'));
+
+    expect($page)->toContain('Research proposal', 'Revision required', 'data-revision-step-panel')
+        ->and($form)->toContain('1. Reviewer feedback', '2. Requested papers', '3. Proposal details', '4. Final review and submission', 'data-revision-feedback-item')
+        ->and($form)->not->toContain('Revised page and paragraph', '[remarks]');
 });

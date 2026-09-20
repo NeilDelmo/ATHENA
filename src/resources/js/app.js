@@ -53,6 +53,63 @@ import {
 
 window.Alpine = Alpine;
 Alpine.data('journalFinder', journalFinder);
+Alpine.data('researchSecretaryPicker', (config = {}) => ({
+    candidates: Array.isArray(config.candidates) ? config.candidates : [],
+    selectedId: config.selectedId || '',
+    query: '',
+    open: false,
+    filteredCandidates() {
+        const query = String(this.query || '').trim().toLowerCase();
+
+        return this.candidates.filter((candidate) => {
+            if (!query) return true;
+
+            return [candidate.name, candidate.email, candidate.college]
+                .some((value) => String(value || '').toLowerCase().includes(query));
+        });
+    },
+    initials(name) {
+        return String(name || 'RS')
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part.charAt(0).toUpperCase())
+            .join('');
+    },
+    select(id) {
+        this.selectedId = id;
+        this.$nextTick(() => this.$refs.form.submit());
+    },
+    clearSelection() {
+        this.selectedId = '';
+        this.$nextTick(() => this.$refs.form.submit());
+    },
+}));
+Alpine.data('budgetUtilizationForm', (config = {}) => ({
+    rows: Array.isArray(config.rows) ? config.rows : [],
+    approvedBudget: Number(config.approvedBudget || 0),
+    number(value) {
+        const parsed = Number.parseFloat(value);
+
+        return Number.isFinite(parsed) ? parsed : 0;
+    },
+    requestedTotal() {
+        return this.rows.reduce((total, row) => total + this.number(row.amount_requested), 0);
+    },
+    spentTotal() {
+        return this.rows.reduce((total, row) => total + this.number(row.actual_amount), 0);
+    },
+    remainingBudget() {
+        return Math.max(0, this.approvedBudget - this.spentTotal());
+    },
+    utilizationPercentage() {
+        return this.approvedBudget > 0 ? (this.spentTotal() / this.approvedBudget) * 100 : 0;
+    },
+    currency(value) {
+        return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(this.number(value));
+    },
+}));
 window.Swal = Swal;
 
 const themeStorageKey = 'athena-theme';

@@ -379,6 +379,9 @@ class LifecycleDemoSeeder extends Seeder
             $periodStart = $period['start'];
             $periodEnd = $period['end'];
             $progress = min(100, $quarter * (int) floor(100 / $reportCount));
+            if ($topic->project_status !== TopicProposal::PROJECT_STATUS_COMPLETED) {
+                $progress = min(99, $progress);
+            }
             $reviewStatus = $topic->project_status === TopicProposal::PROJECT_STATUS_DELAYED && $quarter === $reportCount
                 ? ProjectNarrativeReport::STATUS_REVISION_REQUESTED
                 : ProjectNarrativeReport::STATUS_REVIEWED;

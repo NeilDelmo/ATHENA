@@ -41,6 +41,48 @@
         @endforeach
     </div>
 
+    <section class="rounded-3xl border border-rose-100 bg-white p-5 shadow-bubble dark:border-red-950/70 dark:bg-slate-950" aria-labelledby="project-completion-heading">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 id="project-completion-heading" class="text-sm font-black tracking-tight">Project completion</h3>
+                <p class="mt-1 text-xs font-medium text-gray-500 dark:text-gray-400">Latest submitted monitoring-tool progress for every active project.</p>
+            </div>
+            <a href="{{ route('research_head.projects.index') }}" class="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-black text-[#7A0019] transition hover:border-[#7A0019] hover:bg-[#7A0019] hover:text-white dark:border-red-950 dark:bg-slate-950 dark:text-red-300 dark:hover:border-red-500 dark:hover:bg-red-900 dark:hover:text-white">Open monitoring &rarr;</a>
+        </div>
+        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            @forelse ($activeProjects as $project)
+                @php
+                    $completion = min(100, max(0, (int) ($project->latestProgressReport?->progress_percentage ?? 0)));
+                    $monitoringStatus = $project->monitoringStatusForProgress($project->latestProgressReport?->progress_percentage);
+                    $monitoringStatusLabel = $project->monitoringStatusLabelForProgress($project->latestProgressReport?->progress_percentage);
+                    $statusTone = match ($monitoringStatus) {
+                        'completion_pending' => 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/60 dark:text-violet-300 dark:ring-violet-900',
+                        'delayed' => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-900',
+                        default => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-900',
+                    };
+                @endphp
+                <a href="{{ route('topics.show', $project) }}#project-monitoring" class="rounded-2xl border border-rose-100 p-4 transition hover:-translate-y-0.5 hover:border-rose-200 hover:shadow-bubble-sm dark:border-red-950/70 dark:hover:border-red-900">
+                    <span class="flex items-start justify-between gap-3">
+                        <span class="min-w-0">
+                            <span class="block truncate text-sm font-bold">{{ $project->title }}</span>
+                            <span class="mt-0.5 block truncate text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ $project->user?->name }}</span>
+                        </span>
+                        <span class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ring-1 {{ $statusTone }}">{{ $monitoringStatusLabel }}</span>
+                    </span>
+                    <span class="mt-4 flex items-end justify-between gap-3">
+                        <span class="text-[11px] font-semibold text-gray-500 dark:text-gray-400">{{ $project->latestProgressReport ? 'Latest reported progress' : 'No monitoring tool submitted' }}</span>
+                        <strong class="text-2xl font-black tabular-nums tracking-tight">{{ $completion }}%</strong>
+                    </span>
+                    <span class="mt-2 block h-2.5 overflow-hidden rounded-full bg-rose-50 dark:bg-red-950/40" role="progressbar" aria-label="{{ $project->title }} completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $completion }}">
+                        <span class="block h-full rounded-full bg-gradient-to-r from-[#7A0019] to-rose-400" style="width: {{ $completion }}%"></span>
+                    </span>
+                </a>
+            @empty
+                <p class="rounded-2xl bg-rose-50/60 px-4 py-5 text-center text-xs font-semibold text-gray-500 dark:bg-red-950/20 md:col-span-2 xl:col-span-3">No active projects are currently being monitored.</p>
+            @endforelse
+        </div>
+    </section>
+
     <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <livewire:dashboard-calendar :call-id="ctype_digit($call) ? (int) $call : null" />
         <section class="rounded-3xl border border-rose-100 bg-white p-5 shadow-bubble dark:border-red-950/70 dark:bg-slate-950" aria-label="Needs attention">

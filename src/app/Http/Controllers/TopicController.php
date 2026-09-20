@@ -256,9 +256,14 @@ class TopicController extends Controller
         $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
         $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
 
+        $nextClearanceDecision = match (true) {
+            $topic->review_stage === 'lrec' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'Clear for signing'],
+            $topic->status === TopicProposal::STATUS_GAD_REVIEW => [TopicProposal::STATUS_LREC_QUEUED, 'Send to LREC'],
+            default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD review'],
+        };
         $researchHeadDecisionOptions = $request->user()->isUsingWorkspace('research_head')
             ? collect([
-                $topic->review_stage === 'lrec' ? TopicProposal::STATUS_READY_FOR_SIGNATURE : TopicProposal::STATUS_LREC_QUEUED => $topic->review_stage === 'lrec' ? 'Clear for signing' : 'Send to LREC',
+                $nextClearanceDecision[0] => $nextClearanceDecision[1],
                 'revision_requested' => 'Request revisions',
                 'rejected' => 'Reject proposal',
             ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision))->all()
@@ -267,6 +272,7 @@ class TopicController extends Controller
         return view('topics.show', compact(
             'researchHeadDecisionOptions',
             'commentResponseRows',
+            'latestRevisionReview',
             'topic',
             'latestVersion',
             'previousVersion',
@@ -284,6 +290,47 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+        ));
+    }
+
+    public function revision(Request $request, TopicProposal $topic): View|RedirectResponse
+    {
+        abort_unless($topic->user_id === $request->user()->id, 403);
+
+        if ($topic->status !== 'revision_requested') {
+            return redirect()->route('topics.show', $topic);
+        }
+
+        $topic->load([
+            'user',
+            'researchCall',
+            'revisionDraft.documents',
+            'versions.files',
+            'reviews' => fn ($query) => $query
+                ->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])
+                ->oldest(),
+        ]);
+
+        $latestVersion = $topic->versions->sortByDesc('version_number')->first();
+        $pendingFileRevisions = $topic->reviews
+            ->flatMap->fileRevisions
+            ->whereNull('resolved_at')
+            ->values();
+        $stagedRevisionFiles = ($topic->revisionDraft?->documents ?? collect())
+            ->filter(fn ($document): bool => filled($document->file_path))
+            ->keyBy('document_type');
+        $displayProjectCost = $this->projectCostForVersion($latestVersion) ?? (float) $topic->estimated_budget;
+        $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
+        $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
+
+        return view('faculty.topics.revision', compact(
+            'topic',
+            'latestVersion',
+            'latestRevisionReview',
+            'pendingFileRevisions',
+            'stagedRevisionFiles',
+            'displayProjectCost',
+            'commentResponseRows',
         ));
     }
 
@@ -537,7 +584,11 @@ class TopicController extends Controller
                     'description' => $validated['description'] ?? null,
                     'estimated_budget' => $validated['estimated_budget'],
                     'estimated_duration_months' => $validated['estimated_duration_months'],
-                    'status' => $revisedTopic->review_stage === 'lrec' ? TopicProposal::STATUS_LREC_REVIEW : 'resubmitted',
+                    'status' => match ($revisedTopic->review_stage) {
+                        'lrec' => TopicProposal::STATUS_LREC_REVIEW,
+                        'gad' => TopicProposal::STATUS_GAD_REVIEW,
+                        default => 'resubmitted',
+                    },
                 ]);
 
                 $version = $revisedTopic->versions()->create($this->versionAttributes(
@@ -759,6 +810,14 @@ class TopicController extends Controller
         $isGadAssessment = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
         $isInitialReviewUpload = $isGadAssessment || $isEvaluation;
 
+        if ($isInitialReviewUpload && $topic->status !== TopicProposal::STATUS_GAD_REVIEW) {
+            return $this->headUploadErrorResponse(
+                $topic,
+                true,
+                ['review_file' => 'GAD review opens only after the Research Head explicitly clears the latest proposal version.'],
+            );
+        }
+
         $latestVersion = $topic->latestVersion()->first();
 
         if (! $latestVersion instanceof ProposalVersion) {
@@ -788,15 +847,15 @@ class TopicController extends Controller
             return $this->headUploadErrorResponse(
                 $topic,
                 true,
-                ['source_file_id' => 'A completed co-evaluator evaluation must be linked to the original Initial Screening Form in the latest proposal version.'],
+                ['source_file_id' => 'A completed central evaluator review must be linked to the original Initial Screening Form in the latest proposal version.'],
             );
         }
 
-        if ($isEvaluation && ! $this->hasCompletedGadAssessment($latestVersion)) {
+        if ($isEvaluation && ! $latestVersion->hasPassingGadAssessment()) {
             return $this->headUploadErrorResponse(
                 $topic,
                 true,
-                ['review_file' => 'Upload the completed GAD Checklist and verify its Total GAD Score before adding the co-evaluator evaluation.'],
+                ['review_file' => 'Central evaluation opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.'],
             );
         }
 
@@ -863,12 +922,19 @@ class TopicController extends Controller
                     'gad_rating' => $gadAssessment['gad_rating'] ?? null,
                     'gad_interpretation' => $gadAssessment['gad_interpretation'] ?? null,
                     'gad_outcome' => $gadAssessment['gad_outcome'] ?? null,
+                    'gad_signature_detected' => $gadAssessment['gad_signature_detected'] ?? false,
+                    'gad_signature_confirmed' => $isGadAssessment && $request->boolean('gad_signature_confirmed'),
+                    'gad_signature_detection_method' => $gadAssessment['gad_signature_detection_method'] ?? null,
                 ],
             );
             $storedPath = $attributes['file_path'];
 
             DB::transaction(function () use ($topic, $latestVersion, $attributes, $request, $validated, $isSupplemental, $isSignedCopy, $isGadAssessment, $isEvaluation, $sourceFile, &$replacedSignedCopy): void {
                 $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+
+                if (($isGadAssessment || $isEvaluation) && $lockedTopic->status !== TopicProposal::STATUS_GAD_REVIEW) {
+                    throw ValidationException::withMessages(['review_file' => 'GAD review is closed or the proposal stage changed. Reload the proposal workflow.']);
+                }
 
                 if ($isSignedCopy && $lockedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
                     throw ValidationException::withMessages(['review_file' => 'Signing is closed or the proposal version changed. Reload the proposal.']);
@@ -884,8 +950,8 @@ class TopicController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if ($isEvaluation && ! $this->hasCompletedGadAssessment($lockedVersion)) {
-                    throw ValidationException::withMessages(['review_file' => 'Upload the completed GAD Checklist and verify its Total GAD Score before adding the co-evaluator evaluation.']);
+                if ($isEvaluation && ! $lockedVersion->hasPassingGadAssessment()) {
+                    throw ValidationException::withMessages(['review_file' => 'Central evaluation opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.']);
                 }
 
                 $existingSignedCopies = $isSignedCopy
@@ -949,13 +1015,13 @@ class TopicController extends Controller
         if ($isGadAssessment) {
             return redirect()
                 ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
-                ->with('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of '.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].').');
+                ->with('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of '.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].') and recorded the verifier signature confirmation.');
         }
 
         if ($isEvaluation) {
             return redirect()
                 ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
-                ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.');
+                ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the central evaluator response.');
         }
 
         return redirect()
@@ -979,7 +1045,9 @@ class TopicController extends Controller
      *     requiredSignatureFiles: Collection<int, ProposalVersionFile>,
      *     signedSourceFileIds: Collection<int, int>,
      *     missingSignatureFiles: Collection<int, ProposalVersionFile>,
+     *     signaturesComplete: bool,
      *     gadAssessment: ProposalVersionFile|null,
+     *     gadPassed: bool,
      *     coEvaluatorEvaluation: ProposalVersionFile|null
      * }
      */
@@ -999,7 +1067,7 @@ class TopicController extends Controller
             ->values();
         $headUploadedFiles = ($latestVersion?->files ?? collect())
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->sortByDesc('created_at')
+            ->sortByDesc('id')
             ->values();
         $supplementalHeadUploads = $headUploadedFiles
             ->filter(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL)
@@ -1047,6 +1115,7 @@ class TopicController extends Controller
             ? $this->signatureWorkflow->missingRequiredFiles($latestVersion)
             : collect();
         $signaturesComplete = $latestVersion !== null && $this->signatureWorkflow->isComplete($latestVersion);
+        $gadPassed = $latestVersion?->hasPassingGadAssessment() ?? false;
 
         return compact(
             'latestVersion',
@@ -1061,27 +1130,9 @@ class TopicController extends Controller
             'missingSignatureFiles',
             'signaturesComplete',
             'gadAssessment',
+            'gadPassed',
             'coEvaluatorEvaluation',
         );
-    }
-
-    private function hasCompletedGadAssessment(ProposalVersion $version): bool
-    {
-        $gadChecklistId = $version->files()
-            ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
-            ->value('id');
-
-        if ($gadChecklistId === null) {
-            return false;
-        }
-
-        return $version->files()
-            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->where('source_version_file_id', $gadChecklistId)
-            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
-            ->where('source_data->target_document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
-            ->get()
-            ->contains(fn (ProposalVersionFile $file): bool => is_numeric($file->source_data['gad_score'] ?? null));
     }
 
     /** @param array<string, string|array<int, string>> $errors */

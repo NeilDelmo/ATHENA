@@ -307,7 +307,7 @@ class ProposalDraftController extends Controller
             'draft_id' => $proposalDraft->id,
             'document_type' => $documentType,
             'document_version' => $savedDocument->lock_version,
-            'redirect_url' => route('topics.show', $proposalDraft->topic_id).'#review-and-submit',
+            'redirect_url' => route('faculty.topics.revision', $proposalDraft->topic_id).'#review-and-submit',
         ]);
     }
 

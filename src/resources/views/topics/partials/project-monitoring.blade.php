@@ -1,6 +1,9 @@
 <section id="project-monitoring" class="space-y-5">
     @php
-        $projectStatus = $topic->project_status ?: 'ongoing';
+        $storedProjectStatus = $topic->project_status ?: 'ongoing';
+        $latestProgressPercentage = $topic->progressReports->first()?->progress_percentage;
+        $projectStatus = $topic->monitoringStatusForProgress($latestProgressPercentage);
+        $projectStatusLabel = $topic->monitoringStatusLabelForProgress($latestProgressPercentage);
         $schedule = app(\App\Services\MonitoringQuarterService::class);
         $window = $schedule->reportingWindow($topic);
         $terminalDate = $schedule->terminalOpensAt($topic);
@@ -8,6 +11,10 @@
         $openPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] !== null);
         $nextPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] === null);
         $canReport = ! Auth::user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
+        $latestTerminalReportId = $topic->narrativeReports
+            ->where('report_type', 'terminal')
+            ->sortByDesc('id')
+            ->first()?->id;
     @endphp
     <header class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:p-6">
         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -15,7 +22,7 @@
                 <h3 class="text-lg font-bold text-gray-950 dark:text-white">Project monitoring</h3>
                 <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">Report every three months. Submit the terminal report after the project ends.</p>
             </div>
-            <span class="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ ucfirst($projectStatus) }}</span>
+            <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $projectStatus === 'completion_pending' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200' }}">{{ $projectStatusLabel }}</span>
         </div>
         <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-4 dark:border-slate-800 sm:grid-cols-3">
             <div><dt class="text-xs text-gray-500">Monitoring starts</dt><dd class="mt-1 text-sm font-semibold dark:text-white">{{ $window['start']->format('M j, Y') }}</dd></div>
@@ -57,9 +64,10 @@
     @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
         <details class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
             <summary class="cursor-pointer text-sm font-semibold dark:text-white">Manage project status</summary>
-            <p class="mt-3 text-sm text-gray-500">Mark complete after the terminal report has been reviewed.</p>
+            <p class="mt-3 text-sm text-gray-500">Completion requires 100% progress, a reviewed Terminal Report, and its fully signed PDF.</p>
+            @error('project_status')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
             <form method="POST" action="{{ route('research_head.projects.update-status', $topic) }}" class="mt-3 flex flex-wrap items-end gap-3">@csrf @method('PATCH')
-                <label class="text-sm dark:text-white">Status<select name="project_status" class="mt-1 block rounded-lg border-gray-300 text-sm dark:bg-slate-800">@foreach (['ongoing', 'delayed', 'completed'] as $value)<option value="{{ $value }}" @selected($projectStatus === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
+                <label class="text-sm dark:text-white">Status<select name="project_status" class="mt-1 block rounded-lg border-gray-300 text-sm dark:bg-slate-800">@foreach (['ongoing', 'delayed', 'completed'] as $value)<option value="{{ $value }}" @selected($storedProjectStatus === $value)>{{ ucfirst($value) }}</option>@endforeach</select></label>
                 <button class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white">Save status</button>
             </form>
         </details>
@@ -119,13 +127,23 @@
                 <div><p class="text-sm font-black text-gray-900">Progress and terminal report history</p><p class="mt-1 text-xs text-gray-400">Submitted narratives, final results, and photo documentation.</p></div>
             </div>
             @forelse ($topic->narrativeReports as $report)
+                @php
+                    $isTerminalReport = $report->report_type === 'terminal';
+                    $isLatestTerminalReport = $isTerminalReport && $report->id === $latestTerminalReportId;
+                    $signedCopy = $report->signedCopy();
+                @endphp
                 <article class="rounded-xl border border-gray-200 p-4">
                     <div class="flex flex-wrap justify-between gap-3">
                         <div>
                             <p class="text-sm font-black text-gray-900">{{ $report->report_label }}@if ($report->report_type === 'terminal' && isset($report->terminal_data['version_number'])) · Version {{ $report->terminal_data['version_number'] }}@endif</p>
                             <p class="mt-1 text-[11px] text-gray-400">{{ $report->submission_date->format('M d, Y') }} · {{ $report->submitter->name }}</p>
                         </div>
-                        <span class="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">{{ $report->review_status_label }}</span>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">{{ $report->review_status_label }}</span>
+                            @if ($isTerminalReport)
+                                <span class="rounded-full px-2 py-1 text-[10px] font-black uppercase {{ $signedCopy ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700' }}">{{ $signedCopy ? 'Signed copy recorded' : 'Signed copy required' }}</span>
+                            @endif
+                        </div>
                     </div>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">
                         <div><p class="text-[10px] font-black uppercase text-gray-400">Monitoring-period accomplishment</p><p class="mt-1 whitespace-pre-line text-xs leading-5 text-gray-600">{{ $report->accomplishment_summary }}</p></div>
@@ -133,6 +151,9 @@
                     </div>
                     <div class="mt-3 flex flex-wrap gap-4">
                         <a href="{{ route('project-narrative-reports.download', $report) }}" class="inline-flex text-xs font-bold text-red-700">Download {{ strtolower($report->report_label) }}</a>
+                        @if ($signedCopy)
+                            <a href="{{ route('project-narrative-reports.signed-copy.download', $report) }}" class="inline-flex text-xs font-bold text-emerald-700">Download signed Terminal Report</a>
+                        @endif
                         @foreach ($report->photos ?? [] as $photoIndex => $photo)
                             <a href="{{ route('project-narrative-reports.photos.download', [$report, $photoIndex]) }}" class="inline-flex text-xs font-bold text-red-700">Photo {{ $photoIndex + 1 }}: {{ $photo['caption'] }}</a>
                         @endforeach
@@ -140,6 +161,20 @@
                     @if ($report->research_head_remarks)<div class="mt-3 rounded-xl bg-gray-50 p-3"><p class="text-[10px] font-black uppercase text-gray-400">Research Head remarks</p><p class="mt-1 text-xs text-gray-600">{{ $report->research_head_remarks }}</p></div>@endif
                     @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject())
                         <form method="POST" action="{{ route('research_head.narrative-progress-reports.review', $report) }}" class="mt-4 grid gap-2 sm:grid-cols-[180px_1fr_auto]">@csrf @method('PATCH')<select name="review_status" class="rounded-xl border-gray-200 text-xs font-bold"><option value="reviewed" @selected($report->review_status === 'reviewed')>Mark reviewed</option><option value="revision_requested" @selected($report->review_status === 'revision_requested')>Request corrections</option></select><input name="research_head_remarks" value="{{ $report->research_head_remarks }}" maxlength="5000" class="rounded-xl border-gray-200 text-xs" placeholder="Describe the corrections needed"><button class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white">Save review</button></form>
+                    @endif
+                    @if (Auth::user()->isUsingWorkspace('research_head') && ! $topic->isCompletedProject() && $isLatestTerminalReport && $report->review_status === \App\Models\ProjectNarrativeReport::STATUS_REVIEWED)
+                        <form method="POST" action="{{ route('research_head.narrative-progress-reports.signed-copy.store', $report) }}" enctype="multipart/form-data" class="mt-4 border-l-4 border-emerald-700 bg-emerald-50/70 p-4">
+                            @csrf
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                                <label class="block min-w-0 flex-1 text-sm font-bold text-emerald-950">
+                                    {{ $signedCopy ? 'Replace signed Terminal Report' : 'Fully signed Terminal Report' }}
+                                    <span class="mt-1 block text-xs font-medium text-emerald-800">Upload the final PDF bearing the required signatures before project completion.</span>
+                                    <input name="signed_report" type="file" accept=".pdf,application/pdf" required class="mt-2 block w-full rounded-lg border border-emerald-300 bg-white p-2 text-xs text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-100 file:px-3 file:py-2 file:text-xs file:font-bold file:text-emerald-900">
+                                </label>
+                                <button class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-emerald-800 px-4 py-2 text-xs font-black text-white hover:bg-emerald-900">{{ $signedCopy ? 'Replace signed PDF' : 'Record signed PDF' }}</button>
+                            </div>
+                            @error('signed_report')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
+                        </form>
                     @endif
                 </article>
             @empty

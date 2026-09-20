@@ -6,7 +6,6 @@
             <p class="text-sm font-bold uppercase tracking-wider text-red-700">Research support</p>
             <h2 class="mt-2 text-3xl font-black tracking-tight text-gray-950">Research Support</h2>
             <p class="mt-2 text-base leading-7 text-gray-600">{{ $canUseResearcherTools ? 'Find literature, review similarity, and discover suitable journals for your research.' : 'Find and save literature while preparing your research proposal.' }}</p>
-            <a href="{{ route('similarity-checks.index') }}" class="mt-4 inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white">{{ Auth::user()->isUsingWorkspace('research_head') ? 'Manage similarity checks' : 'Request or view a Turnitin similarity check' }}</a>
         </div>
     </x-slot>
 

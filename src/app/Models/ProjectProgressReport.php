@@ -19,7 +19,8 @@ class ProjectProgressReport extends Model
         'period_start', 'period_end',
         'version_number', 'supersedes_report_id', 'tracking_number',
         'progress_percentage', 'accomplishments', 'issues', 'work_plan',
-        'budget_utilization', 'prepared_by_date_signed', 'attachment_path', 'submission_status',
+        'budget_utilization', 'budget_prepared_by', 'budget_prepared_at',
+        'prepared_by_date_signed', 'attachment_path', 'submission_status',
         'official_pdf_path', 'official_pdf_filename', 'official_pdf_checksum', 'official_pdf_size',
         'prepared_at', 'submitted_at', 'review_status',
         'research_head_remarks', 'reviewed_by', 'reviewed_at',
@@ -37,6 +38,7 @@ class ProjectProgressReport extends Model
             'period_start' => 'date',
             'period_end' => 'date',
             'prepared_by_date_signed' => 'date',
+            'budget_prepared_at' => 'datetime',
             'prepared_at' => 'datetime',
             'submitted_at' => 'datetime',
             'reviewed_at' => 'datetime',
@@ -63,6 +65,18 @@ class ProjectProgressReport extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function budgetPreparer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'budget_prepared_by');
+    }
+
+    public function hasSecretaryPreparedBudget(): bool
+    {
+        return $this->topic->research_secretary_id !== null
+            && $this->budget_prepared_by === $this->topic->research_secretary_id
+            && $this->budget_prepared_at !== null;
     }
 
     public function supersedes(): BelongsTo

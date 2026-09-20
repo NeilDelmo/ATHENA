@@ -72,6 +72,112 @@ function renderExtractionList(listElement, items, emptyMessage) {
     });
 }
 
+function pickerFieldParts(form, name) {
+    const hiddenInput = form.elements.namedItem(name);
+
+    if (! (hiddenInput instanceof HTMLInputElement)) return null;
+
+    const pickerRoot = hiddenInput.closest('[x-data]');
+    const displayInput = pickerRoot instanceof HTMLElement
+        ? pickerRoot.querySelector('[x-ref="display"]')
+        : null;
+
+    return { hiddenInput, displayInput };
+}
+
+function parseSuggestionDate(value) {
+    const parsed = new Date(value);
+
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatSuggestionClock(value) {
+    if (typeof value !== 'string' || ! value.includes('T')) return '';
+
+    const time = value.slice(11, 16);
+
+    if (time === '00:00' || time === '23:59') return '';
+
+    const parsed = parseSuggestionDate(value);
+
+    return parsed
+        ? ` at ${parsed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+        : '';
+}
+
+function formatSuggestionDay(value, includeYear) {
+    const parsed = parseSuggestionDate(value);
+
+    if (! parsed) return String(value);
+
+    const sameYear = parsed.getFullYear() === new Date().getFullYear();
+    const month = parsed.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+    return includeYear || ! sameYear ? `${month}, ${parsed.getFullYear()}` : month;
+}
+
+function formatSuggestionLabel(entries) {
+    if (entries.length === 0) return '';
+
+    if (entries.length === 1 || entries[0].value === entries[1].value) {
+        return formatSuggestionDay(entries[0].value, true) + formatSuggestionClock(entries[0].value);
+    }
+
+    const sameYear = entries.every((entry) => parseSuggestionDate(entry.value)?.getFullYear()
+        === parseSuggestionDate(entries[0].value)?.getFullYear());
+
+    return `${formatSuggestionDay(entries[0].value, ! sameYear)} – ${formatSuggestionDay(entries[1].value, true)}`;
+}
+
+function buildSuggestionContent(row, entries, { onAccept, onDismiss }) {
+    row.replaceChildren();
+
+    const wrapper = document.createElement('span');
+    wrapper.className = 'inline-flex flex-wrap items-center gap-2 rounded-2xl border border-rose-100 bg-rose-50/80 px-3 py-1.5 text-xs dark:border-red-950 dark:bg-red-950/30';
+
+    const sparkle = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    sparkle.setAttribute('class', 'h-3.5 w-3.5 shrink-0 text-[#7A0019] dark:text-red-300');
+    sparkle.setAttribute('viewBox', '0 0 24 24');
+    sparkle.setAttribute('fill', 'none');
+    sparkle.setAttribute('stroke', 'currentColor');
+    sparkle.setAttribute('stroke-width', '2');
+    sparkle.setAttribute('aria-hidden', 'true');
+    const sparklePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    sparklePath.setAttribute('stroke-linecap', 'round');
+    sparklePath.setAttribute('stroke-linejoin', 'round');
+    sparklePath.setAttribute('d', 'M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z');
+    sparkle.append(sparklePath);
+
+    const label = document.createElement('span');
+    label.className = 'font-bold text-gray-600 dark:text-slate-300';
+    label.append('Suggested: ');
+
+    const value = document.createElement('span');
+    value.dataset.suggestionValue = 'true';
+    value.className = 'font-black text-gray-900 dark:text-white';
+    value.textContent = formatSuggestionLabel(entries);
+    label.append(value);
+
+    const acceptButton = document.createElement('button');
+    acceptButton.type = 'button';
+    acceptButton.className = 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 transition hover:bg-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900';
+    acceptButton.setAttribute('aria-label', 'Accept suggested date');
+    acceptButton.title = 'Accept suggested date';
+    acceptButton.append('✓');
+    acceptButton.addEventListener('click', () => onAccept());
+
+    const dismissButton = document.createElement('button');
+    dismissButton.type = 'button';
+    dismissButton.className = 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-[#7A0019] transition hover:bg-rose-200 focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-red-950 dark:text-red-300 dark:hover:bg-red-900';
+    dismissButton.setAttribute('aria-label', 'Dismiss suggested date');
+    dismissButton.title = 'Dismiss suggested date';
+    dismissButton.append('✕');
+    dismissButton.addEventListener('click', () => onDismiss());
+
+    wrapper.append(sparkle, label, acceptButton, dismissButton);
+    row.append(wrapper);
+}
+
 function initializeResearchCallImageExtractors() {
     document.querySelectorAll('[data-research-call-form]').forEach((form) => {
         if (! (form instanceof HTMLFormElement) || form.dataset.researchCallImageReady === 'true') return;
@@ -105,6 +211,8 @@ function initializeResearchCallImageExtractors() {
         let previewUrl = null;
         let activeRequest = null;
         let extractedScheduleFields = new Set();
+        const pendingSuggestions = new Map();
+        const rejectedSuggestions = new Map();
 
         const supportedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
         const maximumImageSize = 10 * 1024 * 1024;
@@ -120,6 +228,164 @@ function initializeResearchCallImageExtractors() {
             'implementation_start_date',
             'implementation_end_date',
         ]);
+
+        const suggestionRows = () => [...form.querySelectorAll('[data-research-call-suggestion]')]
+            .filter((row) => row instanceof HTMLElement);
+
+        const rowEntries = (row) => {
+            if (! (row instanceof HTMLElement)) return [];
+
+            return (row.dataset.suggestionFields || '')
+                .split(',')
+                .map((field) => field.trim())
+                .filter((field) => field !== '' && pendingSuggestions.has(field))
+                .map((field) => ({ field, value: pendingSuggestions.get(field) }));
+        };
+
+        const fieldIsEmpty = (name) => {
+            const parts = pickerFieldParts(form, name);
+
+            return ! parts || parts.hiddenInput.value === '';
+        };
+
+        const hideSuggestionRow = (row) => {
+            rowEntries(row).forEach(({ field }) => pendingSuggestions.delete(field));
+            row.replaceChildren();
+            row.hidden = true;
+        };
+
+        const dismissPendingSuggestions = () => {
+            suggestionRows().forEach((row) => hideSuggestionRow(row));
+        };
+
+        const acceptSuggestionRow = (row) => {
+            const entries = rowEntries(row);
+
+            if (entries.length === 0) return;
+
+            entries.forEach(({ field }) => pendingSuggestions.delete(field));
+            entries.forEach(({ field, value }) => {
+                const parts = pickerFieldParts(form, field);
+
+                if (! parts) return;
+
+                parts.hiddenInput.value = value;
+                parts.hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                parts.hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                extractedScheduleFields.add(field);
+            });
+
+            row.replaceChildren();
+            row.hidden = true;
+            updateClearScheduleAvailability();
+        };
+
+        const rejectSuggestionRow = (row) => {
+            rowEntries(row).forEach(({ field, value }) => {
+                pendingSuggestions.delete(field);
+
+                if (! rejectedSuggestions.has(field)) rejectedSuggestions.set(field, new Set());
+                rejectedSuggestions.get(field).add(value);
+            });
+
+            row.replaceChildren();
+            row.hidden = true;
+        };
+
+        const renderSuggestions = (values) => {
+            dismissPendingSuggestions();
+
+            let suggestionCount = 0;
+
+            suggestionRows().forEach((row) => {
+                const fields = (row.dataset.suggestionFields || '')
+                    .split(',')
+                    .map((field) => field.trim())
+                    .filter((field) => field !== '');
+
+                const entries = fields
+                    .filter((field) => {
+                        const value = values[field];
+
+                        return typeof value === 'string' && value !== ''
+                            && fieldIsEmpty(field)
+                            && ! rejectedSuggestions.get(field)?.has(value);
+                    })
+                    .map((field) => ({ field, value: values[field] }));
+
+                if (entries.length === 0) {
+                    row.replaceChildren();
+                    row.hidden = true;
+
+                    return;
+                }
+
+                entries.forEach(({ field, value }) => pendingSuggestions.set(field, value));
+                suggestionCount += entries.length;
+
+                buildSuggestionContent(row, entries, {
+                    onAccept: () => acceptSuggestionRow(row),
+                    onDismiss: () => rejectSuggestionRow(row),
+                });
+                row.hidden = false;
+            });
+
+            return suggestionCount;
+        };
+
+        form.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== 'Escape') return;
+
+            const target = event.target;
+
+            if (! (target instanceof Element)) return;
+
+            const displayInput = target.closest('[x-ref="display"]');
+
+            if (! (displayInput instanceof HTMLElement)) return;
+
+            const hiddenInput = displayInput.closest('[x-data]')?.querySelector('input[type="hidden"][name]');
+
+            if (! (hiddenInput instanceof HTMLInputElement) || ! pendingSuggestions.has(hiddenInput.name)) return;
+
+            if (displayInput.getAttribute('aria-expanded') === 'true') return;
+
+            const row = suggestionRows().find((candidate) => rowEntries(candidate).some(({ field }) => field === hiddenInput.name));
+
+            if (! (row instanceof HTMLElement)) return;
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            if (event.key === 'Enter') {
+                acceptSuggestionRow(row);
+            } else {
+                rejectSuggestionRow(row);
+            }
+        }, true);
+
+        form.addEventListener('input', (event) => {
+            const target = event.target;
+
+            if (! (target instanceof HTMLInputElement) || ! target.matches('input[type="hidden"][name]')) return;
+
+            if (! pendingSuggestions.has(target.name)) return;
+
+            const row = suggestionRows().find((candidate) => rowEntries(candidate).some(({ field }) => field === target.name));
+
+            pendingSuggestions.delete(target.name);
+
+            if (row instanceof HTMLElement) {
+                const remaining = rowEntries(row);
+
+                if (remaining.length === 0) {
+                    row.replaceChildren();
+                    row.hidden = true;
+                } else {
+                    row.querySelector('[data-suggestion-value]')?.replaceChildren(formatSuggestionLabel(remaining));
+                }
+            }
+        });
 
         const setExtracting = (isExtracting) => {
             extractButton.disabled = isExtracting || !imageInput.files?.[0];
@@ -254,9 +520,10 @@ function initializeResearchCallImageExtractors() {
 
                 const { maximum_budget: detectedBudget, ...values } = payload.fields || {};
                 const populatedFields = Object.entries(values)
-                    .filter(([name, value]) => setEmptyField(form, name, value))
+                    .filter(([name, value]) => ! scheduleFieldNames.has(name) && setEmptyField(form, name, value))
                     .map(([name]) => name);
                 const filledCount = populatedFields.length;
+                const suggestionCount = renderSuggestions(values);
 
                 populatedFields
                     .filter((name) => scheduleFieldNames.has(name))
@@ -270,11 +537,15 @@ function initializeResearchCallImageExtractors() {
 
                 showExtractionSummary(payload);
 
+                const suggestionNotice = suggestionCount > 0
+                    ? ` ${suggestionCount} suggested date${suggestionCount === 1 ? '' : 's'} awaiting confirmation below.`
+                    : '';
+
                 displayExtractionStatus(
                     statusElement,
                     filledCount > 0
-                        ? `${filledCount} blank field${filledCount === 1 ? '' : 's'} filled; ${detectedCount} poster section${detectedCount === 1 ? '' : 's'} detected. Review the summary before saving.${budgetNotice}`
-                        : `Poster read. Existing entries were kept; review the detection summary before saving.${budgetNotice}`,
+                        ? `${filledCount} blank field${filledCount === 1 ? '' : 's'} filled; ${detectedCount} poster section${detectedCount === 1 ? '' : 's'} detected.${suggestionNotice} Review the summary before saving.${budgetNotice}`
+                        : `Poster read. Existing entries were kept.${suggestionNotice} Review the detection summary before saving.${budgetNotice}`,
                     warnings.length > 0 ? 'warning' : 'success',
                 );
             } catch (error) {
@@ -302,6 +573,8 @@ function initializeResearchCallImageExtractors() {
             }
 
             extractedScheduleFields = new Set();
+            rejectedSuggestions.clear();
+            dismissPendingSuggestions();
             updateClearScheduleAvailability();
             resetExtractionSummary();
 
@@ -333,7 +606,7 @@ function initializeResearchCallImageExtractors() {
         });
         extractButton.addEventListener('click', () => void extractImage());
         clearScheduleButton?.addEventListener('click', () => {
-            if (extractedScheduleFields.size === 0) return;
+            if (extractedScheduleFields.size === 0 && pendingSuggestions.size === 0) return;
 
             if (!window.confirm('Clear the schedule dates copied from this poster? Your call details and guidelines will stay unchanged.')) {
                 return;
@@ -341,6 +614,7 @@ function initializeResearchCallImageExtractors() {
 
             extractedScheduleFields.forEach((fieldName) => clearField(form, fieldName));
             extractedScheduleFields = new Set();
+            dismissPendingSuggestions();
             updateClearScheduleAvailability();
             displayExtractionStatus(statusElement, 'The extracted schedule was cleared. Enter the current schedule before publishing.', 'warning');
         });

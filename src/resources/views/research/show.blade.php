@@ -15,6 +15,7 @@
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
             'resubmitted' => 'The revised proposal is waiting for the Research Head.',
+            'gad_review' => 'The Research Head cleared this version. GAD review comes next, followed by central evaluation.',
             'expert_review', 'for_final_decision' => 'This proposal is waiting for the Research Head’s decision.',
             default => 'This proposal is waiting for the Research Head’s review.',
         };

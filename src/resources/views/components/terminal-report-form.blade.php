@@ -171,7 +171,7 @@
                 @endforeach
                 <label class="font-bold">Tracking number <span class="font-normal text-gray-500">(optional)</span><input name="tracking_number" value="{{ $value('tracking_number') }}" maxlength="100" class="{{ $input }}"></label>
                 <div x-data="{ spent: @js($value('terminal_data.total_expenditure')), budget: @js((float) ($terminal['approved_budget'] ?? $topic->estimated_budget)) }">
-                    <label class="font-bold">Final total expenditure (₱)<input type="number" min="0" step="0.01" name="terminal_data[total_expenditure]" x-model="spent" required class="{{ $input }}"></label>
+                    <label class="font-bold">Final total expenditure (₱)<input type="number" min="0" max="{{ (float) ($terminal['approved_budget'] ?? $topic->estimated_budget ?? 0) }}" step="0.01" name="terminal_data[total_expenditure]" x-model="spent" required class="{{ $input }}"><span class="mt-1 block text-xs font-normal text-gray-500 dark:text-slate-400">Must not exceed the approved project budget of ₱{{ number_format((float) ($terminal['approved_budget'] ?? $topic->estimated_budget ?? 0), 2) }}.</span></label>
                     <p class="mt-2 font-semibold text-red-700 dark:text-red-300" x-text="budget > 0 && spent !== '' ? 'Budget utilization: ' + (Number(spent) / budget * 100).toFixed(2) + '%' : 'Budget utilization: N/A'"></p>
                     <p class="mt-1 text-gray-500 dark:text-slate-400">Confirm the final total; do not add repeated cumulative monitoring amounts together.</p>
                 </div>

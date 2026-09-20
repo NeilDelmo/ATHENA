@@ -5,7 +5,7 @@
             : '';
         $proposalWorkspaceUrl = $isResearchHead
             ? route('topics.show', $topic).$pendingDecisionQuery.'#file-review-card-'.$file->id
-            : route('topics.show', $topic).'#submit-revision';
+            : route('faculty.topics.revision', $topic);
     @endphp
 
     @if (request()->boolean('revision_embed'))

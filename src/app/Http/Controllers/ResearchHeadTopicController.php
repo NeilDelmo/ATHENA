@@ -34,8 +34,12 @@ class ResearchHeadTopicController extends Controller
         $validated = $request->validated();
 
         if (! $topic->canRecordDecision($validated['status'])) {
+            $message = $topic->status === 'revision_requested'
+                ? 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.'
+                : 'Follow the current proposal stage. Research Head clearance is required before GAD review, and GAD and central evaluation must be complete before LREC.';
+
             throw ValidationException::withMessages([
-                'status' => 'Follow the current proposal stage. Faculty must submit their first revision before the proposal can be sent to LREC.',
+                'status' => $message,
             ]);
         }
 
@@ -55,12 +59,7 @@ class ResearchHeadTopicController extends Controller
         $committeeComments = $topic->review_stage === 'lrec' ? ($validated['committee_comments'] ?? []) : [];
         $gadChecklist = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
         $initialScreeningForm = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
-        $hasGadAssessment = $latestVersion->files
-            ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
-                && $file->source_version_file_id === $gadChecklist?->id
-                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
-                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_GAD_CHECKLIST
-                && is_numeric($file->source_data['gad_score'] ?? null));
+        $hasPassingGadAssessment = $latestVersion->hasPassingGadAssessment();
         $hasCoEvaluatorNarrative = $latestVersion->files
             ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
                 && $file->source_version_file_id === $initialScreeningForm?->id
@@ -73,19 +72,19 @@ class ResearchHeadTopicController extends Controller
             && $validated['status'] === 'revision_requested';
 
         if ($validated['status'] === TopicProposal::STATUS_LREC_QUEUED
-            && (! $hasGadAssessment || ! $hasCoEvaluatorNarrative)) {
+            && (! $hasPassingGadAssessment || ! $hasCoEvaluatorNarrative)) {
             $missingSteps = collect();
 
-            if (! $hasGadAssessment) {
-                $missingSteps->push('upload a completed GAD Checklist with a readable Total GAD Score');
+            if (! $hasPassingGadAssessment) {
+                $missingSteps->push('record a passing GAD Office assessment');
             }
 
             if (! $hasCoEvaluatorNarrative) {
-                $missingSteps->push('upload the co-evaluator’s completed Initial Screening Form with a readable Narrative Evaluation');
+                $missingSteps->push('record the central evaluator’s Narrative Evaluation');
             }
 
             throw ValidationException::withMessages([
-                'status' => 'Complete the latest version’s initial-review workflow before sending it to LREC: '.$missingSteps->join(', ', ', then ').'.',
+                'status' => 'Complete the required sequence before sending this proposal to LREC: '.$missingSteps->join(', ', ', then ').'.',
             ]);
         }
 
@@ -182,7 +181,11 @@ class ResearchHeadTopicController extends Controller
             $reviewStage = $reviewedTopic->review_stage;
             $reviewedTopic->update([
                 'status' => $validated['status'],
-                'review_stage' => $validated['status'] === TopicProposal::STATUS_LREC_QUEUED || $isReturningFromSigning ? 'lrec' : $reviewStage,
+                'review_stage' => match (true) {
+                    $validated['status'] === TopicProposal::STATUS_GAD_REVIEW => 'gad',
+                    $validated['status'] === TopicProposal::STATUS_LREC_QUEUED || $isReturningFromSigning => 'lrec',
+                    default => $reviewStage,
+                },
                 'lrec_cleared_at' => $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE ? now() : null,
                 'notice_to_proceed_data' => $isReturningFromSigning ? null : $reviewedTopic->notice_to_proceed_data,
             ]);
@@ -260,6 +263,7 @@ class ResearchHeadTopicController extends Controller
         );
 
         $notificationDetails = match ($validated['status']) {
+            TopicProposal::STATUS_GAD_REVIEW => ['Cleared for GAD review', 'The Research Head cleared “'.$topic->title.'”. The corrected proposal now proceeds to the GAD Office before central evaluation.', 'info'],
             TopicProposal::STATUS_LREC_QUEUED => ['Queued for LREC', 'Initial review is complete for “'.$topic->title.'”. Await the LREC presentation schedule from the research office.', 'info'],
             TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
@@ -304,7 +308,8 @@ class ResearchHeadTopicController extends Controller
         ));
 
         $message = match ($validated['status']) {
-            TopicProposal::STATUS_LREC_QUEUED => 'Initial review cleared. The proposal is queued for LREC presentation.',
+            TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
+            TopicProposal::STATUS_LREC_QUEUED => 'GAD and central evaluation cleared. The proposal is queued for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.',
             'revision_requested' => $returningFromSigning
@@ -365,11 +370,10 @@ class ResearchHeadTopicController extends Controller
             ->first();
 
         if (! $annotation || ! $annotation->file) {
-            return route('topics.show', $topic).'#submit-revision';
+            return route('faculty.topics.revision', $topic);
         }
 
-        return route('topics.show', ['topic' => $topic, 'revision_annotation' => $annotation->id])
-            .'#submit-revision';
+        return route('faculty.topics.revision', ['topic' => $topic, 'revision_annotation' => $annotation->id]);
     }
 
     private function canAnnotateRevisionFile(ProposalVersionFile $file): bool

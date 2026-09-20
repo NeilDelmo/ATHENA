@@ -1431,8 +1431,7 @@ test('the proposal workspace is complete role-aware and private', function () {
 
     $fileRevision = $topic->reviews()->latest()->firstOrFail()->fileRevisions()->firstOrFail();
 
-    $expectedNotificationUrl = route('topics.show', ['topic' => $topic, 'revision_annotation' => $firstAnnotation->id])
-        .'#submit-revision';
+    $expectedNotificationUrl = route('faculty.topics.revision', ['topic' => $topic, 'revision_annotation' => $firstAnnotation->id]);
 
     expect($faculty->notifications()->firstOrFail()->data['url'])->toBe($expectedNotificationUrl)
         ->and($fileRevision->proposal_version_file_id)->toBe($workPlanFile->id)

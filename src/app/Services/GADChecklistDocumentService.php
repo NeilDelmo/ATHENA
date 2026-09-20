@@ -86,6 +86,7 @@ class GADChecklistDocumentService
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', self::W);
 
+        $this->clearPreFilledAnswers($xpath);
         $this->fillProjectTitle($xpath, $checklist['project_title']);
         $this->fillProjectLeader($xpath, $checklist['project_leader']);
         foreach ($xpath->query('//w:p') as $paragraph) {
@@ -104,6 +105,48 @@ class GADChecklistDocumentService
         }
 
         return $renderedXml;
+    }
+
+    /**
+     * The official source document is distributed as an accomplished sample.
+     * Remove the sample responses (X marks) and column 3 scores so the
+     * generated checklist is a blank form for the evaluator to accomplish.
+     */
+    private function clearPreFilledAnswers(DOMXPath $xpath): void
+    {
+        foreach ($xpath->query('//w:tbl') as $table) {
+            if (! $table instanceof DOMElement) {
+                continue;
+            }
+
+            $rows = iterator_to_array($xpath->query('./w:tr', $table));
+
+            if ($rows === [] || mb_stripos($rows[0]->textContent, 'column 1') === false) {
+                continue;
+            }
+
+            foreach (array_slice($rows, 2) as $row) {
+                if (! $row instanceof DOMElement) {
+                    continue;
+                }
+
+                $cells = iterator_to_array($xpath->query('./w:tc', $row));
+
+                foreach (array_slice($cells, 1) as $cell) {
+                    if (! $cell instanceof DOMElement) {
+                        continue;
+                    }
+
+                    if (! preg_match('/^(x|\d+(\.\d+)?)$/i', trim($cell->textContent))) {
+                        continue;
+                    }
+
+                    foreach (iterator_to_array($cell->getElementsByTagNameNS(self::W, 'r')) as $run) {
+                        $run->parentNode?->removeChild($run);
+                    }
+                }
+            }
+        }
     }
 
     private function fillProjectTitle(DOMXPath $xpath, string $title): void

@@ -23,11 +23,13 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
         return [
             'status' => ['required', Rule::in([
                 TopicProposal::STATUS_READY_FOR_SIGNATURE,
+                TopicProposal::STATUS_GAD_REVIEW,
                 TopicProposal::STATUS_LREC_QUEUED,
                 TopicProposal::STATUS_LREC_REVIEW,
                 'revision_requested',
                 'rejected',
             ])],
+            'research_head_clearance_confirmed' => ['exclude_unless:status,gad_review', 'accepted'],
             'initial_clearance_confirmed' => ['exclude_unless:status,lrec_queued', 'accepted'],
             'lrec_clearance_confirmed' => ['exclude_unless:status,ready_for_signature', 'accepted'],
             'committee_comments' => ['exclude_unless:status,revision_requested', 'nullable', 'array', 'max:100'],

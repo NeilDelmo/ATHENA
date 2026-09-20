@@ -17,6 +17,8 @@ class TopicProposal extends Model
 
     public const STATUS_LREC_REVIEW = 'lrec_review';
 
+    public const STATUS_GAD_REVIEW = 'gad_review';
+
     public const STATUS_READY_FOR_SIGNATURE = 'ready_for_signature';
 
     public const AWAITING_APPROVAL_STATUSES = [
@@ -25,6 +27,7 @@ class TopicProposal extends Model
         'for_final_decision',
         'revision_requested',
         'resubmitted',
+        self::STATUS_GAD_REVIEW,
         self::STATUS_READY_FOR_SIGNATURE,
         self::STATUS_LREC_QUEUED,
         self::STATUS_LREC_REVIEW,
@@ -36,12 +39,15 @@ class TopicProposal extends Model
 
     public const PROJECT_STATUS_COMPLETED = 'completed';
 
+    public const PROJECT_STATUS_COMPLETION_PENDING = 'completion_pending';
+
     protected $table = 'topics';
 
     protected $attributes = ['status' => 'pending', 'review_stage' => 'initial'];
 
     protected $fillable = [
         'user_id',
+        'research_secretary_id',
         'research_call_id',
         'research_category_id',
         'title',
@@ -105,34 +111,32 @@ class TopicProposal extends Model
     public function canRecordDecision(string $decision): bool
     {
         $allowed = match ($this->status) {
+            self::STATUS_GAD_REVIEW => ['revision_requested', 'rejected', self::STATUS_LREC_QUEUED],
             self::STATUS_LREC_QUEUED => [self::STATUS_LREC_REVIEW],
             self::STATUS_LREC_REVIEW => ['revision_requested', 'rejected', self::STATUS_READY_FOR_SIGNATURE],
             self::STATUS_READY_FOR_SIGNATURE => ['revision_requested'],
             'pending', 'resubmitted', 'expert_review', 'for_final_decision' => $this->review_stage === 'lrec'
                 ? ['revision_requested', 'rejected', self::STATUS_READY_FOR_SIGNATURE]
-                : ['revision_requested', 'rejected', self::STATUS_LREC_QUEUED],
+                : ['revision_requested', 'rejected', self::STATUS_GAD_REVIEW],
             default => [],
         };
 
-        if (! in_array($decision, $allowed, true)) {
-            return false;
-        }
-
-        return $decision !== self::STATUS_LREC_QUEUED
-            || $this->versions()
-                ->where('submission_type', 'revision')
-                ->where('version_number', '>', 1)
-                ->exists();
+        return in_array($decision, $allowed, true);
     }
 
     public function workflowStatusLabel(): string
     {
         return match ($this->status) {
+            self::STATUS_GAD_REVIEW => 'GAD and central evaluation',
             self::STATUS_LREC_QUEUED => 'Awaiting LREC presentation',
             self::STATUS_LREC_REVIEW => 'LREC review',
             self::STATUS_READY_FOR_SIGNATURE => 'Signing and Notice to Proceed',
-            'revision_requested' => $this->review_stage === 'lrec' ? 'LREC revisions requested' : 'Initial revisions requested',
-            'resubmitted' => $this->review_stage === 'lrec' ? 'LREC revision awaiting review' : 'Revision awaiting review',
+            'revision_requested' => match ($this->review_stage) {
+                'lrec' => 'LREC revisions requested',
+                'gad' => 'GAD or central revisions requested',
+                default => 'Research Head revisions requested',
+            },
+            'resubmitted' => $this->review_stage === 'lrec' ? 'LREC revision awaiting review' : 'Research Head revision awaiting review',
             'approved' => $this->hasIssuedNoticeToProceed() ? 'Approved and released' : 'Preparing final release',
             'rejected' => 'Rejected',
             default => 'Initial review',
@@ -209,6 +213,23 @@ class TopicProposal extends Model
             ->where('project_status', self::PROJECT_STATUS_COMPLETED);
     }
 
+    public function scopeCompletionPending(Builder $query): Builder
+    {
+        return $query
+            ->whereIn('project_status', [
+                self::PROJECT_STATUS_ONGOING,
+                self::PROJECT_STATUS_DELAYED,
+            ])
+            ->whereHas('progressReports', fn (Builder $query): Builder => $query
+                ->where('progress_percentage', '>=', 100));
+    }
+
+    public function scopeWithoutCompletionPending(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('progressReports', fn (Builder $query): Builder => $query
+            ->where('progress_percentage', '>=', 100));
+    }
+
     public function scopeVisibleInResearcherWorkspace(Builder $query): Builder
     {
         return $query
@@ -282,6 +303,29 @@ class TopicProposal extends Model
             && $this->project_status === self::PROJECT_STATUS_COMPLETED;
     }
 
+    public function monitoringStatusForProgress(?int $progressPercentage): string
+    {
+        if ($this->project_status === self::PROJECT_STATUS_COMPLETED) {
+            return self::PROJECT_STATUS_COMPLETED;
+        }
+
+        if ($progressPercentage !== null && $progressPercentage >= 100) {
+            return self::PROJECT_STATUS_COMPLETION_PENDING;
+        }
+
+        return $this->project_status ?? self::PROJECT_STATUS_ONGOING;
+    }
+
+    public function monitoringStatusLabelForProgress(?int $progressPercentage): string
+    {
+        return match ($this->monitoringStatusForProgress($progressPercentage)) {
+            self::PROJECT_STATUS_COMPLETION_PENDING => 'Completion pending',
+            self::PROJECT_STATUS_COMPLETED => 'Completed',
+            self::PROJECT_STATUS_DELAYED => 'Delayed',
+            default => 'Ongoing',
+        };
+    }
+
     public function isDisseminationAvailable(): bool
     {
         return $this->isMonitoringAvailable() || $this->isCompletedProject();
@@ -312,6 +356,11 @@ class TopicProposal extends Model
     public function noticeIssuer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'notice_to_proceed_issued_by');
+    }
+
+    public function researchSecretary(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'research_secretary_id');
     }
 
     public function reviews(): HasMany
@@ -365,6 +414,13 @@ class TopicProposal extends Model
     {
         return $this->hasMany(ProjectProgressReport::class, 'topic_id')
             ->submitted()
+            ->latest('reporting_date');
+    }
+
+    public function preparedProgressReports(): HasMany
+    {
+        return $this->hasMany(ProjectProgressReport::class, 'topic_id')
+            ->prepared()
             ->latest('reporting_date');
     }
 

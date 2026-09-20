@@ -81,7 +81,7 @@ test('lifecycle demo promotes prepared drafts into connected process records', f
     $this->seed(LifecycleDemoSeeder::class);
     $this->seed(LifecycleDemoSeeder::class);
 
-    $topics = TopicProposal::query()->where('description', 'like', '[lifecycle-demo:%')->get();
+    $topics = TopicProposal::query()->where('description', 'like', '[lifecycle-demo:%')->with('latestProgressReport')->get();
     $implementationReports = ProjectProgressReport::query()
         ->whereHas('topic', fn ($query) => $query->where('description', 'like', '[lifecycle-demo:%'))
         ->get();
@@ -89,6 +89,8 @@ test('lifecycle demo promotes prepared drafts into connected process records', f
     expect($topics)->toHaveCount(21)
         ->and($topics->every(fn (TopicProposal $topic): bool => $topic->versions()->exists()))->toBeTrue()
         ->and($topics->where('project_status', TopicProposal::PROJECT_STATUS_COMPLETED))->toHaveCount(3)
+        ->and($topics->filter(fn (TopicProposal $topic): bool => in_array($topic->project_status, [TopicProposal::PROJECT_STATUS_ONGOING, TopicProposal::PROJECT_STATUS_DELAYED], true)
+            && ($topic->latestProgressReport?->progress_percentage ?? 0) >= 100))->toBeEmpty()
         ->and(ProjectNarrativeReport::query()->where('report_type', 'terminal')->where('review_status', 'reviewed')->count())->toBe(3)
         ->and(ResearchPublication::query()->count())->toBe(9)
         ->and($implementationReports)->toHaveCount(22)

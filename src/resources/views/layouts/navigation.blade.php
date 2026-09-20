@@ -256,13 +256,24 @@
                 <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>
             </a>
 
-            <a wire:navigate href="{{ route('similarity-checks.index') }}" aria-label="Similarity Checks" title="Similarity Checks"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition {{ request()->routeIs('similarity-checks.*') ? 'bg-white text-[#7A0019] ring-1 ring-slate-200 dark:bg-slate-900 dark:text-white dark:ring-slate-800' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900' }}">
-                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Similarity Checks</span>
-            </a>
         @endif
 
+
+        @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY))
+            <a
+                wire:navigate
+                href="{{ route('research_secretary.dashboard') }}"
+                aria-label="Research Secretary Dashboard"
+                title="Research Secretary Dashboard"
+                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition-all duration-200 ease-out hover:translate-x-0.5
+                       {{ request()->routeIs('research_secretary.*')
+                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800'
+                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+            >
+                <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
+                <span x-show="sidebarOpen" class="whitespace-nowrap">Budget Monitoring</span>
+            </a>
+        @endif
 
         @role('research_coordinator')
             @if (session('active_role') !== 'faculty')

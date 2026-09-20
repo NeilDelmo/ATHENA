@@ -14,7 +14,7 @@ use ZipArchive;
 class GADChecklistScoreExtractor
 {
     /**
-     * @return array{gad_score: float, gad_rating: string, gad_interpretation: string, gad_outcome: string}
+     * @return array{gad_score: float, gad_rating: string, gad_interpretation: string, gad_outcome: string, gad_signature_detected: bool, gad_signature_detection_method: string|null}
      */
     public function extract(UploadedFile $file): array
     {
@@ -25,9 +25,9 @@ class GADChecklistScoreExtractor
         }
 
         $extension = Str::lower($file->getClientOriginalExtension());
-        $text = match ($extension) {
-            'pdf' => $this->pdfText($path),
-            'docx' => $this->docxText($path),
+        [$text, $signatureEvidence] = match ($extension) {
+            'pdf' => $this->pdfData($path),
+            'docx' => $this->docxData($path),
             default => throw new RuntimeException('Upload the completed GAD Checklist as a searchable PDF or DOCX file.'),
         };
         $score = $this->finalGadScore($text);
@@ -35,6 +35,8 @@ class GADChecklistScoreExtractor
         return [
             'gad_score' => $score,
             ...$this->interpretationFor($score),
+            'gad_signature_detected' => $signatureEvidence !== null,
+            'gad_signature_detection_method' => $signatureEvidence,
         ];
     }
 
@@ -94,7 +96,23 @@ class GADChecklistScoreExtractor
         }
     }
 
-    private function docxText(string $path): string
+    /** @return array{string, string|null} */
+    private function pdfData(string $path): array
+    {
+        $text = $this->pdfText($path);
+        $rawPdf = file_get_contents($path);
+
+        if (is_string($rawPdf) && preg_match('/\/ByteRange\s*\[/i', $rawPdf) === 1) {
+            return [$text, 'pdf_digital_signature'];
+        }
+
+        return [$text, $this->signatureMarkerInText($this->signatureTextRegion($text))
+            ? 'electronic_signature_marker'
+            : null];
+    }
+
+    /** @return array{string, string|null} */
+    private function docxData(string $path): array
     {
         $archive = new ZipArchive;
 
@@ -109,13 +127,16 @@ class GADChecklistScoreExtractor
                 throw new RuntimeException('The completed GAD Checklist DOCX has no readable document body.');
             }
 
-            return $this->wordXmlText($documentXml);
+            $document = $this->wordDocument($documentXml);
+            $text = $this->wordDocumentText($document);
+
+            return [$text, $this->wordSignatureEvidence($document)];
         } finally {
             $archive->close();
         }
     }
 
-    private function wordXmlText(string $xml): string
+    private function wordDocument(string $xml): DOMDocument
     {
         $document = new DOMDocument;
         $previous = libxml_use_internal_errors(true);
@@ -127,6 +148,11 @@ class GADChecklistScoreExtractor
             throw new RuntimeException('The completed GAD Checklist DOCX contains invalid document data.');
         }
 
+        return $document;
+    }
+
+    private function wordDocumentText(DOMDocument $document): string
+    {
         $lines = [];
         $paragraphs = $document->getElementsByTagNameNS(
             'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
@@ -158,6 +184,62 @@ class GADChecklistScoreExtractor
         }
 
         return implode("\n", $lines);
+    }
+
+    private function wordSignatureEvidence(DOMDocument $document): ?string
+    {
+        $paragraphs = $document->getElementsByTagNameNS(
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+            'p',
+        );
+
+        foreach ($paragraphs as $index => $paragraph) {
+            if (! Str::contains(Str::lower($paragraph->textContent), 'checked and verified by')) {
+                continue;
+            }
+
+            $signatureText = '';
+
+            for ($offset = 1; $offset <= 4; $offset++) {
+                $candidate = $paragraphs->item($index + $offset);
+
+                if (! $candidate instanceof DOMNode) {
+                    break;
+                }
+
+                foreach ($candidate->getElementsByTagName('*') as $node) {
+                    if (in_array($node->localName, ['drawing', 'pict', 'object', 'shape', 'imagedata'], true)) {
+                        return 'embedded_signature_object';
+                    }
+                }
+
+                $signatureText .= ' '.$candidate->textContent;
+            }
+
+            if ($this->signatureMarkerInText($signatureText)) {
+                return 'electronic_signature_marker';
+            }
+
+            return null;
+        }
+
+        return $this->signatureMarkerInText($this->signatureTextRegion($this->wordDocumentText($document)))
+            ? 'electronic_signature_marker'
+            : null;
+    }
+
+    private function signatureTextRegion(string $text): string
+    {
+        $parts = preg_split('/checked\s+and\s+verified\s+by\s*:?/iu', $text, 2);
+
+        return is_array($parts) && count($parts) === 2
+            ? Str::substr($parts[1], 0, 600)
+            : '';
+    }
+
+    private function signatureMarkerInText(string $text): bool
+    {
+        return preg_match('/(?:\/s\/|\bsgd\.?\b|electronically\s+signed|digitally\s+signed|signed\s+by)/iu', $text) === 1;
     }
 
     private function finalGadScore(string $text): float

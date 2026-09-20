@@ -29,8 +29,8 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
         ->assertSee('id="rrl-finder"', false)
         ->assertSee('id="turnitin"', false)
         ->assertSee('data-turnitin-resource', false)
-        ->assertSee('Request a similarity check')
-        ->assertSee('Sign in to Turnitin')
+        ->assertSee('Open Turnitin')
+        ->assertDontSee('Request a similarity check')
         ->assertSee('Read your report')
         ->assertDontSee('id="journal-finder"', false);
 });

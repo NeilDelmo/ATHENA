@@ -82,7 +82,8 @@ beforeEach(function () {
     }
 });
 
-test('research head workspace presents the GAD gate before co-evaluator screening', function () {
+test('research head workspace presents the GAD gate before central evaluation', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
     $workspace = $this->actingAs($this->head)
@@ -93,8 +94,8 @@ test('research head workspace presents the GAD gate before co-evaluator screenin
         ->assertSee('Initial review workflow')
         ->assertSee('Drop completed GAD checklist here')
         ->assertSee('Upload &amp; read score', false)
-        ->assertSee('Upload the completed GAD assessment to unlock this step.')
-        ->assertDontSee('Upload screening form')
+        ->assertSee('Upload a passing, signed GAD assessment to unlock central evaluation.')
+        ->assertDontSee('Record evaluation')
         ->assertDontSee('Attach a reviewed copy for revision')
         ->assertDontSee('Upload reviewed copy')
         ->assertDontSee('Administrative and supplemental papers')
@@ -120,6 +121,7 @@ test('research head workspace presents the GAD gate before co-evaluator screenin
 });
 
 test('research head can upload a completed GAD checklist and extract its final score', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
         ->sole();
@@ -135,6 +137,10 @@ test('research head can upload a completed GAD checklist and extract its final s
 <w:p><w:r><w:t>TOTAL GAD SCORE FOR THE PROJECT IDENTIFICATION AND DESIGN STAGES</w:t></w:r></w:p>
 <w:p><w:r><w:t>12.32</w:t></w:r></w:p>
 <w:p><w:r><w:t>Interpretation of GAD Scores</w:t></w:r></w:p>
+<w:p><w:r><w:t>Checked and verified by:</w:t></w:r></w:p>
+<w:p><w:r><w:drawing /></w:r></w:p>
+<w:p><w:r><w:t>Ms. Ellaine G. Lid-Ayan</w:t></w:r></w:p>
+<w:p><w:r><w:t>Head Secretariat, GAD</w:t></w:r></w:p>
 </w:body></w:document>
 XML);
         $archive->close();
@@ -146,11 +152,12 @@ XML);
                 'source_file_id' => $gadChecklist->id,
                 'review_file' => UploadedFile::fake()->createWithContent('completed-gad-checklist.docx', $contents),
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                'gad_signature_confirmed' => '1',
             ]);
 
         $response
             ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
-            ->assertSessionHas('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of 12.32 (Gender-sensitive).');
+            ->assertSessionHas('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of 12.32 (Gender-sensitive) and recorded the verifier signature confirmation.');
 
         $assessment = $this->version->files()
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
@@ -161,7 +168,10 @@ XML);
             ->and($assessment->source_data['gad_score'])->toBe(12.32)
             ->and($assessment->source_data['gad_rating'])->toBe('Gender-sensitive')
             ->and($assessment->source_data['gad_interpretation'])->toBe('Proposed project is gender-sensitive (proposal passes the GAD test).')
-            ->and($assessment->source_data['gad_outcome'])->toBe('passed');
+            ->and($assessment->source_data['gad_outcome'])->toBe('passed')
+            ->and($assessment->source_data['gad_signature_detected'])->toBeTrue()
+            ->and($assessment->source_data['gad_signature_confirmed'])->toBeTrue()
+            ->and($assessment->source_data['gad_signature_detection_method'])->toBe('embedded_signature_object');
 
         $workspace = $this->actingAs($this->head)
             ->get(route('topics.head-uploads.index', $this->topic));
@@ -170,7 +180,8 @@ XML);
             ->assertSee('12.32')
             ->assertSee('Gender-sensitive')
             ->assertSee('Proposed project is gender-sensitive (proposal passes the GAD test).')
-            ->assertSee('Upload screening form')
+            ->assertSee('Signature evidence detected in the file and confirmed after preview.')
+            ->assertSee('Record evaluation')
             ->assertDontSee('data-co-evaluator-step-locked', false);
 
         expect(substr_count($workspace->getContent(), 'data-co-evaluator-screening-panel="true"'))->toBe(1);
@@ -181,7 +192,27 @@ XML);
     }
 });
 
-test('co-evaluator screening cannot be uploaded before the completed GAD assessment', function () {
+test('GAD assessment upload requires the Research Head to confirm the verifier signature', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $gadChecklist->id,
+            'review_file' => UploadedFile::fake()->create('completed-gad-checklist.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+        ])
+        ->assertSessionHasErrors(['gad_signature_confirmed'], null, 'headUpload');
+
+    expect($this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->count())->toBe(0);
+});
+
+test('central evaluation cannot be uploaded before a passing GAD assessment', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $initialScreening = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
         ->sole();
@@ -199,7 +230,81 @@ test('co-evaluator screening cannot be uploaded before the completed GAD assessm
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
+test('a non-passing GAD result returns the proposal to revision and keeps central evaluation locked', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+    $initialScreening = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
+        ->sole();
+
+    $this->version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 89,
+        'file_path' => 'head-uploads/previous-passing-gad.pdf',
+        'original_filename' => 'previous-passing-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('e', 64),
+        'uploaded_by' => $this->head->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 12.5,
+            'gad_rating' => 'Gender-sensitive',
+            'gad_outcome' => 'passed',
+            'gad_signature_confirmed' => true,
+        ],
+    ]);
+
+    $this->version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/conditional-gad.pdf',
+        'original_filename' => 'conditional-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('f', 64),
+        'uploaded_by' => $this->head->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 6.5,
+            'gad_rating' => 'Promising GAD prospects',
+            'gad_outcome' => 'conditional_pass',
+            'gad_signature_confirmed' => true,
+        ],
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.head-uploads.index', $this->topic))
+        ->assertOk()
+        ->assertSee('Return for revision')
+        ->assertSee('This result cannot proceed to central evaluation.')
+        ->assertSee('The GAD result requires a faculty revision before central evaluation.')
+        ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
+
+    $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $initialScreening->id,
+            'review_file' => UploadedFile::fake()->create('central-evaluation.pdf', 100, 'application/pdf'),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
+        ])
+        ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
+
+    expect($this->version->hasPassingGadAssessment())->toBeFalse()
+        ->and($this->version->files()
+            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
+            ->count())->toBe(0);
+});
+
 test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
         ->sole();
@@ -225,6 +330,7 @@ test('research head can upload a completed Initial Screening Form and extract it
             'gad_rating' => 'Gender-sensitive',
             'gad_interpretation' => 'Proposed project is gender-sensitive (proposal passes the GAD test).',
             'gad_outcome' => 'passed',
+            'gad_signature_confirmed' => true,
         ],
     ]);
     $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-screening-test-');
@@ -254,7 +360,7 @@ XML);
             ]);
 
         $response->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
-            ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was extracted for the co-evaluator response form.');
+            ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the central evaluator response.');
 
         $evaluation = $this->version->files()
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
@@ -267,7 +373,7 @@ XML);
 
         $this->get(route('topics.head-uploads.index', $this->topic))
             ->assertOk()
-            ->assertSee('Extracted Narrative Evaluation')
+            ->assertSee('Narrative Evaluation extracted')
             ->assertSee('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
     } finally {
         if (is_file($temporaryPath)) {

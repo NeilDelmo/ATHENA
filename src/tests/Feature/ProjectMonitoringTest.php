@@ -2,6 +2,7 @@
 
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectMonitoringDraft;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -39,7 +40,7 @@ beforeEach(function () {
     };
     app()->instance(DocumentPdfConverter::class, $this->pdfConverter);
 
-    foreach (['faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty_researcher', 'research_head', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -47,6 +48,12 @@ beforeEach(function () {
     $this->researcher->assignRole('faculty_researcher');
     $this->head = User::factory()->create();
     $this->head->assignRole('research_head');
+    $this->secretary = User::factory()->create([
+        'name' => 'Marina Budget Secretary',
+        'email' => 'marina.secretary@g.batstate-u.edu.ph',
+        'avatar' => 'https://example.com/marina-secretary.jpg',
+    ]);
+    $this->secretary->assignRole('research_secretary');
     $call = ResearchCall::create([
         'title' => 'Monitoring Test Call',
         'academic_year' => '2026-2027',
@@ -125,6 +132,130 @@ beforeEach(function () {
             ],
         ]);
     };
+});
+
+test('the Research Head assigns a project secretary through a searchable profile picker', function () {
+    $this->withoutVite();
+    $unqualifiedAccount = User::factory()->create();
+
+    $this->actingAs($this->head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('research_head.projects.index'))
+        ->assertOk()
+        ->assertSee('data-research-secretary-picker', false)
+        ->assertSee($this->secretary->name)
+        ->assertSee($this->secretary->email)
+        ->assertSee('marina-secretary.jpg');
+
+    $this->actingAs($this->head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.projects.research-secretary', $this->topic), [
+            'research_secretary_id' => $unqualifiedAccount->id,
+        ])
+        ->assertSessionHasErrors('research_secretary_id');
+
+    expect($this->topic->fresh()->research_secretary_id)->toBeNull();
+
+    $this->actingAs($this->head)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->patch(route('research_head.projects.research-secretary', $this->topic), [
+            'research_secretary_id' => $this->secretary->id,
+        ])
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
+
+    expect($this->topic->fresh()->research_secretary_id)->toBe($this->secretary->id);
+});
+
+test('only the assigned Research Secretary can complete a prepared report budget before submission', function () {
+    $this->topic->update(['research_secretary_id' => $this->secretary->id]);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::query()->sole();
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
+        ->assertSessionHasErrors('preparation');
+
+    expect($report->fresh()->isPrepared())->toBeTrue();
+
+    $this->actingAs($this->researcher)
+        ->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => $report->reporting_date->toDateString()]))
+        ->assertOk()
+        ->assertSee('Waiting for '.$this->secretary->name)
+        ->assertSee('disabled', false);
+
+    $otherSecretary = User::factory()->create();
+    $otherSecretary->assignRole('research_secretary');
+
+    $this->actingAs($otherSecretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.projects.budget.edit', [$this->topic, $report]))
+        ->assertNotFound();
+
+    $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.dashboard'))
+        ->assertOk()
+        ->assertSee($this->topic->title)
+        ->assertSee('Complete budget');
+
+    $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->get(route('research_secretary.projects.budget.edit', [$this->topic, $report]))
+        ->assertOk()
+        ->assertSee('Confirm budget utilization')
+        ->assertSee('budgetUtilizationForm', false);
+
+    $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->put(route('research_secretary.projects.budget.update', [$this->topic, $report]), [
+            'budget_utilization' => [
+                ['type' => 'Purchase Request', 'details' => 'Laboratory supplies', 'amount_requested' => 12000, 'actual_amount' => 10000, 'remarks' => 'Delivered'],
+                ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+                ['type' => 'Request of Payment', 'details' => 'Field transport', 'amount_requested' => 5000, 'actual_amount' => 4500, 'remarks' => 'Completed'],
+            ],
+        ])
+        ->assertRedirect(route('research_secretary.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    $report->refresh();
+    expect($report->budget_prepared_by)->toBe($this->secretary->id)
+        ->and($report->budget_prepared_at)->not->toBeNull()
+        ->and($report->budget_utilization[0]['actual_amount'])->toBe(10000);
+
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->post(route('project-progress.submit-prepared', [$this->topic, $report]))
+        ->assertSessionHasNoErrors();
+
+    expect($report->fresh()->isSubmitted())->toBeTrue();
+});
+
+test('Research Secretary budget confirmation keeps the approved project cap', function () {
+    $this->topic->update(['research_secretary_id' => $this->secretary->id]);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::query()->sole();
+
+    $this->actingAs($this->secretary)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
+        ->put(route('research_secretary.projects.budget.update', [$this->topic, $report]), [
+            'budget_utilization' => [
+                ['type' => 'Purchase Request', 'details' => 'Over budget', 'amount_requested' => 51000, 'actual_amount' => 51000, 'remarks' => ''],
+                ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+                ['type' => 'Request of Payment', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+            ],
+        ])
+        ->assertSessionHasErrors('budget_utilization');
+
+    expect($report->fresh()->budget_prepared_at)->toBeNull();
 });
 
 test('report schedule blocks early submissions and opens terminal after project end', function () {
@@ -663,6 +794,116 @@ test('project status accepts only supported execution states', function () {
         ->assertSessionHasErrors('project_status');
 
     expect($this->topic->fresh()->project_status)->toBe('ongoing');
+});
+
+test('a project cannot be marked completed below 100 percent progress', function () {
+    ProjectProgressReport::create([
+        'topic_id' => $this->topic->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(),
+        'progress_percentage' => 95,
+        'accomplishments' => 'Final validation remains in progress.',
+        'review_status' => 'reviewed',
+    ]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.projects.update-status', $this->topic), [
+            'project_status' => 'completed',
+        ])
+        ->assertSessionHasErrors([
+            'project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.',
+        ]);
+
+    expect($this->topic->fresh()->project_status)->toBe('ongoing');
+});
+
+test('a project requires the reviewed terminal reports signed PDF before completion', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => now()->subMonths(13)]);
+    ProjectProgressReport::create([
+        'topic_id' => $this->topic->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now()->subDay(),
+        'progress_percentage' => 100,
+        'accomplishments' => 'All approved activities were completed.',
+        'review_status' => 'reviewed',
+    ]);
+    $terminalReport = ProjectNarrativeReport::create([
+        'topic_id' => $this->topic->id,
+        'submitted_by' => $this->researcher->id,
+        'report_type' => 'terminal',
+        'submission_date' => now()->subDay(),
+        'researchers' => $this->researcher->name,
+        'implementation_start' => now()->subYear(),
+        'implementation_end' => now()->subDay(),
+        'budget' => 50000,
+        'funding_agency' => 'Batangas State University',
+        'accomplishment_summary' => 'All project objectives were achieved.',
+        'introduction' => 'Final introduction.',
+        'objectives' => 'Complete the approved research objectives.',
+        'methodology' => 'Approved methodology was completed.',
+        'results_discussion' => 'Final results were validated.',
+        'photos' => [],
+        'terminal_data' => [],
+        'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+        'submitted_at' => now()->subDay(),
+        'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
+        'reviewed_by' => $this->head->id,
+        'reviewed_at' => now(),
+    ]);
+
+    $this->actingAs($this->head)
+        ->patch(route('research_head.projects.update-status', $this->topic), [
+            'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED,
+        ])
+        ->assertSessionHasErrors([
+            'project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.',
+        ]);
+
+    expect($this->topic->fresh()->project_status)->toBe(TopicProposal::PROJECT_STATUS_ONGOING)
+        ->and($terminalReport->fresh()->hasSignedCopy())->toBeFalse();
+
+    $this->actingAs($this->head)
+        ->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport), [
+            'signed_report' => UploadedFile::fake()->create('signed-terminal-report.pdf', 120, 'application/pdf'),
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Signed Terminal Report recorded. The project may now be completed when every other completion requirement is satisfied.');
+
+    $signedCopy = $terminalReport->fresh()->signedCopy();
+    expect($signedCopy)->not->toBeNull()
+        ->and($signedCopy['original_filename'])->toBe('signed-terminal-report.pdf');
+    Storage::disk('local')->assertExists($signedCopy['path']);
+
+    $this->get(route('project-narrative-reports.signed-copy.download', $terminalReport))
+        ->assertOk()
+        ->assertDownload('signed-terminal-report.pdf');
+
+    $this->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Signed copy recorded')
+        ->assertSee('Download signed Terminal Report');
+
+    $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
+        'review_status' => ProjectNarrativeReport::STATUS_REVISION_REQUESTED,
+        'research_head_remarks' => 'Correct the final results before collecting signatures again.',
+    ])->assertSessionHasNoErrors();
+
+    expect($terminalReport->fresh()->hasSignedCopy())->toBeFalse();
+    Storage::disk('local')->assertMissing($signedCopy['path']);
+
+    $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
+        'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
+    ])->assertSessionHasNoErrors();
+    $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport), [
+        'signed_report' => UploadedFile::fake()->create('corrected-signed-terminal-report.pdf', 120, 'application/pdf'),
+    ])->assertSessionHasNoErrors();
+
+    $this->patch(route('research_head.projects.update-status', $this->topic), [
+        'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED,
+    ])->assertSessionHasNoErrors();
+
+    expect($this->topic->fresh()->project_status)->toBe(TopicProposal::PROJECT_STATUS_COMPLETED);
 });
 
 test('the owner and Research Head can download a progress attachment', function () {

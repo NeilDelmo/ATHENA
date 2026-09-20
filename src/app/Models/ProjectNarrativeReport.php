@@ -115,6 +115,21 @@ class ProjectNarrativeReport extends Model
         return $this->submission_status === self::SUBMISSION_STATUS_SUBMITTED;
     }
 
+    /** @return array{path: string, original_filename: string, mime_type: string, size: int, checksum: string, uploaded_by: int, uploaded_at: string}|null */
+    public function signedCopy(): ?array
+    {
+        $signedCopy = $this->terminal_data['signed_copy'] ?? null;
+
+        return is_array($signedCopy) && filled($signedCopy['path'] ?? null)
+            ? $signedCopy
+            : null;
+    }
+
+    public function hasSignedCopy(): bool
+    {
+        return $this->report_type === 'terminal' && $this->signedCopy() !== null;
+    }
+
     public function getReviewStatusLabelAttribute(): string
     {
         return match ($this->review_status) {

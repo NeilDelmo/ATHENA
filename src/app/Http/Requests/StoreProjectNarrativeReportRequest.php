@@ -84,7 +84,11 @@ class StoreProjectNarrativeReportRequest extends FormRequest
         }
 
         if ($this->input('report_type') === 'terminal') {
-            $rules = array_merge($rules, TerminalReportRules::rules(false));
+            $topic = $this->route('topic');
+            $approvedBudget = $topic instanceof TopicProposal
+                ? (float) ($topic->latestVersion?->estimated_budget ?? $topic->estimated_budget ?? 0)
+                : null;
+            $rules = array_merge($rules, TerminalReportRules::rules(false, $approvedBudget));
             foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
                 $rules[$field] = ['required', 'string', 'max:100000'];
             }
@@ -113,6 +117,14 @@ class StoreProjectNarrativeReportRequest extends FormRequest
         }
 
         return $rules;
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'terminal_data.total_expenditure.max' => 'The final total expenditure may not exceed the approved project budget.',
+        ];
     }
 
     public function after(): array

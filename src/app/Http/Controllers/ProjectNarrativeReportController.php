@@ -7,6 +7,7 @@ use App\Actions\SaveProjectNarrativeReportDraft;
 use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\SaveProjectNarrativeReportDraftRequest;
 use App\Http\Requests\StoreProjectNarrativeReportRequest;
+use App\Http\Requests\StoreSignedTerminalReportRequest;
 use App\Http\Requests\SubmitPreparedProjectNarrativeReportRequest;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectNarrativeReportDraft;
@@ -21,6 +22,7 @@ use App\Support\TerminalReportData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -315,11 +317,27 @@ class ProjectNarrativeReportController extends Controller
             'research_head_remarks' => ['nullable', 'required_if:review_status,'.ProjectNarrativeReport::STATUS_REVISION_REQUESTED, 'string', 'max:5000'],
         ]);
 
-        $report->update([
+        $reviewAttributes = [
             ...$validated,
             'reviewed_by' => $request->user()->id,
             'reviewed_at' => now(),
-        ]);
+        ];
+        $signedCopyPath = null;
+
+        if ($validated['review_status'] === ProjectNarrativeReport::STATUS_REVISION_REQUESTED
+            && $report->report_type === 'terminal'
+            && $report->hasSignedCopy()) {
+            $terminalData = $report->terminal_data ?? [];
+            $signedCopyPath = $report->signedCopy()['path'];
+            unset($terminalData['signed_copy']);
+            $reviewAttributes['terminal_data'] = $terminalData;
+        }
+
+        $report->update($reviewAttributes);
+
+        if (filled($signedCopyPath)) {
+            Storage::disk('local')->delete($signedCopyPath);
+        }
 
         $sidebarAttention->markTopicAsRead(
             $request->user(),
@@ -379,6 +397,68 @@ class ProjectNarrativeReportController extends Controller
         abort_unless(is_array($photo) && Storage::disk('local')->exists($photo['path'] ?? ''), 404);
 
         return Storage::disk('local')->download($photo['path'], $photo['original_name']);
+    }
+
+    public function storeSignedCopy(
+        StoreSignedTerminalReportRequest $request,
+        ProjectNarrativeReport $report,
+    ): RedirectResponse {
+        $file = $request->file('signed_report');
+        $directory = 'narrative-progress-reports/'.$report->topic_id.'/signed';
+        $path = $file->storeAs($directory, Str::uuid().'.pdf', 'local');
+        $previousPath = null;
+
+        try {
+            DB::transaction(function () use ($request, $report, $file, $path, &$previousPath): void {
+                $lockedReport = ProjectNarrativeReport::query()
+                    ->whereKey($report->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                abort_unless($lockedReport->report_type === 'terminal'
+                    && $lockedReport->isSubmitted()
+                    && $lockedReport->review_status === ProjectNarrativeReport::STATUS_REVIEWED, 422);
+
+                $previousPath = $lockedReport->signedCopy()['path'] ?? null;
+                $lockedReport->update([
+                    'terminal_data' => [
+                        ...($lockedReport->terminal_data ?? []),
+                        'signed_copy' => [
+                            'path' => $path,
+                            'original_filename' => $file->getClientOriginalName(),
+                            'mime_type' => 'application/pdf',
+                            'size' => $file->getSize(),
+                            'checksum' => hash_file('sha256', $file->getRealPath()),
+                            'uploaded_by' => $request->user()->id,
+                            'uploaded_at' => now()->toIso8601String(),
+                        ],
+                    ],
+                ]);
+            });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+
+            throw $exception;
+        }
+
+        if (filled($previousPath) && $previousPath !== $path) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        return back()->with('success', 'Signed Terminal Report recorded. The project may now be completed when every other completion requirement is satisfied.');
+    }
+
+    public function downloadSignedCopy(Request $request, ProjectNarrativeReport $report): StreamedResponse
+    {
+        $this->authorizeViewer($request, $report);
+        $signedCopy = $report->signedCopy();
+        abort_unless($signedCopy !== null && Storage::disk('local')->exists($signedCopy['path']), 404);
+
+        return Storage::disk('local')->download(
+            $signedCopy['path'],
+            $signedCopy['original_filename'],
+            ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
+        );
     }
 
     private function authorizeViewer(Request $request, ProjectNarrativeReport $report): void

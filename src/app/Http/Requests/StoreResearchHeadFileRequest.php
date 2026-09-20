@@ -61,6 +61,9 @@ class StoreResearchHeadFileRequest extends FormRequest
                 ]),
             ],
             'co_evaluator_name' => [Rule::requiredIf($isEvaluation), 'nullable', 'string', 'max:160'],
+            'gad_signature_confirmed' => $isGadAssessment
+                ? ['required', 'accepted']
+                : ['prohibited'],
             'document_title' => [Rule::requiredIf($isSupplemental), 'nullable', 'string', 'max:255'],
             'issuing_office' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
@@ -81,9 +84,11 @@ class StoreResearchHeadFileRequest extends FormRequest
                 default => 'The upload must be a PDF, Word, or Excel document.',
             },
             'review_file.max' => 'The upload may not be larger than 25 MB.',
-            'purpose.in' => 'Choose whether this is a completed GAD assessment, co-evaluator evaluation, signed copy, or supplemental paper.',
+            'purpose.in' => 'Choose whether this is a completed GAD assessment, central evaluator review, signed copy, or supplemental paper.',
             'document_title.required' => 'Enter a title for the supplemental paper.',
-            'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
+            'co_evaluator_name.required' => 'Enter the central evaluator’s name for the completed Initial Screening Form.',
+            'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
+            'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
         ];
     }
 }

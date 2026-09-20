@@ -143,7 +143,7 @@ class ProposalVersionFile extends Model
             self::HEAD_UPLOAD_PURPOSE_REVISION => 'For revision',
             self::HEAD_UPLOAD_PURPOSE_SIGNED => $this->superseded_at ? 'Superseded signed copy' : 'Signed official copy',
             self::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL => 'Supplemental paper',
-            self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Co-evaluator evaluation',
+            self::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Central evaluator review',
             self::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'GAD assessment',
             default => 'Research Head copy',
         };

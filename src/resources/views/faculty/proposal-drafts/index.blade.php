@@ -195,6 +195,7 @@
                 @forelse ($submittedProposals as $proposal)
                     @php
                         [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
+                            'gad_review' => ['GAD and central evaluation', 'The Research Head cleared this version. It must pass GAD review before central evaluation.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
                             'expert_review' => ['Under expert review', 'Your package is being evaluated by the assigned expert.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
                             'for_final_decision' => ['Awaiting decision', 'The review stage is complete and the Research Head is deciding.', 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200'],
                             'revision_requested' => ['Revision required', 'The Research Head returned this proposal with feedback. Review the requested changes and resubmit your updated package.', 'bg-red-700 text-white dark:bg-red-600 dark:text-white'],
@@ -247,7 +248,7 @@
 
                         <div class="mt-auto pt-6">
                             <a
-                                href="{{ route('topics.show', $proposal) }}{{ $proposal->status === 'revision_requested' ? '#submit-revision' : '' }}"
+                                href="{{ $proposal->status === 'revision_requested' ? route('faculty.topics.revision', $proposal) : route('topics.show', $proposal) }}"
                                 @class([
                                     'inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-xs font-bold text-white transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900',
                                     'bg-red-700 hover:bg-red-800 focus:ring-red-700' => $proposal->status === 'revision_requested',

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Storage;
 class ProposalFileAnnotationController extends Controller
 {
     /** @var list<string> */
-    private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision', 'lrec_review'];
+    private const ANNOTATABLE_STATUSES = ['pending', 'expert_review', 'resubmitted', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'];
 
     public function __construct(private readonly ProposalRevisionTargetCatalog $revisionTargets, private readonly ProposalRevisionSectionMap $sectionMap) {}
 
@@ -78,7 +78,7 @@ class ProposalFileAnnotationController extends Controller
             'editorTargets' => $this->revisionTargets->forFile($file),
             'sections' => $this->sectionMap->forFile($file),
             'revisionUrl' => ! $request->boolean('revision_embed') && ! $isResearchHead && $topic->user_id === $request->user()->id && $topic->status === 'revision_requested'
-                ? route('topics.show', $topic).'#submit-revision'
+                ? route('faculty.topics.revision', $topic)
                 : null,
             'annotations' => $annotations->map(fn (ProposalFileAnnotation $annotation): array => $this->annotationPayload($annotation, $file))->values(),
             'revisionCandidates' => $revisionCandidates->map(fn (array $candidate): array => [

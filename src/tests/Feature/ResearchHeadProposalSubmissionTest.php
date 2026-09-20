@@ -116,8 +116,8 @@ test('research heads can view every initial proposal submission and revision', f
             'Faculty Directory',
             'Signatory Directory',
             'Research Calls',
-            'Similarity Checks',
         ])
+        ->assertDontSee('Similarity Checks')
         ->assertDontSee('aria-label="Proposal Templates"', false)
         ->assertDontSee('aria-label="Athena Knowledge"', false);
 
@@ -280,7 +280,42 @@ function createProposalSubmission(TopicProposal $topic, User $submitter, array $
     ], $overrides));
 }
 
-test('LREC requires a submitted faculty revision and is hidden on first review', function () {
+test('GAD uploads are blocked until the Research Head clears the proposal', function () {
+    Storage::fake('local');
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Research Head Clearance Gate',
+        'status' => 'resubmitted',
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty, [
+        'version_number' => 2,
+        'submission_type' => 'revision',
+    ]);
+    $gadChecklist = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        'position' => 1,
+        'file_path' => 'packages/gad-checklist.pdf',
+        'original_filename' => 'gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'is_carried_forward' => false,
+    ]);
+
+    $this->actingAs($this->researchHead)
+        ->post(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $gadChecklist->id,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'review_file' => UploadedFile::fake()->create('completed-gad.pdf', 100, 'application/pdf'),
+            'gad_signature_confirmed' => '1',
+        ])
+        ->assertSessionHasErrors('review_file', null, 'headUpload');
+
+    expect($version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
+});
+
+test('Research Head clearance opens GAD review before central evaluation and LREC', function () {
     Notification::fake();
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
@@ -292,6 +327,15 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
 
     $this->actingAs($this->researchHead)->get(route('topics.show', $topic))
         ->assertOk()
+        ->assertSeeInOrder([
+            'Research Office screening',
+            'Faculty revision',
+            'GAD Office review',
+            'Central evaluation',
+            'LREC review',
+            'Signing and release',
+        ])
+        ->assertSee('value="gad_review"', false)
         ->assertSee('value="revision_requested"', false)
         ->assertSee('value="rejected"', false)
         ->assertDontSee('value="lrec_queued"', false);
@@ -312,14 +356,33 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
         'submission_type' => 'revision',
     ]);
     $topic->update(['status' => 'resubmitted']);
-    $this->get(route('topics.show', $topic))->assertOk()->assertSee('value="lrec_queued"', false);
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('value="gad_review"', false)
+        ->assertDontSee('value="lrec_queued"', false);
+
+    $this->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => TopicProposal::STATUS_GAD_REVIEW,
+    ])->assertSessionHasErrors('research_head_clearance_confirmed');
+
+    $this->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => TopicProposal::STATUS_GAD_REVIEW,
+        'research_head_clearance_confirmed' => '1',
+    ])->assertSessionHasNoErrors()->assertRedirect();
+
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW)
+        ->and($topic->fresh()->review_stage)->toBe('gad');
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('value="lrec_queued"', false)
+        ->assertDontSee('value="gad_review"', false);
 
     $this->patch(route('research_head.topics.updateStatus', $topic), [
         'status' => TopicProposal::STATUS_LREC_QUEUED,
         'initial_clearance_confirmed' => '1',
     ])->assertSessionHasErrors('status');
 
-    expect($topic->fresh()->status)->toBe('resubmitted');
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW);
 
     $gadChecklist = $revisionVersion->files()->create([
         'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
@@ -341,7 +404,7 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
         'checksum' => str_repeat('c', 64),
         'is_carried_forward' => false,
     ]);
-    $revisionVersion->files()->create([
+    $gadAssessment = $revisionVersion->files()->create([
         'source_version_file_id' => $gadChecklist->id,
         'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
         'position' => 90,
@@ -354,7 +417,9 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
         'source_data' => [
             'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
-            'gad_score' => 12.32,
+            'gad_score' => 6.5,
+            'gad_outcome' => 'conditional_pass',
+            'gad_signature_confirmed' => true,
         ],
     ]);
     $revisionVersion->files()->create([
@@ -373,6 +438,18 @@ test('LREC requires a submitted faculty revision and is hidden on first review',
             'narrative_evaluation' => 'The proposal is ready for LREC presentation.',
         ],
     ]);
+
+    $this->patch(route('research_head.topics.updateStatus', $topic), [
+        'status' => TopicProposal::STATUS_LREC_QUEUED,
+        'initial_clearance_confirmed' => '1',
+    ])->assertSessionHasErrors('status');
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW);
+
+    $gadAssessment->update(['source_data' => [
+        ...$gadAssessment->source_data,
+        'gad_score' => 12.32,
+        'gad_outcome' => 'passed',
+    ]]);
 
     $this->patch(route('research_head.topics.updateStatus', $topic), [
         'status' => TopicProposal::STATUS_LREC_QUEUED,

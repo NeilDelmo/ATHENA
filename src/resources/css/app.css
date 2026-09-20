@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+.proposal-docket {
+    background-image:
+        linear-gradient(rgb(15 23 42 / 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(15 23 42 / 0.035) 1px, transparent 1px);
+    background-size: 24px 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .proposal-docket {
+        background-image:
+            linear-gradient(rgb(248 250 252 / 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgb(248 250 252 / 0.035) 1px, transparent 1px);
+    }
+}
+
 @keyframes shrink {
     from { transform: scaleX(1); }
     to { transform: scaleX(0); }

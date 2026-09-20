@@ -13,6 +13,7 @@ class ResearchDashboardAnalytics
     public const STAGES = [
         'pending' => 'Initial review', 'resubmitted' => 'Resubmission review',
         'expert_review' => 'Expert review', 'for_final_decision' => 'Final decision',
+        'gad_review' => 'GAD and central evaluation',
         'lrec_queued' => 'Awaiting LREC', 'lrec_review' => 'LREC review',
         'revision_requested' => 'Faculty revision', 'ready_for_signature' => 'Signing',
     ];

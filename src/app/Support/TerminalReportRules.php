@@ -17,7 +17,7 @@ class TerminalReportRules
         'approved_by' => ['Approved by', 'Vice President for Research, Development and Extension Services'],
     ];
 
-    public static function rules(bool $draft = false): array
+    public static function rules(bool $draft = false, ?float $approvedBudget = null): array
     {
         $required = $draft ? 'nullable' : 'required';
         $rules = [
@@ -44,6 +44,9 @@ class TerminalReportRules
             'terminal_data.tables.*.rows.*' => ['array', 'min:1', 'max:8'],
             'terminal_data.tables.*.rows.*.*' => ['nullable', 'string', 'max:5000'],
         ];
+        if ($approvedBudget !== null) {
+            $rules['terminal_data.total_expenditure'][] = 'max:'.$approvedBudget;
+        }
         foreach (self::NARRATIVES as $field) {
             $rules['terminal_data.'.$field] = [$required, 'string', 'max:100000'];
         }

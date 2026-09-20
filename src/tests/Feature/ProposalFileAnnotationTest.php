@@ -368,7 +368,7 @@ test('a non PDF revision requires exact file specific instructions', function ()
         ->and($fileRevision->proposal_version_file_id)->toBe($spreadsheet->id)
         ->and($fileRevision->revision_note)->toContain('cells D12 through D18')
         ->and($this->faculty->notifications()->sole()->data['url'])
-        ->toBe(route('topics.show', $this->topic).'#submit-revision');
+        ->toBe(route('faculty.topics.revision', $this->topic));
 });
 
 test('sending a revision request publishes highlights for the faculty', function () {
@@ -407,12 +407,12 @@ test('sending a revision request publishes highlights for the faculty', function
         ->assertSee('Restore mangrove plots', false)
         ->assertSee('annotation.editorTargetLabel', false)
         ->assertSee('Revise Attachment A: Work Plan')
-        ->assertSee(route('topics.show', $this->topic).'#submit-revision', false);
+        ->assertSee(route('faculty.topics.revision', $this->topic), false);
 
     $this->actingAs($this->faculty)
-        ->get(route('topics.show', $this->topic))
+        ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('Revisions requested')
+        ->assertSee('Prepare the corrected proposal package')
         ->assertDontSee('Focus this field')
         ->assertSee('data-revision-pdf-frame', false)
         ->assertSee('data-annotation-id="'.$annotation->id.'"', false);
@@ -495,16 +495,15 @@ test('the revision notification deep-links the faculty to the first highlighted 
         ])
         ->assertRedirect(route('topics.show', $this->topic));
 
-    $expectedUrl = route('topics.show', ['topic' => $this->topic, 'revision_annotation' => $firstAnnotation->id])
-        .'#submit-revision';
+    $expectedUrl = route('faculty.topics.revision', ['topic' => $this->topic, 'revision_annotation' => $firstAnnotation->id]);
 
     expect($this->faculty->notifications()->sole()->data['url'])->toBe($expectedUrl);
 
     $this->actingAs($this->faculty)
-        ->get(route('topics.show', $this->topic))
+        ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
         ->assertSee('data-annotation-id="'.$firstAnnotation->id.'"', false)
-        ->assertSee('Revisions requested')
+        ->assertSee('Prepare the corrected proposal package')
         ->assertSee('data-revision-pdf-frame', false)
         ->assertDontSee('Focus editor');
 });
@@ -544,7 +543,7 @@ test('a downloaded generated paper is staged in its matching revision attachment
         ])
         ->assertOk()
         ->assertJsonPath('filename', 'coastal-work-plan.docx')
-        ->assertJsonPath('redirect_url', route('topics.show', $this->topic).'#review-and-submit');
+        ->assertJsonPath('redirect_url', route('faculty.topics.revision', $this->topic).'#review-and-submit');
 
     $stagedFile = $draft->fresh()->documents()
         ->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)
@@ -555,7 +554,7 @@ test('a downloaded generated paper is staged in its matching revision attachment
     Storage::disk('local')->assertExists($stagedFile->file_path);
 
     $response = $this->actingAs($this->faculty)
-        ->get(route('topics.show', $this->topic))
+        ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
         ->assertSee('Replacement ready')
         ->assertSee('coastal-work-plan.docx');
@@ -603,23 +602,26 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         'comment' => 'Start planting in June.',
     ]);
 
-    $response = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
+    $topicResponse = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Revisions requested')
-        ->assertSee('Update 1 file and submit it for another review.')
+        ->assertSee('data-faculty-revision-summary', false)
+        ->assertSee('Open revision workspace')
+        ->assertSee(route('faculty.topics.revision', $this->topic), false)
+        ->assertDontSee('id="submit-revision"', false);
+
+    $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
+        ->assertOk()
+        ->assertSee('Research proposal')
+        ->assertSee('1 of 4 steps')
+        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('2. Requested papers')
+        ->assertSee('Open for review')
         ->assertSee('data-revision-dialog', false)
         ->assertDontSee('Faculty action required')
         ->assertDontSee('What happens next')
         ->assertDontSee('Requested revision tasks')
         ->assertDontSee('Paper-level feedback')
-        ->assertSee('Revision in progress')
-        ->assertSee('Working draft')
-        ->assertSee('including added images')
-        ->assertSee('Latest submitted')
-        ->assertSee('The current revision is still a working draft.')
-        ->assertSee('Submitted version comparison')
-        ->assertSee('It does not inspect document content')
-        ->assertSeeInOrder(['Revisions requested', 'Start planting in June.', 'Summary of changes', 'Decision history'])
+        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Requested papers', 'Summary of changes'])
         ->assertDontSee('Replace another file');
 
     $dom = new DOMDocument;
@@ -638,7 +640,6 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
         ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="false"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
-        ->and($xpath->query('//section[@data-decision-history][@data-initially-open="false"]//button[@aria-controls="decision-history-list"]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
 
     $this->actingAs($this->head)->get(route('topics.show', $this->topic))
@@ -691,7 +692,7 @@ test('multiple requested curriculum vitae share one replacement input', function
             'revision_note' => 'Update researcher '.$position.' qualifications.',
         ]);
     }
-    $response = $this->actingAs($this->faculty)->get(route('topics.show', $this->topic))
+    $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()->assertSee('Update researcher 0 qualifications.')->assertSee('Update researcher 1 qualifications.');
 
     $dom = new DOMDocument;
@@ -705,7 +706,7 @@ test('multiple requested curriculum vitae share one replacement input', function
 test('revision validation opens invalid metadata and rejects unrequested files', function () {
     $this->topic->update(['status' => 'revision_requested']);
     $this->actingAs($this->faculty)
-        ->from(route('topics.show', $this->topic))
+        ->from(route('faculty.topics.revision', $this->topic))
         ->patch(route('faculty.topics.resubmit', $this->topic), [
             'title' => $this->topic->title,
             'estimated_budget' => -1,
@@ -714,7 +715,7 @@ test('revision validation opens invalid metadata and rejects unrequested files',
         ])->assertSessionHasErrorsIn('resubmission', ['estimated_budget', 'curricula_vitae.0']);
 
     $response = $this->withCookie(config('session.cookie'), session()->getId())
-        ->get(route('topics.show', $this->topic))->assertOk();
+        ->get(route('faculty.topics.revision', $this->topic))->assertOk();
     $dom = new DOMDocument;
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);

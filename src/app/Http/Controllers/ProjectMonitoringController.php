@@ -109,12 +109,13 @@ class ProjectMonitoringController extends Controller
         $status = $request->string('status')->toString();
         $attention = $request->string('attention')->toString();
         $search = trim($request->string('search')->toString());
-        $allowedStatuses = ['ongoing', 'delayed', 'completed'];
+        $allowedStatuses = ['ongoing', 'delayed', 'completion_pending', 'completed'];
         $allowedAttention = ['needs_attention', 'pending_reports'];
 
         $summary = [
-            'ongoing' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_ONGOING)->count(),
-            'delayed' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_DELAYED)->count(),
+            'ongoing' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_ONGOING)->withoutCompletionPending()->count(),
+            'delayed' => TopicProposal::withIssuedNotice()->where('project_status', TopicProposal::PROJECT_STATUS_DELAYED)->withoutCompletionPending()->count(),
+            'completion_pending' => TopicProposal::withIssuedNotice()->completionPending()->count(),
             'completed' => TopicProposal::completedProject()->count(),
             'pending_reports' => ProjectProgressReport::submitted()->where('review_status', 'pending')
                 ->whereHas('topic', fn ($query) => $query->withIssuedNotice())
@@ -125,7 +126,7 @@ class ProjectMonitoringController extends Controller
         ];
 
         $projects = TopicProposal::withIssuedNotice()
-            ->with(['user', 'researchCall', 'category', 'latestProgressReport', 'latestNarrativeReport'])
+            ->with(['user', 'researchSecretary', 'researchCall', 'category', 'latestProgressReport', 'latestNarrativeReport'])
             ->withCount([
                 'progressReports',
                 'progressReports as pending_reports_count' => fn ($query) => $query->where('review_status', 'pending'),
@@ -133,9 +134,17 @@ class ProjectMonitoringController extends Controller
                 'narrativeReports as pending_narrative_reports_count' => fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING),
             ])
             ->when(in_array($status, $allowedStatuses, true), function ($query) use ($status) {
-                $status === 'ongoing'
-                    ? $query->where('project_status', 'ongoing')
-                    : $query->where('project_status', $status);
+                if ($status === TopicProposal::PROJECT_STATUS_COMPLETION_PENDING) {
+                    $query->completionPending();
+
+                    return;
+                }
+
+                $query->where('project_status', $status);
+
+                if (in_array($status, [TopicProposal::PROJECT_STATUS_ONGOING, TopicProposal::PROJECT_STATUS_DELAYED], true)) {
+                    $query->withoutCompletionPending();
+                }
             })
             ->when(in_array($attention, $allowedAttention, true), function ($query) use ($attention) {
                 if ($attention === 'pending_reports') {
@@ -146,6 +155,7 @@ class ProjectMonitoringController extends Controller
                 } else {
                     $query->where(function ($query) {
                         $query->where('project_status', 'delayed')
+                            ->orWhere(fn ($query) => $query->completionPending())
                             ->orWhereHas('progressReports', fn ($query) => $query->where('review_status', 'pending'))
                             ->orWhereHas('narrativeReports', fn ($query) => $query->where('review_status', ProjectNarrativeReport::STATUS_PENDING));
                     });
@@ -165,7 +175,20 @@ class ProjectMonitoringController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
+        $secretaryCandidates = User::query()
+            ->assignedToRole(User::WORKSPACE_RESEARCH_SECRETARY)
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'avatar', 'college'])
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $user->avatar,
+                'college' => $user->college,
+            ])
+            ->values();
+
+        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search', 'secretaryCandidates'));
     }
 
     private function ensureResearcherCanPrepareReport(Request $request, TopicProposal $topic): void
@@ -457,8 +480,28 @@ class ProjectMonitoringController extends Controller
             ])],
         ]);
 
-        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic) || ! $topic->narrativeReports()->submitted()->where('report_type', 'terminal')->where('review_status', 'reviewed')->exists())) {
+        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+            && ($topic->latestProgressReport()->value('progress_percentage') ?? 0) < 100) {
+            return back()->withErrors(['project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.']);
+        }
+
+        $terminalReport = $topic->narrativeReports()
+            ->where('report_type', 'terminal')
+            ->reorder()
+            ->latest('id')
+            ->first();
+
+        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+            && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
+                || ! $terminalReport instanceof ProjectNarrativeReport
+                || $terminalReport->review_status !== ProjectNarrativeReport::STATUS_REVIEWED)) {
             return back()->withErrors(['project_status' => 'Complete the project after its end date and after the terminal report has been submitted and reviewed.']);
+        }
+
+        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+            && (! $terminalReport->hasSignedCopy()
+                || ! Storage::disk('local')->exists($terminalReport->signedCopy()['path']))) {
+            return back()->withErrors(['project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.']);
         }
 
         $topic->update($validated);
@@ -517,8 +560,10 @@ class ProjectMonitoringController extends Controller
     {
         if ($report->isPrepared()) {
             abort_unless(
-                $request->user()->id === $report->submitted_by
-                    && $report->topic->isAccessibleTo($request->user()),
+                ($request->user()->id === $report->submitted_by
+                    && $report->topic->isAccessibleTo($request->user()))
+                    || ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
+                        && $report->topic->research_secretary_id === $request->user()->id),
                 403,
             );
 

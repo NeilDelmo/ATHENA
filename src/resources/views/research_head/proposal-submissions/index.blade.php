@@ -3,7 +3,6 @@
         <div>
             <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Proposal Submissions</h2>
             <a href="{{ route('signatories.index') }}" class="mt-2 mr-4 inline-flex text-sm font-semibold text-red-700 dark:text-red-300">Manage signatory names</a>
-            <a href="{{ route('similarity-checks.index') }}" class="mt-2 inline-flex text-sm font-semibold text-red-700 dark:text-red-300">Similarity-check requests</a>
             <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Receive active proposal packages, review their current status, and retain every submitted version.</p>
         </div>
     </x-slot>
@@ -45,6 +44,7 @@
                 @forelse ($activeProposals as $proposal)
                     @php
                         [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
+                            'gad_review' => ['GAD and central evaluation', 'Research Head clearance is recorded. Complete GAD review before central evaluation.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
                             'lrec_queued' => ['Awaiting LREC presentation', 'Initial review is cleared. Record the outcome after the presentation.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
                             'lrec_review' => ['LREC review', 'Record committee feedback or clear the proposal for signing.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
                             'expert_review' => ['Under expert review', 'The assigned expert is evaluating this package.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
@@ -158,6 +158,7 @@
                     'pending' => 'Pending',
                     'expert_review' => 'Awaiting Research Head',
                     'for_final_decision' => 'Awaiting Research Head',
+                    'gad_review' => 'GAD and central evaluation',
                     'lrec_queued' => 'Awaiting LREC presentation',
                     'lrec_review' => 'LREC review',
                     'revision_requested' => 'Revision requested',
@@ -207,6 +208,7 @@
                                     'ready_for_signature' => 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
                                     'rejected' => 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
                                     'revision_requested' => 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+                                    'gad_review' => 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
                                     'expert_review', 'resubmitted' => 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300',
                                     'for_final_decision' => 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
                                     default => 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',

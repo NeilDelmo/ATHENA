@@ -19,7 +19,7 @@
         $backRoute = Auth::user()->isUsingWorkspace('research_head')
             ? route('research_head.dashboard')
             : (Auth::user()->isUsingWorkspace('faculty_researcher') ? route('research.index') : route('faculty.dashboard'));
-        $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', 'lrec_review'], true);
+        $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', \App\Models\TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
         $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
@@ -91,8 +91,7 @@
                 </div>
             </div>
         </div>
-            <x-proposal-workflow :topic="$topic" />
-            <a href="{{ route('similarity-checks.index', ['topic' => $topic]) }}" class="inline-flex text-sm font-semibold text-red-700 dark:text-red-300">{{ $isResearchHead ? 'Manage similarity checks' : 'Request or view similarity check' }}</a>
+            <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
     </x-slot>
 
     <div
@@ -357,13 +356,35 @@
                 </section>
             @endif
             @if ($isFacultyRevision)
-                <x-proposal-revision-form
-                    :comment-response-rows="$commentResponseRows"
-                    :topic="$topic"
-                    :pending-file-revisions="$pendingFileRevisions"
-                    :staged-revision-files="$stagedRevisionFiles"
-                    :display-project-cost="$displayProjectCost"
-                />
+                <section data-faculty-revision-summary class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-950 dark:bg-slate-950">
+                    <div class="grid lg:grid-cols-[minmax(0,1fr)_18rem]">
+                        <div class="border-b border-red-100 p-6 dark:border-red-950 lg:border-b-0 lg:border-r lg:p-8">
+                            <div class="flex items-start gap-4">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-700 text-white" aria-hidden="true">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m8.25-.75a8.25 8.25 0 1 1-16.5 0 8.25 8.25 0 0 1 16.5 0ZM12 16.5h.008v.008H12V16.5Z" /></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-red-700 dark:text-red-300">Your action is required</p>
+                                    <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Revise and resubmit this proposal</h3>
+                                    <p class="mt-3 max-w-3xl text-base leading-7 text-gray-600 dark:text-slate-300">The correction tools now have their own workspace, so the feedback, document editor, responses, and final submission stay together without crowding this project record.</p>
+                                    @if ($latestRevisionReview?->comment)
+                                        <blockquote class="mt-5 border-l-4 border-red-200 pl-4 text-sm leading-6 text-gray-800 dark:border-red-900 dark:text-slate-100">{{ $latestRevisionReview->comment }}</blockquote>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col justify-between gap-6 bg-red-50/60 p-6 dark:bg-red-950/20 lg:p-8">
+                            <dl class="grid grid-cols-2 gap-5">
+                                <div><dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Requested papers</dt><dd class="mt-1 text-2xl font-black tabular-nums text-gray-950 dark:text-white">{{ $pendingFileRevisions->groupBy('document_type')->count() }}</dd></div>
+                                <div><dt class="text-xs font-semibold text-gray-500 dark:text-slate-400">Review comments</dt><dd class="mt-1 text-2xl font-black tabular-nums text-gray-950 dark:text-white">{{ count($commentResponseRows) }}</dd></div>
+                            </dl>
+                            <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950">
+                                Open revision workspace
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                            </a>
+                        </div>
+                    </div>
+                </section>
             @endif
 
             @if (! $isResearchHead && ! $isFacultyRevision)
@@ -405,7 +426,7 @@
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
                             </span>
                             <span>
-                                <span class="block font-serif text-xl font-bold text-gray-950 dark:text-white">Research Head documents</span>
+                                <span class="block text-xl font-bold text-gray-950 dark:text-white">Research Head documents</span>
                                 <span class="mt-1 block text-base font-normal leading-6 text-gray-600 dark:text-gray-300">{{ $reviewDocuments->count() }} document(s) shared by the Research Head.</span>
                             </span>
                         </span>
@@ -423,7 +444,7 @@
                             <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="font-serif text-lg font-bold text-gray-950 dark:text-white">{{ $reviewDocument->label() }}</h4>
+                                    <h4 class="text-lg font-bold text-gray-950 dark:text-white">{{ $reviewDocument->label() }}</h4>
                                         @if ($documentDecision)
                                             <span class="rounded-full bg-red-50 px-2.5 py-1 text-xs font-black text-red-700">{{ str($documentDecision)->replace('_', ' ')->title() }}</span>
                                         @endif
@@ -464,7 +485,7 @@
                         </span>
                         <span class="min-w-0">
                             <span class="flex flex-wrap items-center gap-2">
-                                <span class="font-serif text-xl font-bold text-gray-950 dark:text-white">Decision history</span>
+                                <span class="text-xl font-bold text-gray-950 dark:text-white">Decision history</span>
                                 <span class="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span>
                             </span>
                             <span class="mt-1 block truncate text-base font-normal text-gray-600 dark:text-gray-400">
@@ -490,7 +511,7 @@
                             <li class="p-5 sm:p-6">
                                 <div class="flex flex-wrap items-center justify-between gap-2">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <p class="font-serif text-lg font-bold text-gray-900 dark:text-gray-100">{{ str($review->decision)->replace('_', ' ')->title() }}</p>
+                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ str($review->decision)->replace('_', ' ')->title() }}</p>
                                         @if ($loop->first)
                                             <span class="rounded-full bg-red-50 px-2.5 py-1 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">Latest</span>
                                         @endif
@@ -571,7 +592,7 @@
                             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-700 text-white" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg></span>
                             <span>
                                 <span class="block text-sm font-bold text-red-700 dark:text-red-300">Action required</span>
-                                <span class="mt-0.5 block font-serif text-xl font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : 'Complete the initial review' }}</span>
+                                <span class="mt-0.5 block text-xl font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : 'Complete the ordered review route' }}</span>
                                 @if ($latestVersion)
                                     <span class="mt-1 block text-sm font-semibold text-red-800 dark:text-red-200">Reviewing Version {{ $latestVersion->version_number }} &mdash; latest submitted package</span>
                                 @endif
@@ -624,7 +645,7 @@
                             @endif
                             <input type="hidden" name="redirect_to" value="topic">
                             <fieldset>
-                                <legend class="mb-3 font-serif text-lg font-bold text-gray-950 dark:text-white">Review decision</legend>
+                                <legend class="mb-3 text-lg font-bold text-gray-950 dark:text-white">Review decision</legend>
                                 <div class="flex flex-wrap gap-2" data-review-decision-options>
                                     @foreach ($researchHeadDecisionOptions as $decisionValue => $decisionLabel)
                                         <label
@@ -639,10 +660,16 @@
                                 @error('status')<p class="mt-2 text-sm text-red-600">{{ $message }}</p>@enderror
                             </fieldset>
 
+                            <section x-show="decision === 'gad_review'" x-cloak>
+                                <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
+                                    <input type="checkbox" name="research_head_clearance_confirmed" value="1" :disabled="decision !== 'gad_review'" :required="decision === 'gad_review'" class="mt-1 rounded border-gray-300 text-red-700">
+                                    <span>I reviewed the latest proposal version and confirm that all Research Head comments have been addressed. This version may proceed to the GAD Office.</span>
+                                </label>
+                            </section>
                             <section x-show="decision === 'lrec_queued'" x-cloak>
                                 <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
                                     <input type="checkbox" name="initial_clearance_confirmed" value="1" :disabled="decision !== 'lrec_queued'" :required="decision === 'lrec_queued'" class="mt-1 rounded border-gray-300 text-red-700">
-                                    <span>The completed GAD assessment and Co-evaluator Initial Screening Form are recorded for this version.</span>
+                                    <span>A passing GAD Office assessment and the central evaluator’s Narrative Evaluation are recorded for this version.</span>
                                 </label>
                             </section>
                             <section x-show="decision === 'ready_for_signature'" x-cloak class="space-y-3">
@@ -679,7 +706,7 @@
                             <p x-show="decision === 'revision_requested'" x-cloak class="text-sm text-gray-600 dark:text-gray-300">Select the papers that need further changes in the document list above.</p>
 
                             <button type="submit" :disabled="submitting || !decision" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', lrec_queued: 'Send to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
+                                <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD review', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
                             </button>
                         </form>
                     </div>
@@ -689,7 +716,7 @@
                     <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="signing-correction-content" class="flex min-h-16 w-full items-center justify-between gap-4 bg-amber-50 px-5 py-4 text-left transition hover:bg-amber-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-700 sm:px-6">
                         <span class="flex items-center gap-4">
                             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-700 text-white" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15.75 5.25 12m0 0L9 8.25M5.25 12h9a4.5 4.5 0 0 1 4.5 4.5v.75" /></svg></span>
-                            <span><span class="block text-sm font-bold text-amber-800">Signing correction</span><span class="mt-0.5 block font-serif text-xl font-bold text-gray-950">Return to revision</span></span>
+                            <span><span class="block text-sm font-bold text-amber-800">Signing correction</span><span class="mt-0.5 block text-xl font-bold text-gray-950">Return to revision</span></span>
                         </span>
                         <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-white text-amber-700 shadow-sm" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 transition-transform duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
                     </button>
@@ -700,7 +727,7 @@
                             <input type="hidden" name="redirect_to" value="topic">
                             <p class="text-base leading-7 text-gray-700">Use this only when a paper must change after signing has started. Select every affected paper and provide the same file-specific feedback required for a normal revision. Current signed uploads will be retained as superseded audit copies and cannot be reused for the new version.</p>
                             <section class="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/60 dark:bg-amber-950/20 sm:p-5">
-                                <h4 class="font-serif text-lg font-bold text-gray-900 dark:text-white">Papers that must be corrected</h4>
+                                <h4 class="text-lg font-bold text-gray-900 dark:text-white">Papers that must be corrected</h4>
                                 <div class="mt-4">
                                     @include('topics.partials.revision-file-selector', ['files' => $submittedFiles])
                                 </div>
@@ -743,7 +770,7 @@
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="font-serif text-xl font-bold">{{ $isFacultyRevision ? 'Revision in progress' : 'Faculty revision in progress' }}</h3>
+                                <h3 class="text-xl font-bold">{{ $isFacultyRevision ? 'Revision in progress' : 'Faculty revision in progress' }}</h3>
                                 <span class="rounded-full bg-amber-200/70 px-2.5 py-1 text-sm font-bold text-amber-900 dark:bg-amber-900 dark:text-amber-100">Working draft</span>
                             </div>
                             @if ($isFacultyRevision)
@@ -754,7 +781,7 @@
                             @endif
                         </div>
                         @if ($isFacultyRevision)
-                            <button type="button" @click="setTopicTab('review', '#submit-revision')" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950 dark:bg-amber-100 dark:text-amber-950">Continue revision</button>
+                            <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex shrink-0 items-center justify-center rounded-xl bg-amber-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-950 dark:bg-amber-100 dark:text-amber-950">Continue revision</a>
                         @endif
                     </div>
                 </section>

@@ -291,23 +291,36 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
         ->assertSee('Revision required')
         ->assertSee('data-revision-action-required', false)
         ->assertSee('Research Head feedback is waiting for your response.')
-        ->assertSee(route('topics.show', $revisionProposal).'#submit-revision', false)
+        ->assertSee(route('faculty.topics.revision', $revisionProposal), false)
         ->assertSee('Approved Mangrove Study')
         ->assertSee('Approved project')
-        ->assertSee(route('topics.show', $revisionProposal), false)
         ->assertSee(route('topics.show', $approvedProposal), false)
         ->assertDontSee('Another Faculty Proposal');
 
     $this->actingAs($this->faculty)
         ->get(route('topics.show', $revisionProposal))
         ->assertOk()
-        ->assertSee('data-faculty-revision-required', false)
-        ->assertSee('Revisions requested')
+        ->assertSee('data-faculty-revision-summary', false)
+        ->assertSee('Open revision workspace')
         ->assertDontSee('Faculty action required')
         ->assertDontSee('What happens next')
         ->assertDontSee('Revision requested â€” your action is required')
-        ->assertSee('id="submit-revision"', false)
+        ->assertDontSee('id="submit-revision"', false)
         ->assertSee("activeTopicTab: 'review'", false);
+
+    $this->get(route('faculty.topics.revision', $revisionProposal))
+        ->assertOk()
+        ->assertSee('data-faculty-revision-required', false)
+        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('id="submit-revision"', false);
+
+    $this->actingAs($this->otherFaculty)
+        ->get(route('faculty.topics.revision', $revisionProposal))
+        ->assertForbidden();
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.topics.revision', $approvedProposal))
+        ->assertRedirect(route('topics.show', $approvedProposal));
 });
 
 test('the owner and collaborators review an independent draft without a call picker', function () {
@@ -692,7 +705,9 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         ->assertOk()
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
-        ->assertSee('12.32')
+        ->assertSee('TOTAL GAD SCORE FOR PROJECT DEVELOPMENT STAGE')
+        ->assertDontSee('12.32')
+        ->assertDontSee('<td class="gad-mark">', false)
         ->assertSee('Guide for accomplishing Box 7a');
 
     expect(substr_count($preview->getContent(), 'aria-label="Box 7a GAD Generic Checklist page'))->toBe(7);
@@ -724,7 +739,24 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         expect($documentText)->toContain('Research Project Title:')
             ->toContain('Coastal Habitat Restoration')
             ->toContain('Faculty Owner')
-            ->toContain('12.32');
+            ->toContain('TOTAL GAD SCORE FOR THE PROJECT IDENTIFICATION AND DESIGN STAGES')
+            ->not->toContain('12.32')
+            ->not->toContain('7.32')
+            ->not->toContain('0.99')
+            ->not->toContain('1.33');
+
+        $documentXpath = new DOMXPath($documentDom);
+        $documentXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        $answerMarks = 0;
+
+        foreach ($documentXpath->query('//w:t') as $textNode) {
+            if (in_array(trim($textNode->textContent), ['X', 'x'], true)) {
+                $answerMarks++;
+            }
+        }
+
+        expect($answerMarks)->toBe(0);
 
         $gadFooterXml = $generated->getFromName('word/footer1.xml');
         $gadSettingsXml = $generated->getFromName('word/settings.xml');

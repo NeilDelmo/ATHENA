@@ -24,6 +24,13 @@
                 <p class="text-sm font-black text-gray-950 dark:text-white">{{ $preparedReport->quarter_label }} {{ $preparedReport->version_label }} Monitoring Tool PDF prepared</p>
                 <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
+                @if ($topic->research_secretary_id)
+                    @if ($preparedReport->hasSecretaryPreparedBudget())
+                        <p class="mt-3 inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black text-emerald-800">Budget confirmed by {{ $preparedReport->budgetPreparer?->name }}</p>
+                    @else
+                        <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Waiting for {{ $topic->researchSecretary?->name ?? 'the assigned Research Secretary' }} to complete budget utilization.</p>
+                    @endif
+                @endif
             </div>
             <x-monitoring-action-dock :fixed="$standalone">
                 @if ($standalone)
@@ -32,7 +39,7 @@
                 <a href="{{ route('project-progress.monitoring-tool', $preparedReport) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Download prepared PDF</a>
                 <form method="POST" action="{{ route('project-progress.submit-prepared', [$topic, $preparedReport]) }}">
                     @csrf
-                    <button class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2">Submit to Research Head</button>
+                    <button @disabled($topic->research_secretary_id && ! $preparedReport->hasSecretaryPreparedBudget()) class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Submit to Research Head</button>
                 </form>
                 <form method="POST" action="{{ route('project-progress.discard-prepared', [$topic, $preparedReport]) }}" onsubmit="return confirm('Discard this prepared PDF? You will need to prepare it again.')">
                     @csrf
@@ -284,10 +291,41 @@
         <section class="space-y-3">
             <div>
                 <p class="text-base font-semibold text-gray-900 dark:text-white">Spending this quarter</p>
-                <p class="mt-1 text-xs text-gray-500">Open only the request types you used. Leave amounts at zero when there was no spending.</p>
+                @if ($topic->research_secretary_id)
+                    <p class="mt-1 text-xs text-gray-500">This financial section is completed by the assigned Research Secretary after you prepare the Monitoring Tool.</p>
+                @else
+                    <p class="mt-1 text-xs text-gray-500">Open only the request types you used. Leave amounts at zero when there was no spending.</p>
+                @endif
             </div>
 
             <div class="space-y-3">
+                @if ($topic->research_secretary_id)
+                    <div class="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-black text-amber-800 ring-1 ring-amber-200">
+                            @if ($topic->researchSecretary?->avatar)
+                                <img src="{{ $topic->researchSecretary->avatar }}" alt="" class="h-full w-full object-cover">
+                            @else
+                                {{ collect(explode(' ', $topic->researchSecretary?->name ?? 'RS'))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
+                            @endif
+                        </span>
+                        <div class="min-w-0">
+                            <p class="text-xs font-black uppercase tracking-wider text-amber-800">Assigned Research Secretary</p>
+                            <p class="truncate text-sm font-bold text-gray-950 dark:text-white">{{ $topic->researchSecretary?->name }}</p>
+                            <p class="truncate text-xs text-gray-500">{{ $topic->researchSecretary?->email }}</p>
+                        </div>
+                    </div>
+                    @foreach ($budgetRows as $index => $budget)
+                        @php
+                            $budget = is_array($budget) ? $budget : [];
+                            $budgetType = $budget['type'] ?? ($defaultBudget[$index]['type'] ?? 'Request');
+                        @endphp
+                        <input type="hidden" name="budget_utilization[{{ $index }}][type]" value="{{ $budgetType }}">
+                        <input type="hidden" name="budget_utilization[{{ $index }}][details]" value="{{ $budget['details'] ?? '' }}">
+                        <input type="hidden" name="budget_utilization[{{ $index }}][amount_requested]" value="{{ $budget['amount_requested'] ?? 0 }}">
+                        <input type="hidden" name="budget_utilization[{{ $index }}][actual_amount]" value="{{ $budget['actual_amount'] ?? 0 }}">
+                        <input type="hidden" name="budget_utilization[{{ $index }}][remarks]" value="{{ $budget['remarks'] ?? '' }}">
+                    @endforeach
+                @else
                 @foreach ($budgetRows as $index => $budget)
                     @php
                         $budget = is_array($budget) ? $budget : [];
@@ -312,6 +350,7 @@
                         </div>
                     </details>
                 @endforeach
+                @endif
             </div>
         </section>
 

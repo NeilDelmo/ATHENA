@@ -68,17 +68,25 @@ class ResearchHeadDashboard extends Component
         $callId = ctype_digit($this->call) ? (int) $this->call : null;
         $allowedStatuses = [...array_keys(ResearchDashboardAnalytics::STAGES), 'approved', 'rejected'];
         $summary = [
-            'awaiting_review' => $analytics->topics($callId)->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', 'lrec_queued', 'lrec_review'])->count(),
+            'awaiting_review' => $analytics->topics($callId)->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_queued', 'lrec_review'])->count(),
             'revision_requested' => $analytics->topics($callId)->where('status', 'revision_requested')->count(),
             'approved' => $analytics->topics($callId)->monitoringAvailable()->count(),
         ];
         $deadlines = $calendar->events(auth()->user(), CarbonImmutable::now(), CarbonImmutable::now()->addDays(14)->endOfDay(), $callId)
             ->filter(fn (array $event) => $event['deadline'] && ! $event['draft'])->values();
         $summary['deadlines'] = $deadlines->count();
+        $activeProjects = $analytics->topics($callId)
+            ->activeProject()
+            ->with([
+                'user:id,name',
+                'latestProgressReport',
+            ])
+            ->orderBy('title')
+            ->get();
         $topics = $analytics->topics($callId)
             ->with(['user:id,name', 'researchCall:id,title', 'latestVersion' => fn ($query) => $query->withCount(['files' => fn (Builder $files) => $files->where('document_type', '!=', 'head_upload')])])
             ->when(in_array($this->status, $allowedStatuses, true), fn (Builder $query) => $query->where('status', $this->status))
-            ->when($this->pipeline === 'awaiting_review', fn (Builder $query) => $query->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', 'lrec_queued', 'lrec_review']))
+            ->when($this->pipeline === 'awaiting_review', fn (Builder $query) => $query->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_queued', 'lrec_review']))
             ->when(in_array($this->pipeline, ['revision_requested', 'ready_for_signature'], true), fn (Builder $query) => $query->where('status', $this->pipeline))
             ->when($this->pipeline === 'awaiting_notice', fn (Builder $query) => $query->where('status', 'approved')->whereNull('notice_to_proceed_issued_at'))
             ->when($this->pipeline === 'approved', fn (Builder $query) => $query->monitoringAvailable())
@@ -91,7 +99,7 @@ class ResearchHeadDashboard extends Component
             })->latest()->paginate(15)->withQueryString();
 
         return view('livewire.research-head-dashboard', [
-            'topics' => $topics, 'summary' => $summary, 'deadlines' => $deadlines,
+            'topics' => $topics, 'summary' => $summary, 'deadlines' => $deadlines, 'activeProjects' => $activeProjects,
             'calls' => ResearchCall::orderByDesc('opens_at')->get(['id', 'title']),
             'analytics' => $analytics->summarize($callId), 'stageLabels' => ResearchDashboardAnalytics::STAGES,
         ]);

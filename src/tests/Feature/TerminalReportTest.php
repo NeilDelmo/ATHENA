@@ -250,6 +250,32 @@ test('terminal validates abstract length dates table shape and substantive narra
     'forged snapshot' => ['terminal_data.approved_budget', 1],
 ]);
 
+test('terminal expenditure cannot exceed the approved project budget', function () {
+    $this->topic->update(['estimated_budget' => 8600]);
+    $payload = ($this->terminalPayload)([
+        'terminal_data' => ['total_expenditure' => 15000],
+    ]);
+
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('terminal_data.total_expenditure')
+        ->assertJsonFragment([
+            'The final total expenditure may not exceed the approved project budget.',
+        ]);
+
+    $this->actingAs($this->researcher)
+        ->postJson(route('project-narrative-reports.draft', $this->topic), [
+            ...$payload,
+            'draft_version' => 0,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('terminal_data.total_expenditure');
+
+    expect(ProjectNarrativeReport::count())->toBe(0)
+        ->and(ProjectNarrativeReportDraft::count())->toBe(0);
+});
+
 test('terminal reuses only same-project evidence and keeps source files when discarded', function () {
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
     $source = ProjectNarrativeReport::firstOrFail();

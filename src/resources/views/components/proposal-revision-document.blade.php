@@ -48,19 +48,25 @@
     data-topic-file-dropzone="{{ $inputName }}"
     x-data="fileDropzone({ accept: @js($accept), maxBytes: 26214400, multiple: @js($multiple) })"
     @paste="paste($event)"
-    class="min-w-0 rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
 >
-    <div class="flex items-center justify-between gap-4 p-4">
-        <div class="min-w-0">
-            <h4 class="text-sm font-bold text-gray-950 dark:text-white">{{ $label }}</h4>
+    <div class="flex flex-wrap items-center justify-between gap-4 p-4">
+        <div class="flex min-w-0 items-center gap-3">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-[#7A0019] dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3" /></svg>
+            </span>
+            <div class="min-w-0">
+                <h4 class="truncate text-sm font-bold text-gray-950 dark:text-white">{{ $label }}</h4>
+                <p class="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Submitted paper · revision requested</p>
             @if ($required)
                 <div class="mt-1 flex flex-wrap items-center gap-2">
                     <span data-revision-document-state data-modified="false" data-addressed="{{ $noChangeAddressed ? 'true' : 'false' }}" data-reviewed="false" class="revision-change-state" title="Shows whether this requested document has been reviewed and how it will be resolved in the resubmission.">{{ $noChangeAddressed ? 'Explained — no file change' : 'Review required' }}</span>
                 </div>
             @endif
+            </div>
         </div>
         @if ($required)
-            <button type="button" data-revision-open class="shrink-0 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 focus-visible:outline-red-700">Review</button>
+            <button type="button" data-revision-open class="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Open for review<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6M20 4 4 20M9 4H4v16h16v-5" /></svg></button>
         @endif
     </div>
 

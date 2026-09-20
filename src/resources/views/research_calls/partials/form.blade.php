@@ -63,6 +63,7 @@
                 <label class="block"><span class="{{ $labelClass }}">Submission starts</span><x-date-time-picker id="{{ $formId }}-opens-at" name="opens_at" :value="$fieldValue('opens_at')" required class="mt-2" /><x-input-error :messages="$errors->get('opens_at')" class="mt-2" /></label>
                 <label class="block"><span class="{{ $labelClass }}">Submission ends</span><x-date-time-picker id="{{ $formId }}-closes-at" name="closes_at" :value="$fieldValue('closes_at')" required class="mt-2" /><x-input-error :messages="$errors->get('closes_at')" class="mt-2" /></label>
             </div>
+            <div data-research-call-suggestion data-suggestion-fields="opens_at,closes_at" role="status" hidden class="mt-3"></div>
         </section>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
@@ -82,6 +83,7 @@
                             <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Starts<x-date-picker id="{{ $formId }}-{{ $workflowDate['start'] }}" name="{{ $workflowDate['start'] }}" :value="$fieldValue($workflowDate['start'])" placeholder="Select date" class="mt-1.5" /><x-input-error :messages="$errors->get($workflowDate['start'])" class="mt-2" /></label>
                             <label class="block text-xs font-bold text-gray-600 dark:text-slate-300">Ends<x-date-picker id="{{ $formId }}-{{ $workflowDate['end'] }}" name="{{ $workflowDate['end'] }}" :value="$fieldValue($workflowDate['end'])" placeholder="Select date" class="mt-1.5" /><x-input-error :messages="$errors->get($workflowDate['end'])" class="mt-2" /></label>
                         </div>
+                        <div data-research-call-suggestion data-suggestion-fields="{{ $workflowDate['start'] }},{{ $workflowDate['end'] }}" role="status" hidden class="mt-3"></div>
                     </article>
                 @endforeach
             </div>
@@ -117,7 +119,7 @@
                     <span data-research-call-extract-label>Read image</span>
                 </button>
             </div>
-            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Choosing a poster only previews it. Click <span class="font-bold text-gray-700 dark:text-slate-200">Read image</span> to suggest the call name, requirements, and dates; existing entries will not be replaced.</p>
+            <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-slate-400">Choosing a poster only previews it. Click <span class="font-bold text-gray-700 dark:text-slate-200">Read image</span> to suggest the call name, requirements, and dates. Dates stay as inline suggestions next to each field — confirm them with <span class="font-bold text-gray-700 dark:text-slate-200">✓</span> or dismiss with <span class="font-bold text-gray-700 dark:text-slate-200">✕</span> before they enter the form. Existing entries will not be replaced.</p>
             <p data-research-call-image-status role="status" aria-live="polite" class="mt-2 hidden text-xs font-semibold text-red-700 dark:text-red-300"></p>
 
             <div data-research-call-extraction-summary class="mt-4 hidden space-y-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">

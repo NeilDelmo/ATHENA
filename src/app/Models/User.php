@@ -39,6 +39,8 @@ class User extends Authenticatable
 
     public const WORKSPACE_RESEARCH_HEAD = 'research_head';
 
+    public const WORKSPACE_RESEARCH_SECRETARY = 'research_secretary';
+
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
 
@@ -87,6 +89,11 @@ class User extends Authenticatable
                 'description' => 'Manage research calls, evaluate proposals, and oversee institutional research.',
                 'route' => 'research_head.dashboard',
             ],
+            self::WORKSPACE_RESEARCH_SECRETARY => [
+                'label' => 'Research Secretary',
+                'description' => 'Complete budget utilization for assigned research projects.',
+                'route' => 'research_secretary.dashboard',
+            ],
             self::WORKSPACE_FACULTY_RESEARCHER => [
                 'label' => 'Faculty Researcher',
                 'description' => 'View approved projects, Notices to Proceed, monitoring, and completed research.',
@@ -127,6 +134,10 @@ class User extends Authenticatable
 
         if ($assignedRoles->contains(self::WORKSPACE_FACULTY_RESEARCHER)) {
             $available = [...$available, self::WORKSPACE_FACULTY_RESEARCHER, self::WORKSPACE_FACULTY];
+        }
+
+        if ($assignedRoles->contains(self::WORKSPACE_RESEARCH_SECRETARY)) {
+            $available[] = self::WORKSPACE_RESEARCH_SECRETARY;
         }
 
         if ($assignedRoles->contains(self::WORKSPACE_FACULTY)) {
@@ -253,5 +264,10 @@ class User extends Authenticatable
     public function topicReviews(): HasMany
     {
         return $this->hasMany(TopicReview::class, 'reviewer_id');
+    }
+
+    public function secretaryProjects(): HasMany
+    {
+        return $this->hasMany(TopicProposal::class, 'research_secretary_id');
     }
 }
