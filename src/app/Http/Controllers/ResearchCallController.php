@@ -58,12 +58,27 @@ class ResearchCallController extends Controller
 
     private function facultyIndex(Request $request): View
     {
+        $user = $request->user();
         $calls = ResearchCall::query()
             ->visibleToFaculty()
+            ->where(function ($visible) use ($user): void {
+                $visible->where(function ($current): void {
+                    $current->where('status', 'open')->where('closes_at', '>=', now());
+                })->orWhereHas('topics', fn ($topics) => $topics->accessibleTo($user))
+                    ->orWhereHas('proposalDrafts', fn ($drafts) => $drafts->accessibleTo($user));
+            })
+            ->with([
+                'topics' => fn ($topics) => $topics->accessibleTo($user)->latest(),
+                'proposalDrafts' => fn ($drafts) => $drafts->accessibleTo($user)->latest(),
+            ])
             ->orderByDesc('opens_at')
-            ->paginate(10);
+            ->get();
 
-        return view('research_calls.faculty-index', compact('calls'));
+        return view('research_calls.faculty-index', [
+            'openCalls' => $calls->filter(fn (ResearchCall $call) => $call->lifecycleStatus() === 'open'),
+            'upcomingCalls' => $calls->filter(fn (ResearchCall $call) => $call->lifecycleStatus() === 'scheduled'),
+            'archivedCalls' => $calls->filter(fn (ResearchCall $call) => in_array($call->lifecycleStatus(), ['closed', 'ended'], true)),
+        ]);
     }
 
     public function store(StoreResearchCallRequest $request): RedirectResponse
@@ -294,7 +309,7 @@ class ResearchCallController extends Controller
 
         $message = match ($validated['status']) {
             'open' => 'Research call published. It will accept submissions only during its configured date range.',
-            'closed' => 'Research call closed. New proposal submissions are no longer accepted.',
+            'closed' => 'Research call closed. Faculty can still submit independent proposals from the Proposal Workspace.',
             default => 'Research call moved to draft.',
         };
 

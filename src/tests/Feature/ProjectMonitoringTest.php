@@ -134,40 +134,86 @@ beforeEach(function () {
     };
 });
 
-test('the Research Head assigns a project secretary through a searchable profile picker', function () {
+test('the project leader assigns an accepted group member as project secretary', function () {
     $this->withoutVite();
-    $unqualifiedAccount = User::factory()->create();
+    $projectMember = User::factory()->create([
+        'name' => 'Accepted Project Member',
+        'email' => 'accepted.member@g.batstate-u.edu.ph',
+        'avatar' => 'https://example.com/accepted-member.jpg',
+    ]);
+    $projectMember->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create([
+        'user_id' => $projectMember->id,
+        'name' => $projectMember->name,
+        'email' => $projectMember->email,
+        'accepted_at' => now(),
+    ]);
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty_researcher');
 
     $this->actingAs($this->head)
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('research_head.projects.index'))
         ->assertOk()
-        ->assertSee('data-research-secretary-picker', false)
-        ->assertSee($this->secretary->name)
-        ->assertSee($this->secretary->email)
-        ->assertSee('marina-secretary.jpg');
+        ->assertDontSee('data-project-secretary-picker', false)
+        ->assertDontSee('Assign secretary');
 
-    $this->actingAs($this->head)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->patch(route('research_head.projects.research-secretary', $this->topic), [
-            'research_secretary_id' => $unqualifiedAccount->id,
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('data-project-secretary-picker', false)
+        ->assertSee($projectMember->name)
+        ->assertSee($projectMember->email)
+        ->assertSee('accepted-member.jpg');
+
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->patch(route('project-secretary.assign', $this->topic), [
+            'research_secretary_id' => $outsider->id,
         ])
         ->assertSessionHasErrors('research_secretary_id');
 
     expect($this->topic->fresh()->research_secretary_id)->toBeNull();
 
-    $this->actingAs($this->head)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->patch(route('research_head.projects.research-secretary', $this->topic), [
-            'research_secretary_id' => $this->secretary->id,
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->patch(route('project-secretary.assign', $this->topic), [
+            'research_secretary_id' => $projectMember->id,
         ])
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
-    expect($this->topic->fresh()->research_secretary_id)->toBe($this->secretary->id);
+    expect($this->topic->fresh()->research_secretary_id)->toBe($projectMember->id);
+
+    $this->actingAs($this->researcher)
+        ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
+        ->assertSessionHasNoErrors();
+
+    $report = ProjectProgressReport::query()->sole();
+
+    $this->actingAs($projectMember)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('project-budget.edit', [$this->topic, $report]))
+        ->assertOk()
+        ->assertSee('Confirm budget utilization');
+
+    $this->actingAs($projectMember)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->put(route('project-budget.update', [$this->topic, $report]), [
+            'budget_utilization' => [
+                ['type' => 'Purchase Request', 'details' => 'Laboratory supplies', 'amount_requested' => 12000, 'actual_amount' => 10000, 'remarks' => 'Delivered'],
+                ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
+                ['type' => 'Request of Payment', 'details' => 'Field transport', 'amount_requested' => 5000, 'actual_amount' => 4500, 'remarks' => 'Completed'],
+            ],
+        ])
+        ->assertRedirect(route('research.show', $this->topic).'#project-monitoring')
+        ->assertSessionHasNoErrors();
+
+    expect($report->fresh()->budget_prepared_by)->toBe($projectMember->id);
 });
 
-test('only the assigned Research Secretary can complete a prepared report budget before submission', function () {
+test('only the assigned project secretary can complete a prepared report budget before submission', function () {
     $this->topic->update(['research_secretary_id' => $this->secretary->id]);
 
     $this->actingAs($this->researcher)
@@ -235,7 +281,7 @@ test('only the assigned Research Secretary can complete a prepared report budget
     expect($report->fresh()->isSubmitted())->toBeTrue();
 });
 
-test('Research Secretary budget confirmation keeps the approved project cap', function () {
+test('project secretary budget confirmation keeps the approved project cap', function () {
     $this->topic->update(['research_secretary_id' => $this->secretary->id]);
 
     $this->actingAs($this->researcher)

@@ -170,7 +170,7 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
 
         $topic->load([
-            'user', 'noticeIssuer', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'progressReports.submitter', 'progressReports.reviewer', 'progressReports.supersedes', 'progressReports.nextVersion', 'narrativeReports.submitter', 'narrativeReports.reviewer',
+            'user', 'noticeIssuer', 'researchSecretary', 'researchCall', 'category', 'collaborators.user', 'revisionDraft.documents', 'revisionDraft.members', 'versions.submitter', 'versions.files.uploadedBy', 'versions.files.annotations', 'preparedProgressReports.submitter', 'preparedProgressReports.budgetPreparer', 'progressReports.submitter', 'progressReports.reviewer', 'progressReports.supersedes', 'progressReports.nextVersion', 'narrativeReports.submitter', 'narrativeReports.reviewer',
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])->oldest(),
         ]);
 

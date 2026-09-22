@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\DashboardCalendar;
 use App\Services\ResearchDashboardAnalytics;
@@ -25,9 +25,6 @@ class ResearchHeadDashboard extends Component
 
     #[Url]
     public string $status = '';
-
-    #[Url]
-    public string $call = '';
 
     #[Url]
     public string $attention = '';
@@ -57,7 +54,7 @@ class ResearchHeadDashboard extends Component
         if ($property === 'status') {
             $this->reset('pipeline');
         }
-        if (in_array($property, ['search', 'call', 'status', 'attention'], true)) {
+        if (in_array($property, ['search', 'status', 'attention'], true)) {
             $this->resetPage();
         }
     }
@@ -65,7 +62,7 @@ class ResearchHeadDashboard extends Component
     public function render(ResearchDashboardAnalytics $analytics, DashboardCalendar $calendar): View
     {
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
-        $callId = ctype_digit($this->call) ? (int) $this->call : null;
+        $callId = null;
         $allowedStatuses = [...array_keys(ResearchDashboardAnalytics::STAGES), 'approved', 'rejected'];
         $summary = [
             'awaiting_review' => $analytics->topics($callId)->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_queued', 'lrec_review'])->count(),
@@ -100,7 +97,6 @@ class ResearchHeadDashboard extends Component
 
         return view('livewire.research-head-dashboard', [
             'topics' => $topics, 'summary' => $summary, 'deadlines' => $deadlines, 'activeProjects' => $activeProjects,
-            'calls' => ResearchCall::orderByDesc('opens_at')->get(['id', 'title']),
             'analytics' => $analytics->summarize($callId), 'stageLabels' => ResearchDashboardAnalytics::STAGES,
         ]);
     }

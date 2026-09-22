@@ -68,10 +68,15 @@ test('proposal dashboard presents a focused research head workspace', function (
     $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))
         ->assertOk()
-        ->assertSee('data-dashboard-palette="red-black-white"', false)
+        ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
+        ->assertSee('Research Operations Dashboard')
         ->assertSee('Proposal pipeline')
         ->assertSee('Inbox controls')
-        ->assertSee('Received proposal inbox');
+        ->assertSee('Received proposal inbox')
+        ->assertSee('table-fixed', false)
+        ->assertDontSee('overflow-x-auto', false)
+        ->assertDontSee('All research calls')
+        ->assertSee('Research calendar');
 });
 
 test('dashboard shows completion percentages for every active project', function () {
@@ -160,7 +165,7 @@ test('proposal dashboard shows received files and opens the submitted package', 
         ->get(route('research_head.dashboard'))
         ->assertOk()
         ->assertSee('Received proposal inbox')
-        ->assertSee('7 files received')
+        ->assertSee('v1 · 7 files')
         ->assertSee('Review proposal')
         ->assertSee(route('topics.show', $topic).'#proposal-review', false);
 });

@@ -277,6 +277,7 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
     Route::post('/research/{topic}/progress-reports/draft', [ProjectMonitoringController::class, 'saveDraft'])->name('project-progress.draft');
     Route::post('/research/{topic}/progress-reports/prepare', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.prepare');
     Route::post('/research/{topic}/progress-reports', [ProjectMonitoringController::class, 'prepare'])->name('project-progress.store');
+    Route::patch('/research/{topic}/project-secretary', [ProjectBudgetUtilizationController::class, 'assign'])->name('project-secretary.assign');
     Route::post('/research/{topic}/progress-reports/{report}/submit', [ProjectMonitoringController::class, 'submitPrepared'])->name('project-progress.submit-prepared');
     Route::delete('/research/{topic}/progress-reports/{report}/prepared', [ProjectMonitoringController::class, 'discardPrepared'])->name('project-progress.discard-prepared');
     Route::post('/research/{topic}/narrative-progress-reports/preview', [ProjectNarrativeReportController::class, 'preview'])->name('project-narrative-reports.preview');
@@ -293,6 +294,10 @@ Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController
 Route::get('/progress-reports/{report}/monitoring-tool', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
     ->middleware('auth')
     ->name('project-progress.monitoring-tool');
+Route::middleware('auth')->group(function () {
+    Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('project-budget.edit');
+    Route::put('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'update'])->name('project-budget.update');
+});
 
 Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-secretary')->name('research_secretary.')->group(function () {
     Route::get('/projects', [ProjectBudgetUtilizationController::class, 'index'])->name('dashboard');
@@ -401,7 +406,6 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
-    Route::patch('/research-head/projects/{topic}/research-secretary', [ProjectBudgetUtilizationController::class, 'assign'])->name('research_head.projects.research-secretary');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
     Route::post('/research-head/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('research_head.topics.notice-to-proceed.preview');

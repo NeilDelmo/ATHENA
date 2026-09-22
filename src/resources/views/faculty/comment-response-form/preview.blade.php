@@ -9,8 +9,7 @@
     <body>
         <nav class="preview-toolbar" aria-label="Form actions">
             <span>{{ $commentResponseForm['form_label'] }}</span>
-            <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}">Download PDF</a>
-            <span><a href="{{ route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}" style="background: transparent; color: inherit; text-decoration: underline;">Word (editable)</a></span>
+            <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $commentResponseForm['form_source'], 'review' => $commentResponseForm['review_id']]) }}" target="_blank" rel="noopener">Open PDF</a>
         </nav>
         <main class="comment-response-sheet" aria-label="BatStateU Comment-Response Form">
             <header class="university-header">

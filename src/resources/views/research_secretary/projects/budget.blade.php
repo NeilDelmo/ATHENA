@@ -6,7 +6,7 @@
                 <h2 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Budget utilization</h2>
                 <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-slate-400">{{ $topic->title }}</p>
             </div>
-            <x-back-link href="{{ route('research_secretary.dashboard') }}">Back to assigned projects</x-back-link>
+            <x-back-link href="{{ request()->routeIs('project-budget.edit') ? route('research.show', $topic).'#project-monitoring' : route('research_secretary.dashboard') }}">Back to project monitoring</x-back-link>
         </div>
     </x-slot>
 
@@ -35,7 +35,7 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
+            <form method="POST" action="{{ request()->routeIs('project-budget.edit') ? route('project-budget.update', [$topic, $report]) : route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
                 @csrf
                 @method('PUT')
 

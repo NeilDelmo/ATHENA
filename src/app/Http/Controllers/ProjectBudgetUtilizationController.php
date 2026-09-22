@@ -78,7 +78,7 @@ class ProjectBudgetUtilizationController extends Controller
 
         $report->submitter->notify(new ProposalActivityNotification(
             title: $report->quarter_label.' Budget Utilization Completed',
-            message: 'The Research Secretary completed the budget utilization for '.$topic->title.'. The prepared Monitoring Tool is ready for submission.',
+            message: 'The project secretary completed the budget utilization for '.$topic->title.'. The prepared Monitoring Tool is ready for submission.',
             url: route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString()]),
             level: 'success',
             topicId: $topic->id,
@@ -86,7 +86,11 @@ class ProjectBudgetUtilizationController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
-        return redirect()->route('research_secretary.dashboard')
+        $destination = $request->routeIs('project-budget.update')
+            ? route('research.show', $topic).'#project-monitoring'
+            : route('research_secretary.dashboard');
+
+        return redirect()->to($destination)
             ->with('success', $report->quarter_label.' budget utilization saved and the official PDF refreshed.');
     }
 
@@ -117,7 +121,7 @@ class ProjectBudgetUtilizationController extends Controller
 
         return back()->with(
             'success',
-            $secretaryId ? 'Research Secretary assigned to the project.' : 'Research Secretary assignment removed.',
+            $secretaryId ? 'Project secretary assigned by the project group.' : 'Project secretary assignment removed.',
         );
     }
 }

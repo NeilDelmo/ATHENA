@@ -82,6 +82,5 @@ test('attention uses actual dates and flags only an applicable expired revision 
     $this->actingAs($this->head);
     Livewire::test(ResearchHeadDashboard::class)->set('status', 'rejected')->set('search', 'Unrelated')
         ->call('toggleRepeatedRevisions')->assertSet('status', '')->assertSet('search', '')
-        ->assertViewHas('topics', fn ($topics) => $topics->total() === 1 && $topics->first()->id === $old->id)
-        ->set('call', '999999')->assertViewHas('topics', fn ($topics) => $topics->total() === 0);
+        ->assertViewHas('topics', fn ($topics) => $topics->total() === 1 && $topics->first()->id === $old->id);
 });

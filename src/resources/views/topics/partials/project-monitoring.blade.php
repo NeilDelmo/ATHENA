@@ -11,6 +11,21 @@
         $openPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] !== null);
         $nextPeriod = $monitoringQuarterRows->first(fn ($row) => $row['reporting_date'] === null);
         $canReport = ! Auth::user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(Auth::user());
+        $canAssignProjectSecretary = Auth::id() === $topic->user_id
+            && ! Auth::user()->isUsingWorkspace('research_head')
+            && $topic->isMonitoringAvailable();
+        $projectSecretaryCandidates = $topic->collaborators
+            ->filter(fn ($collaborator) => $collaborator->accepted_at !== null && $collaborator->user !== null)
+            ->pluck('user')
+            ->unique('id')
+            ->map(fn ($user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'avatar' => $user->avatar,
+                'college' => $user->college,
+            ])
+            ->values();
         $latestTerminalReportId = $topic->narrativeReports
             ->where('report_type', 'terminal')
             ->sortByDesc('id')
@@ -36,6 +51,80 @@
             <p class="mt-4 text-sm text-gray-600 dark:text-slate-300">Project completed. Reports remain available as read-only records. Conference activity and publication tracking continue in Conferences &amp; Publications.</p>
         @endif
     </header>
+
+    <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:p-6" aria-labelledby="project-secretary-heading">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div class="max-w-xl">
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Project group responsibility</p>
+                <h4 id="project-secretary-heading" class="mt-1 text-base font-black text-gray-950 dark:text-white">Project secretary</h4>
+                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">The project leader selects an accepted member of this project group to complete the budget utilization section of prepared monitoring reports.</p>
+            </div>
+
+            <div class="w-full lg:max-w-md">
+                @if ($topic->researchSecretary)
+                    <div class="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xs font-black text-emerald-800 ring-1 ring-emerald-200 dark:bg-slate-900">
+                            @if ($topic->researchSecretary->avatar)
+                                <img src="{{ $topic->researchSecretary->avatar }}" alt="" class="h-full w-full object-cover">
+                            @else
+                                {{ collect(explode(' ', $topic->researchSecretary->name))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
+                            @endif
+                        </span>
+                        <span class="min-w-0"><span class="block truncate text-sm font-black text-gray-950 dark:text-white">{{ $topic->researchSecretary->name }}</span><span class="block truncate text-xs text-gray-500 dark:text-slate-400">{{ $topic->researchSecretary->email }}</span></span>
+                    </div>
+                @else
+                    <div class="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">No project secretary has been selected yet.</div>
+                @endif
+
+                @if ($canAssignProjectSecretary)
+                    <div x-data="researchSecretaryPicker({ candidates: @js($projectSecretaryCandidates), selectedId: @js($topic->research_secretary_id) })" class="relative mt-3" data-project-secretary-picker>
+                        <form x-ref="form" method="POST" action="{{ route('project-secretary.assign', $topic) }}">
+                            @csrf
+                            @method('PATCH')
+                            <input type="hidden" name="research_secretary_id" :value="selectedId || ''">
+                        </form>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gray-950 px-4 py-2 text-xs font-black text-white hover:bg-gray-800 dark:bg-white dark:text-slate-950">{{ $topic->researchSecretary ? 'Change secretary' : 'Select from project group' }}</button>
+                            @if ($topic->researchSecretary)
+                                <button type="button" @click="clearSelection" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Remove</button>
+                            @endif
+                        </div>
+                        @error('research_secretary_id')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+
+                        <div x-show="open" x-transition.origin.top x-cloak @click.outside="open = false" class="absolute right-0 z-30 mt-2 w-full min-w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
+                            <label class="sr-only" for="project-secretary-search-{{ $topic->id }}">Search accepted project members</label>
+                            <input x-ref="search" id="project-secretary-search-{{ $topic->id }}" x-model="query" type="search" autocomplete="off" placeholder="Search project members" class="block w-full rounded-xl border-gray-200 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <div class="mt-2 max-h-64 space-y-1 overflow-y-auto" role="listbox">
+                                <template x-for="candidate in filteredCandidates()" :key="candidate.id">
+                                    <button type="button" role="option" @click="select(candidate.id)" class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:hover:bg-slate-800 dark:focus:bg-slate-800">
+                                        <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700 ring-1 ring-red-200"><img x-show="candidate.avatar" :src="candidate.avatar" alt="" x-on:error="candidate.avatar = ''" class="h-full w-full object-cover"><span x-show="!candidate.avatar" x-text="initials(candidate.name)"></span></span>
+                                        <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-gray-900 dark:text-white" x-text="candidate.name"></span><span class="block truncate text-xs text-gray-500 dark:text-slate-400" x-text="candidate.email"></span><span x-show="candidate.college" class="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" x-text="candidate.college"></span></span>
+                                    </button>
+                                </template>
+                                <p x-show="filteredCandidates().length === 0" class="px-3 py-5 text-center text-xs font-semibold text-gray-500">No accepted project member matches this search.</p>
+                            </div>
+                        </div>
+                    </div>
+                @elseif (! Auth::user()->isUsingWorkspace('research_head') && Auth::id() !== $topic->research_secretary_id)
+                    <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">Only the project leader can change this assignment.</p>
+                @endif
+            </div>
+        </div>
+
+        @if (Auth::id() === $topic->research_secretary_id && $topic->preparedProgressReports->isNotEmpty())
+            <div class="mt-5 border-t border-gray-100 pt-4 dark:border-slate-800">
+                <p class="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-slate-400">Budget utilization waiting for you</p>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                    @foreach ($topic->preparedProgressReports as $preparedReport)
+                        <a href="{{ route('project-budget.edit', [$topic, $preparedReport]) }}" class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950 hover:border-amber-300 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                            <span>{{ $preparedReport->quarter_label }} · {{ $preparedReport->version_label }}</span>
+                            <span class="text-xs">{{ $preparedReport->hasSecretaryPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+    </section>
 
     <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :topic="$topic" />
 

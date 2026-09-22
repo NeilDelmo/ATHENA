@@ -230,6 +230,44 @@ test('central evaluation cannot be uploaded before a passing GAD assessment', fu
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
+test('a passing GAD score without signature confirmation keeps central evaluation locked', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+
+    $this->version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/unconfirmed-passing-gad.pdf',
+        'original_filename' => 'unconfirmed-passing-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('d', 64),
+        'uploaded_by' => $this->head->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 12.5,
+            'gad_rating' => 'Gender-sensitive',
+            'gad_outcome' => 'passed',
+            'gad_signature_detected' => true,
+            'gad_signature_confirmed' => false,
+        ],
+    ]);
+
+    expect($this->version->hasPassingGadAssessment())->toBeFalse();
+
+    $this->actingAs($this->head)
+        ->get(route('topics.head-uploads.index', $this->topic))
+        ->assertOk()
+        ->assertSee('Signature check required')
+        ->assertSee('Signature evidence detected, but Research Head confirmation is still required.')
+        ->assertSee('Confirm the GAD verifier’s signature before central evaluation.')
+        ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
+});
+
 test('a non-passing GAD result returns the proposal to revision and keeps central evaluation locked', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()

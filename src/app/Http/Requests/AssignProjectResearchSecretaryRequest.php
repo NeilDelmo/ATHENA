@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
-use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -19,7 +18,7 @@ class AssignProjectResearchSecretaryRequest extends FormRequest
 
         return $topic instanceof TopicProposal
             && $topic->hasIssuedNoticeToProceed()
-            && ($this->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) ?? false);
+            && $topic->user_id === $this->user()?->id;
     }
 
     /**
@@ -42,10 +41,15 @@ class AssignProjectResearchSecretaryRequest extends FormRequest
                     return;
                 }
 
-                $secretary = User::query()->find($this->integer('research_secretary_id'));
+                $topic = $this->route('topic');
+                $isAcceptedProjectMember = $topic instanceof TopicProposal
+                    && $topic->collaborators()
+                        ->whereNotNull('accepted_at')
+                        ->where('user_id', $this->integer('research_secretary_id'))
+                        ->exists();
 
-                if (! $secretary?->hasRole(User::WORKSPACE_RESEARCH_SECRETARY)) {
-                    $validator->errors()->add('research_secretary_id', 'Choose an account with the Research Secretary role.');
+                if (! $isAcceptedProjectMember) {
+                    $validator->errors()->add('research_secretary_id', 'Choose an accepted member of this project group.');
                 }
             },
         ];

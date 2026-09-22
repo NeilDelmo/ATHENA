@@ -72,9 +72,8 @@
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
-                                    <a href="{{ route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Preview</a>
-                                    <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">PDF</a>
-                                    <a href="{{ route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Word</a>
+                                    <a href="{{ route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300">Preview</a>
+                                    <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#7A0019] px-3 text-xs font-bold text-white transition hover:bg-[#650015]">Open PDF</a>
                                 </div>
                             </section>
                         @endforeach

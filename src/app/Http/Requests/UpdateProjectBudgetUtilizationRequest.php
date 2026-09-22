@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
-use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +25,6 @@ class UpdateProjectBudgetUtilizationRequest extends FormRequest
             && $report->topic_id === $topic->id
             && $report->isPrepared()
             && $user !== null
-            && $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
             && $topic->research_secretary_id === $user->id;
     }
 

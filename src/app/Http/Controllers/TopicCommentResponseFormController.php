@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -52,7 +53,7 @@ class TopicCommentResponseFormController extends Controller
         TopicProposal $topic,
         CommentResponseFormDocumentService $documentService,
         DocumentPdfConverter $pdfConverter,
-    ): StreamedResponse {
+    ): Response {
         Gate::authorize('generateCommentResponseForm', $topic);
 
         $source = $this->formSource($request);
@@ -62,13 +63,13 @@ class TopicCommentResponseFormController extends Controller
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
         $sourceSlug = Str::of($source)->replace('_', '-')->toString();
 
-        return response()->streamDownload(
-            static function () use ($contents): void {
-                echo $contents;
-            },
-            $filenameBase.'-'.$sourceSlug.'-comment-response-form.pdf',
-            ['Content-Type' => 'application/pdf'],
-        );
+        $filename = $filenameBase.'-'.$sourceSlug.'-comment-response-form.pdf';
+
+        return response($contents, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     /**

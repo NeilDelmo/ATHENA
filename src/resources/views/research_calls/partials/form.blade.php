@@ -1,12 +1,17 @@
 @php
     $isEditing = $researchCall !== null;
     $formId = $isEditing ? 'edit-research-call-'.$researchCall->id : 'create-research-call';
+    $formMarker = $isEditing ? (string) $researchCall->id : 'create';
+    $submittedForm = old('research_call_form');
+    $shouldUseOldInput = $submittedForm === null || (string) $submittedForm === $formMarker;
     $imageInputId = $formId.'-reference-image';
     $currentImageUrl = $isEditing && $researchCall->reference_image_path
         ? route('research-calls.reference-image', $researchCall)
         : null;
-    $fieldValue = function (string $field, mixed $default = '') use ($researchCall): string {
-        $value = old($field, $researchCall?->{$field} ?? $default);
+    $fieldValue = function (string $field, mixed $default = '') use ($researchCall, $shouldUseOldInput): string {
+        $value = $shouldUseOldInput
+            ? old($field, $researchCall?->{$field} ?? $default)
+            : ($researchCall?->{$field} ?? $default);
 
         if ($value instanceof \DateTimeInterface) {
             return str_ends_with($field, '_at') ? $value->format('Y-m-d\\TH:i') : $value->format('Y-m-d');
@@ -30,11 +35,12 @@
     method="POST"
     action="{{ $isEditing ? route('research-calls.update', $researchCall) : route('research-calls.store') }}"
     enctype="multipart/form-data"
-    class="grid gap-6 border-t border-gray-100 px-5 pb-6 pt-5 dark:border-slate-800 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]"
+    class="grid gap-6 bg-slate-50/70 px-4 py-5 dark:bg-slate-950/55 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]"
     data-research-call-form
     data-extract-url="{{ route('research-calls.extract-image') }}"
 >
     @csrf
+    <input type="hidden" name="research_call_form" value="{{ $formMarker }}">
     @if ($isEditing)
         @method('PUT')
     @endif

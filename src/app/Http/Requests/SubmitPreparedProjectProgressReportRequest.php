@@ -43,7 +43,7 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
                     && ! $report->hasSecretaryPreparedBudget()) {
                     $validator->errors()->add(
                         'preparation',
-                        'The assigned Research Secretary must complete the budget utilization before this Monitoring Tool can be submitted.',
+                        'The project secretary selected by the project group must complete the budget utilization before this Monitoring Tool can be submitted.',
                     );
                 }
             },

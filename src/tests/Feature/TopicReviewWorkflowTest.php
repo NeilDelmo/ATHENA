@@ -825,6 +825,30 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         ->assertSee('Bea Santos')
         ->assertSee('Carlos Lim');
 
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\ngenerated comment-response form";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    });
+
+    $pdf = $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.pdf', $topic))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('x-content-type-options', 'nosniff')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+
+    expect($pdf->headers->get('content-disposition'))
+        ->toContain('inline')
+        ->toContain('coastal-habitat-restoration-research-head-comment-response-form.pdf');
+
     $download = $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.download', $topic))
         ->assertOk()

@@ -175,20 +175,7 @@ class ProjectMonitoringController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $secretaryCandidates = User::query()
-            ->assignedToRole(User::WORKSPACE_RESEARCH_SECRETARY)
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'avatar', 'college'])
-            ->map(fn (User $user): array => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'avatar' => $user->avatar,
-                'college' => $user->college,
-            ])
-            ->values();
-
-        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search', 'secretaryCandidates'));
+        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
     }
 
     private function ensureResearcherCanPrepareReport(Request $request, TopicProposal $topic): void

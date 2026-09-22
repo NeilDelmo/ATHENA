@@ -105,13 +105,15 @@ test('the proposal workflow generates and stores Attachment A with the submitted
         ->assertDontSee('submitProposalModal');
 });
 
-test('research heads can close and reopen calls while faculty cannot change call status', function () {
+test('research heads can close and reopen calls without blocking independent faculty proposals', function () {
     $imageExtractor = file_get_contents(resource_path('js/research-call-image-extractor.js'));
 
     $this->actingAs($this->head)
         ->get(route('research-calls.index'))
         ->assertOk()
         ->assertSee('Close early')
+        ->assertSee('faculty can still submit independent proposals')
+        ->assertDontSee('Faculty will no longer be able to submit new proposals')
         ->assertSee('Submission starts')
         ->assertSee('Submission ends')
         ->assertSee('x-data="dateTimePicker({', false)
@@ -139,7 +141,7 @@ test('research heads can close and reopen calls while faculty cannot change call
     $this->actingAs($this->head)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'closed'])
         ->assertRedirect()
-        ->assertSessionHas('success', 'Research call closed. New proposal submissions are no longer accepted.');
+        ->assertSessionHas('success', 'Research call closed. Faculty can still submit independent proposals from the Proposal Workspace.');
 
     expect($this->call->fresh()->status)->toBe('closed')
         ->and($this->call->fresh()->isAcceptingSubmissions())->toBeFalse();
@@ -147,15 +149,20 @@ test('research heads can close and reopen calls while faculty cannot change call
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee('Proposal submissions are closed')
-        ->assertDontSee('Create preparation draft')
+        ->assertDontSee('Proposal submissions are closed')
+        ->assertSee('Create draft and continue')
         ->assertDontSee($this->call->title);
 
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('No open research call')
-        ->assertDontSee('New Proposal');
+        ->assertSee('New Proposal');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.store'), ['project_title' => 'Independent Proposal'])
+        ->assertSessionHasNoErrors();
+
+    expect($this->faculty->proposalDrafts()->sole()->research_call_id)->toBeNull();
 
     $this->actingAs($this->faculty)
         ->patch(route('research-calls.update-status', $this->call), ['status' => 'open'])

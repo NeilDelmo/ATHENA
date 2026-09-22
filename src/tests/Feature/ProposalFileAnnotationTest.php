@@ -628,8 +628,21 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
     $card = '//form[@id="submit-revision"]//article[@data-revision-document="work_plan"]';
+    $commentResponsePreviewUrl = route('faculty.topics.comment-response-form.preview', [
+        'topic' => $this->topic,
+        'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD,
+        'review' => $review->id,
+    ]);
+    $commentResponsePdfUrl = route('faculty.topics.comment-response-form.pdf', [
+        'topic' => $this->topic,
+        'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD,
+        'review' => $review->id,
+    ]);
 
     expect($xpath->query($card)->length)->toBe(1)
+        ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" and normalize-space()="Preview"]')->length)->toBe(1)
+        ->and($xpath->query('//a[@href="'.$commentResponsePdfUrl.'" and @target="_blank" and normalize-space()="Open PDF"]')->length)->toBe(1)
+        ->and($xpath->query('//a[contains(@href, "/comment-response-form/download")]')->length)->toBe(0)
         ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(1)
         ->and($xpath->query($card.'//select[@data-revision-comment]/option[@data-annotation-id="'.$annotation->id.'"]')->length)->toBe(1)
         ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][contains(@src, "revision_embed=1")]')->length)->toBe(1)
