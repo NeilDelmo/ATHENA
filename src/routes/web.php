@@ -320,6 +320,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/research-head/signatories', [ProposalSignatoryController::class, 'index'])->name('signatories.index');
     Route::post('/research-head/signatories', [ProposalSignatoryController::class, 'store'])->name('signatories.store');
     Route::patch('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'update'])->name('signatories.update');
+    Route::delete('/research-head/signatories/{signatory}', [ProposalSignatoryController::class, 'destroy'])->name('signatories.destroy');
     Route::get('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'edit'])->name('signatories.edit');
     Route::put('/faculty/proposal-drafts/{proposalDraft}/signatories', [ProposalSignatoryController::class, 'select'])->name('signatories.select');
     Route::get('/research-support/history', [ResearchAssistantController::class, 'history'])

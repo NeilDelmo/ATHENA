@@ -287,7 +287,7 @@ function initializeSemanticEditors() {
         let syncingFromEditor = false;
         const sync = () => {
             syncingFromEditor = true;
-            mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML));
+            mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML), { preserveEditorDom: true });
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
             syncingFromEditor = false;
         };

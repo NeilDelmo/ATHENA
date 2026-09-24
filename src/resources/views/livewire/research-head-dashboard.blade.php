@@ -1,14 +1,14 @@
 <div class="space-y-4 text-slate-900" wire:key="research-head-dashboard">
-    <section class="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between" aria-labelledby="proposal-pipeline-heading">
+    <section data-dashboard-section-navigation class="sticky top-[128px] z-20 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white/95 px-4 py-3 shadow-md backdrop-blur lg:flex-row lg:items-center lg:justify-between" aria-labelledby="proposal-pipeline-heading">
         <div>
             <h3 id="proposal-pipeline-heading" class="text-sm font-bold text-slate-950">Proposal pipeline</h3>
             <p class="mt-0.5 text-xs text-slate-500">Current workload, review activity, project delivery, and deadlines.</p>
         </div>
         <nav class="flex flex-wrap gap-1 rounded-md bg-slate-100 p-1 text-xs font-semibold" aria-label="Dashboard sections">
-                <a href="#research-calendar" class="rounded px-3 py-1.5 text-[#800000] hover:bg-white">Calendar</a>
-                <a href="#needs-attention" class="rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Needs attention</a>
-                <a href="#active-projects" class="rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Active projects</a>
-                <a href="#received-proposals" class="rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Proposal inbox</a>
+            <a href="#research-calendar" class="shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-[#800000] hover:bg-white">Calendar</a>
+            <a href="#needs-attention" class="shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Needs attention</a>
+            <a href="#active-projects" class="shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Active projects</a>
+            <a href="#received-proposals" class="shrink-0 whitespace-nowrap rounded px-3 py-1.5 text-slate-600 hover:bg-white hover:text-[#800000]">Proposal inbox</a>
         </nav>
     </section>
 
@@ -42,13 +42,13 @@
         @endforeach
     </section>
 
-    <div id="research-calendar" class="scroll-mt-28">
+    <div id="research-calendar" class="scroll-mt-64">
         <livewire:dashboard-calendar />
     </div>
 
     <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
         <div class="contents">
-            <section id="received-proposals" class="order-3 scroll-mt-28 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:col-span-12" aria-labelledby="received-proposals-heading">
+            <section id="received-proposals" class="order-3 scroll-mt-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm xl:col-span-12" aria-labelledby="received-proposals-heading">
                 <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[#800000]">Decision queue</p>
@@ -131,7 +131,7 @@
                 @endif
             </section>
 
-            <section id="active-projects" class="order-1 scroll-mt-28 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:col-span-8 2xl:col-span-9" aria-labelledby="project-completion-heading">
+            <section id="active-projects" class="order-1 scroll-mt-64 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:col-span-8 2xl:col-span-9" aria-labelledby="project-completion-heading">
                 <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 pb-3">
                     <div>
                         <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[#800000]">Implementation tracking</p>
@@ -167,43 +167,94 @@
                 </div>
             </section>
 
-            <div class="order-2 grid gap-4 lg:grid-cols-2 xl:col-span-8 2xl:col-span-9">
-                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" aria-label="Submission trends">
-                    <div class="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900">Submissions volume</h3>
-                        <span class="rounded bg-slate-100 px-2 py-1 font-mono text-[10px] text-slate-600">8 weeks</span>
+            <div class="order-2 space-y-4 xl:col-span-8 2xl:col-span-9">
+                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" aria-label="Submissions by week">
+                    <div class="border-b border-slate-100 pb-2">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-900">Submissions by week</h3>
+                        <p class="mt-0.5 text-[11px] text-slate-500">New submissions received each week · last 8 weeks</p>
                     </div>
-                    <div class="mt-3 flex h-28 items-end gap-2" role="img" aria-label="Weekly submissions: {{ $analytics['weeks']->map(fn ($week) => $week['label'].': '.$week['count'])->join('; ') }}">
+                    <div class="mt-3 flex h-32 items-end gap-2" role="img" aria-label="Submissions by week: {{ $analytics['weeks']->map(fn ($week) => 'week of '.$week['label'].': '.$week['count'])->join('; ') }}">
                         @foreach ($analytics['weeks'] as $week)
-                            <div class="flex h-full min-w-0 flex-1 flex-col justify-end text-center" title="{{ $week['start'] }} to {{ $week['end'] }}: {{ $week['count'] }} submissions">
+                            <div class="flex h-full min-w-0 flex-1 flex-col justify-end text-center" title="Week of {{ $week['label'] }} ({{ $week['start'] }} to {{ $week['end'] }}): {{ $week['count'] }} submissions">
                                 <span class="mb-1 text-[9px] font-bold tabular-nums text-slate-600">{{ $week['count'] }}</span>
                                 <div class="mx-auto w-full max-w-7 rounded-t bg-rose-700" style="height: {{ max(5, ($week['count'] / $analytics['chartMax']) * 68) }}px"></div>
-                                <span class="mt-1.5 text-[9px] font-medium text-slate-400">{{ $week['label'] }}</span>
+                                <span class="mt-1.5 text-[9px] font-medium"><span class="block leading-none text-slate-400">Week of</span><span class="mt-1 block leading-none text-slate-500">{{ $week['label'] }}</span></span>
                             </div>
                         @endforeach
                     </div>
-                    <p class="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500">Last 4 weeks: <strong class="text-[#800000]">{{ $analytics['recentTotal'] }}</strong> · Previous 4 weeks: <strong class="text-slate-700">{{ $analytics['previousTotal'] }}</strong></p>
+                    <p class="mt-3 border-t border-slate-100 pt-2 text-[11px] text-slate-500"><strong class="text-[#800000]">{{ $analytics['recentTotal'] }} {{ str('submission')->plural($analytics['recentTotal']) }}</strong> in the last 4 weeks, compared with <strong class="text-slate-700">{{ $analytics['previousTotal'] }}</strong> during the previous 4 weeks.</p>
                 </section>
 
-                <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" aria-label="Review delays">
-                    <div class="border-b border-slate-100 pb-2"><h3 class="text-xs font-bold uppercase tracking-wider text-slate-900">Review turnaround</h3><p class="mt-0.5 text-[11px] text-slate-500">Average time per completed stage · last 90 days</p></div>
-                    @if ($analytics['stageDurations']->isNotEmpty())
-                        @php $slowestDays = (float) $analytics['stageDurations']->max('average_days'); @endphp
-                        <div class="mt-3 max-h-32 space-y-2.5 overflow-y-auto pr-1">
-                            @foreach ($analytics['stageDurations'] as $duration)
-                                <div><div class="flex items-center justify-between gap-2 text-[11px]"><span class="truncate font-semibold text-slate-700">{{ $stageLabels[$duration->from_status] }} <span class="font-normal text-slate-400">({{ $duration->samples }})</span></span><strong class="shrink-0 tabular-nums">{{ number_format($duration->average_days, 1) }}d</strong></div><div class="mt-1 h-1.5 rounded-full bg-slate-100"><div class="h-1.5 rounded-full bg-[#800000]" style="width: {{ max(4, ($duration->average_days / max($slowestDays, 1)) * 100) }}%"></div></div></div>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="proposal-status-overview-heading">
+                        <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+                            <div>
+                                <h3 id="proposal-status-overview-heading" class="text-xs font-bold uppercase tracking-wider text-slate-900">Proposal status overview</h3>
+                                <p class="mt-0.5 text-[11px] text-slate-500">Current proposals grouped by status.</p>
+                            </div>
+                            <span class="shrink-0 rounded bg-slate-100 px-2 py-1 text-[10px] font-bold tabular-nums text-slate-600">{{ $analytics['pipelineTotal'] }} total</span>
+                        </div>
+                        <div class="mt-3 space-y-3">
+                            @foreach ($analytics['pipelineFunnel'] as $stage)
+                                @php
+                                    $stageShare = $analytics['pipelineTotal'] > 0 ? (int) round(($stage['count'] / $analytics['pipelineTotal']) * 100) : 0;
+                                    $stageBarTone = match ($stage['key']) {
+                                        'approved' => 'bg-emerald-500',
+                                        'revision_requested' => 'bg-sky-500',
+                                        'ready_for_signature' => 'bg-violet-500',
+                                        'rejected' => 'bg-slate-400',
+                                        default => 'bg-[#800000]',
+                                    };
+                                @endphp
+                                <div>
+                                    <div class="flex items-center justify-between gap-3 text-[11px]"><span class="font-semibold text-slate-700">{{ $stage['label'] }}</span><strong class="tabular-nums text-slate-900">{{ $stage['count'] }} {{ str('proposal')->plural($stage['count']) }}</strong></div>
+                                    <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="{{ $stage['label'] }} share" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $stageShare }}"><span class="block h-full rounded-full {{ $stageBarTone }}" style="width: {{ $stageShare }}%"></span></div>
+                                    <p class="mt-1 text-[10px] text-slate-400">{{ $stageShare }}% of current proposals</p>
+                                </div>
                             @endforeach
                         </div>
-                    @else
-                        <p class="mt-3 text-xs leading-5 text-slate-500">Timing data will appear once tracked workflow stages are completed.</p>
-                    @endif
-                    <button type="button" wire:click="toggleRepeatedRevisions" aria-pressed="{{ $attention === 'repeat' ? 'true' : 'false' }}" class="mt-3 rounded-md border px-3 py-2 text-xs font-semibold {{ $attention === 'repeat' ? 'border-[#800000] bg-[#800000] text-white' : 'border-rose-200 bg-rose-50 text-[#800000]' }}">{{ $analytics['repeatRevisions'] }} with 2+ revision requests · {{ $attention === 'repeat' ? 'Clear filter' : 'View' }}</button>
-                </section>
+                    </section>
+
+                    @php
+                        $budget = $analytics['budgetUtilization'];
+                    @endphp
+                    <section class="rounded-lg border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="budget-utilization-heading">
+                        <div class="flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
+                            <div>
+                                <h3 id="budget-utilization-heading" class="text-xs font-bold uppercase tracking-wider text-slate-900">Budget utilization</h3>
+                                <p class="mt-0.5 text-[11px] text-slate-500">Latest reported spending for each approved implementation project.</p>
+                            </div>
+                            <span class="shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-semibold text-slate-600">{{ $budget['project_count'] }} {{ $budget['project_count'] === 1 ? 'project' : 'projects' }}</span>
+                        </div>
+                        @if ($budget['project_count'] > 0)
+                            <div class="mt-3 max-h-80 space-y-3 overflow-y-auto pr-1">
+                                @foreach ($budget['projects'] as $project)
+                                    @php
+                                        $projectPercentage = (float) $project['percentage'];
+                                        $projectBarPercentage = min(100, max(0, $projectPercentage));
+                                        $projectBarTone = $projectPercentage > 100 ? 'bg-rose-600' : 'bg-[#800000]';
+                                        $projectReportLabel = $project['has_utilization'] ? 'Latest report' : ($project['has_report'] ? 'No utilization reported' : 'No report yet');
+                                    @endphp
+                                    <div class="rounded-md border border-slate-100 bg-slate-50 p-3">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <span class="min-w-0 truncate text-[11px] font-semibold text-slate-700" title="{{ $project['title'] }}">{{ $project['title'] }}</span>
+                                            <strong class="shrink-0 tabular-nums text-slate-900">{{ number_format($projectPercentage, 1) }}%</strong>
+                                        </div>
+                                        <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="{{ $project['title'] }} budget utilization" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $projectBarPercentage }}"><span class="block h-full rounded-full {{ $projectBarTone }}" style="width: {{ $projectBarPercentage }}%"></span></div>
+                                        <div class="mt-1.5 flex items-center justify-between gap-3 text-[10px] text-slate-500"><span>₱{{ number_format((float) $project['reported_utilized'], 2) }} / ₱{{ number_format((float) $project['approved_budget'], 2) }}</span><span>{{ $projectReportLabel }}</span></div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">No approved implementation budgets are available yet.</p>
+                        @endif
+                    </section>
+                </div>
             </div>
         </div>
 
         <aside class="order-1 space-y-4 xl:col-span-4 xl:row-span-2 2xl:col-span-3" aria-label="Research operations side panel">
-            <section id="needs-attention" class="scroll-mt-28 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" aria-labelledby="needs-attention-heading">
+            <section id="needs-attention" class="scroll-mt-64 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm" aria-labelledby="needs-attention-heading">
                 <div class="border-b border-slate-200 bg-slate-50/80 px-4 py-3">
                     <div class="flex items-center justify-between gap-3"><h3 id="needs-attention-heading" class="text-xs font-bold uppercase tracking-wider text-slate-900">Needs attention</h3><span class="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-bold text-rose-800">{{ count($analytics['attention']) }} waiting</span></div>
                     <p class="mt-1 text-[11px] text-slate-500">Oldest waiting proposals appear first.</p>

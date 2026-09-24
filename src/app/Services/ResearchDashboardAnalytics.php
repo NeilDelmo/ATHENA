@@ -38,6 +38,20 @@ class ResearchDashboardAnalytics
             return ['label' => $week->format('M j'), 'start' => $week->toDateString(), 'end' => $end->toDateString(),
                 'count' => (int) $daily->filter(fn ($day) => $day->submitted_date >= $week->toDateString() && $day->submitted_date <= $end->toDateString())->sum('total')];
         });
+        $statusCounts = $this->topics($callId)
+            ->select('status')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->map(fn ($total): int => (int) $total);
+        $reviewStatuses = array_values(array_diff(array_keys(self::STAGES), ['revision_requested', 'ready_for_signature']));
+        $pipelineFunnel = collect([
+            ['key' => 'in_review', 'label' => 'In review', 'count' => (int) $statusCounts->only($reviewStatuses)->sum()],
+            ['key' => 'revision_requested', 'label' => 'Faculty revision', 'count' => (int) $statusCounts->get('revision_requested', 0)],
+            ['key' => 'approved', 'label' => 'Approved', 'count' => (int) $statusCounts->get('approved', 0)],
+            ['key' => 'rejected', 'label' => 'Rejected', 'count' => (int) $statusCounts->get('rejected', 0)],
+        ]);
+        $pipelineTotal = (int) $pipelineFunnel->sum('count');
         $stageDurations = ProposalStageTransition::query()
             ->whereNotNull('previous_started_at')->whereColumn('changed_at', '>=', 'previous_started_at')
             ->whereBetween('changed_at', [$now->subDays(90), $now])
@@ -60,8 +74,44 @@ class ResearchDashboardAnalytics
             });
         $repeatRevisions = $this->topics($callId)->whereIn('status', array_keys(self::STAGES))
             ->whereHas('reviews', fn (Builder $reviews) => $reviews->where('decision', 'revision_requested'), '>=', 2)->count();
+        $budgetProjects = $this->topics($callId)
+            ->withIssuedNotice()
+            ->with('latestProgressReport')
+            ->get(['id', 'title', 'estimated_budget']);
+        $budgetProjectUtilizations = $budgetProjects->map(function (TopicProposal $topic): array {
+            $approvedBudget = (float) ($topic->estimated_budget ?? 0);
+            $budgetEntries = collect($topic->latestProgressReport?->budget_utilization ?? []);
+            $reportedUtilized = (float) $budgetEntries->sum(
+                fn (array $entry): float => (float) ($entry['utilized'] ?? $entry['actual_amount'] ?? 0),
+            );
+            $hasReport = $topic->latestProgressReport !== null;
+
+            return [
+                'id' => $topic->id,
+                'title' => $topic->title,
+                'approved_budget' => $approvedBudget,
+                'reported_utilized' => $reportedUtilized,
+                'percentage' => $approvedBudget > 0 ? round(($reportedUtilized / $approvedBudget) * 100, 1) : 0.0,
+                'has_report' => $hasReport,
+                'has_utilization' => $budgetEntries->isNotEmpty(),
+            ];
+        })->values();
+        $approvedBudget = (float) $budgetProjectUtilizations->sum('approved_budget');
+        $reportedUtilized = (float) $budgetProjectUtilizations->sum('reported_utilized');
+        $reportedProjects = $budgetProjectUtilizations->filter(fn (array $project): bool => $project['has_utilization'])->count();
+        $budgetPercentage = $approvedBudget > 0 ? round(($reportedUtilized / $approvedBudget) * 100, 1) : 0.0;
+        $budgetUtilization = [
+            'approved_budget' => $approvedBudget,
+            'reported_utilized' => $reportedUtilized,
+            'percentage' => $budgetPercentage,
+            'project_count' => $budgetProjectUtilizations->count(),
+            'reported_project_count' => $reportedProjects,
+            'projects' => $budgetProjectUtilizations,
+        ];
 
         return ['weeks' => $weeks, 'chartMax' => max(1, $weeks->max('count')),
+            'pipelineFunnel' => $pipelineFunnel, 'pipelineTotal' => $pipelineTotal,
+            'budgetUtilization' => $budgetUtilization,
             'stageDurations' => $stageDurations, 'attention' => $attention,
             'repeatRevisions' => $repeatRevisions,
             'unknownTiming' => $this->topics($callId)->whereIn('status', array_keys(self::STAGES))->whereNull('status_started_at')->count(),

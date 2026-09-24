@@ -18,13 +18,13 @@ export function proposalCitationField(value) {
 export function proposalCitationFieldIds() {
     return proposalCitationFields.map((field) => field.id);
 }
-export function mirrorSemanticEditorHtml(textarea, editor, value) {
+export function mirrorSemanticEditorHtml(textarea, editor, value, { preserveEditorDom = false } = {}) {
     const html = String(value ?? '');
     const changed = textarea.value !== html || editor.innerHTML !== html;
 
     textarea.value = html;
 
-    if (editor.innerHTML !== html) editor.innerHTML = html;
+    if (!preserveEditorDom && editor.innerHTML !== html) editor.innerHTML = html;
 
     return changed;
 }

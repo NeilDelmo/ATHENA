@@ -34,6 +34,9 @@ test('head manages signatories and faculty selections are private role checked a
     $this->get(route('signatories.index'))
         ->assertOk()
         ->assertSee('Original Name')
+        ->assertSee('Back to dashboard')
+        ->assertSee('Edit')
+        ->assertSee('Delete')
         ->assertSee('aria-label="Signatory Directory"', false);
     $this->actingAs($other)->get(route('signatories.edit', $draft))->assertForbidden();
     $this->actingAs($faculty)->get(route('signatories.edit', $draft))->assertOk()->assertSee('Original Name');
@@ -48,6 +51,47 @@ test('head manages signatories and faculty selections are private role checked a
     expect($draft->fresh()->signatoryFields('work_plan')['verified_by'])->toBe('Original Name');
     $this->actingAs($faculty)->put(route('signatories.select', $draft), ['lock_version' => 1, 'signatories' => ['verified_by' => $person->id]])->assertSessionHasErrors('signatories.verified_by');
     expect($draft->fresh()->signatoryFields('curriculum_vitae'))->toBe([])->and($draft->signatoryFields('expense_breakdown'))->toBe([]);
+});
+
+test('research head can search edit and remove directory entries while faculty cannot delete them', function () {
+    $this->withoutVite();
+    foreach (['faculty', 'research_head'] as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $signatory = ProposalSignatory::create([
+        'role_key' => 'verified_by',
+        'name' => 'Dr. Elena Santos',
+        'position' => 'Research Head',
+        'active' => true,
+    ]);
+    ProposalSignatory::create([
+        'role_key' => 'certified_by',
+        'name' => 'Marco Villanueva',
+        'position' => 'Budget Officer',
+        'active' => true,
+    ]);
+
+    $this->actingAs($head)
+        ->get(route('signatories.index', ['search' => 'Elena', 'role' => 'verified_by', 'edit' => $signatory]))
+        ->assertOk()
+        ->assertSee('Dr. Elena Santos')
+        ->assertSee('Save changes')
+        ->assertDontSee('Marco Villanueva');
+
+    $this->actingAs($faculty)
+        ->delete(route('signatories.destroy', $signatory))
+        ->assertForbidden();
+    $this->assertModelExists($signatory);
+
+    $this->actingAs($head)
+        ->delete(route('signatories.destroy', $signatory))
+        ->assertRedirect(route('signatories.index'))
+        ->assertSessionHas('success', 'Dr. Elena Santos was removed from the directory. Existing proposal signature blocks remain unchanged.');
+    $this->assertModelMissing($signatory);
 });
 
 test('all five generated papers contain the selected signatory names', function () {

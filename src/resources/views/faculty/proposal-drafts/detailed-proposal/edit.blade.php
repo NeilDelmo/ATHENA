@@ -94,14 +94,14 @@
 
         <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
             <div class="flex gap-2" aria-label="Proposal editor view">
-                <button type="button" @click="previewTab = 'edit'" :aria-pressed="previewTab === 'edit'" class="proposal-mobile-tab rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white">Edit</button>
+                <button type="button" @click="closeProposalPreview()" :aria-pressed="previewTab === 'edit'" class="proposal-mobile-tab rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white">Edit</button>
                 <button type="button" @click="showProposalPreview()" :aria-pressed="previewTab === 'preview'" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white">Preview</button>
-                <button type="button" @click="previewPaneOpen = !previewPaneOpen" :aria-expanded="previewPaneOpen" aria-controls="proposal-preview-panel" class="proposal-desktop-toggle rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
+                <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="proposal-preview-panel" class="proposal-desktop-toggle rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
             </div>
             <span class="text-xs text-slate-500 dark:text-slate-400">Refresh the preview to include your latest edits.</span>
         </div>
-        <div class="proposal-preview-workspace" :class="{ 'preview-collapsed': !previewPaneOpen, 'preview-tab-active': previewTab === 'preview' }" @keydown.escape.window="previewFullscreen = false">
-        <div class="proposal-edit-pane space-y-6" aria-label="Proposal editing form">
+        <div class="proposal-preview-workspace" @keydown.escape.window="closeProposalPreview()" @resize.window.debounce.150ms="applyProposalPreviewZoom()">
+        <div data-proposal-official-form-source class="proposal-edit-pane space-y-6" aria-label="Proposal editing form">
         <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -771,26 +771,49 @@
 
         <div x-show="previewError || downloadError" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" x-text="previewError || downloadError"></div>
         </div>
-        <section id="proposal-preview-panel" class="proposal-preview-pane rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" :class="{ 'proposal-preview-fullscreen': previewFullscreen }" :role="previewFullscreen ? 'dialog' : 'region'" :aria-modal="previewFullscreen ? 'true' : null" aria-labelledby="proposal-preview-title">
-            <div class="space-y-3 border-b border-slate-200 p-4 dark:border-slate-700">
-                <h3 id="proposal-preview-title" class="text-base font-black text-slate-900 dark:text-white">Detailed proposal content preview</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Use the Word download for the exact official page layout.</p>
-                <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" @click="generatePreview()" :disabled="previewLoading" class="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50" x-text="previewLoading ? 'Generating…' : 'Refresh preview'"></button>
-                    <label class="text-xs font-bold text-slate-700 dark:text-slate-200">Zoom
-                        <select aria-label="Preview zoom" :value="previewZoom" @change="setProposalPreviewZoom($event.target.value)" class="rounded-lg border-slate-300 py-1 text-xs dark:bg-slate-800">
-                            <option value="50">50%</option><option value="75">75%</option><option value="100">100%</option><option value="125">125%</option><option value="150">150%</option>
-                        </select>
-                    </label>
-                    <button type="button" @click="toggleProposalPreviewFullscreen()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold dark:text-white" x-text="previewFullscreen ? 'Exit full screen' : 'Full screen'"></button>
-                    <button type="button" @click="printPreview()" :disabled="!previewReady" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50 dark:text-white">Print preview</button>
+        <div x-show="previewPaneOpen" x-cloak data-proposal-preview-floating class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
+            <button type="button" @click="closeProposalPreview()" class="pointer-events-auto absolute inset-0 bg-slate-950/45 backdrop-blur-sm xl:hidden" aria-label="Close detailed proposal preview"></button>
+            <section
+                id="proposal-preview-panel"
+                x-show="previewPaneOpen"
+                x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+                x-transition:enter-start="translate-y-4 scale-95 opacity-0"
+                x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+                x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+                x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+                x-transition:leave-end="translate-y-4 scale-95 opacity-0"
+                class="proposal-preview-pane pointer-events-auto absolute inset-x-2 bottom-2 flex h-[48rem] max-h-[calc(100dvh-1rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(44rem,calc(100vw-2rem))]"
+                :class="{ 'proposal-preview-fullscreen': previewFullscreen }"
+                role="dialog"
+                :aria-modal="previewFullscreen || window.matchMedia('(max-width: 1279px)').matches ? 'true' : null"
+                aria-labelledby="proposal-preview-title"
+            >
+                <div class="shrink-0 space-y-3 border-b border-slate-200 p-4 dark:border-slate-700">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 id="proposal-preview-title" class="text-base font-black text-slate-900 dark:text-white">Detailed proposal content preview</h3>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Use the Word download for the exact official page layout.</p>
+                        </div>
+                        <button type="button" @click="closeProposalPreview()" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close detailed proposal preview">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                        </button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" @click="generatePreview()" :disabled="previewLoading" class="rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white disabled:opacity-50" x-text="previewLoading ? 'Generating…' : 'Refresh preview'"></button>
+                        <label class="text-xs font-bold text-slate-700 dark:text-slate-200">Zoom
+                            <select aria-label="Preview zoom" :value="previewZoom" @change="setProposalPreviewZoom($event.target.value)" class="rounded-lg border-slate-300 py-1 text-xs dark:bg-slate-800">
+                                <option value="50">50%</option><option value="75">75%</option><option value="100">Fit width</option>
+                            </select>
+                        </label>
+                        <button type="button" @click="toggleProposalPreviewFullscreen()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold dark:text-white" x-text="previewFullscreen ? 'Exit full screen' : 'Full screen'"></button>
+                        <button type="button" @click="printPreview()" :disabled="!previewReady" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50 dark:text-white">Print preview</button>
+                    </div>
+                    <p x-show="previewStale" x-cloak role="status" class="text-xs font-semibold text-amber-700 dark:text-amber-300">Your edits are newer than this preview. Refresh to update it.</p>
+                    <p x-show="previewError || validationMessage" x-cloak role="alert" class="text-sm text-red-700 dark:text-red-300" x-text="previewError || validationMessage"></p>
                 </div>
-                <p x-show="previewStale" x-cloak role="status" class="text-xs font-semibold text-amber-700 dark:text-amber-300">Your edits are newer than this preview. Refresh to update it.</p>
-                <p x-show="previewError || validationMessage" x-cloak role="alert" class="text-sm text-red-700 dark:text-red-300" x-text="previewError || validationMessage"></p>
-            </div>
-            <p x-show="!previewHtml" class="p-6 text-sm text-slate-500 dark:text-slate-400" x-text="previewLoading ? 'Preparing your proposal preview…' : 'Select Refresh preview to see your current proposal here.'"></p>
-            <iframe x-ref="previewFrame" x-show="previewHtml" x-bind:srcdoc="previewHtml" x-on:load="proposalPreviewLoaded()" title="Detailed Research Proposal content preview" class="min-h-0 w-full flex-1 rounded-b-2xl bg-white"></iframe>
-        </section>
+                <p x-show="!previewHtml" class="p-6 text-sm text-slate-500 dark:text-slate-400" x-text="previewLoading ? 'Preparing your proposal preview…' : 'Select Refresh preview to see your current proposal here.'"></p>
+                <iframe x-ref="previewFrame" x-show="previewHtml" x-bind:srcdoc="previewHtml" x-on:load="proposalPreviewLoaded()" title="Detailed Research Proposal content preview" class="min-h-0 w-full flex-1 rounded-b-2xl bg-white"></iframe>
+            </section>
         </div>
     </div>
 </x-app-layout>

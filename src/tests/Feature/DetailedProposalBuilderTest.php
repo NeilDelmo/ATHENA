@@ -101,7 +101,11 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('BatStateU-FO-RES-02 Rev. 04')
         ->assertSee('proposal-preview-workspace', false)
         ->assertSee('proposal-edit-pane', false)
+        ->assertSee('data-proposal-official-form-source', false)
+        ->assertSee('data-proposal-preview-floating', false)
         ->assertSee('id="proposal-preview-panel"', false)
+        ->assertSee('origin-bottom-right', false)
+        ->assertSee('@click="closeProposalPreview()"', false)
         ->assertSee('Refresh preview')
         ->assertSee('Full screen')
         ->assertSee('Zoom')
@@ -772,7 +776,8 @@ test('the preview mirrors the official bordered form layout', function () {
     expect(file_get_contents(resource_path('css/detailed-proposal-print.css')))
         ->toContain('margin-left: 0.55in')
         ->toContain('detailed-proposal-note-indented { padding-left: 0.3in; }')
-        ->toContain('detailed-proposal-note-detail { padding-left: 0.55in; }');
+        ->toContain('detailed-proposal-note-detail { padding-left: 0.55in; }')
+        ->toContain('zoom: 1 !important;');
 });
 
 test('an incomplete detailed proposal can be previewed but not downloaded', function () {

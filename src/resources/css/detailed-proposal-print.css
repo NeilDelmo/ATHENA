@@ -132,8 +132,8 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 }
 
 @media print {
-    html,
-    body { background: #fff; }
+    html { overflow: visible !important; }
+    body { overflow: visible !important; background: #fff; zoom: 1 !important; }
     .detailed-proposal-preview-page { min-width: 0; padding: 0; }
     .detailed-proposal-sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
     .detailed-proposal-sheet footer { position: static; margin-top: 0.2in; }

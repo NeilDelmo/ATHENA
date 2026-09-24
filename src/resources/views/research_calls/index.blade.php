@@ -191,19 +191,20 @@
             @endforeach
         </section>
 
-        <div x-show="panel !== null" x-cloak class="fixed inset-0 z-[80]" role="presentation">
-            <button type="button" x-on:click="panel = null" class="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" aria-label="Close research call editor"></button>
+        <div x-show="panel !== null" x-cloak class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
+            <button type="button" x-on:click="panel = null" data-research-call-editor-backdrop class="pointer-events-auto absolute inset-0 bg-slate-950/60 backdrop-blur-sm xl:hidden" aria-label="Close research call editor"></button>
             <section
                 x-show="panel !== null"
-                x-transition:enter="transition ease-out duration-300"
-                x-transition:enter-start="translate-x-full"
-                x-transition:enter-end="translate-x-0"
-                x-transition:leave="transition ease-in duration-200"
-                x-transition:leave-start="translate-x-0"
-                x-transition:leave-end="translate-x-full"
-                class="absolute inset-y-0 right-0 flex w-full max-w-6xl flex-col bg-white shadow-2xl dark:bg-slate-900"
+                x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+                x-transition:enter-start="translate-y-4 scale-95 opacity-0"
+                x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+                x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+                x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+                x-transition:leave-end="translate-y-4 scale-95 opacity-0"
+                data-research-call-editor-panel
+                class="pointer-events-auto absolute inset-x-2 bottom-2 top-2 flex origin-bottom-right flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:top-4 sm:w-[min(64rem,calc(100vw-2rem))]"
                 role="dialog"
-                aria-modal="true"
+                x-bind:aria-modal="window.matchMedia('(max-width: 1279px)').matches ? 'true' : null"
                 aria-labelledby="research-call-editor-title"
             >
                 <header class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">

@@ -70,7 +70,18 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertOk()
         ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
         ->assertSee('Research Operations Dashboard')
+        ->assertSee('data-research-operations-status', false)
+        ->assertSee('self-end', false)
+        ->assertSee('Research operations active')
+        ->assertDontSee('Project monitoring')
         ->assertSee('Proposal pipeline')
+        ->assertSee('data-dashboard-section-navigation', false)
+        ->assertSee('sticky top-[128px] z-20', false)
+        ->assertSee('href="#research-calendar"', false)
+        ->assertSee('href="#needs-attention"', false)
+        ->assertSee('href="#active-projects"', false)
+        ->assertSee('href="#received-proposals"', false)
+        ->assertSee('scroll-mt-64', false)
         ->assertSee('Inbox controls')
         ->assertSee('Received proposal inbox')
         ->assertSee('table-fixed', false)
@@ -291,6 +302,55 @@ test('both Research Head pages have useful empty states', function () {
     $this->actingAs($this->head)->get(route('research_head.projects.index'))->assertSee('No projects found');
 });
 
+test('dashboard labels submission trends as weekly', function () {
+    createDashboardTopic($this->researcher, $this->call);
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.dashboard'))
+        ->assertOk()
+        ->assertSee('Submissions by week')
+        ->assertDontSee('Average review time')
+        ->assertSee('New submissions received each week · last 8 weeks')
+        ->assertSee('Week of')
+        ->assertSee('in the last 4 weeks, compared with')
+        ->assertDontSee('Submissions volume');
+
+});
+
+test('dashboard shows the proposal status overview and budget utilization analytics', function () {
+    createDashboardTopic($this->researcher, $this->call, ['status' => 'pending']);
+    createDashboardTopic($this->researcher, $this->call, ['status' => 'expert_review']);
+    createDashboardTopic($this->researcher, $this->call, ['status' => 'revision_requested']);
+    $project = createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Budgeted Approved Project',
+        'status' => 'approved',
+        'project_status' => 'ongoing',
+        'estimated_budget' => 100000,
+    ]);
+    ProjectProgressReport::create([
+        'topic_id' => $project->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(),
+        'progress_percentage' => 40,
+        'accomplishments' => 'Implementation is underway.',
+        'budget_utilization' => [['type' => 'Purchase Request', 'actual_amount' => 30000]],
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.dashboard'))
+        ->assertOk()
+        ->assertSee('Proposal status overview')
+        ->assertSee('Current proposals grouped by status.')
+        ->assertSee('4 total')
+        ->assertSee('2 proposals')
+        ->assertSee('Faculty revision')
+        ->assertSee('Budget utilization')
+        ->assertSee('₱30,000.00')
+        ->assertSee('₱100,000.00')
+        ->assertSee('Budgeted Approved Project')
+        ->assertSee('30.0%')
+        ->assertSee('Latest report');
+});
 test('the proposal pipeline shows the four actionable counts', function () {
     $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))

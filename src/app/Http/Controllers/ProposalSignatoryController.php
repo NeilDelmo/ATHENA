@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class ProposalSignatoryController extends Controller
@@ -18,7 +19,46 @@ class ProposalSignatoryController extends Controller
     {
         abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
 
-        return view('research_head.signatories', ['signatories' => ProposalSignatory::orderBy('role_key')->orderBy('name')->get(), 'roles' => ProposalSignatory::roles()]);
+        $roles = ProposalSignatory::roles();
+        $selectedRole = $request->string('role')->toString();
+
+        if (! array_key_exists($selectedRole, $roles)) {
+            $selectedRole = '';
+        }
+
+        $search = Str::of($request->string('search')->toString())
+            ->squish()
+            ->limit(100)
+            ->toString();
+        $normalizedSearch = Str::lower($search);
+        $allSignatories = ProposalSignatory::query()
+            ->orderBy('role_key')
+            ->orderBy('name')
+            ->get();
+        $signatories = $allSignatories
+            ->when($selectedRole !== '', fn ($items) => $items->where('role_key', $selectedRole))
+            ->when($search !== '', fn ($items) => $items->filter(
+                fn (ProposalSignatory $signatory): bool => Str::contains(
+                    Str::lower($signatory->name.' '.$signatory->position),
+                    $normalizedSearch,
+                ),
+            ));
+        $editingSignatoryId = $signatories
+            ->firstWhere('id', $request->integer('edit'))
+            ?->getKey();
+
+        return view('research_head.signatories', [
+            'editingSignatoryId' => $editingSignatoryId,
+            'roles' => $roles,
+            'search' => $search,
+            'selectedRole' => $selectedRole,
+            'signatoryGroups' => $signatories->groupBy('role_key'),
+            'summary' => [
+                'active' => $allSignatories->where('active', true)->count(),
+                'roles' => $allSignatories->pluck('role_key')->unique()->count(),
+                'total' => $allSignatories->count(),
+            ],
+        ]);
     }
 
     public function store(SaveProposalSignatoryRequest $request): RedirectResponse
@@ -33,6 +73,18 @@ class ProposalSignatoryController extends Controller
         $signatory->update($request->validated());
 
         return back()->with('success', 'Directory updated. Previously selected names remain unchanged.');
+    }
+
+    public function destroy(Request $request, ProposalSignatory $signatory): RedirectResponse
+    {
+        abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
+
+        $signatoryName = $signatory->name;
+        $signatory->delete();
+
+        return redirect()
+            ->route('signatories.index')
+            ->with('success', "{$signatoryName} was removed from the directory. Existing proposal signature blocks remain unchanged.");
     }
 
     public function edit(ProposalDraft $proposalDraft): View

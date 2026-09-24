@@ -18,6 +18,23 @@ test('programmatic proposal values are mirrored into the visible semantic editor
     assert.equal(mirrorSemanticEditorHtml(textarea, editor, '<p>[1] New reference</p>'), false);
 });
 
+test('manual typing updates the saved value without replacing the active editor DOM', () => {
+    const textarea = { value: '<p>Hello</p>' };
+    let editorWrites = 0;
+    const editor = {
+        get innerHTML() {
+            return '<p>Hello&nbsp;</p>';
+        },
+        set innerHTML(value) {
+            editorWrites++;
+        },
+    };
+
+    assert.equal(mirrorSemanticEditorHtml(textarea, editor, '<p>Hello\u00a0</p>', { preserveEditorDom: true }), true);
+    assert.equal(textarea.value, '<p>Hello\u00a0</p>');
+    assert.equal(editorWrites, 0);
+});
+
 test('citation marker synchronization reports and applies only real label changes', () => {
     const marker = {
         textContent: ' [1]',

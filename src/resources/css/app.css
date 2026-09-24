@@ -711,42 +711,28 @@ html.dark .revision-embedded [data-proposal-autosave-status] {
 
 /* Keep the final form controls clear of the persistent back button. */
 .proposal-preview-workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
+    display: block;
 }
 .proposal-edit-pane {
     min-width: 0;
-    height: 76dvh;
-    overflow: auto;
     padding: .25rem;
-    scrollbar-gutter: stable;
 }
 .proposal-preview-pane {
-    display: none;
     min-width: 0;
-    height: 76dvh;
-    overflow: hidden;
-    flex-direction: column;
 }
-.proposal-preview-workspace.preview-tab-active .proposal-edit-pane { display: none; }
-.proposal-preview-workspace.preview-tab-active .proposal-preview-pane { display: flex; }
 .proposal-desktop-toggle { display: none; }
 @media (min-width: 1280px) {
-    .proposal-preview-workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .proposal-preview-workspace.preview-tab-active .proposal-edit-pane { display: block; }
-    .proposal-preview-pane { display: flex; }
-    .proposal-preview-workspace.preview-collapsed { grid-template-columns: minmax(0, 1fr); }
-    .proposal-preview-workspace.preview-collapsed .proposal-preview-pane { display: none; }
     .proposal-mobile-tab { display: none; }
     .proposal-desktop-toggle { display: inline-flex; }
 }
-.proposal-preview-workspace .proposal-preview-pane.proposal-preview-fullscreen {
+.proposal-preview-pane.proposal-preview-fullscreen {
     display: flex;
     position: fixed;
     inset: 1rem;
     width: auto;
     height: auto;
+    max-width: none;
+    max-height: none;
     z-index: 100;
     box-shadow: 0 0 0 100vmax rgb(15 23 42 / .65);
 }

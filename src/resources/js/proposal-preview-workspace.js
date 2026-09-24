@@ -1,6 +1,6 @@
 export function proposalPreviewWorkspace() {
     return {
-        previewPaneOpen: true,
+        previewPaneOpen: false,
         previewTab: 'edit',
         previewFullscreen: false,
         previewZoom: 100,
@@ -11,6 +11,13 @@ export function proposalPreviewWorkspace() {
             this.previewPaneOpen = true;
             this.previewTab = 'preview';
             if (!this.previewHtml && !this.previewLoading) this.generatePreview();
+            this.$nextTick?.(() => this.applyProposalPreviewZoom());
+        },
+
+        closeProposalPreview() {
+            this.previewPaneOpen = false;
+            this.previewFullscreen = false;
+            this.previewTab = 'edit';
         },
 
         markProposalPreviewStale() {
@@ -19,13 +26,30 @@ export function proposalPreviewWorkspace() {
         },
 
         setProposalPreviewZoom(value) {
-            this.previewZoom = Math.max(50, Math.min(150, Number(value) || 100));
+            this.previewZoom = Math.max(50, Math.min(100, Number(value) || 100));
             this.applyProposalPreviewZoom();
         },
 
         applyProposalPreviewZoom() {
-            const body = this.$refs.previewFrame?.contentDocument?.body;
-            if (body) body.style.zoom = String(this.previewZoom / 100);
+            const frame = this.$refs.previewFrame;
+            const previewDocument = frame?.contentDocument;
+            const body = previewDocument?.body;
+            const documentElement = previewDocument?.documentElement;
+
+            if (!body || !documentElement) return;
+
+            body.style.zoom = '1';
+            body.style.overflowX = 'hidden';
+            documentElement.style.overflowX = 'hidden';
+
+            const viewportWidth = Number(documentElement.clientWidth || frame.clientWidth || 0);
+            const paperWidth = Number(body.scrollWidth || body.offsetWidth || 0);
+            const requestedScale = this.previewZoom / 100;
+            const fitScale = viewportWidth > 0 && paperWidth > 0
+                ? Math.min(1, viewportWidth / paperWidth)
+                : 1;
+
+            body.style.zoom = String(Math.min(requestedScale, fitScale));
         },
 
         proposalPreviewLoaded() {
@@ -39,6 +63,7 @@ export function proposalPreviewWorkspace() {
                 this.previewPaneOpen = true;
                 this.previewTab = 'preview';
             }
+            this.$nextTick?.(() => this.applyProposalPreviewZoom());
         },
     };
 }
