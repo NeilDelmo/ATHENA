@@ -517,15 +517,40 @@ test('a researcher can preview the filled monitoring tool without submitting it'
 });
 
 test('the Research Head topic page shows monitoring in its own tab', function () {
+    ProjectProgressReport::create([
+        'topic_id' => $this->topic->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now()->subDay(),
+        'progress_percentage' => 60,
+        'accomplishments' => 'Monitoring interface review fixture.',
+    ]);
+
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
+        ->assertDontSee('Required review sequence')
         ->assertSee('id="version-history-tab-button"', false)
         ->assertSee('id="project-monitoring-tab-button"', false)
         ->assertSee('@click="setTopicTab(\'monitoring\', \'project-monitoring\')"', false)
         ->assertSee('id="project-monitoring-tab"', false)
         ->assertSee('x-show="activeTopicTab === \'monitoring\'"', false)
+        ->assertSee('data-monitoring-schedule-table', false)
+        ->assertSee('data-monitoring-action', false)
+        ->assertSee('View report')
         ->assertSee("window.location.hash === '#project-monitoring'", false);
+});
+
+test('the proposal review sequence remains visible before project monitoring begins', function () {
+    $this->topic->update([
+        'notice_to_proceed_issued_by' => null,
+        'notice_to_proceed_issued_at' => null,
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Required review sequence')
+        ->assertDontSee('data-monitoring-schedule-table', false);
 });
 
 test('monitoring tools validate reporting totals and required activities', function () {

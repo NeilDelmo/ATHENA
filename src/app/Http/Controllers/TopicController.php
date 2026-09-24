@@ -58,7 +58,7 @@ class TopicController extends Controller
         $isFacultyResearcher = $user->isUsingWorkspace('faculty_researcher');
 
         if ($isFacultyResearcher) {
-            return $this->researchWorkspace($user);
+            return $this->researchDashboard($user);
         }
 
         $topics = $user->proposals()
@@ -1159,7 +1159,7 @@ class TopicController extends Controller
     {
         $projects = TopicProposal::query()
             ->accessibleTo($user)
-            ->with(['researchCall', 'category', 'latestVersion'])
+            ->with(['researchCall', 'category', 'latestVersion', 'latestProgressReport'])
             ->when($search !== '', function ($query) use ($search): void {
                 $query->where(function ($query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
@@ -1176,6 +1176,49 @@ class TopicController extends Controller
             'awaitingProjects',
             'completedProjects',
             'search',
+        ));
+    }
+
+    private function researchDashboard(User $user): View
+    {
+        $projects = TopicProposal::query()
+            ->accessibleTo($user)
+            ->with(['researchCall', 'category', 'latestProgressReport']);
+
+        $activeProjects = (clone $projects)->activeProject()->latest('updated_at')->get();
+        $awaitingProjects = (clone $projects)->awaitingNoticeToProceed()->latest('updated_at')->get();
+        $completedProjects = (clone $projects)->completedProject()->latest('updated_at')->get();
+
+        $averageProgress = $activeProjects->isEmpty()
+            ? 0
+            : (int) round($activeProjects->avg(
+                fn (TopicProposal $topic): int => min(100, max(0, (int) ($topic->latestProgressReport?->progress_percentage ?? 0))),
+            ));
+
+        $attentionProjects = $activeProjects
+            ->filter(function (TopicProposal $topic): bool {
+                $progress = $topic->latestProgressReport?->progress_percentage;
+
+                return $topic->monitoringStatusForProgress($progress) !== TopicProposal::PROJECT_STATUS_ONGOING
+                    || $topic->latestProgressReport === null;
+            })
+            ->sortBy(function (TopicProposal $topic): int {
+                $status = $topic->monitoringStatusForProgress($topic->latestProgressReport?->progress_percentage);
+
+                return match ($status) {
+                    TopicProposal::PROJECT_STATUS_COMPLETION_PENDING => 0,
+                    TopicProposal::PROJECT_STATUS_DELAYED => 1,
+                    default => 2,
+                };
+            })
+            ->values();
+
+        return view('research.dashboard', compact(
+            'activeProjects',
+            'awaitingProjects',
+            'completedProjects',
+            'attentionProjects',
+            'averageProgress',
         ));
     }
 

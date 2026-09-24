@@ -44,18 +44,21 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
         ->assertSee('data-dashboard-palette="red-black-white"', false)
         ->assertSee('Proposal overview')
         ->assertSee('A quick view of your research pipeline.')
-        ->assertSee('No open call')
-        ->assertDontSee(route('faculty.proposal-drafts.create'), false)
         ->assertDontSee('Faculty Researcher Workspace')
         ->assertDontSee('Manage and track your institutional research submissions.');
 
     $this->actingAs($facultyResearcher)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Approved Research Projects')
-        ->assertSee('Active Projects')
-        ->assertSee('Awaiting Notice to Proceed')
-        ->assertSee('Completed / Archive')
+        ->assertSee('Your research at a glance')
+        ->assertSee('data-dashboard-layout="research-overview"', false)
+        ->assertSee('Portfolio summary')
+        ->assertSee('What needs your attention')
+        ->assertDontSee('Portfolio pulse')
+        ->assertDontSee('A compact view of current execution')
+        ->assertSee('Research calendar')
+        ->assertSee(route('research.index'), false)
+        ->assertDontSee('data-dashboard-layout="project-list"', false)
         ->assertDontSee('Research Proposal Workspace');
 });
 
@@ -164,7 +167,7 @@ test('the faculty dashboard prioritizes revision requests and keeps submitted pr
         ->assertDontSee('Download latest');
 });
 
-test('the faculty researcher dashboard hides proposal drafts and only lists approved projects', function () {
+test('the faculty researcher dashboard is an overview instead of a duplicate project inventory', function () {
     $this->withoutVite();
 
     $head = User::factory()->create();
@@ -190,7 +193,7 @@ test('the faculty researcher dashboard hides proposal drafts and only lists appr
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,
         'status' => 'approved',
-        'project_status' => 'ongoing',
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
         'notice_to_proceed_issued_by' => $head->id,
         'notice_to_proceed_issued_at' => now(),
     ]);
@@ -211,25 +214,36 @@ test('the faculty researcher dashboard hides proposal drafts and only lists appr
     $this->actingAs($researcher)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('Approved Research Projects')
         ->assertSee('Faculty Researcher Dashboard')
-        ->assertSee('Active Projects')
-        ->assertSee('Awaiting Notice to Proceed')
-        ->assertSee('Completed / Archive')
+        ->assertSee('Your research at a glance')
+        ->assertSee('data-dashboard-layout="research-overview"', false)
+        ->assertSee('Portfolio summary')
+        ->assertSee('What needs your attention')
+        ->assertDontSee('Portfolio pulse')
+        ->assertDontSee('A compact view of current execution')
+        ->assertSee('Monitoring needed')
         ->assertSee('Approved Community Research')
-        ->assertSee('ongoing')
+        ->assertSee('Research calendar')
+        ->assertSee('Open My Projects')
+        ->assertSee(route('research.index'), false)
+        ->assertDontSee('data-dashboard-layout="project-list"', false)
+        ->assertDontSee('All projects')
+        ->assertDontSee('Search approved projects')
         ->assertDontSee('Research Proposal Workspace')
-        ->assertDontSee('Faculty Dashboard')
-        ->assertDontSee('Proposal Workspace')
         ->assertDontSee('Proposal overview')
         ->assertDontSee('Recent proposal drafts')
-        ->assertDontSee('View all drafts')
         ->assertDontSee('New proposal')
-        ->assertDontSee('Create first proposal')
-        ->assertDontSee($researchCall->title)
         ->assertDontSee('Research calls')
         ->assertDontSee(route('topics.show', $pendingTopic))
         ->assertDontSee('Hidden Researcher Draft');
+
+    $this->actingAs($researcher)
+        ->get(route('research.index'))
+        ->assertOk()
+        ->assertSee('Approved Research Projects')
+        ->assertSee('data-dashboard-layout="project-list"', false)
+        ->assertSee('All projects')
+        ->assertDontSee('data-dashboard-layout="research-overview"', false);
 });
 
 test('the faculty dashboard shows uploaded research call posters in a carousel', function () {

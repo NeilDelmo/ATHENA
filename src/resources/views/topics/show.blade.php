@@ -91,7 +91,9 @@
                 </div>
             </div>
         </div>
-            <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
+            @unless ($canViewMonitoring)
+                <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
+            @endunless
     </x-slot>
 
     <div

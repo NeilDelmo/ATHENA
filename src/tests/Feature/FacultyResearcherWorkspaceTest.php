@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -88,15 +89,33 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
     $completed = $createProject('Completed archive project', 'approved', TopicProposal::PROJECT_STATUS_COMPLETED, true);
     $pending = $createProject('Hidden pending proposal', 'pending');
     $approvedWithNoticeWithoutExecutionStatus = $createProject('Hidden inactive NTP project', 'approved', null, true);
+    ProjectProgressReport::create([
+        'topic_id' => $active->id,
+        'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(),
+        'progress_percentage' => 64,
+        'accomplishments' => 'Dashboard progress check.',
+    ]);
 
     $response = $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
     ])->actingAs($this->researcher)->get(route('research.index'));
 
     $response->assertOk()
-        ->assertSeeInOrder(['Active Projects', $active->title, $delayed->title])
-        ->assertSeeInOrder(['Awaiting Notice to Proceed', $awaiting->title])
-        ->assertSeeInOrder(['Completed / Archive', $completed->title])
+        ->assertSee('data-dashboard-layout="project-list"', false)
+        ->assertSee('Approved Research Projects')
+        ->assertSee('All projects')
+        ->assertSee('Waiting')
+        ->assertSee('Active')
+        ->assertSee('Completed')
+        ->assertSee($active->title)
+        ->assertSee($delayed->title)
+        ->assertSee($awaiting->title)
+        ->assertSee($completed->title)
+        ->assertSee('64% monitored')
+        ->assertSee('View milestones')
+        ->assertSee('View status')
+        ->assertSee('View archive')
         ->assertDontSee($pending->title)
         ->assertDontSee($approvedWithNoticeWithoutExecutionStatus->title);
 

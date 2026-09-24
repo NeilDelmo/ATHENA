@@ -61,3 +61,6 @@ Thumbs.db
 /database/*.sqlite
 /public/build/
 /storage/framework/
+/src/playwright-report/
+/src/playwright/.auth/
+/src/test-results/

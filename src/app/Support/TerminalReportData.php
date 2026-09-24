@@ -19,7 +19,12 @@ class TerminalReportData
         $proposal = $files->firstWhere('document_type', 'detailed_proposal')?->source_data ?? [];
         $workPlan = $files->firstWhere('document_type', 'work_plan')?->source_data ?? [];
         $previous = $topic->narrativeReports()->where('report_type', 'progress')->where('review_status', '!=', 'revision_requested')->latest('id')->first();
-        $monitoring = $topic->progressReports()->whereDoesntHave('nextVersion', fn ($query) => $query->submitted())->get();
+        $monitoring = $topic->progressReports()
+            ->submitted()
+            ->whereDoesntHave('nextVersion', fn ($query) => $query->submitted())
+            ->orderBy('period_start')
+            ->orderBy('reporting_date')
+            ->get();
         $authors = collect([[
             'name' => $proposal['project_leader_display'] ?? $proposal['project_leader'] ?? $topic->user->name,
             'role' => 'Project Leader',
@@ -34,10 +39,43 @@ class TerminalReportData
                 $authors[] = ['name' => $member->name, 'role' => 'Project Staff', 'rank' => '', 'campus' => '', 'college' => '', 'date_signed' => ''];
             }
         }
-        $accomplishments = collect($workPlan['entries'] ?? [])->groupBy('objective')->map(function ($entries, string $objective) use ($previous): array {
+        $workPlanEntries = collect($workPlan['entries'] ?? [])
+            ->filter(fn (mixed $entry): bool => is_array($entry))
+            ->values()
+            ->map(fn (array $entry, int $index): array => [
+                ...$entry,
+                'source_work_plan_index' => $index,
+            ]);
+        $accomplishments = $workPlanEntries->groupBy('objective')->map(function ($entries, string $objective) use ($previous, $monitoring): array {
             $prior = collect($previous?->accomplishments ?? [])->firstWhere('objective', $objective);
+            $sourceIndexes = $entries->pluck('source_work_plan_index');
+            $activities = $entries->pluck('activity')->filter()->map(
+                fn (mixed $activity): string => trim((string) $activity),
+            );
+            $monitoringActuals = $monitoring->flatMap(function ($report) use ($objective, $sourceIndexes, $activities): array {
+                return collect($report->work_plan ?? [])
+                    ->filter(function (mixed $row) use ($objective, $sourceIndexes, $activities): bool {
+                        if (! is_array($row)) {
+                            return false;
+                        }
 
-            return ['objective' => $objective, 'target' => $entries->pluck('expected_output')->filter()->unique()->implode("\n"), 'actual' => $prior['actual'] ?? ''];
+                        return (isset($row['source_work_plan_index']) && $sourceIndexes->contains((int) $row['source_work_plan_index']))
+                            || trim((string) ($row['objective'] ?? '')) === $objective
+                            || $activities->contains(trim((string) ($row['activity'] ?? '')));
+                    })
+                    ->pluck('actual_accomplishment')
+                    ->filter(fn (mixed $actual): bool => filled($actual))
+                    ->map(fn (mixed $actual): string => $report->quarter_label.': '.trim((string) $actual))
+                    ->all();
+            })->unique()->values();
+
+            return [
+                'objective' => $objective,
+                'target' => $entries->pluck('expected_output')->filter()->unique()->implode("\n"),
+                'actual' => $monitoringActuals->isNotEmpty()
+                    ? $monitoringActuals->implode("\n")
+                    : ($prior['actual'] ?? ''),
+            ];
         })->values();
         if ($accomplishments->isEmpty()) {
             $accomplishments = collect($proposal['specific_objectives'] ?? [])->map(fn (array $row): array => [
@@ -66,6 +104,7 @@ class TerminalReportData
         $defaults = [
             'missing_monitoring_periods' => app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic),
             'monitoring_reference' => $monitoring->map(fn ($report): array => ['id' => $report->id, 'period' => $report->reporting_period_label, 'accomplishments' => $report->accomplishments, 'issues' => $report->issues, 'work_plan' => $report->work_plan, 'budget_utilization' => $report->budget_utilization])->all(),
+            'objectives_from_work_plan' => $workPlanEntries->isNotEmpty(),
             'signatory_options' => ProposalSignatory::where('active', true)->orderBy('name')->pluck('name')->unique()->values()->all(),
             'report_type' => 'terminal', 'submission_date' => now()->toDateString(),
             'researchers' => collect($authors)->pluck('name')->implode("\n"),
@@ -132,6 +171,22 @@ class TerminalReportData
             return $data;
         }
         $defaults = $this->defaults($topic);
+        if ($defaults['objectives_from_work_plan']) {
+            $submittedAccomplishments = collect($data['accomplishments'] ?? []);
+            $data['accomplishments'] = collect($defaults['accomplishments'])
+                ->map(function (array $approved, int $index) use ($submittedAccomplishments): array {
+                    $submitted = $submittedAccomplishments->firstWhere('objective', $approved['objective'])
+                        ?? $submittedAccomplishments->get($index, []);
+
+                    return [
+                        ...$approved,
+                        'actual' => is_array($submitted)
+                            ? trim((string) ($submitted['actual'] ?? $approved['actual']))
+                            : $approved['actual'],
+                    ];
+                })
+                ->all();
+        }
         $data['terminal_data'] = [...$defaults['terminal_data'], ...($data['terminal_data'] ?? []), 'tables' => $data['terminal_data']['tables'] ?? []];
         $richText = new ProposalRichText;
         foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {

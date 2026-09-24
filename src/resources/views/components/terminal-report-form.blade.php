@@ -12,10 +12,15 @@
         ->filter(fn (int $index): bool => filled($value('reuse_photo_'.$index)) || filled($value('photo_caption_'.$index)))
         ->max();
     $initialFigureCount = max(1, (int) ($usedFigureSlots ?: 1));
+    $monitoringSources = collect($defaults['monitoring_reference'] ?? []);
+    $missingPeriods = collect($defaults['missing_monitoring_periods'] ?? []);
+    $objectivesFromWorkPlan = (bool) ($defaults['objectives_from_work_plan'] ?? false);
+    $objectiveCount = count($accomplishments);
+    $evidenceCount = count($evidence);
 @endphp
 
 <section
-    class="p-5 sm:p-8"
+    class="bg-slate-50/70 p-4 sm:p-6 lg:p-8"
     data-narrative-progress-autosave="true"
     x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token())})"
 >
@@ -25,7 +30,7 @@
         method="POST"
         action="{{ route('project-narrative-reports.prepare', $topic) }}"
         enctype="multipart/form-data"
-        class="space-y-10 text-base leading-7 text-gray-800 dark:text-slate-200 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
+        class="mx-auto max-w-6xl space-y-8 text-base leading-7 text-gray-800 dark:text-slate-200 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
         @submit="submitting = true"
     >
         @csrf
@@ -33,24 +38,60 @@
         <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
         <x-proposal-autosave-status />
 
-        <header class="overflow-hidden rounded-3xl bg-gray-950 text-white shadow-lg">
-            <div class="border-b border-white/10 px-6 py-7 sm:px-8">
-                <p class="font-semibold uppercase tracking-[0.18em] text-red-300">Terminal report composer</p>
-                <h2 class="mt-2 max-w-3xl font-serif text-3xl font-bold leading-tight sm:text-4xl">Build the final project record</h2>
-                <p class="mt-3 max-w-3xl text-base leading-7 text-gray-300">Bring the project story together with a cover poster, formatted narrative, figures, and research tables. Your text saves privately while you work.</p>
+        <header class="overflow-hidden rounded-3xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-amber-50 shadow-sm dark:border-red-950 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/30">
+            <div class="grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                <div>
+                    <p class="text-xs font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Terminal report workspace</p>
+                    <h2 class="mt-2 max-w-3xl text-3xl font-black leading-tight tracking-tight text-slate-950 dark:text-white sm:text-4xl">Assemble the final project record</h2>
+                    <p class="mt-3 max-w-3xl text-base leading-7 text-slate-600 dark:text-slate-300">Approved objectives stay connected to the Work Plan. Quarterly accomplishments, report evidence, final findings, and the project poster are brought together here.</p>
+                </div>
+                <div class="rounded-2xl border border-white bg-white/90 px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                    <p class="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Official form</p>
+                    <p class="mt-1 text-lg font-black text-slate-950 dark:text-white">BatStateU-REC-RES-04</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Revision 02</p>
+                </div>
             </div>
-            <nav aria-label="Terminal report content tools" class="grid gap-px bg-white/10 sm:grid-cols-3">
-                <a href="#terminal-cover" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
-                    <span aria-hidden="true" class="text-xl">▣</span> Add cover image
-                </a>
-                <a href="#terminal-figures" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
-                    <span aria-hidden="true" class="text-xl">＋</span> Insert a figure
-                </a>
-                <a href="#terminal-tables" class="flex min-h-14 items-center justify-center gap-3 bg-gray-950 px-4 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white">
-                    <span aria-hidden="true" class="text-xl">▦</span> Create a table
-                </a>
+            <nav aria-label="Terminal report sections" class="grid border-t border-red-100 bg-white/70 sm:grid-cols-3 dark:border-red-950 dark:bg-slate-900/70">
+                <a href="#terminal-accomplishments" class="flex min-h-14 items-center justify-center gap-2 border-b border-red-100 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-800 sm:border-b-0 sm:border-r dark:border-red-950 dark:text-slate-200 dark:hover:bg-red-950/40">1. Confirm outcomes</a>
+                <a href="#terminal-cover" class="flex min-h-14 items-center justify-center gap-2 border-b border-red-100 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-800 sm:border-b-0 sm:border-r dark:border-red-950 dark:text-slate-200 dark:hover:bg-red-950/40">2. Add project poster</a>
+                <a href="#terminal-figures" class="flex min-h-14 items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-red-50 hover:text-red-800 dark:text-slate-200 dark:hover:bg-red-950/40">3. Attach evidence</a>
             </nav>
         </header>
+
+        <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Terminal report source summary">
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p class="text-xs font-black uppercase tracking-wider text-slate-400">Approved objectives</p>
+                <p class="mt-2 text-2xl font-black tabular-nums text-slate-950 dark:text-white">{{ $objectiveCount }}</p>
+                <p class="mt-1 text-xs text-slate-500">Carried from the approved Work Plan</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p class="text-xs font-black uppercase tracking-wider text-slate-400">Monitoring sources</p>
+                <p class="mt-2 text-2xl font-black tabular-nums text-slate-950 dark:text-white">{{ $monitoringSources->count() }}</p>
+                <p class="mt-1 text-xs text-slate-500">Quarterly records combined below</p>
+            </article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <p class="text-xs font-black uppercase tracking-wider text-slate-400">Reusable images</p>
+                <p class="mt-2 text-2xl font-black tabular-nums text-slate-950 dark:text-white">{{ $evidenceCount }}</p>
+                <p class="mt-1 text-xs text-slate-500">From earlier progress reports</p>
+            </article>
+            <article class="rounded-2xl border p-4 shadow-sm {{ $missingPeriods->isEmpty() ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30' }}">
+                <p class="text-xs font-black uppercase tracking-wider {{ $missingPeriods->isEmpty() ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300' }}">Reporting readiness</p>
+                <p class="mt-2 text-lg font-black text-slate-950 dark:text-white">{{ $missingPeriods->isEmpty() ? 'Ready to prepare' : $missingPeriods->count().' period(s) missing' }}</p>
+                <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">Drafting remains available at any time</p>
+            </article>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="terminal-data-flow-heading">
+            <h3 id="terminal-data-flow-heading" class="text-sm font-black text-slate-950 dark:text-white">How the final report is assembled</h3>
+            <div class="mt-4 grid gap-3 md:grid-cols-4">
+                @foreach ([['1', 'Approved proposal', 'Introduction, rationale, methods, objectives'], ['2', 'Work Plan', 'Locked objectives and target outputs'], ['3', 'Monitoring records', 'Quarterly accomplishments and evidence'], ['4', 'Terminal report', 'Final results, conclusions, poster, and signatures']] as [$number, $title, $description])
+                    <div class="flex gap-3 rounded-xl bg-slate-50 p-3 dark:bg-slate-800">
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-700 text-xs font-black text-white">{{ $number }}</span>
+                        <div><p class="text-sm font-black text-slate-900 dark:text-white">{{ $title }}</p><p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $description }}</p></div>
+                    </div>
+                @endforeach
+            </div>
+        </section>
 
         @if ($errors->narrativeProgress->any())
             <div role="alert" class="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100">
@@ -79,14 +120,14 @@
             >
                 <span>
                     Earlier monitoring information
-                    <span class="mt-1 block font-normal text-gray-600 dark:text-slate-300">Use submitted monitoring records as references while writing the final report.</span>
+                    <span class="mt-1 block font-normal text-gray-600 dark:text-slate-300">Quarterly accomplishments are prefilled into the matching Work Plan objectives. Open this only when you need the detailed source records.</span>
                 </span>
                 <svg aria-hidden="true" class="h-6 w-6 shrink-0 transition-transform" :class="open && 'rotate-180'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div id="terminal-monitoring-reference" x-show="open" x-cloak class="border-t border-gray-200 px-5 pb-5 dark:border-slate-700">
                 @forelse ($defaults['monitoring_reference'] ?? [] as $source)
                     <article class="mt-5 space-y-3 border-b border-gray-200 pb-5 last:border-0 dark:border-slate-700">
-                        <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">{{ $source['period'] }}</h4>
+                        <h4 class="text-xl font-bold text-gray-950 dark:text-white">{{ $source['period'] }}</h4>
                         <p class="whitespace-pre-line">{{ $source['accomplishments'] }}</p>
                         @foreach ($source['work_plan'] ?? [] as $activity)
                             <p><strong>{{ $activity['activity'] ?? '' }}:</strong> {{ $activity['actual_accomplishment'] ?? '' }} {{ $activity['findings'] ?? '' }}</p>
@@ -102,13 +143,13 @@
         </section>
 
         <section class="space-y-6" aria-labelledby="terminal-project-details">
-            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+            <div class="border-b border-slate-200 pb-3 dark:border-white">
                 <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Sections I–II</p>
-                <h3 id="terminal-project-details" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Cover and project details</h3>
+                <h3 id="terminal-project-details" class="text-2xl font-bold text-gray-950 dark:text-white">Cover and project details</h3>
             </div>
 
             <div class="rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-                <p class="font-serif text-2xl font-bold text-gray-950 dark:text-white">{{ $terminal['project_title'] ?? $topic->title }}</p>
+                <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ $terminal['project_title'] ?? $topic->title }}</p>
                 <div class="mt-3 grid gap-2 text-gray-600 sm:grid-cols-2 dark:text-slate-300">
                     <p>Approved period: {{ $terminal['approved_start'] ?? 'Not recorded' }} – {{ $terminal['approved_end'] ?? 'Not recorded' }} ({{ $terminal['approved_duration_months'] ?? $topic->estimated_duration_months }} months)</p>
                     <p>Approved budget: ₱{{ number_format((float) ($terminal['approved_budget'] ?? $topic->estimated_budget), 2) }}</p>
@@ -122,17 +163,17 @@
                 x-data="{ previewUrl: @js($coverPreview), selected: @js($selectedCover), evidence: @js($evidence) }"
             >
                 <div class="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,.9fr)]">
-                    <div class="relative flex min-h-80 items-center justify-center overflow-hidden bg-gray-950 p-6">
+                    <div class="relative flex min-h-80 items-center justify-center overflow-hidden bg-slate-100 p-6 dark:bg-slate-950">
                         <img x-show="previewUrl" :src="previewUrl" :alt="$refs.coverCaption?.value || 'Terminal report cover poster preview'" class="max-h-[28rem] w-full rounded-xl object-contain shadow-2xl">
-                        <div x-show="!previewUrl" class="max-w-sm text-center text-gray-300">
+                        <div x-show="!previewUrl" class="max-w-sm text-center text-slate-500 dark:text-slate-300">
                             <svg aria-hidden="true" class="mx-auto h-14 w-14 text-red-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                            <p class="mt-4 font-serif text-2xl font-bold text-white">Front-cover poster</p>
+                            <p class="mt-4 text-2xl font-black tracking-tight text-slate-900 dark:text-white">Front-cover poster</p>
                             <p class="mt-2">Add the project poster, featured output, or strongest visual from the completed study.</p>
                         </div>
                     </div>
                     <div class="space-y-5 p-5 sm:p-6">
                         <div>
-                            <h4 class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Cover image</h4>
+                            <h4 class="text-2xl font-bold text-gray-950 dark:text-white">Cover image</h4>
                             <p class="mt-1 text-gray-600 dark:text-slate-300">JPG or PNG, up to 10 MB. Landscape images work best on the cover.</p>
                         </div>
                         <label class="block font-bold">
@@ -180,7 +221,7 @@
 
             <div class="space-y-4" x-data="{ authors: @js($authors) }">
                 <div>
-                    <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">Authors and prepared-by signatures</h4>
+                    <h4 class="text-xl font-bold text-gray-950 dark:text-white">Authors and prepared-by signatures</h4>
                     <p class="mt-1 text-gray-600 dark:text-slate-300">Names populate the cover, author list, and signature blocks. Leave signing dates blank until signed.</p>
                 </div>
                 <template x-for="(author, index) in authors" :key="index">
@@ -193,42 +234,60 @@
                         <button type="button" @click="authors.splice(index, 1); $dispatch('input')" :disabled="authors.length === 1" class="min-h-11 justify-self-start rounded-xl border border-red-200 px-4 py-2 font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">Remove author</button>
                     </article>
                 </template>
-                <button type="button" @click="authors.push({name:'',rank:'',campus:'',college:'',role:'Project Staff',date_signed:''}); $dispatch('input')" :disabled="authors.length >= 30" class="min-h-12 rounded-xl bg-gray-950 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another author</button>
+                <button type="button" @click="authors.push({name:'',rank:'',campus:'',college:'',role:'Project Staff',date_signed:''}); $dispatch('input')" :disabled="authors.length >= 30" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another author</button>
             </div>
         </section>
 
-        <section class="space-y-5" x-data="{ rows: @js($accomplishments) }" aria-labelledby="terminal-accomplishments">
-            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
-                <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Section III</p>
-                <h3 id="terminal-accomplishments" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Summary of accomplishment</h3>
-                <p class="mt-2 text-gray-600 dark:text-slate-300">Confirm each approved objective and its final outcome.</p>
+        <section id="terminal-accomplishments" data-approved-work-plan-objectives="{{ $objectivesFromWorkPlan ? 'true' : 'false' }}" class="scroll-mt-24 space-y-5" x-data="{ rows: @js($accomplishments) }" aria-labelledby="terminal-accomplishments-heading">
+            <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-slate-700">
+                <div>
+                    <p class="text-xs font-black uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Section III</p>
+                    <h3 id="terminal-accomplishments-heading" class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">Approved objectives and final outcomes</h3>
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $objectivesFromWorkPlan ? 'Objectives and targets are locked to the approved Work Plan. Quarterly accomplishments are combined automatically; review and refine only the final outcome.' : 'No structured approved Work Plan was found, so objectives can be entered manually.' }}</p>
+                </div>
+                @if ($objectivesFromWorkPlan)
+                    <span class="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Synced with Work Plan
+                    </span>
+                @endif
             </div>
             <template x-for="(row, index) in rows" :key="index">
-                <article class="space-y-4 rounded-2xl border border-gray-200 p-5 dark:border-slate-700">
-                    <p class="font-serif text-xl font-bold text-gray-950 dark:text-white" x-text="'Objective ' + (index + 1)"></p>
-                    <div class="grid gap-4 lg:grid-cols-3">
+                <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-3 dark:border-slate-700 dark:bg-slate-800">
+                        <p class="text-sm font-black text-slate-950 dark:text-white" x-text="'Objective ' + (index + 1)"></p>
+                        <span x-show="@js($objectivesFromWorkPlan)" class="text-xs font-bold text-emerald-700 dark:text-emerald-300">Approved source</span>
+                    </div>
+                    <div class="grid gap-4 p-5 lg:grid-cols-[1fr_1fr_1.25fr]">
                         <template x-for="field in ['objective','target','actual']" :key="field">
-                            <label class="font-bold"><span x-text="field === 'objective' ? 'Approved objective' : (field === 'target' ? 'Target accomplishment' : 'Actual accomplishment')"></span><textarea :name="`accomplishments[${index}][${field}]`" x-model="row[field]" :maxlength="field === 'objective' ? 1000 : 2000" required rows="5" class="{{ $input }}"></textarea></label>
+                            <label class="text-sm font-bold text-slate-700 dark:text-slate-200">
+                                <span x-text="field === 'objective' ? 'Approved objective' : (field === 'target' ? 'Target output' : 'Final actual accomplishment')"></span>
+                                <textarea :name="`accomplishments[${index}][${field}]`" x-model="row[field]" :maxlength="field === 'objective' ? 1000 : 2000" :readonly="@js($objectivesFromWorkPlan) && field !== 'actual'" required rows="6" class="{{ $input }}" :class="@js($objectivesFromWorkPlan) && field !== 'actual' ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-600 shadow-none dark:bg-slate-800' : ''"></textarea>
+                                <span x-show="field === 'actual'" class="mt-1 block text-xs font-normal text-slate-500">Quarterly entries are prefilled with their reporting period. Edit this into the final concise result.</span>
+                            </label>
                         </template>
                     </div>
-                    <button type="button" @click="rows.splice(index, 1); $dispatch('input')" :disabled="rows.length === 1" class="min-h-11 rounded-xl border border-red-200 px-4 py-2 font-bold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300">Remove objective</button>
+                    @unless ($objectivesFromWorkPlan)
+                        <div class="border-t border-slate-100 px-5 py-3 dark:border-slate-800"><button type="button" @click="rows.splice(index, 1); $dispatch('input')" :disabled="rows.length === 1" class="min-h-10 rounded-xl border border-red-200 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300">Remove objective</button></div>
+                    @endunless
                 </article>
             </template>
-            <button type="button" @click="rows.push({objective:'',target:'',actual:''}); $dispatch('input')" :disabled="rows.length >= 30" class="min-h-12 rounded-xl bg-gray-950 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another objective</button>
+            @unless ($objectivesFromWorkPlan)
+                <button type="button" @click="rows.push({objective:'',target:'',actual:''}); $dispatch('input')" :disabled="rows.length >= 30" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 disabled:opacity-40">Add another objective</button>
+            @endunless
         </section>
 
         <section class="space-y-6" aria-labelledby="terminal-narrative">
-            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+            <div class="border-b border-slate-200 pb-3 dark:border-white">
                 <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Sections IV–VII</p>
-                <h3 id="terminal-narrative" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Research narrative</h3>
+                <h3 id="terminal-narrative" class="text-2xl font-bold text-gray-950 dark:text-white">Research narrative</h3>
                 <p class="mt-2 text-gray-600 dark:text-slate-300">Use the larger editor to format headings, emphasis, and lists. Figures and tables can be positioned after a paragraph in Methodology or Results and Discussion.</p>
             </div>
             <div x-data="{ abstract: @js(app(\App\Support\TerminalReportData::class)->plain($value('terminal_data.abstract'))) }">
-                <label class="block font-serif text-xl font-bold text-gray-950 dark:text-white">IV. Abstract <span class="font-sans text-base font-normal text-gray-500">(200–250 words)</span><textarea name="terminal_data[abstract]" x-model="abstract" required rows="8" class="{{ $input }}"></textarea></label>
+                <label class="block text-xl font-bold text-gray-950 dark:text-white">IV. Abstract <span class="font-sans text-base font-normal text-gray-500">(200–250 words)</span><textarea name="terminal_data[abstract]" x-model="abstract" required rows="8" class="{{ $input }}"></textarea></label>
                 <p class="mt-2 font-semibold" :class="(abstract.trim() ? abstract.trim().split(/\s+/).length : 0) >= 200 && (abstract.trim() ? abstract.trim().split(/\s+/).length : 0) <= 250 ? 'text-emerald-700' : 'text-amber-700'" x-text="(abstract.trim() ? abstract.trim().split(/\s+/).length : 0) + ' words'"></p>
             </div>
             @foreach (['introduction' => 'Introduction', 'rationale' => 'Rationale', 'terminal_data.literature_review' => 'Review of Literature', 'objectives' => 'General objective (optional)', 'methodology' => 'VI. Materials and Methods / Methodology', 'results_discussion' => 'VII. Results and Discussion', 'terminal_data.conclusions' => 'Conclusions', 'terminal_data.recommendations' => 'Recommendations', 'terminal_data.bibliography' => 'Bibliography'] as $field => $label)
-                <label class="block font-serif text-xl font-bold text-gray-950 dark:text-white">
+                <label class="block text-xl font-bold text-gray-950 dark:text-white">
                     {{ $label }}
                     <textarea id="terminal-{{ str_replace('.', '-', $field) }}" name="{{ str_contains($field, '.') ? 'terminal_data['.substr($field, 14).']' : $field }}" data-semantic-editor data-semantic-editor-size="large" rows="9" maxlength="100000" @required($field !== 'objectives') class="{{ $input }}">{{ $value($field) }}</textarea>
                 </label>
@@ -238,10 +297,10 @@
         <x-terminal-report-tables :tables="$value('terminal_data.tables', [])" />
 
         <section id="terminal-figures" class="scroll-mt-24 space-y-5" x-data="{ figureCount: @js($initialFigureCount), evidence: @js($evidence) }" aria-labelledby="terminal-figures-heading">
-            <div class="flex flex-col gap-4 border-b-2 border-gray-950 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white">
+            <div class="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between dark:border-white">
                 <div>
                     <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Visual evidence</p>
-                    <h3 id="terminal-figures-heading" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Figures and inserted images</h3>
+                    <h3 id="terminal-figures-heading" class="text-2xl font-bold text-gray-950 dark:text-white">Figures and inserted images</h3>
                     <p class="mt-2 max-w-3xl text-gray-600 dark:text-slate-300">Upload a JPG or PNG, or reuse evidence from an earlier report. Position 0 places the figure at the end of its section.</p>
                 </div>
                 <button type="button" @click="if (figureCount < 30) figureCount++" :disabled="figureCount >= 30" class="min-h-12 shrink-0 rounded-xl bg-red-700 px-5 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-40">＋ Add figure</button>
@@ -259,7 +318,7 @@
                     x-data="{ caption: @js($value('photo_caption_'.$index)), section: @js($value('photo_section_'.$index, 'results_discussion')), selected: @js($selectedFigure), previewUrl: @js($figurePreview) }"
                 >
                     <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800">
-                        <h4 class="font-serif text-xl font-bold text-gray-950 dark:text-white">Figure {{ $index }}</h4>
+                        <h4 class="text-xl font-bold text-gray-950 dark:text-white">Figure {{ $index }}</h4>
                         <span class="rounded-full bg-white px-3 py-1 font-semibold text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700">JPG / PNG</span>
                     </div>
                     <div class="grid gap-5 p-5 lg:grid-cols-[220px_1fr]">
@@ -289,9 +348,9 @@
         </section>
 
         <section class="space-y-5" aria-labelledby="terminal-signatories">
-            <div class="border-b-2 border-gray-950 pb-3 dark:border-white">
+            <div class="border-b border-slate-200 pb-3 dark:border-white">
                 <p class="font-semibold uppercase tracking-[0.16em] text-red-700 dark:text-red-300">Final approval</p>
-                <h3 id="terminal-signatories" class="font-serif text-2xl font-bold text-gray-950 dark:text-white">Review and approval signatories</h3>
+                <h3 id="terminal-signatories" class="text-2xl font-bold text-gray-950 dark:text-white">Review and approval signatories</h3>
                 <p class="mt-2 text-gray-600 dark:text-slate-300">Confirm the name for each role. Selecting a name does not apply a signature or approve the report.</p>
             </div>
             @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])

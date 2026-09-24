@@ -144,10 +144,14 @@ test('terminal form and preview use final report sections without mandatory imag
     $form = $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
         ->assertOk()
         ->assertSee('BatStateU-REC-RES-04')
-        ->assertSee('Add cover image')
         ->assertSee('Add figure')
         ->assertSee('Create table')
+        ->assertSee('How the final report is assembled')
+        ->assertSee('Approved objectives and final outcomes')
+        ->assertSee('Quarterly records combined below')
+        ->assertSee('Add project poster')
         ->assertSee('Final total expenditure')
+        ->assertSee('data-approved-work-plan-objectives', false)
         ->assertSee('data-terminal-cover-image', false)
         ->assertSee('data-terminal-table-builder', false)
         ->assertSee('data-monitoring-action-dock-fixed', false)
@@ -345,17 +349,47 @@ test('terminal defaults carry approved proposal information and work plan target
     ]);
     foreach ([
         'detailed_proposal' => ['project_title' => 'Approved research title', 'project_leader_display' => 'Approved project leader', 'proponent_campus' => 'Nasugbu', 'proponent_college' => 'CICS', 'staff' => [['display_name' => 'Approved research staff']], 'introduction' => 'Approved introduction', 'rationale' => 'Approved rationale', 'related_literature' => 'Approved literature', 'references' => 'Approved reference', 'methodology' => ['research_design' => 'Approved methods']],
-        'work_plan' => ['planned_start' => '2025-08-08', 'planned_end' => '2026-08-07', 'total_duration_months' => 12, 'entries' => [['objective' => 'Approved objective', 'expected_output' => 'Approved target']]],
+        'work_plan' => ['planned_start' => '2025-08-08', 'planned_end' => '2026-08-07', 'total_duration_months' => 12, 'entries' => [['objective' => 'Approved objective', 'activity' => 'Complete approved fieldwork', 'expected_output' => 'Approved target']]],
     ] as $type => $source) {
         $version->files()->create(['document_type' => $type, 'position' => 1, 'file_path' => $type.'.pdf', 'original_filename' => $type.'.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100, 'checksum' => hash('sha256', $type), 'source_data' => $source]);
     }
-    $defaults = app(TerminalReportData::class)->defaults($this->topic->fresh());
+    $monitoringReports = $this->topic->progressReports()->orderBy('reporting_date')->take(2)->get();
+    $monitoringReports[0]->update(['work_plan' => [[
+        'source_work_plan_index' => 0,
+        'objective' => 'Approved objective',
+        'activity' => 'Complete approved fieldwork',
+        'actual_accomplishment' => 'Completed the baseline fieldwork.',
+    ]]]);
+    $monitoringReports[1]->update(['work_plan' => [[
+        'source_work_plan_index' => 0,
+        'objective' => 'Approved objective',
+        'activity' => 'Complete approved fieldwork',
+        'actual_accomplishment' => 'Validated the final fieldwork dataset.',
+    ]]]);
+
+    $terminalData = app(TerminalReportData::class);
+    $defaults = $terminalData->defaults($this->topic->fresh());
+    $normalized = $terminalData->normalize($this->topic->fresh(), [
+        'report_type' => 'terminal',
+        'accomplishments' => [[
+            'objective' => 'Forged replacement objective',
+            'target' => 'Forged replacement target',
+            'actual' => 'Final verified outcome.',
+        ]],
+    ]);
+
     expect($defaults['terminal_data']['project_title'])->toBe('Approved research title')
         ->and($defaults['terminal_data']['approved_budget'])->toEqual(42000)
         ->and($defaults['terminal_data']['authors'][1]['name'])->toBe('Approved research staff')
         ->and($defaults['terminal_data']['source_proposal_version_id'])->toBe($version->id)
         ->and($defaults['terminal_data']['approved_start'])->toBe('2025-08-08')
+        ->and($defaults['objectives_from_work_plan'])->toBeTrue()
         ->and($defaults['accomplishments'][0]['target'])->toBe('Approved target')
+        ->and($defaults['accomplishments'][0]['actual'])->toContain('Completed the baseline fieldwork.')
+        ->and($defaults['accomplishments'][0]['actual'])->toContain('Validated the final fieldwork dataset.')
+        ->and($normalized['accomplishments'][0]['objective'])->toBe('Approved objective')
+        ->and($normalized['accomplishments'][0]['target'])->toBe('Approved target')
+        ->and($normalized['accomplishments'][0]['actual'])->toBe('Final verified outcome.')
         ->and($defaults['introduction'])->toBe('Approved introduction')
         ->and($defaults['methodology'])->toBe('Approved methods')
         ->and($defaults['implementation_end'])->toBe('');
