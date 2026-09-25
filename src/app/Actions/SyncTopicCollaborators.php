@@ -17,6 +17,7 @@ class SyncTopicCollaborators
                 'name' => $member->name,
                 'email' => $member->email,
                 'accepted_at' => $member->accepted_at,
+                'project_role' => $member->project_role,
             ])
             ->all();
 
@@ -26,6 +27,15 @@ class SyncTopicCollaborators
             $topic->collaborators()->createMany($members);
         }
 
+        $secretaryId = $draft->members()
+            ->where('project_role', ProposalDraftMember::ROLE_SECRETARY)
+            ->whereNotNull('accepted_at')
+            ->whereNotNull('user_id')
+            ->value('user_id');
+
+        $topic->update(['research_secretary_id' => $secretaryId]);
+
         $topic->unsetRelation('collaborators');
+        $topic->unsetRelation('researchSecretary');
     }
 }

@@ -22,7 +22,7 @@ test('every logout form uses the shared SweetAlert confirmation', function () {
 test('proposal draft action forms use SweetAlert2 confirmations', function () {
     $viewPaths = [
         'resources/views/faculty/proposal-drafts/index.blade.php' => 'Delete draft',
-        'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove collaborator',
+        'resources/views/faculty/proposal-drafts/show.blade.php' => 'Remove team member',
         'resources/views/faculty/proposal-drafts/_review-package.blade.php' => 'Turn in proposal',
         'resources/views/faculty/proposal-drafts/history.blade.php' => 'Restore recovery point',
         'resources/views/faculty/proposal-drafts/papers/edit.blade.php' => 'Remove file',
@@ -51,7 +51,7 @@ test('proposal draft dialogs are provided by the installed SweetAlert2 client', 
         ->toContain('acceptProposalInvitation')
         ->toContain("title: 'Join proposal workspace?'")
         ->toContain("confirmButtonText: 'Accept invitation'")
-        ->toContain("title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You are now a collaborator'")
+        ->toContain("title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You joined the project team'")
         ->toContain('text: payload.workload_warning || `You can now access the current draft')
         ->toContain("confirmButtonText: 'Open draft'")
         ->toContain("form?.matches('[data-proposal-confirm]')")

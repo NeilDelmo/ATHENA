@@ -10,7 +10,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
-//accept proposal workspace invitation
+// accept proposal workspace invitation
 class AcceptProposalWorkspaceInvitation
 {
     public function handle(User $user, ProposalDraftMember $proposalDraftMember): ProposalDraft
@@ -36,8 +36,8 @@ class AcceptProposalWorkspaceInvitation
 
         try {
             $proposalDraft->owner->notify(new ProposalActivityNotification(
-                title: 'Collaborator accepted invitation',
-                message: $user->name.' accepted your invitation to collaborate on “'.$proposalDraft->project_title.'”.',
+                title: 'Team member accepted invitation',
+                message: $user->name.' accepted your invitation to join the project team for “'.$proposalDraft->project_title.'”.',
                 url: route('faculty.proposal-drafts.show', $proposalDraft),
                 sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
             ));

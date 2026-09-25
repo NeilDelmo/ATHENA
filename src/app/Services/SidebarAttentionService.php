@@ -151,6 +151,7 @@ class SidebarAttentionService
 
         if (in_array($title, [
             'Proposal workspace invitation',
+            'Team member accepted invitation',
             'Collaborator accepted invitation',
             'Proposal submitted for review',
             'Proposal ready for signature',

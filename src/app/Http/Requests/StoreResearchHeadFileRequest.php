@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -61,6 +62,11 @@ class StoreResearchHeadFileRequest extends FormRequest
                 ]),
             ],
             'co_evaluator_name' => [Rule::requiredIf($isEvaluation), 'nullable', 'string', 'max:160'],
+            'recommended_action' => [
+                Rule::requiredIf($isEvaluation),
+                'nullable',
+                Rule::in(InitialScreeningSubmissionOrder::recommendations()),
+            ],
             'gad_signature_confirmed' => $isGadAssessment
                 ? ['required', 'accepted']
                 : ['prohibited'],
@@ -87,6 +93,8 @@ class StoreResearchHeadFileRequest extends FormRequest
             'purpose.in' => 'Choose whether this is a completed GAD assessment, central evaluator review, signed copy, or supplemental paper.',
             'document_title.required' => 'Enter a title for the supplemental paper.',
             'co_evaluator_name.required' => 'Enter the central evaluator’s name for the completed Initial Screening Form.',
+            'recommended_action.required' => 'Record the Recommended Action selected on the completed Initial Screening Form.',
+            'recommended_action.in' => 'Choose a valid Recommended Action from the completed Initial Screening Form.',
             'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
             'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
         ];

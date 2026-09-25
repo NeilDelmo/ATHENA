@@ -277,6 +277,12 @@ class TopicProposal extends Model
             || $this->collaborators()->forUser($user)->exists();
     }
 
+    public function canPrepareMonitoringBudget(User $user): bool
+    {
+        return $this->isMonitoringAvailable()
+            && ($this->research_secretary_id === $user->getKey() || $this->isAccessibleTo($user));
+    }
+
     public function hasIssuedNoticeToProceed(): bool
     {
         return $this->status === 'approved'

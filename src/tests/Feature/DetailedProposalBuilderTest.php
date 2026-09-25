@@ -765,7 +765,7 @@ test('the preview mirrors the official bordered form layout', function () {
         ->assertSee('JUAN DELA CRUZ')
         ->assertSee('MARIA SANTOS')
         ->assertSee('PEDRO REYES')
-        ->assertSee('Tracking No.')
+        ->assertSee('Tracking No.________________')
         ->assertSee('Page 1 of 1')
         ->assertSee('detailed-proposal-page-number');
 
@@ -781,6 +781,11 @@ test('the preview mirrors the official bordered form layout', function () {
         ->toContain('margin-left: 0.55in')
         ->toContain('detailed-proposal-note-indented { padding-left: 0.3in; }')
         ->toContain('detailed-proposal-note-detail { padding-left: 0.55in; }')
+        ->toContain('-webkit-box-decoration-break: clone;')
+        ->toContain('box-decoration-break: clone;')
+        ->toContain('break-inside: auto;')
+        ->toContain('page-break-inside: auto;')
+        ->toContain('orphans: 2; widows: 2;')
         ->toContain('zoom: 1 !important;');
 });
 
@@ -1300,14 +1305,22 @@ test('the generated Word file preserves every unrelated official package part an
             ->and($settingsXml)->toContain('w:updateFields')
             ->and($settingsXml)->toMatch('/w:updateFields[^>]+w:val="true"/');
 
+        foreach ([14, 17, 18, 19, 20, 21, 22, 23, 28] as $rowIndex) {
+            expect($xpath->evaluate('string(./w:trPr/w:cantSplit/@w:val)', $rows->item($rowIndex)))
+                ->toBe('0');
+        }
+
         foreach (['word/footer1.xml', 'word/footer2.xml', 'word/footer3.xml'] as $footerPartName) {
             $footer = new DOMDocument;
             $footer->loadXML($generatedArchive->getFromName($footerPartName), LIBXML_NONET);
             $footerXPath = new DOMXPath($footer);
             $footerXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            $footerText = trim((string) $footerXPath->evaluate('string(.)', $footer->documentElement));
 
             expect($footerXPath->query('//w:instrText[normalize-space(.) = "PAGE"]')->length)->toBe(1)
-                ->and($footerXPath->query('//w:instrText[normalize-space(.) = "NUMPAGES"]')->length)->toBe(1);
+                ->and($footerXPath->query('//w:instrText[normalize-space(.) = "NUMPAGES"]')->length)->toBe(1)
+                ->and($footerText)->toContain('Tracking No.')
+                ->and($footerText)->toContain('________________');
         }
 
         foreach ($officialPartNames as $partName) {

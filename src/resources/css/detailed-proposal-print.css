@@ -25,6 +25,21 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 
 .detailed-proposal-table { width: 100%; table-layout: fixed; border: 1pt solid #000; border-collapse: collapse; }
 
+.detailed-proposal-table,
+.detailed-proposal-table tr,
+.detailed-proposal-table th,
+.detailed-proposal-table td {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+.detailed-proposal-table tr,
+.detailed-proposal-table th,
+.detailed-proposal-table td {
+    break-inside: auto;
+    page-break-inside: auto;
+}
+
 .detailed-proposal-table col.detailed-proposal-col-seal { width: 12%; }
 .detailed-proposal-table col.detailed-proposal-col-reference { width: 35%; }
 .detailed-proposal-table col.detailed-proposal-col-effectivity { width: 34%; }
@@ -61,7 +76,7 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .detailed-proposal-section-value { font-weight: 700; }
 .detailed-proposal-indent { padding-left: 0.45in; }
 
-.detailed-proposal-narrative p { margin: 0 0 8pt; line-height: 1.3; text-align: justify; }
+.detailed-proposal-narrative p { margin: 0 0 8pt; line-height: 1.3; text-align: justify; orphans: 2; widows: 2; }
 .detailed-proposal-narrative p:last-child { margin-bottom: 0; }
 .detailed-proposal-narrative .detailed-proposal-section-heading,
 .detailed-proposal-narrative p:has(.detailed-proposal-section-heading) { margin-bottom: 6pt; text-align: left; }

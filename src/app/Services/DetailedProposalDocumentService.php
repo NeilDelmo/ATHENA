@@ -37,6 +37,18 @@ class DetailedProposalDocumentService
         'Head, Research/Head Research & Extension; Vice Chancellor for RDES; & Vice President for RDES' => 5,
     ];
 
+    private const SPLITTABLE_CONTENT_ROW_INDEXES = [
+        14,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        28,
+    ];
+
     public function __construct(
         private readonly DetailedProposalMethodologyImageService $methodologyImageService,
         private readonly WordDocumentPaginationService $paginationService,
@@ -86,7 +98,7 @@ class DetailedProposalDocumentService
                 throw new RuntimeException('The Detailed Research Proposal field settings could not be written.');
             }
 
-            $this->paginationService->addPageNumbers($archive);
+            $this->paginationService->addPageNumbers($archive, repeatFooterContaining: 'Tracking No.');
             $archive->close();
             $archiveIsOpen = false;
             $contents = file_get_contents($temporaryPath);
@@ -133,6 +145,7 @@ class DetailedProposalDocumentService
         }
 
         $this->formatHeaderRow($xpath, $rows[0]);
+        $this->allowExpandableContentRowsToSplit($xpath, $rows);
         $this->appendValueOnNewLineToFirstParagraph($xpath, $rows[2], $proposal['project_title']);
         $this->appendValueToFirstParagraph($xpath, $rows[3], $proposal['research_agenda']);
         $this->setSdgCheckboxes($xpath, $rows, $proposal['sdgs']);
@@ -919,6 +932,34 @@ class DetailedProposalDocumentService
 
         if ($xpath->query('./w:cantSplit', $rowProperties)?->length === 0) {
             $rowProperties->appendChild($row->ownerDocument->createElementNS(self::W, 'w:cantSplit'));
+        }
+    }
+
+    /** @param array<int, DOMElement> $rows */
+    private function allowExpandableContentRowsToSplit(DOMXPath $xpath, array $rows): void
+    {
+        foreach (self::SPLITTABLE_CONTENT_ROW_INDEXES as $rowIndex) {
+            $row = $rows[$rowIndex] ?? null;
+
+            if (! $row instanceof DOMElement) {
+                throw new RuntimeException('An expandable Detailed Research Proposal row is missing.');
+            }
+
+            $rowProperties = $this->elements($xpath, './w:trPr', $row)[0] ?? null;
+
+            if (! $rowProperties instanceof DOMElement) {
+                $rowProperties = $row->ownerDocument->createElementNS(self::W, 'w:trPr');
+                $row->insertBefore($rowProperties, $row->firstChild);
+            }
+
+            $cantSplit = $this->elements($xpath, './w:cantSplit', $rowProperties)[0] ?? null;
+
+            if (! $cantSplit instanceof DOMElement) {
+                $cantSplit = $row->ownerDocument->createElementNS(self::W, 'w:cantSplit');
+                $rowProperties->appendChild($cantSplit);
+            }
+
+            $cantSplit->setAttributeNS(self::W, 'w:val', '0');
         }
     }
 

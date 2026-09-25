@@ -917,6 +917,7 @@ class TopicController extends Controller
                     'issuing_office' => $validated['issuing_office'] ?? null,
                     'note' => $validated['note'] ?? null,
                     'co_evaluator_name' => $validated['co_evaluator_name'] ?? null,
+                    'recommended_action' => $validated['recommended_action'] ?? null,
                     'narrative_evaluation' => $narrativeEvaluation,
                     'gad_score' => $gadAssessment['gad_score'] ?? null,
                     'gad_rating' => $gadAssessment['gad_rating'] ?? null,

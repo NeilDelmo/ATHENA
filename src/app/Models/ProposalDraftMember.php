@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProposalDraftMember extends Model
 {
+    public const ROLE_SECRETARY = 'secretary';
+
+    public const PROJECT_ROLES = [
+        self::ROLE_SECRETARY,
+    ];
+
     /** @use HasFactory<ProposalDraftMemberFactory> */
     use HasFactory;
 
@@ -19,6 +25,7 @@ class ProposalDraftMember extends Model
         'name',
         'email',
         'accepted_at',
+        'project_role',
     ];
 
     protected function casts(): array
@@ -65,5 +72,10 @@ class ProposalDraftMember extends Model
     public function isAccepted(): bool
     {
         return $this->accepted_at !== null;
+    }
+
+    public function isProjectSecretary(): bool
+    {
+        return $this->project_role === self::ROLE_SECRETARY;
     }
 }

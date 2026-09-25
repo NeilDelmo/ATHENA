@@ -22,8 +22,8 @@ class NotificationController extends Controller
             'description' => 'Requests to join a proposal workspace.',
         ],
         'collaboration' => [
-            'label' => 'Collaboration',
-            'description' => 'Accepted invitations and collaborator activity.',
+            'label' => 'Project team',
+            'description' => 'Accepted invitations and project team activity.',
         ],
         'reviews' => [
             'label' => 'Reviews',

@@ -146,8 +146,8 @@
 <section aria-labelledby="review-collaborators-heading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h3 id="review-collaborators-heading" class="text-lg font-black text-gray-900">Proposal collaborators</h3>
-            <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Everyone listed here can access and edit the shared proposal workspace.</p>
+            <h3 id="review-collaborators-heading" class="text-lg font-black text-gray-900">Project team</h3>
+            <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">Everyone listed here remains attached to the research project. Assigned roles continue into review, monitoring, and completion.</p>
         </div>
         <span class="inline-flex w-fit rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800">{{ 1 + $proposalDraft->members->count() }} {{ Str::plural('member', 1 + $proposalDraft->members->count()) }}</span>
     </div>
@@ -161,7 +161,12 @@
             <article class="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0"><p class="truncate font-black text-gray-900">{{ $member->user?->name ?? $member->name }}</p><p class="mt-1 break-all text-xs text-gray-600">{{ $member->user?->email ?? $member->email }}</p></div>
-                    <span class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isLinked() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $member->isLinked() ? 'Joined' : 'Pending sign-in' }}</span>
+                    <div class="flex shrink-0 flex-col items-end gap-1">
+                        @if ($member->isProjectSecretary())
+                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
+                        @endif
+                        <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isLinked() ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $member->isLinked() ? 'Joined' : 'Pending sign-in' }}</span>
+                    </div>
                 </div>
             </article>
         @endforeach

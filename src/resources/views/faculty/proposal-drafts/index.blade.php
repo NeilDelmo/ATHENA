@@ -132,7 +132,7 @@
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex flex-wrap gap-2">
                                 <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800">Draft</span>
-                                <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">{{ $proposalDraft->user_id === auth()->id() ? 'Owner' : 'Collaborator' }}</span>
+                                <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">{{ $proposalDraft->user_id === auth()->id() ? 'Owner' : 'Team member' }}</span>
                             </div>
                             <span class="text-[11px] text-gray-500">Saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                         </div>

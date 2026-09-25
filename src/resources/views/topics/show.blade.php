@@ -333,7 +333,10 @@
                                     <span class="min-w-0">
                                         <span class="block truncate text-sm font-bold text-gray-900">{{ $collaborator->name }}</span>
                                         <span class="block truncate text-xs text-gray-500">{{ $collaborator->email }}</span>
-                                        <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Accepted collaborator' : 'Invitation pending' }}</span>
+                                        <span class="mt-0.5 block text-xs font-semibold {{ $collaborator->accepted_at ? 'text-emerald-700' : 'text-amber-700' }}">{{ $collaborator->accepted_at ? 'Accepted team member' : 'Invitation pending' }}</span>
+                                        @if ($collaborator->isProjectSecretary() || $collaborator->user_id === $topic->research_secretary_id)
+                                            <span class="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800">Project Secretary</span>
+                                        @endif
                                     </span>
                                 </li>
                             @endforeach

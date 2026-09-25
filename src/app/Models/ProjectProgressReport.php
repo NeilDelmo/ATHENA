@@ -72,10 +72,9 @@ class ProjectProgressReport extends Model
         return $this->belongsTo(User::class, 'budget_prepared_by');
     }
 
-    public function hasSecretaryPreparedBudget(): bool
+    public function hasPreparedBudget(): bool
     {
-        return $this->topic->research_secretary_id !== null
-            && $this->budget_prepared_by === $this->topic->research_secretary_id
+        return $this->budget_prepared_by !== null
             && $this->budget_prepared_at !== null;
     }
 

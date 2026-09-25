@@ -76,10 +76,10 @@ test('an owner can tag an existing account and the collaborator can edit but not
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
-        ->assertSee('Proposal collaborators')
+        ->assertSee('Project team')
         ->assertSee($this->collaborator->email)
         ->assertSee('linked-collaborator.jpg')
-        ->assertSee('Add collaborator')
+        ->assertSee('Add team member')
         ->assertSee('proposal-collaborator-invitation')
         ->assertSee('data-collaborator-account-picker', false)
         ->assertSee('role="combobox"', false)
@@ -115,7 +115,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Invitation pending')
-        ->assertSee('Waiting for the collaborator to accept the invitation.')
+        ->assertSee('Waiting for the team member to accept the invitation.')
         ->assertSee('Resend invitation');
 
     $this->actingAs($this->collaborator)
@@ -138,8 +138,8 @@ test('an owner can tag an existing account and the collaborator can edit but not
         $this->owner,
         ProposalActivityNotification::class,
         function (ProposalActivityNotification $notification): bool {
-            return $notification->title === 'Collaborator accepted invitation'
-                && str_contains($notification->message, 'Linked Collaborator accepted your invitation')
+            return $notification->title === 'Team member accepted invitation'
+                && str_contains($notification->message, 'Linked Collaborator accepted your invitation to join the project team')
                 && $notification->url === route('faculty.proposal-drafts.show', $this->draft);
         },
     );
@@ -154,7 +154,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
         ->assertSee('Shared Coastal Research')
-        ->assertSee('Collaborator');
+        ->assertSee('Team member');
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.details.edit', $this->draft))
         ->assertOk();
@@ -188,6 +188,68 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->assertForbidden();
 });
 
+test('the project leader assigns an accepted team member as secretary for the full project lifecycle', function () {
+    $acceptedMember = $this->draft->members()->create([
+        'user_id' => $this->collaborator->id,
+        'name' => $this->collaborator->name,
+        'email' => $this->collaborator->email,
+        'accepted_at' => now(),
+    ]);
+    $pendingMember = $this->draft->members()->create([
+        'user_id' => $this->outsider->id,
+        'name' => $this->outsider->name,
+        'email' => $this->outsider->email,
+        'accepted_at' => null,
+    ]);
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertOk()
+        ->assertSee('Project roles')
+        ->assertSee('Project Secretary')
+        ->assertSee('data-project-role-picker', false)
+        ->assertSee('Search accepted team members')
+        ->assertSee('linked-collaborator.jpg');
+
+    $this->actingAs($this->owner)
+        ->patch(route('faculty.proposal-drafts.member-roles.update', $this->draft), [
+            'project_role' => 'secretary',
+            'member_id' => $pendingMember->id,
+        ])
+        ->assertSessionHasErrors('member_id');
+
+    $this->actingAs($this->owner)
+        ->patch(route('faculty.proposal-drafts.member-roles.update', $this->draft), [
+            'project_role' => 'secretary',
+            'member_id' => $acceptedMember->id,
+        ])
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft))
+        ->assertSessionHasNoErrors();
+
+    expect($acceptedMember->fresh()->project_role)->toBe('secretary')
+        ->and($pendingMember->fresh()->project_role)->toBeNull();
+
+    $this->actingAs($this->collaborator)
+        ->patch(route('faculty.proposal-drafts.member-roles.update', $this->draft), [
+            'project_role' => 'secretary',
+            'member_id' => $acceptedMember->id,
+        ])
+        ->assertForbidden();
+
+    $topic = TopicProposal::query()->create([
+        'user_id' => $this->owner->id,
+        'research_call_id' => $this->draft->research_call_id,
+        'title' => $this->draft->project_title,
+        'estimated_duration_months' => $this->draft->duration_months,
+        'status' => 'pending',
+    ]);
+
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+
+    expect($topic->fresh()->research_secretary_id)->toBe($this->collaborator->id)
+        ->and($topic->collaborators()->where('user_id', $this->collaborator->id)->sole()->project_role)->toBe('secretary');
+});
+
 test('a research head can review and accept a collaboration invitation from their workspace', function () {
     $this->collaborator->syncRoles('research_head');
     $membership = $this->draft->members()->create([
@@ -201,7 +263,7 @@ test('a research head can review and accept a collaboration invitation from thei
         ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
         ->get(route('notifications.proposal-invitations.show', $membership))
         ->assertOk()
-        ->assertSee('Join as a collaborator')
+        ->assertSee('Join the project team')
         ->assertSee('Shared Coastal Research')
         ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
 
@@ -217,12 +279,13 @@ test('a research head can review and accept a collaboration invitation from thei
         ->assertOk();
 });
 
-test('accepted collaborators are restored when a revision workspace is created', function () {
+test('accepted team members and their project roles are restored when a revision workspace is created', function () {
     $this->draft->members()->create([
         'user_id' => $this->collaborator->id,
         'name' => $this->collaborator->name,
         'email' => $this->collaborator->email,
         'accepted_at' => now(),
+        'project_role' => 'secretary',
     ]);
     $topic = TopicProposal::query()->create([
         'user_id' => $this->owner->id,
@@ -235,13 +298,15 @@ test('accepted collaborators are restored when a revision workspace is created',
     app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
     $this->draft->delete();
 
-    expect($topic->collaborators()->sole()->user_id)->toBe($this->collaborator->id);
+    expect($topic->collaborators()->sole()->user_id)->toBe($this->collaborator->id)
+        ->and($topic->fresh()->research_secretary_id)->toBe($this->collaborator->id);
 
     $revisionDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->owner);
     $restoredMember = $revisionDraft->members()->sole();
 
     expect($restoredMember->user_id)->toBe($this->collaborator->id)
-        ->and($restoredMember->accepted_at)->not->toBeNull();
+        ->and($restoredMember->accepted_at)->not->toBeNull()
+        ->and($restoredMember->project_role)->toBe('secretary');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $revisionDraft))
@@ -352,7 +417,7 @@ test('the invitation email explains linked access and owner-only actions', funct
         ->and($mail->actionText)->toBe('Open ATHENA')
         ->and(implode(' ', $mail->introLines))->toContain('Your verified ATHENA account is already linked')
         ->and(implode(' ', $mail->outroLines))
-        ->toContain('Only the proposal owner can manage invitations, submit, or delete the proposal.');
+        ->toContain('Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
 });
 
 test('workspace account details autofill member fields in project papers', function () {

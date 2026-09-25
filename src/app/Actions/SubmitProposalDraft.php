@@ -26,6 +26,7 @@ use App\Support\DetailedProposalRules;
 use App\Support\ExpenseBreakdownData;
 use App\Support\ExpenseBreakdownRules;
 use App\Support\GADChecklistData;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\LineItemBudgetData;
 use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
@@ -54,6 +55,7 @@ class SubmitProposalDraft
         private readonly CurriculumVitaeDocumentService $curriculumVitaeDocumentService,
         private readonly GADChecklistDocumentService $gadChecklistDocumentService,
         private readonly InitialScreeningFormDocumentService $initialScreeningFormDocumentService,
+        private readonly InitialScreeningSubmissionOrder $initialScreeningSubmissionOrder,
         private readonly ArchiveProposalDraftDocumentHistory $archiveDocumentHistory,
         private readonly RecordProposalDraftDocumentVersion $recordDocumentVersion,
         private readonly SyncTopicCollaborators $syncTopicCollaborators,
@@ -576,6 +578,7 @@ class SubmitProposalDraft
         $sourceData = [
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
+            'order_of_submission' => $this->initialScreeningSubmissionOrder->forDraft($draft),
         ];
 
         $sourceData = [...$sourceData, ...$draft->signatoryFields('initial_screening_form')];

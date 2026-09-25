@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class TopicCollaborator extends Model
 {
+    public const ROLE_SECRETARY = 'secretary';
+
     /** @use HasFactory<TopicCollaboratorFactory> */
     use HasFactory;
 
@@ -19,6 +21,7 @@ class TopicCollaborator extends Model
         'name',
         'email',
         'accepted_at',
+        'project_role',
     ];
 
     protected function casts(): array
@@ -54,5 +57,10 @@ class TopicCollaborator extends Model
                     });
                 }
             });
+    }
+
+    public function isProjectSecretary(): bool
+    {
+        return $this->project_role === self::ROLE_SECRETARY;
     }
 }

@@ -64,6 +64,28 @@ body {
     left: 1.8in;
 }
 
+.initial-screening-order-checkmark {
+    position: absolute;
+    z-index: 2;
+    left: 0.72in;
+    font-family: Arial, sans-serif;
+    font-size: 13pt;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.initial-screening-order-first_submission {
+    top: 2.18in;
+}
+
+.initial-screening-order-revised_with_minor_changes {
+    top: 2.42in;
+}
+
+.initial-screening-order-revised_with_major_changes {
+    top: 2.65in;
+}
+
 @media print {
     html,
     body {

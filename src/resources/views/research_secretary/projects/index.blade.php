@@ -9,7 +9,7 @@
 
     @php
         $preparedReports = $projects->sum(fn ($project) => $project->preparedProgressReports->count());
-        $completedBudgets = $projects->sum(fn ($project) => $project->preparedProgressReports->filter->hasSecretaryPreparedBudget()->count());
+        $completedBudgets = $projects->sum(fn ($project) => $project->preparedProgressReports->filter->hasPreparedBudget()->count());
     @endphp
 
     <div class="space-y-6">
@@ -51,9 +51,9 @@
 
                         <div class="space-y-2">
                             @forelse ($project->preparedProgressReports as $report)
-                                <a href="{{ route('project-budget.edit', [$project, $report]) }}" class="group flex items-center justify-between gap-3 rounded-xl border p-3 transition {{ $report->hasSecretaryPreparedBudget() ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-amber-200 bg-amber-50 hover:border-amber-300 dark:border-amber-900 dark:bg-amber-950/30' }}">
+                                <a href="{{ route('project-budget.edit', [$project, $report]) }}" class="group flex items-center justify-between gap-3 rounded-xl border p-3 transition {{ $report->hasPreparedBudget() ? 'border-emerald-200 bg-emerald-50 hover:border-emerald-300 dark:border-emerald-900 dark:bg-emerald-950/30' : 'border-amber-200 bg-amber-50 hover:border-amber-300 dark:border-amber-900 dark:bg-amber-950/30' }}">
                                     <span><span class="block text-xs font-black text-gray-950 dark:text-white">{{ $report->quarter_label }} · {{ $report->version_label }}</span><span class="mt-0.5 block text-[11px] text-gray-500 dark:text-slate-400">Prepared by {{ $report->submitter->name }}</span></span>
-                                    <span class="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black {{ $report->hasSecretaryPreparedBudget() ? 'text-emerald-700' : 'text-amber-700' }} shadow-sm dark:bg-slate-900">{{ $report->hasSecretaryPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span>
+                                    <span class="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-black {{ $report->hasPreparedBudget() ? 'text-emerald-700' : 'text-amber-700' }} shadow-sm dark:bg-slate-900">{{ $report->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span>
                                 </a>
                             @empty
                                 <div class="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs leading-5 text-gray-500 dark:border-slate-700 dark:text-slate-400">No prepared quarterly report is waiting for financial entry.</div>

@@ -49,7 +49,7 @@ class AssignProjectResearchSecretaryRequest extends FormRequest
                         ->exists();
 
                 if (! $isAcceptedProjectMember) {
-                    $validator->errors()->add('research_secretary_id', 'Choose an accepted member of this project group.');
+                    $validator->errors()->add('research_secretary_id', 'Choose an accepted member of this project team.');
                 }
             },
         ];

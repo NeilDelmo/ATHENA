@@ -266,7 +266,7 @@
             </div>
 
             <footer>
-                <span>Tracking No. ________________</span>
+                <span>Tracking No.________________</span>
                 <span class="detailed-proposal-page-number">Page 1 of 1</span>
             </footer>
         </main>

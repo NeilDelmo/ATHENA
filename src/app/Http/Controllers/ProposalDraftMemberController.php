@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\SendProposalWorkspaceInvitation;
 use App\Http\Requests\StoreProposalDraftMemberRequest;
+use App\Http\Requests\UpdateProposalDraftMemberRoleRequest;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftMember;
 use App\Services\FacultyProjectCapacityService;
@@ -32,7 +33,7 @@ class ProposalDraftMemberController extends Controller
 
             if ($lockedDraft->members()->count() >= 50) {
                 throw ValidationException::withMessages([
-                    'email' => 'This proposal workspace already has the maximum of 50 collaborators.',
+                    'email' => 'This proposal workspace already has the maximum of 50 team members.',
                 ]);
             }
 
@@ -59,7 +60,7 @@ class ProposalDraftMemberController extends Controller
         if (! $invitationQueued) {
             return redirect()
                 ->route('faculty.proposal-drafts.show', $proposalDraft)
-                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the collaborator card.')
+                ->with('warning', $membership->name.' was added, but ATHENA could not queue the invitation email. You can resend it from the team member card.')
                 ->with('workload_warning', $workloadWarning);
         }
 
@@ -93,6 +94,40 @@ class ProposalDraftMemberController extends Controller
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('success', 'Invitation email queued for '.$proposalDraftMember->name.'.');
+    }
+
+    public function updateRole(
+        UpdateProposalDraftMemberRoleRequest $request,
+        ProposalDraft $proposalDraft,
+    ): RedirectResponse {
+        $validated = $request->validated();
+        $selectedMemberId = $validated['member_id'] ?? null;
+
+        DB::transaction(function () use ($proposalDraft, $validated, $selectedMemberId): void {
+            $lockedDraft = ProposalDraft::query()
+                ->whereKey($proposalDraft->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $lockedDraft->members()
+                ->where('project_role', $validated['project_role'])
+                ->update(['project_role' => null]);
+
+            if ($selectedMemberId !== null) {
+                $lockedDraft->members()
+                    ->whereKey($selectedMemberId)
+                    ->whereNotNull('accepted_at')
+                    ->whereNotNull('user_id')
+                    ->firstOrFail()
+                    ->update(['project_role' => $validated['project_role']]);
+            }
+        }, 3);
+
+        return redirect()
+            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->with('success', $selectedMemberId === null
+                ? 'Project Secretary assignment removed.'
+                : 'Project Secretary assigned for the full research project.');
     }
 
     public function destroy(

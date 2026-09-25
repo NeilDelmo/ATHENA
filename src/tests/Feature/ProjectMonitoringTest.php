@@ -184,7 +184,8 @@ test('the project leader assigns an accepted group member as project secretary',
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
-    expect($this->topic->fresh()->research_secretary_id)->toBe($projectMember->id);
+    expect($this->topic->fresh()->research_secretary_id)->toBe($projectMember->id)
+        ->and($this->topic->collaborators()->where('user_id', $projectMember->id)->sole()->project_role)->toBe('secretary');
 
     $this->actingAs($this->researcher)
         ->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)())
@@ -213,7 +214,7 @@ test('the project leader assigns an accepted group member as project secretary',
     expect($report->fresh()->budget_prepared_by)->toBe($projectMember->id);
 });
 
-test('only the assigned project secretary can complete a prepared report budget before submission', function () {
+test('the project secretary has budget priority while other project members may complete it', function () {
     $this->topic->update(['research_secretary_id' => $this->secretary->id]);
 
     $this->actingAs($this->researcher)
@@ -231,7 +232,9 @@ test('only the assigned project secretary can complete a prepared report budget 
     $this->actingAs($this->researcher)
         ->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => $report->reporting_date->toDateString()]))
         ->assertOk()
-        ->assertSee('Waiting for '.$this->secretary->name)
+        ->assertSee($this->secretary->name.' has priority for budget utilization')
+        ->assertSee('Complete budget utilization')
+        ->assertSee(route('project-budget.edit', [$this->topic, $report]), false)
         ->assertSee('disabled', false);
 
     $otherSecretary = User::factory()->create();
@@ -254,23 +257,32 @@ test('only the assigned project secretary can complete a prepared report budget 
         ->get(route('research_secretary.projects.budget.edit', [$this->topic, $report]))
         ->assertOk()
         ->assertSee('Confirm budget utilization')
+        ->assertSee('You are the priority project secretary')
         ->assertSee('budgetUtilizationForm', false);
 
-    $this->actingAs($this->secretary)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
-        ->put(route('research_secretary.projects.budget.update', [$this->topic, $report]), [
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('project-budget.edit', [$this->topic, $report]))
+        ->assertOk()
+        ->assertSee($this->secretary->name.' has priority for this section')
+        ->assertSee('you may complete it as an authorized project member');
+
+    $this->actingAs($this->researcher)
+        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->put(route('project-budget.update', [$this->topic, $report]), [
             'budget_utilization' => [
                 ['type' => 'Purchase Request', 'details' => 'Laboratory supplies', 'amount_requested' => 12000, 'actual_amount' => 10000, 'remarks' => 'Delivered'],
                 ['type' => 'Cash Advance', 'details' => '', 'amount_requested' => 0, 'actual_amount' => 0, 'remarks' => ''],
                 ['type' => 'Request of Payment', 'details' => 'Field transport', 'amount_requested' => 5000, 'actual_amount' => 4500, 'remarks' => 'Completed'],
             ],
         ])
-        ->assertRedirect(route('research_secretary.dashboard'))
+        ->assertRedirect(route('research.show', $this->topic).'#project-monitoring')
         ->assertSessionHasNoErrors();
 
     $report->refresh();
-    expect($report->budget_prepared_by)->toBe($this->secretary->id)
+    expect($report->budget_prepared_by)->toBe($this->researcher->id)
         ->and($report->budget_prepared_at)->not->toBeNull()
+        ->and($report->hasPreparedBudget())->toBeTrue()
         ->and($report->budget_utilization[0]['actual_amount'])->toBe(10000);
 
     $this->actingAs($this->researcher)

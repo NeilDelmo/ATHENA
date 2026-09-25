@@ -162,7 +162,7 @@
                             <div>
                                 <p class="text-xs font-black uppercase tracking-wider text-red-700 dark:text-red-300">Proposal workspace</p>
                                 <h4 class="mt-1 text-sm font-black text-gray-900 dark:text-white">Add a workspace member</h4>
-                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the available collaborators and add them directly as project staff.</p>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Search the available team members and add them directly as project staff.</p>
                             </div>
                             <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700" x-text="`${availableWorkspacePeople().length} available`"></span>
                         </div>

@@ -16,6 +16,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\NoticeToProceedDataService;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
@@ -447,7 +448,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertOk()
         ->assertSee('Project Details')
         ->assertSee('Required PDF attachments')
-        ->assertSee('Proposal collaborators')
+        ->assertSee('Project team')
         ->assertSee('Changes save automatically.')
         ->assertSee('Workspace overview')
         ->assertSee('data-workspace-palette="red-black-white"', false)
@@ -455,7 +456,7 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('open-modal', false)
         ->assertSee('close-modal', false)
         ->assertSee('max-h-[calc(100vh-3rem)]', false)
-        ->assertSee('Proposal collaborators')
+        ->assertSee('Project team')
         ->assertDontSee('<a href="'.route('faculty.proposal-drafts.details.edit', $draft), false)
         ->assertSee('name="project_title"', false)
         ->assertSee('name="project_leader"', false)
@@ -569,7 +570,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Preview Detailed Proposal')
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
-        ->assertSee('Proposal collaborators')
+        ->assertSee('Project team')
         ->assertSee('seven reviewed PDFs are ready')
         ->assertSee('Turn in proposal');
 
@@ -863,6 +864,14 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
             ->toContain('Head, Research/ Head, Research and Extension')
             ->toContain('Center Head/ Assistant Director for Research')
             ->toContain('Director, Research/ Vice Chancellor for RDES');
+
+        $documentXPath = new DOMXPath($documentDom);
+        $documentXPath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        expect($documentXPath->query('//w:p[contains(string(.), "First Submission")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(1)
+            ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Minor Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
+            ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Major Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
+            ->and($draft->fresh()->topic_id)->toBeNull()
+            ->and(app(InitialScreeningSubmissionOrder::class)->forDraft($draft->fresh()))->toBe(InitialScreeningSubmissionOrder::FIRST_SUBMISSION);
 
         $footerXml = $generated->getFromName('word/footer1.xml');
         $settingsXml = $generated->getFromName('word/settings.xml');

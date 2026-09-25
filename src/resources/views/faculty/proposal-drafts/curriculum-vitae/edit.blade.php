@@ -81,7 +81,7 @@
                         <div>
                             <p class="text-xs font-black uppercase tracking-wider text-red-700">Proposal workspace</p>
                             <h4 class="mt-1 text-sm font-black text-gray-900">Add a workspace member</h4>
-                            <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and collaborators. Members with an existing CV are hidden.</p>
+                            <p class="mt-1 text-xs leading-5 text-gray-500">Search the project leader and team members. Members with an existing CV are hidden.</p>
                         </div>
                         <span class="w-fit rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-gray-600 ring-1 ring-gray-200" x-text="`${availableWorkspacePeople().length} available`"></span>
                     </div>

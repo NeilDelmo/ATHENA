@@ -24,6 +24,8 @@
     $gadAssessmentViewable = $gadAssessment && $viewableFileIds->contains($gadAssessment->id);
     $coEvaluatorEvaluationAvailable = $coEvaluatorEvaluation && $availableFileIds->contains($coEvaluatorEvaluation->id);
     $coEvaluatorEvaluationViewable = $coEvaluatorEvaluation && $viewableFileIds->contains($coEvaluatorEvaluation->id);
+    $coEvaluatorRecommendedAction = $coEvaluatorEvaluation?->source_data['recommended_action'] ?? null;
+    $coEvaluatorRecommendedActionLabel = \App\Support\InitialScreeningSubmissionOrder::recommendationLabel($coEvaluatorRecommendedAction);
     $gadScore = $gadAssessment?->source_data['gad_score'] ?? null;
     $gadRating = $gadAssessment?->source_data['gad_rating'] ?? null;
     $gadInterpretation = $gadAssessment?->source_data['gad_interpretation'] ?? null;
@@ -268,6 +270,9 @@
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <p class="text-base font-black text-emerald-950 dark:text-emerald-100">Narrative Evaluation extracted</p>
                                                 <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-emerald-800 shadow-sm dark:bg-gray-950 dark:text-emerald-200">{{ $coEvaluatorEvaluation->source_data['co_evaluator_name'] ?? 'Central evaluator' }}</span>
+                                                @if ($coEvaluatorRecommendedActionLabel)
+                                                    <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-emerald-800 shadow-sm dark:bg-gray-950 dark:text-emerald-200">{{ $coEvaluatorRecommendedActionLabel }}</span>
+                                                @endif
                                             </div>
                                             <p class="mt-1 truncate text-sm font-semibold text-emerald-800 dark:text-emerald-300">{{ $coEvaluatorEvaluation->original_filename }}</p>
                                             @if ($coEvaluatorEvaluation->source_data['narrative_evaluation'] ?? null)
@@ -289,13 +294,22 @@
                                 @endif
 
                                 @if ($canUploadEvaluation)
-                                    <form id="co-evaluator-upload-{{ $topic->id }}" x-show="replacing" @if ($coEvaluatorEvaluation) x-cloak x-transition.opacity @endif action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" data-co-evaluator-screening-panel="true" class="{{ $coEvaluatorEvaluation ? 'mt-3' : '' }} grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50 lg:grid-cols-[minmax(12rem,0.55fr)_minmax(0,1fr)_auto] lg:items-end">
+                                    <form id="co-evaluator-upload-{{ $topic->id }}" x-show="replacing" @if ($coEvaluatorEvaluation) x-cloak x-transition.opacity @endif action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" data-co-evaluator-screening-panel="true" class="{{ $coEvaluatorEvaluation ? 'mt-3' : '' }} grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50 lg:grid-cols-[minmax(12rem,0.5fr)_minmax(13rem,0.55fr)_minmax(0,1fr)_auto] lg:items-end">
                                         @csrf
                                         <input type="hidden" name="source_file_id" value="{{ $initialScreeningFile->id }}">
                                         <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION }}">
                                         <label for="co_evaluator_name_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
                                             Central evaluator
                                             <input id="co_evaluator_name_{{ $topic->id }}" name="co_evaluator_name" type="text" maxlength="160" autocomplete="off" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                                        </label>
+                                        <label for="recommended_action_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
+                                            Recommended action
+                                            <select id="recommended_action_{{ $topic->id }}" name="recommended_action" required class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                                                <option value="">Select the checked action</option>
+                                                <option value="{{ \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT)>For Endorsement</option>
+                                                <option value="{{ \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION)>Minor Revision</option>
+                                                <option value="{{ \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION)>Major Revision</option>
+                                            </select>
                                         </label>
                                         <div data-co-evaluator-dropzone x-data="fileDropzone({ accept: '.pdf,.docx', maxBytes: 26214400, multiple: false })" @paste="paste($event)" class="min-w-0">
                                             <label for="co_evaluator_file_{{ $topic->id }}" class="sr-only">Completed Initial Screening Form</label>

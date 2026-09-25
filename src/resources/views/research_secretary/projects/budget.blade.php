@@ -35,6 +35,14 @@
                 </div>
             </div>
 
+            <div class="border-b border-gray-200 bg-amber-50 px-5 py-3 text-xs leading-5 text-amber-900 dark:border-slate-800 dark:bg-amber-950/30 dark:text-amber-100 sm:px-6">
+                @if (Auth::id() === $topic->research_secretary_id)
+                    You are the priority project secretary for this section. Other authorized project members may also complete it when needed.
+                @else
+                    {{ $topic->researchSecretary?->name ?? 'The assigned project secretary' }} has priority for this section, but you may complete it as an authorized project member.
+                @endif
+            </div>
+
             <form method="POST" action="{{ request()->routeIs('project-budget.edit') ? route('project-budget.update', [$topic, $report]) : route('research_secretary.projects.budget.update', [$topic, $report]) }}" x-data="budgetUtilizationForm({ rows: @js($budgetRows), approvedBudget: @js((float) $topic->estimated_budget) })" class="space-y-6 p-5 sm:p-6">
                 @csrf
                 @method('PUT')

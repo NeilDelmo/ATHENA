@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\InitialScreeningSubmissionOrder;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -18,7 +19,7 @@ class InitialScreeningFormDocumentService
         private readonly WordDocumentPaginationService $paginationService,
     ) {}
 
-    /** @param array{project_title: string, project_leader: string} $screeningForm */
+    /** @param array{project_title: string, project_leader: string, order_of_submission?: string} $screeningForm */
     public function generate(array $screeningForm): string
     {
         $templatePath = (string) config('initial_screening_form.template_path');
@@ -73,7 +74,7 @@ class InitialScreeningFormDocumentService
         }
     }
 
-    /** @param array{project_title: string, project_leader: string} $screeningForm */
+    /** @param array{project_title: string, project_leader: string, order_of_submission?: string} $screeningForm */
     private function renderDocumentXml(string $documentXml, array $screeningForm): string
     {
         $document = new DOMDocument('1.0', 'UTF-8');
@@ -98,6 +99,10 @@ class InitialScreeningFormDocumentService
                 }
             }
         }
+        $this->checkOrderOfSubmission(
+            $xpath,
+            $screeningForm['order_of_submission'] ?? InitialScreeningSubmissionOrder::FIRST_SUBMISSION,
+        );
         $this->fillLabeledValue($xpath, 'Research Project Title:', $screeningForm['project_title']);
         $this->fillLabeledValue($xpath, 'Project Leader:', $screeningForm['project_leader']);
         $renderedXml = $document->saveXML();
@@ -107,6 +112,46 @@ class InitialScreeningFormDocumentService
         }
 
         return $renderedXml;
+    }
+
+    private function checkOrderOfSubmission(DOMXPath $xpath, string $order): void
+    {
+        $labels = [
+            'First Submission' => InitialScreeningSubmissionOrder::FIRST_SUBMISSION,
+            'Revised with Minor Changes' => InitialScreeningSubmissionOrder::REVISED_WITH_MINOR_CHANGES,
+            'Revised with Major Changes' => InitialScreeningSubmissionOrder::REVISED_WITH_MAJOR_CHANGES,
+        ];
+
+        foreach ($xpath->query('//w:body//w:p') as $paragraph) {
+            if (! $paragraph instanceof DOMElement) {
+                continue;
+            }
+
+            $paragraphOrder = $labels[trim($this->paragraphText($paragraph))] ?? null;
+
+            if ($paragraphOrder === null) {
+                continue;
+            }
+
+            $checkBox = $xpath->query('.//w:ffData/w:checkBox', $paragraph)->item(0);
+
+            if (! $checkBox instanceof DOMElement) {
+                throw new RuntimeException("The Initial Screening Form checkbox [{$paragraphOrder}] is missing.");
+            }
+
+            $isChecked = $paragraphOrder === $order;
+
+            foreach (['default', 'checked'] as $elementName) {
+                $state = $xpath->query('./w:'.$elementName, $checkBox)->item(0);
+
+                if (! $state instanceof DOMElement) {
+                    $state = $checkBox->ownerDocument->createElementNS(self::W, 'w:'.$elementName);
+                    $checkBox->appendChild($state);
+                }
+
+                $state->setAttributeNS(self::W, 'w:val', $isChecked ? '1' : '0');
+            }
+        }
     }
 
     private function fillLabeledValue(DOMXPath $xpath, string $label, string $value): void

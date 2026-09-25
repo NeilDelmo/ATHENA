@@ -14,10 +14,15 @@ class WordDocumentPaginationService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
-    public function addPageNumbers(ZipArchive $archive): void
+    public function addPageNumbers(ZipArchive $archive, ?string $repeatFooterContaining = null): void
     {
-        foreach ($this->footerPartNames($archive) as $footerPartName) {
-            $footerXml = $archive->getFromName($footerPartName);
+        $footerPartNames = $this->footerPartNames($archive);
+        $repeatedFooterXml = $repeatFooterContaining === null
+            ? null
+            : $this->footerContaining($archive, $footerPartNames, $repeatFooterContaining);
+
+        foreach ($footerPartNames as $footerPartName) {
+            $footerXml = $repeatedFooterXml ?? $archive->getFromName($footerPartName);
 
             if ($footerXml === false) {
                 throw new RuntimeException("The Word footer [{$footerPartName}] could not be read.");
@@ -62,6 +67,25 @@ class WordDocumentPaginationService
         sort($footerPartNames, SORT_NATURAL);
 
         return $footerPartNames;
+    }
+
+    /** @param list<string> $footerPartNames */
+    private function footerContaining(
+        ZipArchive $archive,
+        array $footerPartNames,
+        string $requiredText,
+    ): string {
+        foreach ($footerPartNames as $footerPartName) {
+            $footerXml = $archive->getFromName($footerPartName);
+
+            if (is_string($footerXml)
+                && str_contains($footerXml, $requiredText)
+                && $this->hasPageField($this->documentAndXPath($footerXml, 'footer')[1])) {
+                return $footerXml;
+            }
+        }
+
+        throw new RuntimeException("The Word document does not contain a [{$requiredText}] footer with page numbers.");
     }
 
     private function renderFooterXml(string $footerXml): string

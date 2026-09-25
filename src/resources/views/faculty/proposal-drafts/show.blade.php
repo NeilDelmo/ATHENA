@@ -30,13 +30,14 @@
             ? session('proposal_tab')
             : null;
         $memberInvitationHasErrors = $errors->hasAny(['email', 'name']);
+        $teamRoleHasErrors = $errors->hasAny(['member_id', 'project_role']);
     @endphp
 
     <div
         data-workspace-palette="red-black-white"
         class="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8"
         x-data="{
-            activeProposalTab: @js($memberInvitationHasErrors ? 'collaborators' : $initialProposalTab) || (
+            activeProposalTab: @js(($memberInvitationHasErrors || $teamRoleHasErrors) ? 'collaborators' : $initialProposalTab) || (
                 window.location.hash === '#required-pdf-attachments'
                     ? 'attachments'
                     : window.location.hash === '#proposal-collaborators'
@@ -80,7 +81,7 @@
                 </button>
                 <button id="proposal-collaborators-tab-button" type="button" role="tab" aria-controls="proposal-collaborators-tab" :aria-selected="activeProposalTab === 'collaborators'" @click="window.location.hash = 'proposal-collaborators'" :class="activeProposalTab === 'collaborators' ? 'bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-950 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9A2.25 2.25 0 0 1 5.25 16.5v-9A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6M12 9v6" /></svg>
-                    Proposal collaborators
+                    Project team
                 </button>
             </nav>
         </div>
@@ -274,15 +275,15 @@
             <div class="border-l-4 border-red-600 p-5 sm:p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h3 id="workspace-members-heading" class="text-lg font-black text-gray-900 dark:text-white">Proposal collaborators</h3>
-                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-500 dark:text-slate-400">Invite a teammate using their BatStateU Google email. Existing ATHENA accounts receive an in-app invitation to accept; new accounts are connected automatically on their first verified sign-in.</p>
+                    <h3 id="workspace-members-heading" class="text-lg font-black text-gray-900 dark:text-white">Project team</h3>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-500 dark:text-slate-400">Build the team once for the full research project. Members remain connected through proposal preparation, review, approval, monitoring, and completion.</p>
                 </div>
                 <div class="flex shrink-0 flex-wrap items-center gap-2">
                     <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ 1 + $proposalDraft->members->count() }} {{ Str::plural('member', 1 + $proposalDraft->members->count()) }}</span>
                     @can('manageMembers', $proposalDraft)
                         <button type="button" data-open-collaborator-modal x-on:click="$dispatch('open-modal', 'proposal-collaborator-invitation')" class="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" /></svg>
-                            Add collaborator
+                            Add team member
                         </button>
                     @endcan
                 </div>
@@ -298,16 +299,21 @@
                     <article class="border-b border-gray-200 p-5 dark:border-slate-800 sm:border-r lg:border-b-0">
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0"><p class="truncate font-black text-gray-900 dark:text-white">{{ $member->user?->name ?? $member->name }}</p><p class="mt-1 break-all text-xs text-gray-600 dark:text-slate-300">{{ $member->user?->email ?? $member->email }}</p></div>
-                            <span class="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Joined' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
+                            <div class="flex shrink-0 flex-col items-end gap-1">
+                                @if ($member->isProjectSecretary())
+                                    <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-amber-800 dark:bg-amber-950 dark:text-amber-200">Project Secretary</span>
+                                @endif
+                                <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Joined' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
+                            </div>
                         </div>
-                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-red-700 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Can open and edit every draft paper.' : ($member->isLinked() ? 'Waiting for the collaborator to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
+                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-red-700 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Can open and edit every draft paper.' : ($member->isLinked() ? 'Waiting for the team member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
                         @can('manageMembers', $proposalDraft)
                             <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-3 dark:border-slate-800">
                                 <form action="{{ route('faculty.proposal-drafts.members.invitation', [$proposalDraft, $member]) }}" method="POST">
                                     @csrf
                                     <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Resend invitation</button>
                                 </form>
-                                <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" data-proposal-confirm data-confirm-title="Remove collaborator?" data-confirm-text="This collaborator will immediately lose access to the proposal workspace." data-confirm-button="Remove collaborator">
+                                <form action="{{ route('faculty.proposal-drafts.members.destroy', [$proposalDraft, $member]) }}" method="POST" data-proposal-confirm data-confirm-title="Remove team member?" data-confirm-text="This team member will immediately lose access to the proposal workspace." data-confirm-button="Remove team member">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
@@ -316,6 +322,70 @@
                         @endcan
                     </article>
                 @endforeach
+            </div>
+            </div>
+
+            <div class="border-t border-gray-200 bg-gray-50 p-5 dark:border-slate-800 dark:bg-slate-950/40 sm:p-6">
+                <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,28rem)] lg:items-start">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Project roles</p>
+                        <h4 class="mt-1 text-base font-black text-gray-950 dark:text-white">Project Secretary</h4>
+                        <p class="mt-1 max-w-2xl text-sm leading-6 text-gray-500 dark:text-slate-400">The secretary is the priority person for monitoring budget utilization and related reminders. Other authorized project members can still complete the work when needed.</p>
+                        <p class="mt-2 text-xs font-semibold text-gray-600 dark:text-slate-300">More project roles can be added here later without rebuilding the team workflow.</p>
+                    </div>
+
+                    <div>
+                        @if ($projectSecretaryMember)
+                            <div class="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/30">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-xs font-black text-amber-800 ring-1 ring-amber-200 dark:bg-slate-900">
+                                    @if ($projectSecretaryMember->user?->avatar)
+                                        <img src="{{ $projectSecretaryMember->user->avatar }}" alt="" class="h-full w-full object-cover">
+                                    @else
+                                        {{ collect(explode(' ', $projectSecretaryMember->user?->name ?? $projectSecretaryMember->name))->filter()->map(fn ($part) => mb_substr($part, 0, 1))->take(2)->implode('') }}
+                                    @endif
+                                </span>
+                                <span class="min-w-0"><span class="block truncate text-sm font-black text-gray-950 dark:text-white">{{ $projectSecretaryMember->user?->name ?? $projectSecretaryMember->name }}</span><span class="block truncate text-xs text-gray-500 dark:text-slate-400">{{ $projectSecretaryMember->user?->email ?? $projectSecretaryMember->email }}</span></span>
+                            </div>
+                        @else
+                            <div class="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">No Project Secretary has been assigned.</div>
+                        @endif
+
+                        @can('manageMembers', $proposalDraft)
+                            <div x-data="researchSecretaryPicker({ candidates: @js($projectRoleCandidates), selectedId: @js(old('member_id', $projectSecretaryMember?->id)) })" class="relative mt-3" data-project-role-picker>
+                                <form x-ref="form" method="POST" action="{{ route('faculty.proposal-drafts.member-roles.update', $proposalDraft) }}">
+                                    @csrf
+                                    @method('PATCH')
+                                    <input type="hidden" name="project_role" value="secretary">
+                                    <input type="hidden" name="member_id" :value="selectedId || ''">
+                                </form>
+                                <div class="flex flex-wrap gap-2">
+                                    <button type="button" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gray-950 px-4 py-2 text-xs font-black text-white hover:bg-gray-800 dark:bg-white dark:text-slate-950">{{ $projectSecretaryMember ? 'Change secretary' : 'Select team member' }}</button>
+                                    @if ($projectSecretaryMember)
+                                        <button type="button" @click="clearSelection" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Remove role</button>
+                                    @endif
+                                </div>
+                                @error('member_id')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+                                @error('project_role')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+
+                                <div x-show="open" x-transition.origin.top x-cloak @click.outside="open = false" class="absolute right-0 z-30 mt-2 w-full min-w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
+                                    <label class="sr-only" for="draft-project-secretary-search-{{ $proposalDraft->id }}">Search accepted team members</label>
+                                    <input x-ref="search" id="draft-project-secretary-search-{{ $proposalDraft->id }}" x-model="query" type="search" autocomplete="off" placeholder="Search accepted team members" class="block w-full rounded-xl border-gray-200 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                    <div class="mt-2 max-h-64 space-y-1 overflow-y-auto" role="listbox">
+                                        <template x-for="candidate in filteredCandidates()" :key="candidate.id">
+                                            <button type="button" role="option" @click="select(candidate.id)" class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:hover:bg-slate-800 dark:focus:bg-slate-800">
+                                                <span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-red-100 text-xs font-black text-red-700 ring-1 ring-red-200"><img x-show="candidate.avatar" :src="candidate.avatar" alt="" x-on:error="candidate.avatar = ''" class="h-full w-full object-cover"><span x-show="!candidate.avatar" x-text="initials(candidate.name)"></span></span>
+                                                <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-gray-900 dark:text-white" x-text="candidate.name"></span><span class="block truncate text-xs text-gray-500 dark:text-slate-400" x-text="candidate.email"></span><span x-show="candidate.college" class="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" x-text="candidate.college"></span></span>
+                                            </button>
+                                        </template>
+                                        <p x-show="filteredCandidates().length === 0" class="px-3 py-5 text-center text-xs font-semibold text-gray-500">A member must accept the team invitation before receiving a project role.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        @else
+                            <p class="mt-2 text-xs text-gray-500 dark:text-slate-400">Only the project leader can assign team roles.</p>
+                        @endcan
+                    </div>
+                </div>
             </div>
 
         </section>
@@ -331,10 +401,10 @@
             >
                 <div class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-slate-700 sm:px-6">
                     <div>
-                        <h2 class="text-lg font-black text-gray-900 dark:text-white">Add collaborator</h2>
-                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Invite a teammate using the exact BatStateU Google account they use for ATHENA.</p>
+                        <h2 class="text-lg font-black text-gray-900 dark:text-white">Add team member</h2>
+                        <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Invite a teammate using the exact BatStateU Google account they use for ATHENA. Assign their project role after they accept.</p>
                     </div>
-                    <button type="button" x-on:click="$dispatch('close-modal', 'proposal-collaborator-invitation')" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close collaborator invitation" title="Close">
+                    <button type="button" x-on:click="$dispatch('close-modal', 'proposal-collaborator-invitation')" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close team invitation" title="Close">
                         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
                     </button>
                 </div>

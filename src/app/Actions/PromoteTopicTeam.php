@@ -29,7 +29,7 @@ class PromoteTopicTeam
             ->whereNotNull('accepted_at')
             ->with('user')
             ->get()
-            ->each(function (TopicCollaborator $collaborator) use ($facultyResearcherRole): void {
+            ->each(function (TopicCollaborator $collaborator) use ($facultyResearcherRole, $topic): void {
                 $user = $collaborator->user;
 
                 if (! $user && filled($collaborator->email)) {
@@ -48,6 +48,10 @@ class PromoteTopicTeam
                 }
 
                 $user?->assignRole($facultyResearcherRole);
+
+                if ($user && $collaborator->isProjectSecretary()) {
+                    $topic->update(['research_secretary_id' => $user->getKey()]);
+                }
             });
     }
 }

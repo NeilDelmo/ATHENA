@@ -4365,7 +4365,7 @@ Alpine.data('notificationMenu', (config) => ({
         const inviterName = actionData.inviter_name || 'The proposal owner';
         const confirmed = await showProposalConfirmation({
             title: 'Join proposal workspace?',
-            text: `${inviterName} invited you to join “${proposalTitle}” as a collaborator. Do you want to accept?`,
+            text: `${inviterName} invited you to join the project team for “${proposalTitle}”. Do you want to accept?`,
             confirmButtonText: 'Accept invitation',
             cancelButtonText: 'Not now',
             icon: 'question',
@@ -4395,7 +4395,7 @@ Alpine.data('notificationMenu', (config) => ({
         await this.markNotificationRead(item);
 
         await Swal.fire({
-            title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You are now a collaborator',
+            title: payload.workload_warning ? 'Invitation accepted with workload warning' : 'You joined the project team',
             text: payload.workload_warning || `You can now access the current draft “${proposalTitle}”.`,
             icon: payload.workload_warning ? 'warning' : 'success',
             confirmButtonText: 'Open draft',

@@ -22,7 +22,7 @@ class SendProposalWorkspaceInvitation
             try {
                 $member->user->notify(new ProposalActivityNotification(
                     title: 'Proposal workspace invitation',
-                    message: $proposalDraft->owner->name.' invited you to collaborate on “'.$proposalDraft->project_title.'”.',
+                    message: $proposalDraft->owner->name.' invited you to join the project team for “'.$proposalDraft->project_title.'”.',
                     url: $workspaceUrl,
                     actionUrl: route('notifications.proposal-invitations.accept', $member),
                     actionData: [

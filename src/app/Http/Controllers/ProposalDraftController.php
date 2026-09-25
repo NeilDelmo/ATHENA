@@ -6,6 +6,7 @@ use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\SaveProposalDraftDocument;
 use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftMember;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalTemplate;
 use App\Models\TopicProposal;
@@ -142,7 +143,7 @@ class ProposalDraftController extends Controller
             'researchCall',
             'documents',
             'owner:id,name,email,college',
-            'members.user:id,name,email,college',
+            'members.user:id,name,email,avatar,college',
         ]);
         $checklist = $readiness->checklist($proposalDraft);
         $projectDetailsComplete = $readiness->projectDetailsAreComplete($proposalDraft);
@@ -160,6 +161,18 @@ class ProposalDraftController extends Controller
         $memberCandidates = Gate::allows('manageMembers', $proposalDraft)
             ? $this->memberCandidates($proposalDraft)
             : collect();
+        $projectRoleCandidates = $proposalDraft->members
+            ->filter(fn (ProposalDraftMember $member): bool => $member->isAccepted() && $member->user !== null)
+            ->map(fn (ProposalDraftMember $member): array => [
+                'id' => $member->getKey(),
+                'name' => $member->user->name,
+                'email' => $member->user->email,
+                'avatar' => $member->user->avatar,
+                'college' => $member->user->college,
+            ])
+            ->values();
+        $projectSecretaryMember = $proposalDraft->members
+            ->first(fn (ProposalDraftMember $member): bool => $member->isProjectSecretary());
         $historyCount = $proposalDraft->documentVersions()->count();
         $recentActivity = $proposalDraft->documentVersions()
             ->with('creator:id,name')
@@ -182,6 +195,8 @@ class ProposalDraftController extends Controller
             'initialPlannedEnd',
             'templates',
             'memberCandidates',
+            'projectRoleCandidates',
+            'projectSecretaryMember',
             'historyCount',
             'recentActivity',
         ));

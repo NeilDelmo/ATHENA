@@ -4,7 +4,7 @@
             <div>
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Back to proposal package</x-back-link>
                 <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Review and Turn In</h2>
-                <p class="mt-1 text-xs text-gray-500">Prepare and review all seven PDF attachments and proposal collaborators before turning in.</p>
+                <p class="mt-1 text-xs text-gray-500">Prepare and review all seven PDF attachments and the project team before turning in.</p>
             </div>
             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $readyToSubmit ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $readyToSubmit ? 'Ready to turn in' : 'Incomplete package' }}</span>
         </div>

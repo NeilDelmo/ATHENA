@@ -236,7 +236,7 @@
                         <div class="flex items-start justify-between gap-4">
                             <div class="flex flex-wrap gap-2">
                                 <span class="rounded-full bg-gray-950 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white dark:bg-white dark:text-gray-950">Draft</span>
-                                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 ring-1 ring-inset ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">{{ $proposalDraft->isOwnedBy(Auth::user()) ? 'Owner' : 'Collaborator' }}</span>
+                                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600 ring-1 ring-inset ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">{{ $proposalDraft->isOwnedBy(Auth::user()) ? 'Owner' : 'Team member' }}</span>
                             </div>
                             <span class="shrink-0 text-[11px] font-medium text-gray-400">Edited {{ $proposalDraft->updated_at->diffForHumans() }}</span>
                         </div>

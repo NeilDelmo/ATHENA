@@ -25,7 +25,7 @@ class UpdateProjectBudgetUtilizationRequest extends FormRequest
             && $report->topic_id === $topic->id
             && $report->isPrepared()
             && $user !== null
-            && $topic->research_secretary_id === $user->id;
+            && $topic->canPrepareMonitoringBudget($user);
     }
 
     /**

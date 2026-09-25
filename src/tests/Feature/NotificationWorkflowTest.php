@@ -184,8 +184,8 @@ test('the notification inbox segregates activity and marks an opened item as rea
     $faculty->assignRole('faculty');
 
     $notifications = [
-        ['Proposal workspace invitation', 'A proposal owner invited you to collaborate.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 1)],
-        ['Collaborator accepted invitation', 'A faculty member joined your proposal workspace.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
+        ['Proposal workspace invitation', 'A project leader invited you to join a project team.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, route('notifications.proposal-invitations.accept', 1)],
+        ['Team member accepted invitation', 'A faculty member joined your proposal workspace.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
         ['Revision requested', 'The Research Head requested changes to your proposal.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE, null],
         ['Proposal submitted for review', 'A collaborative proposal is ready for review.', ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS, null],
         ['Research call updated', 'The call schedule and requirements changed.', null, null],
@@ -209,7 +209,7 @@ test('the notification inbox segregates activity and marks an opened item as rea
         ->assertSee('Notification inbox')
         ->assertSee('Search notifications')
         ->assertSee('Invitations')
-        ->assertSee('Collaboration')
+        ->assertSee('Project team')
         ->assertSee('Reviews')
         ->assertSee('Research calls')
         ->assertSee('Projects')
@@ -225,7 +225,7 @@ test('the notification inbox segregates activity and marks an opened item as rea
         ->first(fn (array $item): bool => $item['data']['title'] === 'Revision requested')['category'])
         ->toBe('reviews')
         ->and($notificationItems
-            ->first(fn (array $item): bool => $item['data']['title'] === 'Collaborator accepted invitation')['category'])
+            ->first(fn (array $item): bool => $item['data']['title'] === 'Team member accepted invitation')['category'])
         ->toBe('collaboration');
 
     $reviewNotification = $faculty->notifications()->firstWhere('data->title', 'Proposal submitted for review');

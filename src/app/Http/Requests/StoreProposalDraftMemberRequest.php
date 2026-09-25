@@ -80,7 +80,7 @@ class StoreProposalDraftMemberRequest extends FormRequest
             }
 
             if ($draft->members()->count() >= 50) {
-                $validator->errors()->add('email', 'This proposal workspace already has the maximum of 50 collaborators.');
+                $validator->errors()->add('email', 'This proposal workspace already has the maximum of 50 team members.');
             }
 
             $linkedUser = $this->linkedUser();

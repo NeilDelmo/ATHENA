@@ -41,7 +41,7 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject('ATHENA proposal invitation: '.$this->projectTitle)
             ->greeting('Hello '.$this->recipientName.',')
-            ->line($this->inviterName.' invited you to collaborate on “'.$this->projectTitle.'” in ATHENA.')
+            ->line($this->inviterName.' invited you to join the project team for “'.$this->projectTitle.'” in ATHENA.')
             ->line($this->accountLinked
                 ? ($this->requiresAcceptance
                     ? 'Your verified ATHENA account is ready. Review and accept the invitation in ATHENA to join this proposal workspace.'
@@ -49,7 +49,7 @@ class ProposalWorkspaceInvitation extends Notification implements ShouldQueue
                 : 'Your workspace access will activate automatically after you sign in with the invited BatStateU Google account.')
             ->action('Open ATHENA', $this->workspaceUrl)
             ->line('Sign in using '.$this->invitedEmail.'. The shared proposal will appear in your Proposal Workspace.')
-            ->line('Collaborators may edit draft papers. Only the proposal owner can manage invitations, submit, or delete the proposal.');
+            ->line('Team members may edit draft papers. Only the project leader can manage invitations, assign project roles, submit, or delete the proposal.');
     }
 
     /**

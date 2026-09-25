@@ -11,6 +11,7 @@
             <img src="{{ asset('images/initial-screening-form-preview.png') }}" alt="" class="initial-screening-source" aria-hidden="true">
             <span class="initial-screening-project-title">{{ $screeningForm['project_title'] }}</span>
             <span class="initial-screening-project-leader">{{ $screeningForm['project_leader'] }}</span>
+            <span class="initial-screening-order-checkmark initial-screening-order-{{ $screeningForm['order_of_submission'] }}" data-screening-order="{{ $screeningForm['order_of_submission'] }}" aria-label="Selected order of submission">×</span>
         </main>
     </body>
 </html>

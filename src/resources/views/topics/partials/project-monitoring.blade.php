@@ -55,9 +55,9 @@
     <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:p-6" aria-labelledby="project-secretary-heading">
         <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div class="max-w-xl">
-                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Project group responsibility</p>
-                <h4 id="project-secretary-heading" class="mt-1 text-base font-black text-gray-950 dark:text-white">Project secretary</h4>
-                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">The project leader selects an accepted member of this project group to complete the budget utilization section of prepared monitoring reports.</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Project team role</p>
+                <h4 id="project-secretary-heading" class="mt-1 text-base font-black text-gray-950 dark:text-white">Project Secretary</h4>
+                <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-slate-400">This role stays with the project team from proposal preparation onward. The secretary receives priority budget reminders, but the project leader or any accepted team member can complete the section when needed.</p>
             </div>
 
             <div class="w-full lg:max-w-md">
@@ -84,7 +84,7 @@
                             <input type="hidden" name="research_secretary_id" :value="selectedId || ''">
                         </form>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gray-950 px-4 py-2 text-xs font-black text-white hover:bg-gray-800 dark:bg-white dark:text-slate-950">{{ $topic->researchSecretary ? 'Change secretary' : 'Select from project group' }}</button>
+                            <button type="button" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" class="inline-flex min-h-10 items-center justify-center rounded-lg bg-gray-950 px-4 py-2 text-xs font-black text-white hover:bg-gray-800 dark:bg-white dark:text-slate-950">{{ $topic->researchSecretary ? 'Change secretary' : 'Select team member' }}</button>
                             @if ($topic->researchSecretary)
                                 <button type="button" @click="clearSelection" class="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Remove</button>
                             @endif
@@ -92,8 +92,8 @@
                         @error('research_secretary_id')<p class="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
 
                         <div x-show="open" x-transition.origin.top x-cloak @click.outside="open = false" class="absolute right-0 z-30 mt-2 w-full min-w-72 rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
-                            <label class="sr-only" for="project-secretary-search-{{ $topic->id }}">Search accepted project members</label>
-                            <input x-ref="search" id="project-secretary-search-{{ $topic->id }}" x-model="query" type="search" autocomplete="off" placeholder="Search project members" class="block w-full rounded-xl border-gray-200 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            <label class="sr-only" for="project-secretary-search-{{ $topic->id }}">Search accepted team members</label>
+                            <input x-ref="search" id="project-secretary-search-{{ $topic->id }}" x-model="query" type="search" autocomplete="off" placeholder="Search accepted team members" class="block w-full rounded-xl border-gray-200 text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                             <div class="mt-2 max-h-64 space-y-1 overflow-y-auto" role="listbox">
                                 <template x-for="candidate in filteredCandidates()" :key="candidate.id">
                                     <button type="button" role="option" @click="select(candidate.id)" class="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:hover:bg-slate-800 dark:focus:bg-slate-800">
@@ -101,7 +101,7 @@
                                         <span class="min-w-0 flex-1"><span class="block truncate text-sm font-bold text-gray-900 dark:text-white" x-text="candidate.name"></span><span class="block truncate text-xs text-gray-500 dark:text-slate-400" x-text="candidate.email"></span><span x-show="candidate.college" class="mt-0.5 block truncate text-[10px] font-bold uppercase tracking-wide text-gray-400" x-text="candidate.college"></span></span>
                                     </button>
                                 </template>
-                                <p x-show="filteredCandidates().length === 0" class="px-3 py-5 text-center text-xs font-semibold text-gray-500">No accepted project member matches this search.</p>
+                                <p x-show="filteredCandidates().length === 0" class="px-3 py-5 text-center text-xs font-semibold text-gray-500">No accepted team member matches this search.</p>
                             </div>
                         </div>
                     </div>
@@ -111,14 +111,17 @@
             </div>
         </div>
 
-        @if (Auth::id() === $topic->research_secretary_id && $topic->preparedProgressReports->isNotEmpty())
+        @if ($canReport && $topic->preparedProgressReports->isNotEmpty())
+            @php
+                $isPriorityProjectSecretary = Auth::id() === $topic->research_secretary_id;
+            @endphp
             <div class="mt-5 border-t border-gray-100 pt-4 dark:border-slate-800">
-                <p class="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-slate-400">Budget utilization waiting for you</p>
+                <p class="text-xs font-black uppercase tracking-wide text-gray-500 dark:text-slate-400">{{ $isPriorityProjectSecretary ? 'Priority budget queue' : 'Budget utilization available to the project team' }}</p>
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
                     @foreach ($topic->preparedProgressReports as $preparedReport)
-                        <a href="{{ route('project-budget.edit', [$topic, $preparedReport]) }}" class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950 hover:border-amber-300 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                        <a href="{{ route('project-budget.edit', [$topic, $preparedReport]) }}" class="flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm font-bold {{ $isPriorityProjectSecretary ? 'border-amber-200 bg-amber-50 text-amber-950 hover:border-amber-300 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100' : 'border-gray-200 bg-gray-50 text-gray-900 hover:border-red-200 hover:bg-red-50 dark:border-slate-700 dark:bg-slate-950 dark:text-white' }}">
                             <span>{{ $preparedReport->quarter_label }} · {{ $preparedReport->version_label }}</span>
-                            <span class="text-xs">{{ $preparedReport->hasSecretaryPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span>
+                            <span class="text-xs">{{ $preparedReport->hasPreparedBudget() ? 'Review budget' : 'Complete budget' }}</span>
                         </a>
                     @endforeach
                 </div>

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\SidebarAttentionService;
+use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,19 +61,27 @@ class ResearchHeadTopicController extends Controller
         $gadChecklist = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
         $initialScreeningForm = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
         $hasPassingGadAssessment = $latestVersion->hasPassingGadAssessment();
-        $hasCoEvaluatorNarrative = $latestVersion->files
-            ->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+        $coEvaluatorEvaluation = $latestVersion->files
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
                 && $file->source_version_file_id === $initialScreeningForm?->id
                 && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
                 && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
-                && filled($file->source_data['narrative_evaluation'] ?? null));
+                && filled($file->source_data['narrative_evaluation'] ?? null))
+            ->sortByDesc('id')
+            ->first();
+        $hasCoEvaluatorNarrative = $coEvaluatorEvaluation instanceof ProposalVersionFile;
+        $coEvaluatorRecommendedAction = $coEvaluatorEvaluation?->source_data['recommended_action'] ?? null;
+        $coEvaluationRequiresRevision = in_array($coEvaluatorRecommendedAction, [
+            InitialScreeningSubmissionOrder::MINOR_REVISION,
+            InitialScreeningSubmissionOrder::MAJOR_REVISION,
+        ], true);
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
             && $validated['status'] === 'revision_requested';
 
         if ($validated['status'] === TopicProposal::STATUS_LREC_QUEUED
-            && (! $hasPassingGadAssessment || ! $hasCoEvaluatorNarrative)) {
+            && (! $hasPassingGadAssessment || ! $hasCoEvaluatorNarrative || $coEvaluationRequiresRevision)) {
             $missingSteps = collect();
 
             if (! $hasPassingGadAssessment) {
@@ -81,6 +90,8 @@ class ResearchHeadTopicController extends Controller
 
             if (! $hasCoEvaluatorNarrative) {
                 $missingSteps->push('record the central evaluator’s Narrative Evaluation');
+            } elseif ($coEvaluationRequiresRevision) {
+                $missingSteps->push('complete the central evaluator’s '.str($coEvaluatorRecommendedAction)->replace('_', ' ')->toString().' and upload a new endorsed evaluation');
             }
 
             throw ValidationException::withMessages([

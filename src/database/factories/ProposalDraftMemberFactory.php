@@ -21,6 +21,7 @@ class ProposalDraftMemberFactory extends Factory
             'user_id' => null,
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'project_role' => null,
         ];
     }
 }

@@ -24,7 +24,7 @@
                 <div class="relative">
                     <p class="text-xs font-black uppercase tracking-[0.22em] text-red-400">ATHENA activity center</p>
                     <h1 class="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Notification inbox</h1>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-300">Find invitations, accepted collaborations, proposal reviews, research-call reminders, and project updates in one place.</p>
+                    <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-300">Find invitations, project team activity, proposal reviews, research-call reminders, and project updates in one place.</p>
                 </div>
                 <div class="relative mt-6 flex flex-wrap items-center gap-3 lg:mt-0 lg:justify-end">
                     <div class="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">

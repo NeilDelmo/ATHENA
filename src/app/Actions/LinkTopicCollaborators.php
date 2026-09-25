@@ -40,6 +40,10 @@ class LinkTopicCollaborators
                     'email' => $email,
                 ]);
 
+                if ($collaborator->isProjectSecretary()) {
+                    $collaborator->topic?->update(['research_secretary_id' => $user->getKey()]);
+                }
+
                 $promoteUser = $promoteUser || $collaborator->topic?->hasIssuedNoticeToProceed();
             }
 

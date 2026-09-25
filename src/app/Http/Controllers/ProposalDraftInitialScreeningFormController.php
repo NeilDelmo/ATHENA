@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Services\InitialScreeningFormDocumentService;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\Response;
@@ -64,13 +65,14 @@ class ProposalDraftInitialScreeningFormController extends Controller
         );
     }
 
-    /** @return array{project_title: string, project_leader: string} */
+    /** @return array{project_title: string, project_leader: string, order_of_submission: string} */
     private function screeningFormData(ProposalDraft $proposalDraft): array
     {
         return [
             ...$proposalDraft->signatoryFields('initial_screening_form'),
             'project_title' => (string) $proposalDraft->project_title,
             'project_leader' => (string) $proposalDraft->project_leader,
+            'order_of_submission' => app(InitialScreeningSubmissionOrder::class)->forDraft($proposalDraft),
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\AssignProjectResearchSecretaryRequest;
 use App\Http\Requests\UpdateProjectBudgetUtilizationRequest;
 use App\Models\ProjectProgressReport;
+use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\MonitoringToolDocumentService;
@@ -32,7 +33,7 @@ class ProjectBudgetUtilizationController extends Controller
     public function edit(Request $request, TopicProposal $topic, ProjectProgressReport $report): View
     {
         abort_unless(
-            $topic->research_secretary_id === $request->user()->id
+            $topic->canPrepareMonitoringBudget($request->user())
                 && $report->topic_id === $topic->id
                 && $report->isPrepared(),
             404,
@@ -76,9 +77,14 @@ class ProjectBudgetUtilizationController extends Controller
             ]);
         }
 
+        $budgetPreparer = $request->user();
+        $preparerLabel = $topic->research_secretary_id === $budgetPreparer->id
+            ? 'The assigned project secretary'
+            : $budgetPreparer->name;
+
         $report->submitter->notify(new ProposalActivityNotification(
             title: $report->quarter_label.' Budget Utilization Completed',
-            message: 'The project secretary completed the budget utilization for '.$topic->title.'. The prepared Monitoring Tool is ready for submission.',
+            message: $preparerLabel.' completed the budget utilization for '.$topic->title.'. The prepared Monitoring Tool is ready for submission.',
             url: route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString()]),
             level: 'success',
             topicId: $topic->id,
@@ -110,13 +116,16 @@ class ProjectBudgetUtilizationController extends Controller
             }
 
             $lockedTopic->update(['research_secretary_id' => $secretaryId]);
-            ProjectProgressReport::query()
-                ->prepared()
-                ->whereBelongsTo($lockedTopic, 'topic')
-                ->update([
-                    'budget_prepared_by' => null,
-                    'budget_prepared_at' => null,
-                ]);
+            $lockedTopic->collaborators()
+                ->where('project_role', TopicCollaborator::ROLE_SECRETARY)
+                ->update(['project_role' => null]);
+
+            if ($secretaryId !== null) {
+                $lockedTopic->collaborators()
+                    ->where('user_id', $secretaryId)
+                    ->whereNotNull('accepted_at')
+                    ->update(['project_role' => TopicCollaborator::ROLE_SECRETARY]);
+            }
         });
 
         return back()->with(

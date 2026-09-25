@@ -22,6 +22,7 @@ class TopicCollaboratorFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'accepted_at' => null,
+            'project_role' => null,
         ];
     }
 }

@@ -40,10 +40,10 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
                 if ($topic instanceof TopicProposal
                     && $report instanceof ProjectProgressReport
                     && $topic->research_secretary_id !== null
-                    && ! $report->hasSecretaryPreparedBudget()) {
+                    && ! $report->hasPreparedBudget()) {
                     $validator->errors()->add(
                         'preparation',
-                        'The project secretary selected by the project group must complete the budget utilization before this Monitoring Tool can be submitted.',
+                        'Complete the budget utilization before this Monitoring Tool is submitted. The assigned project secretary has priority, but any authorized project member may complete it.',
                     );
                 }
             },

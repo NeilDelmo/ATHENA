@@ -1,10 +1,12 @@
 <?php
 
+use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -223,6 +225,7 @@ test('central evaluation cannot be uploaded before a passing GAD assessment', fu
             'review_file' => UploadedFile::fake()->create('completed-initial-screening.pdf', 100, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
         ])
         ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
@@ -331,6 +334,7 @@ test('a non-passing GAD result returns the proposal to revision and keeps centra
             'review_file' => UploadedFile::fake()->create('central-evaluation.pdf', 100, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::MINOR_REVISION,
         ])
         ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
@@ -395,6 +399,7 @@ XML);
                 'review_file' => UploadedFile::fake()->createWithContent('completed-initial-screening.docx', $contents),
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
                 'co_evaluator_name' => 'Dr. Maria Santos',
+                'recommended_action' => InitialScreeningSubmissionOrder::MAJOR_REVISION,
             ]);
 
         $response->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
@@ -407,12 +412,41 @@ XML);
         expect($evaluation->source_version_file_id)->toBe($initialScreening->id)
             ->and($evaluation->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
             ->and($evaluation->source_data['co_evaluator_name'])->toBe('Dr. Maria Santos')
+            ->and($evaluation->source_data['recommended_action'])->toBe(InitialScreeningSubmissionOrder::MAJOR_REVISION)
             ->and($evaluation->source_data['narrative_evaluation'])->toBe('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
 
         $this->get(route('topics.head-uploads.index', $this->topic))
             ->assertOk()
             ->assertSee('Narrative Evaluation extracted')
+            ->assertSee('Major Revision')
             ->assertSee('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
+
+        $this->actingAs($this->head)
+            ->patch(route('research_head.topics.updateStatus', $this->topic), [
+                'status' => TopicProposal::STATUS_LREC_QUEUED,
+                'initial_clearance_confirmed' => '1',
+            ])
+            ->assertSessionHasErrors(['status']);
+
+        expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW);
+
+        $revisionDraft = ProposalDraft::query()->create([
+            'user_id' => $this->faculty->id,
+            'research_call_id' => $this->call->id,
+            'topic_id' => $this->topic->id,
+            'project_title' => $this->topic->title,
+            'duration_months' => 12,
+            'project_leader' => $this->faculty->name,
+            'status' => ProposalDraft::STATUS_DRAFT,
+        ]);
+
+        expect(app(InitialScreeningSubmissionOrder::class)->forDraft($revisionDraft))
+            ->toBe(InitialScreeningSubmissionOrder::REVISED_WITH_MAJOR_CHANGES);
+
+        $this->actingAs($this->faculty)
+            ->get(route('faculty.proposal-drafts.initial-screening-form.preview', $revisionDraft))
+            ->assertOk()
+            ->assertSee('data-screening-order="revised_with_major_changes"', false);
     } finally {
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
@@ -792,6 +826,7 @@ test('upload requires an exact faculty file from the latest version', function (
             'review_file' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
         ])
         ->assertSessionHasErrors(['source_file_id'], null, 'headUpload');
 
@@ -810,6 +845,7 @@ test('upload rejects unsupported file types and oversize files', function () {
             'review_file' => UploadedFile::fake()->create('completed-evaluation.txt', 100, 'text/plain'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
         ])
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
 
@@ -820,6 +856,7 @@ test('upload rejects unsupported file types and oversize files', function () {
             'review_file' => UploadedFile::fake()->create('huge.pdf', 26000, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
         ])
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
 
