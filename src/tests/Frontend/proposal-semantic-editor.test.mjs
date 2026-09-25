@@ -2,11 +2,27 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     mirrorSemanticEditorHtml,
+    notifySemanticEditorInput,
     orderedCitationSourceIds,
     proposalCitationField,
     proposalCitationFieldIds,
     synchronizeCitationMarkerLabels,
 } from '../../resources/js/proposal-semantic-editor.js';
+
+test('semantic editor input updates Alpine without bubbling a duplicate form input', () => {
+    let receivedEvent = null;
+    const textarea = {
+        dispatchEvent(event) {
+            receivedEvent = event;
+        },
+    };
+
+    const event = notifySemanticEditorInput(textarea);
+
+    assert.equal(receivedEvent, event);
+    assert.equal(event.type, 'input');
+    assert.equal(event.bubbles, false);
+});
 
 test('programmatic proposal values are mirrored into the visible semantic editor', () => {
     const textarea = { value: '<p>Old reference</p>' };

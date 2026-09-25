@@ -18,6 +18,15 @@ export function proposalCitationField(value) {
 export function proposalCitationFieldIds() {
     return proposalCitationFields.map((field) => field.id);
 }
+
+export function notifySemanticEditorInput(textarea) {
+    const event = new Event('input');
+
+    textarea.dispatchEvent(event);
+
+    return event;
+}
+
 export function mirrorSemanticEditorHtml(textarea, editor, value, { preserveEditorDom = false } = {}) {
     const html = String(value ?? '');
     const changed = textarea.value !== html || editor.innerHTML !== html;

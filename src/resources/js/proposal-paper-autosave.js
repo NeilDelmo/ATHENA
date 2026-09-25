@@ -167,12 +167,14 @@ export async function saveProposalPaperWithDraftFallback({
     save,
 }) {
     let result = await save(saveAsDraft);
+    let completionErrors = null;
 
     if (!saveAsDraft
         && result?.response?.status === 422
         && !autoSaveHasStaleVersionError(result?.payload)) {
+        completionErrors = result?.payload?.errors || null;
         result = await save(true);
     }
 
-    return result;
+    return { ...result, completionErrors };
 }

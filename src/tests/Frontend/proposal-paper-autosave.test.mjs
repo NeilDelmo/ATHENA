@@ -268,6 +268,7 @@ test('a complete-paper save retries as a draft only after server validation reje
 
     assert.deepEqual(saveModes, [false, true]);
     assert.equal(result.payload.saved_as_draft, true);
+    assert.deepEqual(result.completionErrors, { title: ['Required'] });
 });
 
 test('a stale paper save does not retry against an older paper or project-details version', async () => {
@@ -287,6 +288,7 @@ test('a stale paper save does not retry against an older paper or project-detail
 
         assert.deepEqual(saveModes, [false]);
         assert.equal(result.response.status, 422);
+        assert.equal(result.completionErrors, null);
     }
 });
 
@@ -306,4 +308,5 @@ test('a complete-paper save keeps the completed result when the server accepts i
 
     assert.deepEqual(saveModes, [false]);
     assert.equal(result.payload.saved_as_draft, false);
+    assert.equal(result.completionErrors, null);
 });

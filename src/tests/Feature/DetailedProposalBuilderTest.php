@@ -166,9 +166,13 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertDontSee('Ctrl + S')
         ->assertSee('Changes save automatically.')
         ->assertSee('data-detailed-proposal-autosave="true"', false)
-        ->assertSee('data-detailed-proposal-autosave-form', false);
+        ->assertSee('data-detailed-proposal-autosave-form', false)
+        ->assertSee('data-detailed-proposal-completion-status', false);
 
-    expect($response->getContent())->toContain('recheckCompletion: false');
+    expect($response->getContent())
+        ->toContain('recheckCompletion: false')
+        ->toContain('detailedProposalStarted: false')
+        ->toContain('detailedProposalComplete: false');
 
     expect($response->getContent())
         ->toContain('id="proponent-department" name="proponent_department" type="text" maxlength="255"')

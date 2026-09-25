@@ -4,7 +4,7 @@
             <div>
                 <div class="flex flex-wrap items-center gap-3">
                     <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : ($detailedProposalDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
+                    <span data-detailed-proposal-completion-status class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : ($detailedProposalDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
                 </div>
                 <p class="mt-1 text-xs text-gray-500">Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.</p>
             </div>
@@ -34,6 +34,8 @@
         x-data="proposalDraftDetailedProposal({
             initialData: @js($initialData),
             recheckCompletion: @js($detailedProposalDocument !== null && $detailedProposalDocument->completed_at === null),
+            detailedProposalStarted: @js($detailedProposalDocument !== null),
+            detailedProposalComplete: @js($detailedProposalComplete),
             literatureSources: @js($literatureSources),
             initialLiteratureSourceId: @js($initialLiteratureSourceId),
             initialLiteratureAction: @js($initialLiteratureAction),

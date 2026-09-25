@@ -19,6 +19,7 @@ import {
 } from './proposal-people';
 import {
     mirrorSemanticEditorHtml,
+    notifySemanticEditorInput,
     orderedCitationSourceIds,
     proposalCitationField,
     proposalCitationFieldIds,
@@ -288,7 +289,7 @@ function initializeSemanticEditors() {
         const sync = () => {
             syncingFromEditor = true;
             mirrorSemanticEditorHtml(textarea, editor, sanitizedSemanticHtml(editor.innerHTML), { preserveEditorDom: true });
-            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            notifySemanticEditorInput(textarea);
             syncingFromEditor = false;
         };
         const refreshFromTextarea = () => {
@@ -7967,6 +7968,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     lastSavedDetailedProposal: '',
     autoSaveInitialContent: false,
     recheckCompletion: Boolean(config.recheckCompletion),
+    detailedProposalStarted: Boolean(config.detailedProposalStarted),
+    detailedProposalComplete: Boolean(config.detailedProposalComplete),
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -9355,6 +9358,37 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         }
     },
 
+    detailedProposalCompletionLabel() {
+        if (this.detailedProposalComplete) return 'Complete';
+
+        return this.detailedProposalStarted ? 'In progress' : 'Not started';
+    },
+
+    detailedProposalCompletionClasses() {
+        if (this.detailedProposalComplete) return 'bg-green-100 text-green-800';
+
+        return this.detailedProposalStarted
+            ? 'bg-amber-100 text-amber-800'
+            : 'bg-gray-100 text-gray-600';
+    },
+
+    updateDetailedProposalCompletionStatus() {
+        const status = document.querySelector('[data-detailed-proposal-completion-status]');
+
+        if (!(status instanceof HTMLElement)) return;
+
+        status.textContent = this.detailedProposalCompletionLabel();
+        status.classList.remove(
+            'bg-green-100',
+            'text-green-800',
+            'bg-amber-100',
+            'text-amber-800',
+            'bg-gray-100',
+            'text-gray-600',
+        );
+        status.classList.add(...this.detailedProposalCompletionClasses().split(' '));
+    },
+
     triggerDetailedProposalAutoSave() {
         this.$el.dataset.paperDirty = 'true';
         this.autoSaveRevision += 1;
@@ -9402,7 +9436,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.detailedProposalAutoSaveStatus('Saving changes…', 'saving');
 
         try {
-            const { response, payload } = await saveProposalPaperWithDraftFallback({
+            const { response, payload, completionErrors } = await saveProposalPaperWithDraftFallback({
                 saveAsDraft: this.detailedProposalShouldSaveAsDraft(),
                 save: async (saveAsDraft) => {
                     if (saveMode instanceof HTMLInputElement) {
@@ -9452,6 +9486,9 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             if (draftVersion instanceof HTMLInputElement) draftVersion.value = String(payload.draft_version);
 
             this.applySavedMethodologyImages(payload.methodology_images || []);
+            this.detailedProposalStarted = true;
+            this.detailedProposalComplete = !payload.saved_as_draft;
+            this.updateDetailedProposalCompletionStatus();
             this.lastSavedDetailedProposal = fingerprint;
 
             if (this.autoSaveRevision !== savedRevision) {
@@ -9462,9 +9499,13 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             this.lastSavedDetailedProposal = this.detailedProposalFingerprint(form);
             this.$el.dataset.paperDirty = 'false';
-            this.validationMessage = '';
+            this.validationMessage = completionErrors
+                ? `Draft saved. It remains in progress because: ${autoSaveValidationMessage({ errors: completionErrors }, 'required information is still missing.')}`
+                : '';
             this.detailedProposalAutoSaveStatus(
-                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                payload.saved_as_draft && completionErrors
+                    ? 'Draft saved; required information is still missing.'
+                    : payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
                 'saved',
             );
         } catch (error) {
