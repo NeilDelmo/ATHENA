@@ -813,18 +813,6 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         ],
     ]);
 
-    $this->actingAs($faculty)
-        ->get(route('faculty.topics.comment-response-form.preview', $topic))
-        ->assertOk()
-        ->assertSee('BatStateU Comment-Response Form')
-        ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Dr. Aurora Reyes')
-        ->assertSee('Alangilan')
-        ->assertSee('CICS')
-        ->assertSee('Department of Computing Sciences')
-        ->assertSee('Bea Santos')
-        ->assertSee('Carlos Lim');
-
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
     {
         public function convertDocx(string $contents): string
@@ -837,6 +825,17 @@ test('faculty can preview and download an auto-filled official Comment-Response 
             throw new LogicException('An XLSX conversion was not expected.');
         }
     });
+
+    $preview = $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.preview', $topic))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('x-content-type-options', 'nosniff')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+
+    expect($preview->headers->get('content-disposition'))
+        ->toContain('inline')
+        ->toContain('coastal-habitat-restoration-research-head-comment-response-form.pdf');
 
     $pdf = $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.pdf', $topic))
@@ -907,6 +906,9 @@ test('faculty can preview and download an auto-filled official Comment-Response 
 
         $xpath = new DOMXPath($documentDom);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+
+        expect($xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "Coastal Habitat Restoration")]]/w:pPr/w:tabs/w:tab[@w:val = "right" and @w:leader = "underscore" and @w:pos = "10224"]')->length)->toBe(1)
+            ->and($xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "Coastal Habitat Restoration")]]/w:r/w:tab')->length)->toBe(1);
 
         foreach ($xpath->query('/w:document/w:body/w:tbl[3]/w:tr[position() > 1]/w:tc[position() > 1]') as $responseCell) {
             expect(trim($responseCell->textContent))->toBe('');
@@ -1011,24 +1013,63 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
     $headQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD, 'review' => $review->id];
     $coEvaluatorQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_CO_EVALUATOR, 'review' => $review->id];
 
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\ngenerated comment-response form";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    });
+
     $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.preview', $headQuery))
         ->assertOk()
-        ->assertSee('Research Head Comment-Response Form')
-        ->assertSee('Clarify the participant recruitment timeline.')
-        ->assertDontSee('The methodology needs a clearer sampling frame.');
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
     $this->get(route('faculty.topics.comment-response-form.preview', $coEvaluatorQuery))
         ->assertOk()
-        ->assertSee('Co-evaluator Comment-Response Form')
-        ->assertSee('Dr. Maria Santos')
-        ->assertSee('The methodology needs a clearer sampling frame.')
-        ->assertDontSee('Clarify the participant recruitment timeline.');
-    $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+    $headDownload = $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
         ->assertOk()
         ->assertDownload('mangrove-recovery-study-research-head-comment-response-form.docx');
-    $this->get(route('faculty.topics.comment-response-form.download', $coEvaluatorQuery))
+    $coEvaluatorDownload = $this->get(route('faculty.topics.comment-response-form.download', $coEvaluatorQuery))
         ->assertOk()
         ->assertDownload('mangrove-recovery-study-co-evaluator-comment-response-form.docx');
+
+    $documentText = static function ($response): string {
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-comment-response-source-test-');
+        expect($temporaryPath)->not->toBeFalse();
+        file_put_contents($temporaryPath, $response->streamedContent());
+        $archive = new ZipArchive;
+
+        try {
+            expect($archive->open($temporaryPath))->toBeTrue();
+            $documentXml = $archive->getFromName('word/document.xml');
+            expect($documentXml)->not->toBeFalse();
+            $document = new DOMDocument;
+            expect($document->loadXML($documentXml, LIBXML_NONET))->toBeTrue();
+
+            return $document->textContent;
+        } finally {
+            $archive->close();
+            unlink($temporaryPath);
+        }
+    };
+
+    expect($documentText($headDownload))
+        ->toContain('Clarify the participant recruitment timeline.')
+        ->not->toContain('The methodology needs a clearer sampling frame.')
+        ->and($documentText($coEvaluatorDownload))
+        ->toContain('Dr. Maria Santos')
+        ->toContain('The methodology needs a clearer sampling frame.')
+        ->not->toContain('Clarify the participant recruitment timeline.');
+
     $this->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Research Head Comment-Response Form')

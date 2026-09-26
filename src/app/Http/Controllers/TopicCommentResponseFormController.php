@@ -13,18 +13,17 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TopicCommentResponseFormController extends Controller
 {
-    public function preview(Request $request, TopicProposal $topic): View
-    {
-        Gate::authorize('generateCommentResponseForm', $topic);
-
-        $commentResponseForm = $this->commentResponseFormData($topic, $this->formSource($request), $request->integer('review'));
-
-        return view('faculty.comment-response-form.preview', compact('commentResponseForm', 'topic'));
+    public function preview(
+        Request $request,
+        TopicProposal $topic,
+        CommentResponseFormDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
+    ): Response {
+        return $this->downloadPdf($request, $topic, $documentService, $pdfConverter);
     }
 
     public function download(

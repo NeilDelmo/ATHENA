@@ -6,7 +6,6 @@ use DOMDocument;
 use DOMElement;
 use DOMNode;
 use DOMXPath;
-use Illuminate\Support\Str;
 use RuntimeException;
 use ZipArchive;
 
@@ -154,13 +153,7 @@ class CommentResponseFormDocumentService
                 break;
             }
 
-            $remainingLineLength = max(0, 90 - Str::length($projectTitle));
-            $this->replaceParagraphWithTitleLine(
-                $xpath,
-                $titleParagraph,
-                $projectTitle,
-                str_repeat('_', $remainingLineLength),
-            );
+            $this->replaceParagraphWithTitleLine($xpath, $titleParagraph, $projectTitle);
 
             return;
         }
@@ -418,15 +411,54 @@ class CommentResponseFormDocumentService
         DOMXPath $xpath,
         DOMElement $paragraph,
         string $projectTitle,
-        string $remainingLine,
     ): void {
         $sourceRunProperties = $this->sourceRunProperties($xpath, $paragraph);
+        $this->addFullWidthUnderlineTab($xpath, $paragraph);
         $this->removeRuns($xpath, $paragraph);
         $this->appendRun($paragraph, $projectTitle, $sourceRunProperties, true);
+        $this->appendTabRun($paragraph, $sourceRunProperties);
+    }
 
-        if ($remainingLine !== '') {
-            $this->appendRun($paragraph, $remainingLine, $sourceRunProperties);
+    private function addFullWidthUnderlineTab(DOMXPath $xpath, DOMElement $paragraph): void
+    {
+        $paragraphProperties = $xpath->query('./w:pPr', $paragraph)->item(0);
+
+        if (! $paragraphProperties instanceof DOMElement) {
+            $paragraphProperties = $paragraph->ownerDocument->createElementNS(self::W, 'w:pPr');
+            $paragraph->insertBefore($paragraphProperties, $paragraph->firstChild);
         }
+
+        foreach ($this->elements($xpath, './w:tabs', $paragraphProperties) as $tabs) {
+            $paragraphProperties->removeChild($tabs);
+        }
+
+        $tabs = $paragraph->ownerDocument->createElementNS(self::W, 'w:tabs');
+        $tab = $paragraph->ownerDocument->createElementNS(self::W, 'w:tab');
+        $tab->setAttributeNS(self::W, 'w:val', 'right');
+        $tab->setAttributeNS(self::W, 'w:leader', 'underscore');
+        $tab->setAttributeNS(self::W, 'w:pos', (string) $this->contentWidth($xpath));
+        $tabs->appendChild($tab);
+        $paragraphProperties->appendChild($tabs);
+    }
+
+    private function contentWidth(DOMXPath $xpath): int
+    {
+        $sectionProperties = $xpath->query('/w:document/w:body/w:sectPr')->item(0)
+            ?? $xpath->query('//w:sectPr')->item(0);
+        $pageSize = $sectionProperties instanceof DOMElement
+            ? $xpath->query('./w:pgSz', $sectionProperties)->item(0)
+            : null;
+        $pageMargins = $sectionProperties instanceof DOMElement
+            ? $xpath->query('./w:pgMar', $sectionProperties)->item(0)
+            : null;
+
+        if (! $pageSize instanceof DOMElement || ! $pageMargins instanceof DOMElement) {
+            return 10224;
+        }
+
+        return max(1, (int) $pageSize->getAttributeNS(self::W, 'w')
+            - (int) $pageMargins->getAttributeNS(self::W, 'left')
+            - (int) $pageMargins->getAttributeNS(self::W, 'right'));
     }
 
     private function replaceParagraphText(DOMXPath $xpath, DOMElement $paragraph, string $text): void
@@ -485,6 +517,20 @@ class CommentResponseFormDocumentService
         $textElement->setAttributeNS(self::XML, 'xml:space', 'preserve');
         $textElement->appendChild($document->createTextNode($text));
         $run->appendChild($textElement);
+        $paragraph->appendChild($run);
+    }
+
+    private function appendTabRun(DOMElement $paragraph, ?DOMNode $sourceRunProperties): void
+    {
+        $document = $paragraph->ownerDocument;
+        $run = $document->createElementNS(self::W, 'w:r');
+        $runProperties = $sourceRunProperties?->cloneNode(true);
+
+        if ($runProperties instanceof DOMNode) {
+            $run->appendChild($runProperties);
+        }
+
+        $run->appendChild($document->createElementNS(self::W, 'w:tab'));
         $paragraph->appendChild($run);
     }
 
