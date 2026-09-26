@@ -93,10 +93,12 @@ class InitialScreeningFormDocumentService
                 continue;
             }
             $key = $signatureKeys[$signatureIndex++] ?? null;
-            if ($key && filled($screeningForm[$key] ?? null)) {
-                foreach ($xpath->query('.//w:t', $paragraph) as $index => $text) {
-                    $text->nodeValue = $index === 0 ? mb_strtoupper($screeningForm[$key]) : '';
-                }
+
+            if ($key !== null) {
+                $name = filled($screeningForm[$key] ?? null)
+                    ? mb_strtoupper((string) $screeningForm[$key])
+                    : 'NAME';
+                $this->replaceSignatureName($xpath, $paragraph, $name);
             }
         }
         $this->checkOrderOfSubmission(
@@ -112,6 +114,41 @@ class InitialScreeningFormDocumentService
         }
 
         return $renderedXml;
+    }
+
+    private function replaceSignatureName(DOMXPath $xpath, DOMElement $paragraph, string $name): void
+    {
+        $signatureLine = $xpath->query('preceding-sibling::w:p[1]', $paragraph)->item(0);
+
+        if (! $signatureLine instanceof DOMElement
+            || preg_match('/^_{10,}$/', trim($signatureLine->textContent)) !== 1) {
+            throw new RuntimeException('An Initial Screening Form handwritten signature line is missing.');
+        }
+
+        $this->clearParagraphContent($signatureLine);
+        $this->clearParagraphContent($paragraph);
+
+        $document = $paragraph->ownerDocument;
+        $run = $document->createElementNS(self::W, 'w:r');
+        $runProperties = $document->createElementNS(self::W, 'w:rPr');
+        $runProperties->appendChild($document->createElementNS(self::W, 'w:b'));
+        $underline = $document->createElementNS(self::W, 'w:u');
+        $underline->setAttributeNS(self::W, 'w:val', 'single');
+        $runProperties->appendChild($underline);
+        $run->appendChild($runProperties);
+        $text = $document->createElementNS(self::W, 'w:t');
+        $text->appendChild($document->createTextNode($name));
+        $run->appendChild($text);
+        $paragraph->appendChild($run);
+    }
+
+    private function clearParagraphContent(DOMElement $paragraph): void
+    {
+        foreach (iterator_to_array($paragraph->childNodes) as $child) {
+            if (! $child instanceof DOMElement || $child->localName !== 'pPr') {
+                $paragraph->removeChild($child);
+            }
+        }
     }
 
     private function checkOrderOfSubmission(DOMXPath $xpath, string $order): void

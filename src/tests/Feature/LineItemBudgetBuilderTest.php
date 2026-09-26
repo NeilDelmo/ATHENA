@@ -555,6 +555,8 @@ test('the generated Line-Item Budget preserves the official structure and fills 
 
             throw new RuntimeException("Missing row {$text}");
         };
+        $preparedNameParagraph = $xpath->query('.//w:p[normalize-space(.) = "Sheena Lei Delmo"]', $findRow('Prepared by:'))->item(0);
+        $certifiedNameParagraph = $xpath->query('.//w:p[normalize-space(.) = "MARIBEL SANTOS"]', $findRow('Certified correct:'))->item(0);
 
         expect($rows->length)->toBe(48)
             ->and($tableGridWidths)->toBe(['461', '463', '625', '4168', '2176', '2313'])
@@ -579,6 +581,10 @@ test('the generated Line-Item Budget preserves the official structure and fills 
             ->and(trim((string) $xpath->evaluate('string(.)', $findRow('TOTAL PROJECT COST'))))->toContain('21,000.00')
             ->and($xpath->evaluate('string(.//w:tc[1]//w:jc/@w:val)', $findRow('TOTAL PROJECT COST')))->toBe('center')
             ->and($documentXml)->toContain('MARIBEL SANTOS')
+            ->and($xpath->query('./w:r/w:rPr/w:u[@w:val = "single"]', $preparedNameParagraph)->length)->toBe(1)
+            ->and(trim((string) $xpath->evaluate('string(preceding-sibling::w:p[1])', $preparedNameParagraph)))->toBe('')
+            ->and($xpath->query('./w:r/w:rPr/w:u[@w:val = "single"]', $certifiedNameParagraph)->length)->toBe(1)
+            ->and(trim((string) $xpath->evaluate('string(preceding-sibling::w:p[1])', $certifiedNameParagraph)))->toBe('')
             ->and($documentXml)->toContain('Research Coordinator')
             ->and($documentXml)->not->toContain('Vice President for Research, Development and Extension Services')
             ->and($documentXml)->not->toContain('Vice Chairperson, Research Council **')

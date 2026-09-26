@@ -856,11 +856,18 @@ class DetailedProposalDocumentService
 
         $signatureParagraphs = $this->paragraphs($xpath, $preparedCells[0]);
 
-        if (! isset($signatureParagraphs[4])) {
+        if (! isset($signatureParagraphs[3], $signatureParagraphs[4])) {
             throw new RuntimeException('The Detailed Research Proposal project leader signature slot is missing.');
         }
 
-        $this->replaceParagraphText($signatureParagraphs[4], Str::upper($proposal['project_leader']), true, 'center');
+        $this->replaceParagraphText($signatureParagraphs[3], '');
+        $this->replaceParagraphText(
+            $signatureParagraphs[4],
+            Str::upper($proposal['project_leader']),
+            true,
+            'center',
+            underline: true,
+        );
         $this->replaceWithLabelValue($this->paragraphs($xpath, $preparedCells[1])[0], 'Department:', $proposal['proponent_department'], false);
         $this->replaceWithLabelValue($this->paragraphs($xpath, $collegeCells[1])[0], 'College:', $proposal['proponent_college'], false);
         $this->replaceWithLabelValue($this->paragraphs($xpath, $campusCells[1])[0], 'Campus:', $proposal['proponent_campus'], false);
@@ -889,9 +896,12 @@ class DetailedProposalDocumentService
             $checkedParagraphs[5],
             $checkedParagraphs[6],
             $checkedParagraphs[2],
+            $checkedParagraphs[3],
             $recommendingParagraphs[2],
+            $recommendingParagraphs[3],
             $recommendingParagraphs[4],
             $recommendingParagraphs[5],
+            $finalApprovalParagraphs[4],
             $finalApprovalParagraphs[5],
         )) {
             throw new RuntimeException('A Detailed Research Proposal signatory slot is missing.');
@@ -907,18 +917,21 @@ class DetailedProposalDocumentService
             ? Str::upper((string) $proposal['approved_by_name'])
             : 'NAME';
 
-        $this->replaceParagraphText($checkedParagraphs[4], $checkedName, true, 'center');
+        $this->replaceParagraphText($checkedParagraphs[3], '');
+        $this->replaceParagraphText($checkedParagraphs[4], $checkedName, true, 'center', underline: true);
         $this->replaceParagraphText($checkedParagraphs[5], 'Head, Research Office', alignment: 'center');
         $approvalCells[0]->removeChild($checkedParagraphs[2]);
         $approvalCells[0]->removeChild($checkedParagraphs[6]);
-        $this->replaceParagraphText($recommendingParagraphs[4], $recommendingName, true, 'center');
+        $this->replaceParagraphText($recommendingParagraphs[3], '');
+        $this->replaceParagraphText($recommendingParagraphs[4], $recommendingName, true, 'center', underline: true);
         $this->replaceParagraphText(
             $recommendingParagraphs[5],
             'Vice Chancellor for Research Development and Extension Services',
             alignment: 'center',
         );
         $approvalCells[1]->removeChild($recommendingParagraphs[2]);
-        $this->replaceParagraphText($finalApprovalParagraphs[5], $approvedName, true, 'center');
+        $this->replaceParagraphText($finalApprovalParagraphs[4], '');
+        $this->replaceParagraphText($finalApprovalParagraphs[5], $approvedName, true, 'center', underline: true);
     }
 
     private function preventRowSplit(DOMXPath $xpath, DOMElement $row): void
@@ -1066,6 +1079,7 @@ class DetailedProposalDocumentService
         bool $bold = false,
         ?string $alignment = null,
         int $fontSizeHalfPoints = 22,
+        bool $underline = false,
     ): void {
         $this->clearParagraphContent($paragraph);
 
@@ -1073,7 +1087,13 @@ class DetailedProposalDocumentService
             $this->setParagraphAlignment($paragraph, $alignment);
         }
 
-        $this->appendRun($paragraph, $text, $bold, fontSizeHalfPoints: $fontSizeHalfPoints);
+        $this->appendRun(
+            $paragraph,
+            $text,
+            $bold,
+            underline: $underline,
+            fontSizeHalfPoints: $fontSizeHalfPoints,
+        );
     }
 
     private function appendRun(

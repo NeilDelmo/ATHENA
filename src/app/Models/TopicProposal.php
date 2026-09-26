@@ -400,6 +400,11 @@ class TopicProposal extends Model
             ->latest();
     }
 
+    public function projectDocuments(): HasMany
+    {
+        return $this->hasMany(ProjectDocument::class, 'topic_id')->latest();
+    }
+
     public function latestVersion(): HasOne
     {
         return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');

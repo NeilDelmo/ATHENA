@@ -20,6 +20,7 @@ use App\Services\GADChecklistScoreExtractor;
 use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
+use App\Services\ProjectDocumentLibrary;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
@@ -50,6 +51,7 @@ class TopicController extends Controller
         private ProposalSignatureWorkflow $signatureWorkflow,
         private NoticeToProceedDataService $noticeToProceedDataService,
         private MonitoringQuarterService $monitoringQuarterService,
+        private ProjectDocumentLibrary $projectDocumentLibrary,
     ) {}
 
     public function index(ProposalDraftReadiness $readiness): View
@@ -255,6 +257,7 @@ class TopicController extends Controller
 
         $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
         $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
+        $projectDocumentLibrary = $this->projectDocumentLibrary->build($topic, $request->user());
 
         $nextClearanceDecision = match (true) {
             $topic->review_stage === 'lrec' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'Clear for signing'],
@@ -290,6 +293,7 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+            'projectDocumentLibrary',
         ));
     }
 

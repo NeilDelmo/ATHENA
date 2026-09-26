@@ -194,7 +194,6 @@
                         <td colspan="2" rowspan="3" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Prepared by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
-                            <p class="detailed-proposal-signature-line">________________________________</p>
                             <p class="detailed-proposal-signature-name">{{ \Illuminate\Support\Str::upper($detailedProposal['project_leader']) }}</p>
                             <p>Project Leader</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
@@ -230,7 +229,6 @@
                         <td colspan="2" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Checked and Verified by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
-                            <p class="detailed-proposal-signature-line">________________________________</p>
                             <p class="detailed-proposal-signature-name">{{ $signatoryName('checked_verified_by_name') }}</p>
                             <p>Head, Research Office</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
@@ -238,7 +236,6 @@
                         <td colspan="2" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Recommending Approval:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
-                            <p class="detailed-proposal-signature-line">________________________________</p>
                             <p class="detailed-proposal-signature-name">{{ $signatoryName('recommending_approval_name') }}</p>
                             <p>Vice Chancellor for Research Development and Extension Services</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
@@ -248,7 +245,6 @@
                         <td colspan="4" class="detailed-proposal-signature-cell">
                             <p class="detailed-proposal-signature-heading">Approved by the Research Council/Local Research Evaluation Committee-Chair (LREC-Chair) Represented by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
-                            <p class="detailed-proposal-signature-line">__________________________________</p>
                             <p class="detailed-proposal-signature-name">{{ $signatoryName('approved_by_name') }}</p>
                             <p>University President/Vice President for RDES</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>

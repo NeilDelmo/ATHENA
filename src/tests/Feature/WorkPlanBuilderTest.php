@@ -311,7 +311,7 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->and(substr_count($response->getContent(), 'class="work-plan-objective-cell"'))->toBe(7)
         ->and(substr_count($response->getContent(), 'class="work-plan-output-cell"'))->toBe(7)
         ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(7)
-        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(2)
+        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(0)
         ->and(substr_count($response->getContent(), 'data-signature-name'))->toBe(2)
         ->and(substr_count($response->getContent(), 'data-signature-date'))->toBe(2)
         ->and(substr_count($response->getContent(), 'data-work-plan-metadata-value'))->toBe(3)
@@ -325,7 +325,8 @@ test('the preview expands objective rows, shades Gantt months, and fixes the ver
         ->toContain('-webkit-print-color-adjust: exact;')
         ->toContain('print-color-adjust: exact;')
         ->toContain('background-color: #e7e6e6 !important;')
-        ->toContain('box-shadow: inset 0 0 0 1.25pt #737373;');
+        ->toContain('box-shadow: inset 0 0 0 1.25pt #737373;')
+        ->toContain('text-decoration: underline;');
 });
 
 test('the preview stacks two project years in one extended Attachment A sheet', function () {
@@ -366,7 +367,7 @@ test('the preview stacks two project years in one extended Attachment A sheet', 
         ->and(substr_count($response->getContent(), 'Complete the first-year community review'))->toBe(1)
         ->and(substr_count($response->getContent(), 'data-scheduled-month'))->toBe(4)
         ->and(substr_count($response->getContent(), 'Attachment A-BatStateU-FO-RES-02'))->toBe(1)
-        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(2);
+        ->and(substr_count($response->getContent(), 'data-signature-line'))->toBe(0);
 });
 
 test('the Word download patches the official template body and adds page numbering', function () {
@@ -443,15 +444,17 @@ test('the Word download patches the official template body and adds page numberi
             ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $firstEntryCells->item(1)))->toBe('center')
             ->and($xpath->evaluate('string(./w:p/w:pPr/w:jc/@w:val)', $firstEntryCells->item(2)))->toBe('left')
             ->and($signatureCells->length)->toBe(2)
-            ->and($paragraphText($preparedParagraphs->item(3)))->toMatch('/^_{10,}$/')
+            ->and($paragraphText($preparedParagraphs->item(3)))->toBe('')
             ->and($paragraphText($preparedParagraphs->item(4)))->toBe('Faculty Project Leader')
+            ->and($hasDirectFormatting($preparedParagraphs->item(4), 'u'))->toBeTrue()
             ->and($paragraphText($preparedParagraphs->item(5)))->toBe('Project Leader')
             ->and($paragraphText($preparedParagraphs->item(6)))->toBe('Date Signed:')
             ->and($hasDirectFormatting($preparedParagraphs->item(6), 'b'))->toBeFalse()
             ->and($hasDirectFormatting($preparedParagraphs->item(6), 'u'))->toBeFalse()
             ->and($hasDirectFormatting($preparedParagraphs->item(6), 'sz'))->toBeFalse()
-            ->and($paragraphText($verifiedParagraphs->item(3)))->toMatch('/^_{10,}$/')
+            ->and($paragraphText($verifiedParagraphs->item(3)))->toBe('')
             ->and($paragraphText($verifiedParagraphs->item(4)))->toBe('DJOANNA MARIE V. SALAC')
+            ->and($hasDirectFormatting($verifiedParagraphs->item(4), 'u'))->toBeTrue()
             ->and($paragraphText($verifiedParagraphs->item(5)))->toBe('Head, Research')
             ->and($paragraphText($verifiedParagraphs->item(6)))->toBe('Date Signed:')
             ->and($hasDirectFormatting($verifiedParagraphs->item(6), 'b'))->toBeFalse()

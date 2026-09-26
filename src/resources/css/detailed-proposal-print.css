@@ -117,8 +117,7 @@ body { color: #000; background: #e5e7eb; font-family: "Times New Roman", Times, 
 .detailed-proposal-signature-cell p { line-height: 1.2; }
 .detailed-proposal-signature-heading { text-align: left; }
 .detailed-proposal-signature-space { height: 0.42in; }
-.detailed-proposal-signature-line { letter-spacing: -0.5pt; }
-.detailed-proposal-signature-name { font-weight: 700; text-transform: uppercase; text-decoration: none; }
+.detailed-proposal-signature-name { font-weight: 700; text-transform: uppercase; text-decoration: underline; text-underline-offset: 2pt; }
 .detailed-proposal-signature-date { margin-top: 0.1in !important; text-align: left; }
 
 .detailed-proposal-privacy { font-size: 9pt; line-height: 1.25; text-align: justify; }

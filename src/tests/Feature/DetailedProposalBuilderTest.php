@@ -777,7 +777,8 @@ test('the preview mirrors the official bordered form layout', function () {
         ->and(substr_count($content, '☐'))->toBe(18)
         ->and(substr_count($content, 'Php 0.00'))->toBe(2)
         ->and($content)->not->toContain('Batangas State University, The National Engineering University')
-        ->and($content)->not->toContain('Vice President/Vice Chancellor for Research Development and Extension Services');
+        ->and($content)->not->toContain('Vice President/Vice Chancellor for Research Development and Extension Services')
+        ->and($content)->not->toContain('detailed-proposal-signature-line');
 
     expect(file_get_contents(resource_path('css/detailed-proposal-print.css')))
         ->toContain('margin-left: 0.55in')
@@ -788,6 +789,7 @@ test('the preview mirrors the official bordered form layout', function () {
         ->toContain('break-inside: auto;')
         ->toContain('page-break-inside: auto;')
         ->toContain('orphans: 2; widows: 2;')
+        ->toContain('text-decoration: underline;')
         ->toContain('zoom: 1 !important;');
 });
 
@@ -1293,15 +1295,18 @@ test('the generated Word file preserves every unrelated official package part an
             ->and($xpath->evaluate('string(.)', $responsibilityHeading))->toContain('Project Leader: FACULTY PROJECT LEADER (60%)')
             ->and($xpath->query('.//w:b', $budgetValueParagraph)->length)->toBe(0)
             ->and($xpath->evaluate('string(w:pPr/w:jc/@w:val)', $budgetValueParagraph))->toBe('')
-            ->and(trim($xpath->evaluate('string(.)', $preparedSignatureLine)))->toBe('________________________________')
-            ->and($xpath->query('.//w:u', $preparedNameParagraph)->length)->toBe(0)
+            ->and(trim($xpath->evaluate('string(.)', $preparedSignatureLine)))->toBe('')
+            ->and($xpath->query('.//w:u[@w:val = "single"]', $preparedNameParagraph)->length)->toBe(1)
             ->and($xpath->query('.//w:b', $preparedNameParagraph)->length)->toBe(1)
             ->and($xpath->query('.//w:b', $preparedDepartmentParagraph)->length)->toBe(0)
             ->and($xpath->query('.//w:i', $sdgNoteRun)->length)->toBe(0)
             ->and($xpath->query('.//w:i', $expectedOutputNoteRun)->length)->toBe(0)
             ->and($xpath->query('.//w:b', $checkedNameParagraph)->length)->toBe(1)
+            ->and($xpath->query('.//w:u[@w:val = "single"]', $checkedNameParagraph)->length)->toBe(1)
             ->and($xpath->query('.//w:b', $recommendingNameParagraph)->length)->toBe(1)
+            ->and($xpath->query('.//w:u[@w:val = "single"]', $recommendingNameParagraph)->length)->toBe(1)
             ->and($xpath->query('.//w:b', $approvedNameParagraph)->length)->toBe(1)
+            ->and($xpath->query('.//w:u[@w:val = "single"]', $approvedNameParagraph)->length)->toBe(1)
             ->and($xpath->evaluate('string(@w:w)', $pageSize))->toBe('12242')
             ->and($xpath->evaluate('string(@w:h)', $pageSize))->toBe('18722')
             ->and($settingsXml)->toContain('w:updateFields')

@@ -96,6 +96,8 @@
             @endunless
     </x-slot>
 
+    <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" />
+
     <div
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
@@ -222,8 +224,8 @@
                 <section id="submitted-files" aria-labelledby="submitted-files-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-red-600">Received package</p>
-                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Submitted proposal files</h3>
+                            <p class="text-xs font-black uppercase tracking-wider text-red-600">Latest faculty submission</p>
+                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Proposal package</h3>
                             <p class="mt-1 text-sm text-gray-600">
                                 @if ($latestVersion)
                                     Version {{ $latestVersion->version_number }} submitted by {{ $latestVersion->submitter?->name ?? $topic->user->name }} on {{ $latestVersion->created_at->format('M j, Y g:i A') }}.
@@ -236,61 +238,31 @@
                             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }}">
                                 {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} files available
                             </span>
+                            <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-9 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
+                                Open files
+                            </button>
                         </div>
                     </div>
 
-                    @if ($isResearchHead)
-                        <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
-                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                                <h4 class="text-sm font-black text-gray-950">Latest submitted package</h4>
-                                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-700">
+                    <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
+                        <div class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submitted package</h4>
+                                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                                     @if ($latestVersion)
-                                        Version {{ $latestVersion->version_number }} is the package currently awaiting your decision. File review and decision actions are available under the <span class="font-black">Review &amp; decision</span> tab.
+                                        Version {{ $latestVersion->version_number }} contains {{ $submittedFiles->count() }} required {{ \Illuminate\Support\Str::plural('paper', $submittedFiles->count()) }}. Open the project folder to view these files together with signed papers, review responses, the Notice to Proceed, and later project records.
                                     @else
-                                        No submitted package is available for review yet.
+                                        No submitted package is available yet. Generated and uploaded PDFs will appear in the project folder.
                                     @endif
                                 </p>
                             </div>
+                            <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 dark:bg-white dark:text-gray-950">
+                                Browse {{ $projectDocumentLibrary['total'] }} {{ \Illuminate\Support\Str::plural('file', $projectDocumentLibrary['total']) }}
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                            </button>
                         </div>
-                    @else
-                    <div class="divide-y divide-gray-100">
-                        @forelse ($submittedFiles as $file)
-                            @php
-                                $fileAvailable = $availableSubmittedFileIds->contains($file->id);
-                                $fileViewable = $viewableSubmittedFileIds->contains($file->id);
-                            @endphp
-                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                                <div class="flex min-w-0 items-start gap-3">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $fileAvailable ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400' }} text-xs font-black">FILE</span>
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <h4 class="text-sm font-black text-gray-900">{{ $file->label() }}</h4>
-                                            @if (! $fileAvailable)
-                                                <span class="rounded-full bg-red-50 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-red-700">Unavailable</span>
-                                            @endif
-                                        </div>
-                                        <p class="mt-1 break-all text-sm font-semibold text-gray-600">{{ $file->original_filename }}</p>
-                                        <p class="mt-1 text-xs text-gray-500">{{ $file->file_size ? \Illuminate\Support\Number::fileSize($file->file_size) : 'Size unavailable' }}@if ($file->is_carried_forward) &middot; Carried forward from an earlier version @endif</p>
-                                    </div>
-                                </div>
-
-                                <div class="flex w-full shrink-0 gap-2 sm:w-auto">
-                                    @if ($fileViewable)
-                                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $file]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:flex-none">View</a>
-                                    @endif
-                                    @if ($fileAvailable)
-                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $file]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:flex-none">Download</a>
-                                    @endif
-                                </div>
-                            </article>
-                        @empty
-                            <div class="p-8 text-center">
-                                <p class="text-sm font-black text-gray-800">No individual submitted files are available</p>
-                                <p class="mt-1 text-xs text-gray-500">Legacy proposals may only provide a combined proposal download.</p>
-                            </div>
-                        @endforelse
                     </div>
-                    @endif
                 </section>
 
                 <section aria-labelledby="research-details-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">

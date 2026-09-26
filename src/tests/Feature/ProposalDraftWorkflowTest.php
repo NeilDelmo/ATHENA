@@ -749,6 +749,8 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         $documentXpath = new DOMXPath($documentDom);
         $documentXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
 
+        $projectLeaderSignature = $documentXpath->query('//w:p[normalize-space(.) = "Faculty Owner"]')->item(0);
+
         $answerMarks = 0;
 
         foreach ($documentXpath->query('//w:t') as $textNode) {
@@ -757,7 +759,8 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
             }
         }
 
-        expect($answerMarks)->toBe(0);
+        expect($answerMarks)->toBe(0)
+            ->and($documentXpath->query('./w:r/w:rPr/w:u[@w:val = "single"]', $projectLeaderSignature)->length)->toBe(1);
 
         $gadFooterXml = $generated->getFromName('word/footer1.xml');
         $gadSettingsXml = $generated->getFromName('word/settings.xml');
@@ -870,6 +873,8 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         expect($documentXPath->query('//w:p[contains(string(.), "First Submission")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(1)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Minor Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Major Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
+            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/w:r/w:rPr/w:u[@w:val = "single"]')->length)->toBe(3)
+            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/preceding-sibling::w:p[1][not(normalize-space(.))]')->length)->toBe(3)
             ->and($draft->fresh()->topic_id)->toBeNull()
             ->and(app(InitialScreeningSubmissionOrder::class)->forDraft($draft->fresh()))->toBe(InitialScreeningSubmissionOrder::FIRST_SUBMISSION);
 

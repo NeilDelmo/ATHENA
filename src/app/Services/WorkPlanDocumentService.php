@@ -380,17 +380,19 @@ class WorkPlanDocumentService
             throw new RuntimeException('The Work Plan signature slots are incomplete.');
         }
 
-        [$preparedName, $preparedRole, $preparedDate] = $this->signatureSlots($xpath, $preparedParagraphs);
-        [$verifiedName, $verifiedRole, $verifiedDate] = $this->signatureSlots($xpath, $verifiedParagraphs);
+        [$preparedLine, $preparedName, $preparedRole, $preparedDate] = $this->signatureSlots($xpath, $preparedParagraphs);
+        [$verifiedLine, $verifiedName, $verifiedRole, $verifiedDate] = $this->signatureSlots($xpath, $verifiedParagraphs);
 
-        $this->replaceParagraphText($preparedName, $workPlan['prepared_by'], true);
+        $this->replaceParagraphText($preparedLine, '');
+        $this->replaceParagraphText($preparedName, $workPlan['prepared_by'], true, underline: true);
         $this->replaceParagraphText($preparedRole, 'Project Leader');
         $this->replaceParagraphText(
             $preparedDate,
             $this->dateSignedLabel(),
         );
 
-        $this->replaceParagraphText($verifiedName, $workPlan['verified_by'], true);
+        $this->replaceParagraphText($verifiedLine, '');
+        $this->replaceParagraphText($verifiedName, $workPlan['verified_by'], true, underline: true);
         $this->replaceParagraphText($verifiedRole, $workPlan['verified_role']);
         $this->replaceParagraphText(
             $verifiedDate,
@@ -400,7 +402,7 @@ class WorkPlanDocumentService
 
     /**
      * @param  array<int, DOMElement>  $paragraphs
-     * @return array{DOMElement, DOMElement, DOMElement}
+     * @return array{DOMElement, DOMElement, DOMElement, DOMElement}
      */
     private function signatureSlots(DOMXPath $xpath, array $paragraphs): array
     {
@@ -429,7 +431,7 @@ class WorkPlanDocumentService
             throw new RuntimeException('The Work Plan handwritten signature line is missing.');
         }
 
-        return [$paragraphs[$nameIndex], $paragraphs[$nameIndex + 1], $dateParagraph];
+        return [$paragraphs[$nameIndex - 1], $paragraphs[$nameIndex], $paragraphs[$nameIndex + 1], $dateParagraph];
     }
 
     private function replaceCellText(
@@ -479,6 +481,7 @@ class WorkPlanDocumentService
         string $text,
         bool $bold = false,
         ?string $alignment = null,
+        bool $underline = false,
     ): void {
         foreach (iterator_to_array($paragraph->childNodes) as $child) {
             if (! $child instanceof DOMElement || $child->localName !== 'pPr') {
@@ -497,9 +500,19 @@ class WorkPlanDocumentService
         $document = $paragraph->ownerDocument;
         $run = $document->createElementNS(self::WORD_NAMESPACE, 'w:r');
 
-        if ($bold) {
+        if ($bold || $underline) {
             $runProperties = $document->createElementNS(self::WORD_NAMESPACE, 'w:rPr');
-            $runProperties->appendChild($document->createElementNS(self::WORD_NAMESPACE, 'w:b'));
+
+            if ($bold) {
+                $runProperties->appendChild($document->createElementNS(self::WORD_NAMESPACE, 'w:b'));
+            }
+
+            if ($underline) {
+                $underlineElement = $document->createElementNS(self::WORD_NAMESPACE, 'w:u');
+                $underlineElement->setAttributeNS(self::WORD_NAMESPACE, 'w:val', 'single');
+                $runProperties->appendChild($underlineElement);
+            }
+
             $run->appendChild($runProperties);
         }
 
