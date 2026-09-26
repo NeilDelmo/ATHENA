@@ -15,6 +15,14 @@ use Illuminate\View\View;
 
 class ProposalSignatoryController extends Controller
 {
+    private const PAPER_EDIT_ROUTES = [
+        'detailed_proposal' => 'faculty.proposal-drafts.detailed-proposal.edit',
+        'work_plan' => 'faculty.proposal-drafts.work-plan.edit',
+        'line_item_budget' => 'faculty.proposal-drafts.line-item-budget.edit',
+        'gad_checklist' => 'faculty.proposal-drafts.gad-checklist.show',
+        'initial_screening_form' => 'faculty.proposal-drafts.initial-screening-form.show',
+    ];
+
     public function index(Request $request): View
     {
         abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
@@ -72,7 +80,9 @@ class ProposalSignatoryController extends Controller
     {
         $signatory->update($request->validated());
 
-        return back()->with('success', 'Directory updated. Previously selected names remain unchanged.');
+        return redirect()
+            ->to(route('signatories.index').'#signatory-'.$signatory->getKey())
+            ->with('success', 'Directory updated. Previously selected names remain unchanged.');
     }
 
     public function destroy(Request $request, ProposalSignatory $signatory): RedirectResponse
@@ -87,11 +97,23 @@ class ProposalSignatoryController extends Controller
             ->with('success', "{$signatoryName} was removed from the directory. Existing proposal signature blocks remain unchanged.");
     }
 
-    public function edit(ProposalDraft $proposalDraft): View
+    public function edit(Request $request, ProposalDraft $proposalDraft): View
     {
         Gate::authorize('update', $proposalDraft);
 
-        return view('faculty.proposal-drafts.signatories', ['proposalDraft' => $proposalDraft, 'groups' => ProposalSignatory::FIELDS, 'options' => ProposalSignatory::where('active', true)->orderBy('name')->get()->groupBy('role_key')]);
+        $returnPaper = $request->string('paper')->toString();
+
+        if (! array_key_exists($returnPaper, self::PAPER_EDIT_ROUTES)) {
+            $returnPaper = '';
+        }
+
+        return view('faculty.proposal-drafts.signatories', [
+            'proposalDraft' => $proposalDraft,
+            'groups' => ProposalSignatory::FIELDS,
+            'options' => ProposalSignatory::where('active', true)->orderBy('name')->get()->groupBy('role_key'),
+            'returnPaper' => $returnPaper,
+            'returnUrl' => route(self::PAPER_EDIT_ROUTES[$returnPaper] ?? 'faculty.proposal-drafts.show', $proposalDraft),
+        ]);
     }
 
     public function select(SelectProposalSignatoriesRequest $request, ProposalDraft $proposalDraft): RedirectResponse
@@ -105,9 +127,6 @@ class ProposalSignatoryController extends Controller
                 if (! $id) {
                     continue;
                 }
-                if ((int) ($selected[$key]['id'] ?? 0) === (int) $id) {
-                    continue;
-                }
                 $person = ProposalSignatory::whereKey($id)->where('role_key', $key)->where('active', true)->firstOrFail();
                 $selected[$key] = ['id' => $person->id, 'name' => $person->name, 'position' => $person->position];
             }
@@ -118,8 +137,10 @@ class ProposalSignatoryController extends Controller
             }
         });
 
+        $returnRoute = self::PAPER_EDIT_ROUTES[$data['return_paper'] ?? ''] ?? 'faculty.proposal-drafts.show';
+
         return redirect()
-            ->route('faculty.proposal-drafts.show', $proposalDraft)
+            ->route($returnRoute, $proposalDraft)
             ->with('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
     }
 }

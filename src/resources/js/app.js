@@ -48,6 +48,7 @@ import {
     autoSaveHasStaleVersionError,
     autoSaveValidationMessage,
     finishProposalPaperAutoSave,
+    formControlsAreComplete,
     proposalPaperFormFingerprint,
     saveProposalPaperWithDraftFallback,
 } from './proposal-paper-autosave';
@@ -270,8 +271,8 @@ function initializeSemanticEditors() {
         toolbar.appendChild(formattingHint);
         const editor = document.createElement('div');
         editor.className = largeEditor
-            ? 'min-h-48 p-4 text-base leading-7 text-gray-900 outline-none'
-            : 'min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
+            ? 'semantic-rich-text-editor min-h-48 p-4 text-base leading-7 text-gray-900 outline-none'
+            : 'semantic-rich-text-editor min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
         editor.contentEditable = 'true';
         editor.setAttribute('role', 'textbox');
         editor.setAttribute('aria-multiline', 'true');
@@ -6887,6 +6888,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     autoSaveBlocked: false,
     autoSaveRevision: 0,
     lastSavedExpenseBreakdown: '',
+    formComplete: false,
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -7069,9 +7071,13 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
     },
 
     isComplete() {
+        return this.$el.dataset.paperProjectDetailsComplete === 'true' && this.formComplete;
+    },
+
+    refreshExpenseBreakdownCompletion() {
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
-        return fields.every((field) => field.disabled || field.checkValidity());
+        this.formComplete = formControlsAreComplete(fields);
     },
 
     clearExpenseBreakdownFieldHighlight(field) {
@@ -7144,6 +7150,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
         if (!(form instanceof HTMLFormElement)) return;
 
         this.lastSavedExpenseBreakdown = this.expenseBreakdownFingerprint();
+        this.refreshExpenseBreakdownCompletion();
         form.addEventListener('input', () => this.triggerExpenseBreakdownAutoSave());
         form.addEventListener('change', () => this.triggerExpenseBreakdownAutoSave());
         form.addEventListener('input', (event) => this.clearExpenseBreakdownFieldHighlight(event.target));
@@ -7178,6 +7185,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 
     triggerExpenseBreakdownAutoSave() {
         this.autoSaveRevision += 1;
+        this.$nextTick(() => this.refreshExpenseBreakdownCompletion());
         this.scheduleExpenseBreakdownAutoSave();
     },
 

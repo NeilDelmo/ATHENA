@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
     mirrorSemanticEditorHtml,
@@ -8,6 +9,16 @@ import {
     proposalCitationFieldIds,
     synchronizeCitationMarkerLabels,
 } from '../../resources/js/proposal-semantic-editor.js';
+
+test('numbered and bulleted lists remain visible in the live semantic editor', () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const styles = readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8');
+
+    assert.match(app, /semantic-rich-text-editor min-h-/);
+    assert.match(styles, /\.semantic-rich-text-editor ol \{\s*list-style: decimal outside;/);
+    assert.match(styles, /\.semantic-rich-text-editor ul \{\s*list-style: disc outside;/);
+    assert.match(styles, /\.semantic-rich-text-editor li \{\s*display: list-item;/);
+});
 
 test('semantic editor input updates Alpine without bubbling a duplicate form input', () => {
     let receivedEvent = null;

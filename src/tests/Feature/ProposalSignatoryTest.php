@@ -47,7 +47,12 @@ test('head manages signatories and faculty selections are private role checked a
         ->assertSessionHas('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
     expect($draft->fresh()->signatoryFields('work_plan'))->toBe(['verified_by' => 'Original Name', 'verified_role' => 'Research Head']);
     expect($paper->fresh()->file_path)->toBeNull()->and($paper->fresh()->lock_version)->toBe(1);
-    $this->actingAs($head)->patch(route('signatories.update', $person), [...$input, 'name' => 'New Name', 'active' => 0])->assertSessionHasNoErrors();
+    $this->actingAs($head)
+        ->from(route('signatories.index', ['edit' => $person]))
+        ->patch(route('signatories.update', $person), [...$input, 'name' => 'New Name', 'active' => 0])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('signatories.index').'#signatory-'.$person->id)
+        ->assertSessionHas('success', 'Directory updated. Previously selected names remain unchanged.');
     expect($draft->fresh()->signatoryFields('work_plan')['verified_by'])->toBe('Original Name');
     $this->actingAs($faculty)->put(route('signatories.select', $draft), ['lock_version' => 1, 'signatories' => ['verified_by' => $person->id]])->assertSessionHasErrors('signatories.verified_by');
     expect($draft->fresh()->signatoryFields('curriculum_vitae'))->toBe([])->and($draft->signatoryFields('expense_breakdown'))->toBe([]);
@@ -92,6 +97,127 @@ test('research head can search edit and remove directory entries while faculty c
         ->assertRedirect(route('signatories.index'))
         ->assertSessionHas('success', 'Dr. Elena Santos was removed from the directory. Existing proposal signature blocks remain unchanged.');
     $this->assertModelMissing($signatory);
+});
+
+test('saving signatories returns faculty to the proposal paper they came from', function () {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'faculty']);
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $draft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'project_title' => 'Return to paper test',
+        'status' => 'draft',
+        'lock_version' => 0,
+    ]);
+    $signatory = ProposalSignatory::create([
+        'role_key' => 'checked_verified_by_name',
+        'name' => 'Dr. Maria Santos',
+        'position' => 'Research Head',
+        'active' => true,
+    ]);
+
+    $signatoryPage = route('signatories.edit', [
+        'proposalDraft' => $draft,
+        'paper' => 'detailed_proposal',
+    ]);
+
+    $this->actingAs($faculty)
+        ->get($signatoryPage)
+        ->assertOk()
+        ->assertSee('name="return_paper" value="detailed_proposal"', false)
+        ->assertSee(route('faculty.proposal-drafts.detailed-proposal.edit', $draft), false);
+
+    $this->put(route('signatories.select', $draft), [
+        'lock_version' => 0,
+        'return_paper' => 'detailed_proposal',
+        'signatories' => ['checked_verified_by_name' => $signatory->id],
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirectToRoute('faculty.proposal-drafts.detailed-proposal.edit', $draft)
+        ->assertSessionHas('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
+});
+
+test('faculty can refresh frozen signatory names after the research head renames the same directory entries', function () {
+    $this->withoutVite();
+    foreach (['faculty', 'research_head'] as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $draft = ProposalDraft::create([
+        'user_id' => $faculty->id,
+        'project_title' => 'Renamed signatory test',
+        'status' => 'draft',
+        'lock_version' => 0,
+    ]);
+    $finalApprover = ProposalSignatory::create([
+        'role_key' => 'approved_by_name',
+        'name' => 'Mary Jhezl Baldos',
+        'position' => 'Final Approver',
+        'active' => true,
+    ]);
+    $recommendingApprover = ProposalSignatory::create([
+        'role_key' => 'recommending_approval_name',
+        'name' => 'Mary Jhezl Baldos',
+        'position' => 'Recommending Approver',
+        'active' => true,
+    ]);
+
+    $this->actingAs($faculty)->put(route('signatories.select', $draft), [
+        'lock_version' => 0,
+        'signatories' => [
+            'approved_by_name' => $finalApprover->id,
+            'recommending_approval_name' => $recommendingApprover->id,
+        ],
+    ])->assertSessionHasNoErrors();
+
+    $this->actingAs($head)->patch(route('signatories.update', $finalApprover), [
+        'role_key' => 'approved_by_name',
+        'name' => 'Akira Soriano',
+        'position' => 'Final Approver',
+        'active' => 1,
+    ])->assertSessionHasNoErrors();
+    $this->patch(route('signatories.update', $recommendingApprover), [
+        'role_key' => 'recommending_approval_name',
+        'name' => 'Quey Baldos',
+        'position' => 'Recommending Approver',
+        'active' => 1,
+    ])->assertSessionHasNoErrors();
+
+    expect($draft->fresh()->signatoryFields('detailed_proposal'))
+        ->toMatchArray([
+            'approved_by_name' => 'Mary Jhezl Baldos',
+            'recommending_approval_name' => 'Mary Jhezl Baldos',
+        ]);
+
+    $this->actingAs($faculty)->put(route('signatories.select', $draft), [
+        'lock_version' => 1,
+        'return_paper' => 'detailed_proposal',
+        'signatories' => [
+            'approved_by_name' => $finalApprover->id,
+            'recommending_approval_name' => $recommendingApprover->id,
+        ],
+    ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirectToRoute('faculty.proposal-drafts.detailed-proposal.edit', $draft);
+
+    expect($draft->fresh()->signatoryFields('detailed_proposal'))
+        ->toMatchArray([
+            'approved_by_name' => 'Akira Soriano',
+            'recommending_approval_name' => 'Quey Baldos',
+        ])
+        ->and($draft->fresh()->lock_version)->toBe(2);
+
+    $response = $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))->assertOk();
+
+    expect($response->viewData('sourceData'))
+        ->toMatchArray([
+            'approved_by_name' => 'Akira Soriano',
+            'recommending_approval_name' => 'Quey Baldos',
+        ]);
 });
 
 test('all five generated papers contain the selected signatory names', function () {

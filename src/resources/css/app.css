@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+.semantic-rich-text-editor :is(ol, ul) {
+    margin-block: 0.5rem;
+    padding-left: 1.5rem;
+}
+
+.semantic-rich-text-editor ol {
+    list-style: decimal outside;
+}
+
+.semantic-rich-text-editor ul {
+    list-style: disc outside;
+}
+
+.semantic-rich-text-editor li {
+    display: list-item;
+}
+
 .proposal-docket {
     background-image:
         linear-gradient(rgb(15 23 42 / 0.035) 1px, transparent 1px),

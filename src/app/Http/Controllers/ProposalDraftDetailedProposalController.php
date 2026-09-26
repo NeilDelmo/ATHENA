@@ -84,6 +84,10 @@ class ProposalDraftDetailedProposalController extends Controller
             $workspacePeople,
             (string) ($request->user()?->college ?? ''),
         );
+        $sourceData = [
+            ...$sourceData,
+            ...$proposalDraft->signatoryFields('detailed_proposal'),
+        ];
         if (blank($sourceData['proponent_college'] ?? null)) {
             $sourceData['proponent_college'] = (string) ($proposalDraft->owner?->college ?? $request->user()?->college ?? '');
         }

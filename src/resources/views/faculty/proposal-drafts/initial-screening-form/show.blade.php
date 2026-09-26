@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div>
             <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to proposal package</x-back-link>
-            <a href="{{ route('signatories.edit', $proposalDraft) }}" class="ml-4 text-sm font-semibold text-red-700">Choose signatories</a>
+            <a href="{{ route('signatories.edit', ['proposalDraft' => $proposalDraft, 'paper' => 'initial_screening_form']) }}" class="ml-4 text-sm font-semibold text-red-700">Choose signatories</a>
             <div class="mt-2 flex flex-wrap items-center gap-3">
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $projectDetailsComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $projectDetailsComplete ? 'Complete automatically' : 'Waiting for project details' }}</span>
