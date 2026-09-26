@@ -88,6 +88,13 @@ export function autoSaveHasPendingChanges(state, form, configuration) {
     return state.autoSaveInFlight || !proposalPaperAutoSaveIsCurrent(state, form, configuration);
 }
 
+export function formControlsAreComplete(controls = []) {
+    const fields = [...controls];
+
+    return fields.length > 0
+        && fields.every((field) => field.disabled || field.checkValidity());
+}
+
 export function proposalPaperFormFingerprint(entries, excludedNames = []) {
     const excluded = new Set(excludedNames);
 

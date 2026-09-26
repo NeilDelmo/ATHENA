@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
     activeBackgroundAutoSave,
@@ -7,10 +8,35 @@ import {
     autoSaveHasStaleVersionError,
     autoSaveValidationMessage,
     finishProposalPaperAutoSave,
+    formControlsAreComplete,
     proposalPaperAutoSaveIsCurrent,
     proposalPaperFormFingerprint,
     saveProposalPaperWithDraftFallback,
 } from '../../resources/js/proposal-paper-autosave.js';
+
+test('form completion updates from the current native control validity', () => {
+    const requiredField = { disabled: false, checkValidity: () => false };
+    const disabledField = { disabled: true, checkValidity: () => false };
+
+    assert.equal(formControlsAreComplete([requiredField, disabledField]), false);
+
+    requiredField.checkValidity = () => true;
+
+    assert.equal(formControlsAreComplete([requiredField, disabledField]), true);
+    assert.equal(formControlsAreComplete([]), false);
+});
+
+test('expense download readiness refreshes as the user edits without reopening the page', () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const componentStart = app.indexOf("Alpine.data('proposalDraftExpenseBreakdown'");
+    const componentEnd = app.indexOf("Alpine.data('proposalDraftCurriculumVitae'", componentStart);
+    const component = app.slice(componentStart, componentEnd);
+
+    assert.match(component, /formComplete: false/);
+    assert.match(component, /return this\.\$el\.dataset\.paperProjectDetailsComplete === 'true' && this\.formComplete/);
+    assert.match(component, /this\.formComplete = formControlsAreComplete\(fields\)/);
+    assert.match(component, /this\.\$nextTick\(\(\) => this\.refreshExpenseBreakdownCompletion\(\)\)/);
+});
 
 test('every proposal paper editor has a matching shared autosave configuration', () => {
     const attributes = [

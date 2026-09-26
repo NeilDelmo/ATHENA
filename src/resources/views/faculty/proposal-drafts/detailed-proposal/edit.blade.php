@@ -97,7 +97,7 @@
         <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
             <div class="flex gap-2" aria-label="Proposal editor view">
                 <button type="button" @click="closeProposalPreview()" :aria-pressed="previewTab === 'edit'" class="proposal-mobile-tab rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white">Edit</button>
-                <button type="button" @click="showProposalPreview()" :aria-pressed="previewTab === 'preview'" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white">Preview</button>
+                <button type="button" @click="showProposalPreview()" :aria-pressed="previewTab === 'preview'" class="proposal-mobile-tab rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white">Preview</button>
                 <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="proposal-preview-panel" class="proposal-desktop-toggle rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
             </div>
             <span class="text-xs text-slate-500 dark:text-slate-400">Refresh the preview to include your latest edits.</span>

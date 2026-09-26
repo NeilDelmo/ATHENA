@@ -24,7 +24,11 @@ class SelectProposalSignatoriesRequest extends FormRequest
      */
     public function rules(): array
     {
-        $rules = ['lock_version' => ['required', 'integer'], 'signatories' => ['required', 'array:'.implode(',', array_keys(ProposalSignatory::roles()))]];
+        $rules = [
+            'lock_version' => ['required', 'integer'],
+            'return_paper' => ['nullable', Rule::in(array_keys(ProposalSignatory::FIELDS))],
+            'signatories' => ['required', 'array:'.implode(',', array_keys(ProposalSignatory::roles()))],
+        ];
         foreach (ProposalSignatory::roles() as $key => $label) {
             $rules['signatories.'.$key] = ['nullable', 'integer', Rule::exists('proposal_signatories', 'id')->where('role_key', $key)->where('active', true)];
         }
