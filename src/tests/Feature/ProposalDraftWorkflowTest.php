@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
@@ -1568,6 +1569,11 @@ test('a prepared third proposal remains a draft until a submission slot becomes 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $commentsSignatories = [
+        'comment_response_head' => ['name' => 'Selected Research Head'],
+        'comment_response_vice_chancellor' => ['name' => 'Selected Vice Chancellor'],
+    ];
+    $draft->update(['signatory_selections' => $commentsSignatories]);
     $draft->members()->create([
         'user_id' => $this->otherFaculty->id,
         'name' => $this->otherFaculty->name,
@@ -1588,6 +1594,8 @@ test('final submission creates one immutable package then rejects a duplicate re
 
     $topic = TopicProposal::query()->sole();
     $version = $topic->versions()->with('files')->sole();
+    expect($version->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->source_data['comment_response_signatory_selections'])->toBe($commentsSignatories);
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
     $lineItemBudget = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
     $expenseBreakdown = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
@@ -1689,6 +1697,10 @@ test('final submission creates one immutable package then rejects a duplicate re
     expect(TopicProposal::query()->count())->toBe(1)
         ->and($topic->versions()->count())->toBe(1);
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
+
+    $topic->update(['status' => 'revision_requested']);
+    $revisionDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    expect($revisionDraft->signatory_selections)->toBe($commentsSignatories);
 });
 
 test('an rrl backed proposal completes submission revision approval notice and monitoring', function () {

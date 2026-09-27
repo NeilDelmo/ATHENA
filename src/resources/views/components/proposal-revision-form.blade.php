@@ -57,6 +57,13 @@
             @endforeach
 
             <x-comment-response-stages :stages="app(\App\Services\CommentResponseFeedback::class)->stagesForRows($commentResponseRows)" />
+            @if ($topic->revisionDraft)
+                @can('update', $topic->revisionDraft)
+                    <a href="{{ route('signatories.edit', [$topic->revisionDraft, 'paper' => 'comment_response_form']) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-600 dark:text-white">Choose comments-form signatories</a>
+                @endcan
+            @else
+                <a href="{{ route('faculty.proposal-drafts.revision', [$topic, 'signatories' => 'comment_response_form']) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-600 dark:text-white">Choose comments-form signatories</a>
+            @endif
 
             @can('generateCommentResponseForm', $topic)
                 @if ($commentResponseGroups->isNotEmpty())

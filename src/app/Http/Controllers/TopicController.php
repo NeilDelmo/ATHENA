@@ -8,6 +8,7 @@ use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
 use App\Models\ProposalDraft;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -25,6 +26,7 @@ use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalRevisionFileScope;
@@ -268,12 +270,20 @@ class TopicController extends Controller
             $topic->status === TopicProposal::STATUS_GAD_REVIEW => [TopicProposal::STATUS_LREC_QUEUED, 'Send to LREC'],
             default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD assessment'],
         };
+        $coEvaluatorEvaluation = $headUploadWorkspace['coEvaluatorEvaluation'] ?? null;
+        $canSendToLrec = ($headUploadWorkspace['gadPassed'] ?? false)
+            && $coEvaluatorEvaluation !== null
+            && ! in_array($coEvaluatorEvaluation->source_data['recommended_action'] ?? null, [
+                InitialScreeningSubmissionOrder::MINOR_REVISION,
+                InitialScreeningSubmissionOrder::MAJOR_REVISION,
+            ], true);
         $researchHeadDecisionOptions = $request->user()->isUsingWorkspace('research_head')
             ? collect([
                 $nextClearanceDecision[0] => $nextClearanceDecision[1],
                 'revision_requested' => 'Request revisions',
                 'rejected' => 'Reject proposal',
-            ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision))->all()
+            ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision)
+                && ($decision !== TopicProposal::STATUS_LREC_QUEUED || $canSendToLrec))->all()
             : [];
 
         return view('topics.show', compact(
@@ -585,6 +595,20 @@ class TopicController extends Controller
                 $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
                 $previousVersion = $revisedTopic->latestVersion()->with('files')->first();
                 $snapshotFiles = $packageService->revisionSnapshot($previousVersion, $replacementFiles, $revisedTopic);
+                if ($revisionDraft) {
+                    foreach ($snapshotFiles as &$snapshotFile) {
+                        if ($snapshotFile['document_type'] === ProposalVersionFile::TYPE_DETAILED_PROPOSAL) {
+                            $snapshotFile['source_data'] = [
+                                ...($snapshotFile['source_data'] ?? []),
+                                'comment_response_signatory_selections' => array_intersect_key(
+                                    $revisionDraft->signatory_selections ?? [],
+                                    ProposalSignatory::FIELDS['comment_response_form'],
+                                ),
+                            ];
+                        }
+                    }
+                    unset($snapshotFile);
+                }
                 $primaryFile = $packageService->primaryFile($snapshotFiles);
 
                 $revisedTopic->update([

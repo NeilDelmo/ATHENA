@@ -466,7 +466,7 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
 
     $initialPage->assertOk()
         ->assertSeeInOrder([
-            'Research Office screening',
+            'Research Head review',
             'GAD Office review',
             'Co-evaluator review',
             'LREC review',
@@ -498,7 +498,7 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
     $this->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('data-route-state="revision-requested"', false)
-        ->assertSee('data-current-route-stage="research-office-screening"', false)
+        ->assertSee('data-current-route-stage="research-head-review"', false)
         ->assertSee('resubmit the corrected package to the review stage that requested it.');
 
     expect($topic->canRecordDecision(TopicProposal::STATUS_LREC_QUEUED))->toBeFalse();
@@ -525,7 +525,7 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ->and($topic->fresh()->review_stage)->toBe('gad');
     $this->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('value="lrec_queued"', false)
+        ->assertDontSee('value="lrec_queued"', false)
         ->assertDontSee('value="gad_review"', false);
 
     $this->patch(route('research_head.topics.updateStatus', $topic), [
@@ -623,13 +623,13 @@ test('revision requests remain attached to the review stage that issued them', f
     $this->actingAs($this->researchHead)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('data-current-route-stage="research-office-screening"', false)
+        ->assertSee('data-current-route-stage="research-head-review"', false)
         ->assertSee('data-route-state="revision-requested"', false);
 
     $this->get(route('research_head.proposal-submissions.index'))
         ->assertOk()
-        ->assertSee('data-proposal-status-label="Research Office revision requested"', false)
-        ->assertSee('data-proposal-history-status-label="Research Office revision requested"', false);
+        ->assertSee('data-proposal-status-label="Research Head revision requested"', false)
+        ->assertSee('data-proposal-history-status-label="Research Head revision requested"', false);
 
     $topic->update(['review_stage' => 'gad']);
     $this->get(route('topics.show', $topic))

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\TopicReview;
@@ -85,12 +86,14 @@ class TopicCommentResponseFormController extends Controller
      *     review_id: int|null,
      *     feedback: list<array{reviewer: string, location: string, comment: string, stage: string, response: string, remarks: string}>,
      *     evaluation_stages: list<string>,
+     *     comment_response_head: string,
+     *     comment_response_vice_chancellor: string,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }
      */
     private function commentResponseFormData(TopicProposal $topic, string $source, int $reviewId, int $draftVersionId = 0): array
     {
-        $topic->loadMissing(['user:id,name,college', 'latestVersion.files']);
+        $topic->loadMissing(['user:id,name,college', 'latestVersion.files', 'revisionDraft']);
         $feedbackService = app(CommentResponseFeedback::class);
         $review = $draftVersionId > 0 ? null : $this->feedbackReview($topic, $reviewId);
         abort_unless(auth()->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $review !== null || $topic->status === 'revision_requested', 403);
@@ -116,6 +119,10 @@ class TopicCommentResponseFormController extends Controller
         ));
 
         return [
+            ...$this->commentResponseSignatories(
+                $detailedProposal['comment_response_signatory_selections'] ?? [],
+                $version?->id === $topic->latestVersion?->id ? ($topic->revisionDraft?->signatory_selections ?? []) : [],
+            ),
             'project_title' => (string) ($version?->title ?? $topic->title),
             'project_leader' => $this->firstFilled(
                 $detailedProposal['project_leader'] ?? null,
@@ -157,6 +164,29 @@ class TopicCommentResponseFormController extends Controller
         abort_unless(in_array($topic->status, ['pending', 'expert_review', 'resubmitted', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true), 404);
 
         return $versionId;
+    }
+
+    /**
+     * @param  array<string, array{name: string}>  $submittedSelections
+     * @param  array<string, array{name: string}>  $draftSelections
+     * @return array<string, string>
+     */
+    private function commentResponseSignatories(array $submittedSelections, array $draftSelections): array
+    {
+        $roles = array_keys(ProposalSignatory::FIELDS['comment_response_form']);
+        $directory = ProposalSignatory::query()->where('active', true)->whereIn('role_key', $roles)
+            ->get(['role_key', 'name'])->groupBy('role_key');
+        $names = [];
+        foreach ($roles as $role) {
+            $people = $directory->get($role, collect());
+            $names[$role] = $this->firstFilled(
+                $draftSelections[$role]['name'] ?? null,
+                $submittedSelections[$role]['name'] ?? null,
+                $people->count() === 1 ? $people->first()->name : null,
+            );
+        }
+
+        return $names;
     }
 
     private function feedbackReview(TopicProposal $topic, int $reviewId): ?TopicReview

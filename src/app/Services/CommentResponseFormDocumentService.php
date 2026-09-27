@@ -15,6 +15,8 @@ class CommentResponseFormDocumentService
 
     private const XML = 'http://www.w3.org/XML/1998/namespace';
 
+    private const MATRIX_HEADING = 'MATRIX ON THE ACTIONS MADE FOR THE COMMENTS AND SUGGESTIONS';
+
     public function __construct(
         private readonly WordDocumentPaginationService $paginationService,
     ) {}
@@ -28,6 +30,8 @@ class CommentResponseFormDocumentService
      *     leader_department: string,
      *     feedback?: list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}>,
      *     evaluation_stages?: list<string>,
+     *     comment_response_head?: string,
+     *     comment_response_vice_chancellor?: string,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -55,9 +59,10 @@ class CommentResponseFormDocumentService
 
             $archiveIsOpen = true;
             $documentXml = $archive->getFromName('word/document.xml');
+            $headerXml = $archive->getFromName('word/header1.xml');
             $footerXml = $archive->getFromName('word/footer1.xml');
 
-            if ($documentXml === false || $footerXml === false) {
+            if ($documentXml === false || $headerXml === false || $footerXml === false) {
                 throw new RuntimeException('The Comment-Response Form body or footer is missing.');
             }
 
@@ -65,8 +70,11 @@ class CommentResponseFormDocumentService
                 'word/document.xml',
                 $this->renderDocumentXml($documentXml, $commentResponseForm),
             ) || ! $archive->addFromString(
+                'word/header1.xml',
+                $this->renderHeaderXml($headerXml),
+            ) || ! $archive->addFromString(
                 'word/footer1.xml',
-                $this->renderFooterXml($footerXml, $commentResponseForm['project_title']),
+                $this->renderFooterXml($footerXml),
             )) {
                 throw new RuntimeException('The generated Comment-Response Form could not be written.');
             }
@@ -101,25 +109,64 @@ class CommentResponseFormDocumentService
      *     leader_department: string,
      *     feedback?: list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}>,
      *     evaluation_stages?: list<string>,
+     *     comment_response_head?: string,
+     *     comment_response_vice_chancellor?: string,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
     private function renderDocumentXml(string $documentXml, array $commentResponseForm): string
     {
         [$document, $xpath] = $this->documentAndXPath($documentXml, 'document');
+        $this->addMatrixHeading($xpath);
         $this->fillProjectTitle($xpath, $commentResponseForm['project_title']);
         $this->fillResearchers($xpath, $commentResponseForm);
         $this->fillEvaluationStages($xpath, $commentResponseForm['evaluation_stages'] ?? []);
         $this->fillFeedbackTable($xpath, $commentResponseForm['feedback'] ?? []);
         $this->fillPreparedBy($xpath, $commentResponseForm['project_leader']);
+        $this->fillReviewSignatories($xpath, $commentResponseForm);
 
         return $this->serialized($document, 'document');
     }
 
-    private function renderFooterXml(string $footerXml, string $projectTitle): string
+    private function renderHeaderXml(string $headerXml): string
+    {
+        [$document, $xpath] = $this->documentAndXPath($headerXml, 'header');
+        foreach ($xpath->query('//w:p') as $paragraph) {
+            $text = trim($this->paragraphText($paragraph));
+            if (in_array($text, ['MATRIX ON THE ACTIONS MADE FOR THE', 'COMMENTS AND SUGGESTIONS', '(Constituent/Extension Campus)'], true)) {
+                foreach ($this->elements($xpath, './w:r[w:t]', $paragraph) as $run) {
+                    $paragraph->removeChild($run);
+                }
+            }
+        }
+
+        return $this->serialized($document, 'header');
+    }
+
+    private function addMatrixHeading(DOMXPath $xpath): void
+    {
+        $body = $xpath->query('/w:document/w:body')->item(0);
+        $sourceParagraph = $xpath->query('./w:p[1]', $body)->item(0);
+        $paragraph = $body->ownerDocument->createElementNS(self::W, 'w:p');
+        $properties = $body->ownerDocument->createElementNS(self::W, 'w:pPr');
+        $alignment = $body->ownerDocument->createElementNS(self::W, 'w:jc');
+        $alignment->setAttributeNS(self::W, 'w:val', 'center');
+        $properties->appendChild($alignment);
+        $spacing = $body->ownerDocument->createElementNS(self::W, 'w:spacing');
+        $spacing->setAttributeNS(self::W, 'w:after', '360');
+        $properties->appendChild($spacing);
+        $properties->appendChild($body->ownerDocument->createElementNS(self::W, 'w:keepNext'));
+        $paragraph->appendChild($properties);
+        $this->appendRun($paragraph, self::MATRIX_HEADING, $this->boldRunProperties($xpath, $sourceParagraph, 22));
+        $body->insertBefore($paragraph, $body->firstChild);
+    }
+
+    private function renderFooterXml(string $footerXml): string
     {
         [$document, $xpath] = $this->documentAndXPath($footerXml, 'footer');
-        $this->fillFooterTitle($xpath, $projectTitle);
+        foreach ($this->elements($xpath, '//w:p[.//w:t[contains(., "Comment-Response Form |")]]', $document->documentElement) as $paragraph) {
+            $paragraph->parentNode->removeChild($paragraph);
+        }
         $this->updateFooterPageFieldCache($xpath);
 
         return $this->serialized($document, 'footer');
@@ -129,10 +176,6 @@ class CommentResponseFormDocumentService
     private function fillEvaluationStages(DOMXPath $xpath, array $stages): void
     {
         $stages = array_values(array_intersect(array_keys(CommentResponseFeedback::STAGE_LABELS), $stages));
-        if ($stages === []) {
-            return;
-        }
-
         $heading = $xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "EVALUATION DONE")]]')->item(0);
         $checkboxTable = $heading instanceof DOMElement ? $xpath->query('following-sibling::w:tbl[1]', $heading)->item(0) : null;
         $cells = $checkboxTable instanceof DOMElement ? $this->elements($xpath, './w:tr/w:tc', $checkboxTable) : [];
@@ -141,41 +184,74 @@ class CommentResponseFormDocumentService
             throw new RuntimeException('The Comment-Response Form evaluation boxes are missing.');
         }
 
+        $this->replaceParagraphText($xpath, $heading, 'LEVEL OF EVALUATION DONE:');
+        $labels = ['Initial Screening', 'Local Research Evaluation'];
+        $labelParagraphs = $this->elements($xpath, 'following-sibling::w:p[position() <= 3]', $checkboxTable);
+        $tableProperties = $xpath->query('./w:tblPr', $checkboxTable)->item(0);
+
+        foreach ($this->elements($xpath, './w:tblpPr | ./w:tblOverlap', $tableProperties) as $property) {
+            $tableProperties->removeChild($property);
+        }
+
+        $borders = $checkboxTable->ownerDocument->createElementNS(self::W, 'w:tblBorders');
+        foreach (['top', 'left', 'bottom', 'right', 'insideH', 'insideV'] as $edge) {
+            $border = $checkboxTable->ownerDocument->createElementNS(self::W, 'w:'.$edge);
+            $border->setAttributeNS(self::W, 'w:val', 'nil');
+            $borders->appendChild($border);
+        }
+        $tableProperties->appendChild($borders);
+        $indent = $checkboxTable->ownerDocument->createElementNS(self::W, 'w:tblInd');
+        $indent->setAttributeNS(self::W, 'w:w', '720');
+        $indent->setAttributeNS(self::W, 'w:type', 'dxa');
+        $tableProperties->appendChild($indent);
+        $grid = $xpath->query('./w:tblGrid', $checkboxTable)->item(0);
+        $column = $checkboxTable->ownerDocument->createElementNS(self::W, 'w:gridCol');
+        $column->setAttributeNS(self::W, 'w:w', '5000');
+        $grid->appendChild($column);
+
         $checked = [count(array_diff($stages, ['lrec'])) > 0, in_array('lrec', $stages, true)];
         foreach ($cells as $index => $cell) {
-            if (! $checked[$index]) {
-                continue;
+            $properties = $xpath->query('./w:tcPr', $cell)->item(0);
+            foreach ($this->elements($xpath, './w:shd', $properties) as $shade) {
+                $properties->removeChild($shade);
             }
 
-            $properties = $xpath->query('./w:tcPr', $cell)->item(0);
-            $shade = $cell->ownerDocument->createElementNS(self::W, 'w:shd');
-            $shade->setAttributeNS(self::W, 'w:val', 'clear');
-            $shade->setAttributeNS(self::W, 'w:fill', '7A0019');
-            $properties->appendChild($shade);
-        }
+            $cellBorders = $cell->ownerDocument->createElementNS(self::W, 'w:tcBorders');
+            foreach (['top', 'left', 'bottom', 'right'] as $edge) {
+                $border = $cell->ownerDocument->createElementNS(self::W, 'w:'.$edge);
+                $border->setAttributeNS(self::W, 'w:val', 'single');
+                $border->setAttributeNS(self::W, 'w:sz', '4');
+                $border->setAttributeNS(self::W, 'w:color', '000000');
+                $cellBorders->appendChild($border);
+            }
+            $properties->appendChild($cellBorders);
 
-        $paragraph = $heading->cloneNode(true);
-        $this->removeRuns($xpath, $paragraph);
-        $paragraph->removeAttributeNS('http://schemas.microsoft.com/office/word/2010/wordml', 'paraId');
-        $paragraph->removeAttributeNS('http://schemas.microsoft.com/office/word/2010/wordml', 'textId');
-        $runProperties = $this->sourceRunProperties($xpath, $heading);
-        $this->appendRun($paragraph, 'Feedback stage: ', $runProperties);
-
-        foreach (CommentResponseFeedback::STAGE_LABELS as $stage => $label) {
-            $active = in_array($stage, $stages, true);
-            $properties = $runProperties?->cloneNode(true) ?? $paragraph->ownerDocument->createElementNS(self::W, 'w:rPr');
-            $size = $paragraph->ownerDocument->createElementNS(self::W, 'w:sz');
-            $size->setAttributeNS(self::W, 'w:val', '18');
-            $properties->appendChild($size);
-            if ($active) {
-                $shade = $paragraph->ownerDocument->createElementNS(self::W, 'w:shd');
-                $shade->setAttributeNS(self::W, 'w:fill', 'FCE7ED');
+            if ($checked[$index]) {
+                $shade = $cell->ownerDocument->createElementNS(self::W, 'w:shd');
+                $shade->setAttributeNS(self::W, 'w:val', 'clear');
+                $shade->setAttributeNS(self::W, 'w:fill', '000000');
                 $properties->appendChild($shade);
             }
-            $this->appendRun($paragraph, ($active ? '['.$label.']' : $label).($stage !== 'lrec' ? ' > ' : ''), $properties);
+
+            $labelCell = $cell->ownerDocument->createElementNS(self::W, 'w:tc');
+            $labelProperties = $cell->ownerDocument->createElementNS(self::W, 'w:tcPr');
+            $width = $cell->ownerDocument->createElementNS(self::W, 'w:tcW');
+            $width->setAttributeNS(self::W, 'w:w', '5000');
+            $width->setAttributeNS(self::W, 'w:type', 'dxa');
+            $labelProperties->appendChild($width);
+            $labelCell->appendChild($labelProperties);
+            $label = $labelParagraphs[$index]->cloneNode(true);
+            foreach ($this->elements($xpath, './w:pPr/w:ind', $label) as $labelIndent) {
+                $labelIndent->parentNode->removeChild($labelIndent);
+            }
+            $this->replaceParagraphText($xpath, $label, $labels[$index]);
+            $labelCell->appendChild($label);
+            $cell->parentNode->appendChild($labelCell);
         }
 
-        $heading->parentNode->insertBefore($paragraph, $heading);
+        foreach ($labelParagraphs as $paragraph) {
+            $paragraph->parentNode->removeChild($paragraph);
+        }
     }
 
     /** @return array{DOMDocument, DOMXPath} */
@@ -209,7 +285,8 @@ class CommentResponseFormDocumentService
                 break;
             }
 
-            $this->replaceParagraphWithTitleLine($xpath, $titleParagraph, $projectTitle);
+            $this->appendRun($paragraph, ' '.$projectTitle, $this->boldRunProperties($xpath, $paragraph));
+            $titleParagraph->parentNode->removeChild($titleParagraph);
 
             return;
         }
@@ -247,49 +324,23 @@ class CommentResponseFormDocumentService
                 continue;
             }
 
-            $this->fillResearcherRow($xpath, $rows[1], [
-                'name' => $commentResponseForm['project_leader'],
-                'campus' => $commentResponseForm['leader_campus'],
-                'college' => $commentResponseForm['leader_college'],
-                'department' => $commentResponseForm['leader_department'],
-            ]);
-
-            foreach ($commentResponseForm['staff'] as $index => $member) {
-                if ($index >= 2) {
-                    break;
-                }
-
-                $this->fillResearcherRow($xpath, $rows[$index + 2], $member);
+            $heading = $xpath->query('preceding-sibling::w:p[1]', $table)->item(0);
+            if (! $heading instanceof DOMElement || trim($this->paragraphText($heading)) !== 'RESEARCHERS:') {
+                throw new RuntimeException('The Comment-Response Form researchers label is missing.');
             }
+
+            $names = array_filter([
+                $commentResponseForm['project_leader'],
+                ...array_column($commentResponseForm['staff'], 'name'),
+            ], static fn (string $name): bool => trim($name) !== '');
+            $this->replaceParagraphText($xpath, $heading, 'PROJECT STAFF:');
+            $this->appendRun($heading, ' '.implode(', ', $names), $this->boldRunProperties($xpath, $heading));
+            $table->parentNode->removeChild($table);
 
             return;
         }
 
         throw new RuntimeException('The Comment-Response Form researcher table is missing.');
-    }
-
-    /** @param array{name: string, campus: string, college: string, department: string} $researcher */
-    private function fillResearcherRow(DOMXPath $xpath, DOMElement $row, array $researcher): void
-    {
-        $cells = $this->elements($xpath, './w:tc', $row);
-
-        if (count($cells) !== 5) {
-            throw new RuntimeException('A Comment-Response Form researcher row is malformed.');
-        }
-
-        foreach (['name', 'campus', 'college', 'department'] as $offset => $key) {
-            if ($researcher[$key] === '') {
-                continue;
-            }
-
-            $paragraph = $xpath->query('./w:p[1]', $cells[$offset + 1])->item(0);
-
-            if (! $paragraph instanceof DOMElement) {
-                throw new RuntimeException('A Comment-Response Form researcher cell is missing.');
-            }
-
-            $this->replaceParagraphText($xpath, $paragraph, $researcher[$key]);
-        }
     }
 
     /** @param list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}> $feedback */
@@ -331,8 +382,7 @@ class CommentResponseFormDocumentService
                 }
 
                 $cells = $this->elements($xpath, './w:tc', $row);
-                $stageLabel = CommentResponseFeedback::STAGE_LABELS[$item['stage'] ?? ''] ?? null;
-                $values = [($index + 1).'.', $item['reviewer'].($stageLabel ? "\nStage: ".$stageLabel : '')."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+                $values = [($index + 1).'.', $item['reviewer']."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
 
                 foreach ($cells as $offset => $cell) {
                     $paragraphs = $this->elements($xpath, './w:p', $cell);
@@ -384,37 +434,19 @@ class CommentResponseFormDocumentService
         throw new RuntimeException('The Comment-Response Form prepared-by slot is missing.');
     }
 
-    private function fillFooterTitle(DOMXPath $xpath, string $projectTitle): void
+    /** @param array{comment_response_head?: string, comment_response_vice_chancellor?: string} $form */
+    private function fillReviewSignatories(DOMXPath $xpath, array $form): void
     {
-        foreach ($xpath->query('//w:p') as $paragraph) {
-            if (! $paragraph instanceof DOMElement
-                || ! str_starts_with($this->paragraphText($paragraph), 'Comment-Response Form |')) {
-                continue;
-            }
-
-            $textNodes = $xpath->query('.//w:t', $paragraph);
-
-            if ($textNodes->length < 2) {
-                break;
-            }
-
-            $titleNode = $textNodes->item(1);
-
-            if (! $titleNode instanceof DOMElement) {
-                break;
-            }
-
-            $titleNode->setAttributeNS(self::XML, 'xml:space', 'preserve');
-            $titleNode->nodeValue = ' '.$projectTitle;
-
-            for ($index = 2; $index < $textNodes->length; $index++) {
-                $textNodes->item($index)->nodeValue = '';
-            }
-
-            return;
+        $table = $xpath->query('/w:document/w:body/w:tbl[.//w:t[contains(., "Research Head/ RDES Head")]]')->item(0);
+        if (! $table instanceof DOMElement) {
+            throw new RuntimeException('The Comment-Response Form review signatory slots are missing.');
         }
 
-        throw new RuntimeException('The Comment-Response Form footer title slot is missing.');
+        $cells = $this->elements($xpath, './w:tr[1]/w:tc', $table);
+        foreach (['comment_response_head', 'comment_response_vice_chancellor'] as $index => $key) {
+            $paragraph = $xpath->query('./w:p[1]', $cells[$index])->item(0);
+            $this->replaceParagraphText($xpath, $paragraph, $form[$key] ?? '');
+        }
     }
 
     private function updateFooterPageFieldCache(DOMXPath $xpath): void
@@ -464,60 +496,6 @@ class CommentResponseFormDocumentService
         }
     }
 
-    private function replaceParagraphWithTitleLine(
-        DOMXPath $xpath,
-        DOMElement $paragraph,
-        string $projectTitle,
-    ): void {
-        $sourceRunProperties = $this->sourceRunProperties($xpath, $paragraph);
-        $this->addFullWidthUnderlineTab($xpath, $paragraph);
-        $this->removeRuns($xpath, $paragraph);
-        $this->appendRun($paragraph, $projectTitle, $sourceRunProperties, true);
-        $this->appendTabRun($paragraph, $sourceRunProperties);
-    }
-
-    private function addFullWidthUnderlineTab(DOMXPath $xpath, DOMElement $paragraph): void
-    {
-        $paragraphProperties = $xpath->query('./w:pPr', $paragraph)->item(0);
-
-        if (! $paragraphProperties instanceof DOMElement) {
-            $paragraphProperties = $paragraph->ownerDocument->createElementNS(self::W, 'w:pPr');
-            $paragraph->insertBefore($paragraphProperties, $paragraph->firstChild);
-        }
-
-        foreach ($this->elements($xpath, './w:tabs', $paragraphProperties) as $tabs) {
-            $paragraphProperties->removeChild($tabs);
-        }
-
-        $tabs = $paragraph->ownerDocument->createElementNS(self::W, 'w:tabs');
-        $tab = $paragraph->ownerDocument->createElementNS(self::W, 'w:tab');
-        $tab->setAttributeNS(self::W, 'w:val', 'right');
-        $tab->setAttributeNS(self::W, 'w:leader', 'underscore');
-        $tab->setAttributeNS(self::W, 'w:pos', (string) $this->contentWidth($xpath));
-        $tabs->appendChild($tab);
-        $paragraphProperties->appendChild($tabs);
-    }
-
-    private function contentWidth(DOMXPath $xpath): int
-    {
-        $sectionProperties = $xpath->query('/w:document/w:body/w:sectPr')->item(0)
-            ?? $xpath->query('//w:sectPr')->item(0);
-        $pageSize = $sectionProperties instanceof DOMElement
-            ? $xpath->query('./w:pgSz', $sectionProperties)->item(0)
-            : null;
-        $pageMargins = $sectionProperties instanceof DOMElement
-            ? $xpath->query('./w:pgMar', $sectionProperties)->item(0)
-            : null;
-
-        if (! $pageSize instanceof DOMElement || ! $pageMargins instanceof DOMElement) {
-            return 10224;
-        }
-
-        return max(1, (int) $pageSize->getAttributeNS(self::W, 'w')
-            - (int) $pageMargins->getAttributeNS(self::W, 'left')
-            - (int) $pageMargins->getAttributeNS(self::W, 'right'));
-    }
-
     private function replaceParagraphText(DOMXPath $xpath, DOMElement $paragraph, string $text): void
     {
         $sourceRunProperties = $this->sourceRunProperties($xpath, $paragraph);
@@ -531,6 +509,32 @@ class CommentResponseFormDocumentService
             ?? $xpath->query('./w:pPr/w:rPr', $paragraph)->item(0);
 
         return $runProperties?->cloneNode(true);
+    }
+
+    private function boldRunProperties(DOMXPath $xpath, DOMElement $paragraph, ?int $size = null): DOMElement
+    {
+        $properties = $this->sourceRunProperties($xpath, $paragraph)
+            ?? $paragraph->ownerDocument->createElementNS(self::W, 'w:rPr');
+        foreach ($this->elements($xpath, './w:b | ./w:bCs | ./w:color | ./w:u', $properties) as $property) {
+            $properties->removeChild($property);
+        }
+        $properties->appendChild($paragraph->ownerDocument->createElementNS(self::W, 'w:b'));
+        $properties->appendChild($paragraph->ownerDocument->createElementNS(self::W, 'w:bCs'));
+        $color = $paragraph->ownerDocument->createElementNS(self::W, 'w:color');
+        $color->setAttributeNS(self::W, 'w:val', '000000');
+        $properties->appendChild($color);
+        if ($size !== null) {
+            foreach ($this->elements($xpath, './w:sz | ./w:szCs', $properties) as $property) {
+                $properties->removeChild($property);
+            }
+            foreach (['sz', 'szCs'] as $property) {
+                $fontSize = $paragraph->ownerDocument->createElementNS(self::W, 'w:'.$property);
+                $fontSize->setAttributeNS(self::W, 'w:val', (string) $size);
+                $properties->appendChild($fontSize);
+            }
+        }
+
+        return $properties;
     }
 
     private function removeRuns(DOMXPath $xpath, DOMElement $paragraph): void
@@ -550,21 +554,10 @@ class CommentResponseFormDocumentService
         DOMElement $paragraph,
         string $text,
         ?DOMNode $sourceRunProperties,
-        bool $underlined = false,
     ): void {
         $document = $paragraph->ownerDocument;
         $run = $document->createElementNS(self::W, 'w:r');
         $runProperties = $sourceRunProperties?->cloneNode(true);
-
-        if ($underlined) {
-            if (! $runProperties instanceof DOMElement) {
-                $runProperties = $document->createElementNS(self::W, 'w:rPr');
-            }
-
-            $underline = $document->createElementNS(self::W, 'w:u');
-            $underline->setAttributeNS(self::W, 'w:val', 'single');
-            $runProperties->appendChild($underline);
-        }
 
         if ($runProperties instanceof DOMNode) {
             $run->appendChild($runProperties);
@@ -574,20 +567,6 @@ class CommentResponseFormDocumentService
         $textElement->setAttributeNS(self::XML, 'xml:space', 'preserve');
         $textElement->appendChild($document->createTextNode($text));
         $run->appendChild($textElement);
-        $paragraph->appendChild($run);
-    }
-
-    private function appendTabRun(DOMElement $paragraph, ?DOMNode $sourceRunProperties): void
-    {
-        $document = $paragraph->ownerDocument;
-        $run = $document->createElementNS(self::W, 'w:r');
-        $runProperties = $sourceRunProperties?->cloneNode(true);
-
-        if ($runProperties instanceof DOMNode) {
-            $run->appendChild($runProperties);
-        }
-
-        $run->appendChild($document->createElementNS(self::W, 'w:tab'));
         $paragraph->appendChild($run);
     }
 

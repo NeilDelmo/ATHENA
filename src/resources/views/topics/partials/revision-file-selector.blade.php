@@ -17,12 +17,21 @@
 
 @if ($revisionFiles->isNotEmpty())
     <div x-data="{ selectedFiles: {} }" data-revision-file-list>
-        <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Select the documents faculty must update. The LREC comments above can provide the instructions; highlights are optional.' : 'Open a document to review it. To request changes to a PDF, save a highlight with a comment, then select the document.' }}</p>
+        @if ($showGuidance ?? true)
+            <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Select the documents faculty must update. Committee comments can provide the instructions; highlights are optional.' : 'Open a document to review it. To request changes to a PDF, save a highlight with a comment, then select the document.' }}</p>
+        @endif
         @foreach ($fileGroups as $group => $groupFiles)
             @continue($groupFiles->isEmpty())
             @if ($group === 'other')
-                <details class="mt-4" @if (collect(old('revision_file_ids', []))->intersect($groupFiles->pluck('id'))->isNotEmpty() || $groupFiles->contains(fn ($file) => $file->annotations->whereNull('topic_review_file_revision_id')->isNotEmpty())) open @endif>
-                    <summary class="cursor-pointer py-3 text-sm font-semibold text-gray-600 dark:text-gray-300">Other submitted papers ({{ $groupFiles->count() }}) — not included in the previous revision request</summary>
+                @php
+                    $otherPapersOpen = collect(old('revision_file_ids', []))->intersect($groupFiles->pluck('id'))->isNotEmpty()
+                        || $groupFiles->contains(fn ($file) => $file->annotations->whereNull('topic_review_file_revision_id')->isNotEmpty());
+                @endphp
+                <div class="mt-4" x-data="{ otherPapersOpen: @js($otherPapersOpen) }" data-other-submitted-papers>
+                    <button type="button" @click="otherPapersOpen = !otherPapersOpen" :aria-expanded="otherPapersOpen" aria-controls="other-submitted-papers-{{ $latestVersion->id }}" class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900">
+                        <span x-text="otherPapersOpen ? 'Hide other submitted papers' : 'Show other submitted papers'">Show other submitted papers</span> <span class="ml-1">({{ $groupFiles->count() }})</span>
+                    </button>
+                    <div id="other-submitted-papers-{{ $latestVersion->id }}" x-show="otherPapersOpen" @if (! $otherPapersOpen) x-cloak @endif class="mt-3">
             @elseif ($group === 'revised')
                 <h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Papers returned for review ({{ $groupFiles->count() }})</h4>
             @endif
@@ -84,7 +93,7 @@
 
                         <div class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 sm:col-start-3 sm:row-span-1">
                             @if ($fileViewable)
-                                <a href="{{ $annotationUrl }}" aria-label="Review {{ $file->label() }}" class="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40" data-review-and-highlight>
+                                <a href="{{ $annotationUrl }}" aria-label="Review {{ $file->label() }}" class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-gray-950" data-review-and-highlight>
                                     Review
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg>
                                 </a>
@@ -139,7 +148,8 @@
             @endforeach
         </ul>
             @if ($group === 'other')
-                </details>
+                    </div>
+                </div>
             @endif
         @endforeach
         <p @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif class="mt-3 text-sm text-gray-600 dark:text-gray-300" role="status">

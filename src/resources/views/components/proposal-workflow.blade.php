@@ -41,14 +41,14 @@
         $revisionRequested && $topic->review_stage === 'lrec' => 4,
         $revisionRequested && $topic->review_stage === 'gad' && $gadPassed => 3,
         $revisionRequested && $topic->review_stage === 'gad' => 2,
-        $lrecReached || ($gadPassed && $coEvaluatorReview) => 4,
-        $gadPassed => 3,
+        $lrecReached => 4,
+        $researchHeadCleared && $gadPassed => 3,
         $researchHeadCleared => 2,
         default => 1,
     };
 
     $stages = [
-        1 => ['label' => 'Research Office screening', 'owner' => 'Research Head', 'detail' => 'Initial review and first set of comments'],
+        1 => ['label' => 'Research Head review', 'owner' => 'Research Head', 'detail' => 'Review submitted papers and clear them for GAD'],
         2 => ['label' => 'GAD Office review', 'owner' => 'GAD Office', 'detail' => 'Passing assessment required to advance'],
         3 => ['label' => 'Co-evaluator review', 'owner' => 'Co-evaluator', 'detail' => 'Narrative Evaluation recorded'],
         4 => ['label' => 'LREC review', 'owner' => 'LREC', 'detail' => 'Presentation, comments, and clearance'],
@@ -59,15 +59,17 @@
         $topic->status === 'rejected' => 'This proposal is closed and cannot advance to another review office.',
         $released => 'The signed papers and Notice to Proceed are available. Project monitoring is open.',
         $revisionRequested => 'Researcher: address the recorded feedback and resubmit the corrected package to the review stage that requested it.',
-        $gadNeedsRevision => 'Research office: return the proposal to the researcher. Co-evaluator review remains locked until GAD clearance.',
+        $researchHeadCleared && $gadNeedsRevision => 'Request a faculty revision to address the GAD result.',
         $topic->status === \App\Models\TopicProposal::STATUS_LREC_QUEUED => 'Research office: schedule the proposal for its LREC presentation.',
         $topic->status === \App\Models\TopicProposal::STATUS_LREC_REVIEW => 'Research office: record the LREC outcome, comments, or clearance for signing.',
         $signingReached => 'Research office: collect the signed papers and release them with the signed Notice to Proceed.',
-        $gadPassed && $coEvaluatorReview => 'Research office: the ordered prerequisites are complete; route this version to LREC.',
-        $gadPassed => 'Research office: send the GAD-cleared version to the co-evaluator and record the Narrative Evaluation.',
+        $researchHeadCleared && $gadPassed && $coEvaluatorReview => in_array($coEvaluatorReview->source_data['recommended_action'] ?? null, [\App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION, \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION], true)
+            ? 'Request a faculty revision to address the co-evaluator’s feedback.'
+            : 'Review the co-evaluator’s outcome and clear this package for LREC.',
+        $researchHeadCleared && $gadPassed => 'Record the co-evaluator’s completed Initial Screening Form.',
         $topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW => 'GAD Office: evaluate the Research Head-cleared version before it can be sent to a co-evaluator.',
         $topic->status === 'resubmitted' => 'Research Head: review the corrected package again, request another revision if needed, or explicitly clear it for GAD assessment.',
-        default => 'Research Head: complete the initial screening and return comments for the faculty revision.',
+        default => 'Review the submitted papers, request changes if needed, or clear the package for GAD.',
     };
 @endphp
 
@@ -119,9 +121,11 @@
                             'text-red-800 dark:text-red-300' => $isCurrent,
                             'text-slate-400 dark:text-slate-500' => ! $isComplete && ! $isCurrent,
                         ])>{{ $stage['label'] }}</p>
-                        @if ($isCurrent || $isClosed)
-                            <p class="mt-0.5 text-[0.6rem] font-black uppercase tracking-wider text-red-700 dark:text-red-300">{{ $state }}</p>
-                        @endif
+                        <p @class([
+                            'mt-0.5 text-[0.6rem] font-semibold',
+                            'text-red-700 dark:text-red-300' => $isCurrent,
+                            'text-slate-500 dark:text-slate-400' => ! $isCurrent,
+                        ])>{{ $state }}</p>
                         <span class="sr-only">{{ $stage['owner'] }}. {{ $stage['detail'] }}. {{ $state }}.</span>
                     </div>
                 </li>

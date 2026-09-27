@@ -70,6 +70,8 @@ class CreateProposalRevisionDraft
                 'planned_start' => $plannedStart,
                 'planned_end' => $plannedEnd,
                 'project_leader' => $projectLeader,
+                'signatory_selections' => $versionFiles->get(ProposalVersionFile::TYPE_DETAILED_PROPOSAL.':0')?->source_data['comment_response_signatory_selections']
+                    ?? $detailedProposalSource['comment_response_signatory_selections'] ?? [],
                 'status' => ProposalDraft::STATUS_DRAFT,
                 'lock_version' => 0,
             ]);

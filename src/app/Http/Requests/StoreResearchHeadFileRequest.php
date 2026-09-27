@@ -30,15 +30,13 @@ class StoreResearchHeadFileRequest extends FormRequest
         $latestVersionId = $topic instanceof TopicProposal
             ? $topic->latestVersion()->value('id')
             : null;
-        $isSupplemental = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
         $isSignedCopy = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
         $isEvaluation = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
         $isGadAssessment = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
 
         return [
             'source_file_id' => [
-                Rule::requiredIf(! $isSupplemental),
-                'nullable',
+                'required',
                 'integer',
                 Rule::exists('proposal_version_files', 'id')->where(
                     fn ($query) => $query
@@ -50,13 +48,12 @@ class StoreResearchHeadFileRequest extends FormRequest
                 'required',
                 File::types($isSignedCopy
                     ? ['pdf']
-                    : ($isEvaluation || $isGadAssessment ? ['pdf', 'docx'] : ['pdf', 'doc', 'docx', 'xls', 'xlsx']))->max('25mb'),
+                    : ['pdf', 'docx'])->max('25mb'),
             ],
             'purpose' => [
                 'required',
                 Rule::in([
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
-                    ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
                 ]),
@@ -73,8 +70,8 @@ class StoreResearchHeadFileRequest extends FormRequest
             'gad_score' => $isGadAssessment
                 ? ['nullable', 'numeric', 'between:0,20']
                 : ['prohibited'],
-            'document_title' => [Rule::requiredIf($isSupplemental), 'nullable', 'string', 'max:255'],
-            'issuing_office' => ['nullable', 'string', 'max:255'],
+            'document_title' => ['prohibited'],
+            'issuing_office' => ['prohibited'],
             'note' => ['nullable', 'string', 'max:2000'],
         ];
     }
@@ -90,11 +87,10 @@ class StoreResearchHeadFileRequest extends FormRequest
                 ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED => 'The signed final copy must be a PDF.',
                 ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'The completed Initial Screening Form must be a PDF or DOCX document.',
                 ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'The completed GAD Checklist must be a PDF or DOCX document.',
-                default => 'The upload must be a PDF, Word, or Excel document.',
+                default => 'Upload the review document required for the current stage.',
             },
             'review_file.max' => 'The upload may not be larger than 25 MB.',
-            'purpose.in' => 'Choose whether this is a completed GAD assessment, co-evaluator review, signed copy, or supplemental paper.',
-            'document_title.required' => 'Enter a title for the supplemental paper.',
+            'purpose.in' => 'Only the completed GAD Checklist, co-evaluator Initial Screening Form, or required signed copy can be uploaded through this review workflow.',
             'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
             'recommended_action.required' => 'Record the Recommended Action selected on the completed Initial Screening Form.',
             'recommended_action.in' => 'Choose a valid Recommended Action from the completed Initial Screening Form.',

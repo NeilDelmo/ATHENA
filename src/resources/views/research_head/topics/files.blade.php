@@ -3,8 +3,8 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <x-back-link href="{{ route('topics.show', $topic) }}#proposal-review">Back to submitted proposal</x-back-link>
-                <h2 class="mt-3 font-serif text-3xl font-bold tracking-tight text-gray-950">Proposal review workflow</h2>
-                <p class="mt-2 max-w-3xl text-base leading-7 text-gray-600">Review the faculty package, record the completed GAD assessment, then add the co-evaluator’s screening form.</p>
+                <h2 class="mt-3 font-serif text-3xl font-bold tracking-tight text-gray-950">Submitted documents</h2>
+                <p class="mt-2 max-w-3xl text-base leading-7 text-gray-600">Review the submitted papers and save comments where changes are needed.</p>
             </div>
             <span class="inline-flex w-fit rounded-full border border-gray-300 bg-white px-3.5 py-2 text-sm font-bold text-gray-700 shadow-sm">
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No submitted version' }}

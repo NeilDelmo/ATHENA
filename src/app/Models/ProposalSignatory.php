@@ -20,6 +20,10 @@ class ProposalSignatory extends Model
             'screening_center' => 'Screening — Center Head / Assistant Director',
             'screening_verifier' => 'Screening — Director of Research / Vice Chancellor',
         ],
+        'comment_response_form' => [
+            'comment_response_head' => 'Comments Form — Research Head / RDES Head',
+            'comment_response_vice_chancellor' => 'Comments Form — Vice Chancellor for Research, Development and Extension Services',
+        ],
     ];
 
     protected $fillable = ['role_key', 'name', 'position', 'active'];

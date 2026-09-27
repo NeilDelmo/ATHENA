@@ -21,6 +21,7 @@ class ProposalSignatoryController extends Controller
         'line_item_budget' => 'faculty.proposal-drafts.line-item-budget.edit',
         'gad_checklist' => 'faculty.proposal-drafts.gad-checklist.show',
         'initial_screening_form' => 'faculty.proposal-drafts.initial-screening-form.show',
+        'comment_response_form' => 'faculty.proposal-drafts.show',
     ];
 
     public function index(Request $request): View
@@ -112,7 +113,7 @@ class ProposalSignatoryController extends Controller
             'groups' => ProposalSignatory::FIELDS,
             'options' => ProposalSignatory::where('active', true)->orderBy('name')->get()->groupBy('role_key'),
             'returnPaper' => $returnPaper,
-            'returnUrl' => route(self::PAPER_EDIT_ROUTES[$returnPaper] ?? 'faculty.proposal-drafts.show', $proposalDraft),
+            'returnUrl' => $this->returnUrl($proposalDraft, $returnPaper),
         ]);
     }
 
@@ -131,16 +132,29 @@ class ProposalSignatoryController extends Controller
                 $selected[$key] = ['id' => $person->id, 'name' => $person->name, 'position' => $person->position];
             }
             if ($selected !== ($draft->signatory_selections ?? [])) {
-                $draft->documents()->whereIn('document_type', array_keys(ProposalSignatory::FIELDS))
+                $changedPapers = collect(ProposalSignatory::FIELDS)
+                    ->filter(fn (array $fields): bool => array_intersect_key($selected, $fields)
+                        !== array_intersect_key($draft->signatory_selections ?? [], $fields))
+                    ->keys()->all();
+                $draft->documents()->whereIn('document_type', $changedPapers)
                     ->update(['file_path' => null, 'lock_version' => DB::raw('lock_version + 1')]);
                 $draft->update(['signatory_selections' => $selected, 'lock_version' => $draft->lock_version + 1]);
             }
         });
 
-        $returnRoute = self::PAPER_EDIT_ROUTES[$data['return_paper'] ?? ''] ?? 'faculty.proposal-drafts.show';
-
         return redirect()
-            ->route($returnRoute, $proposalDraft)
-            ->with('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
+            ->to($this->returnUrl($proposalDraft, $data['return_paper'] ?? ''))
+            ->with('success', ($data['return_paper'] ?? '') === 'comment_response_form'
+                ? 'Comments-form signatories saved.'
+                : 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
+    }
+
+    private function returnUrl(ProposalDraft $proposalDraft, string $paper): string
+    {
+        if ($paper === 'comment_response_form' && $proposalDraft->topic_id !== null) {
+            return route('faculty.topics.revision', $proposalDraft->topic_id).'#revision-feedback';
+        }
+
+        return route(self::PAPER_EDIT_ROUTES[$paper] ?? 'faculty.proposal-drafts.show', $proposalDraft);
     }
 }

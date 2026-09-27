@@ -1234,6 +1234,13 @@ test('the generated Word file preserves every unrelated official package part an
         $localCommitteeSignatoriesParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Head, Research/Head Research & Extension; Vice Chancellor for RDES; & Vice President for RDES"]')->item(0);
         $officialPartNames = [];
 
+        foreach ([$researchCouncilParagraph, $localCommitteeParagraph] as $approvalNote) {
+            expect($xpath->query('./w:r[w:tab]/w:rPr/w:u[@w:val = "none"]', $approvalNote)->length)->toBe(1)
+                ->and($xpath->query('./w:r[w:tab]/w:t', $approvalNote)->length)->toBe(0)
+                ->and($xpath->query('./w:r[w:t]/w:rPr/w:u[@w:val = "single"]', $approvalNote)->length)->toBeGreaterThan(0)
+                ->and($xpath->query('./w:r[w:t]/w:tab', $approvalNote)->length)->toBe(0);
+        }
+
         for ($index = 0; $index < $templateArchive->numFiles; $index++) {
             $officialPartNames[] = $templateArchive->getNameIndex($index);
         }

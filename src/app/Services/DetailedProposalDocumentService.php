@@ -1337,12 +1337,24 @@ class DetailedProposalDocumentService
             $paragraph->appendChild($firstRun);
         }
 
-        $runProperties = $this->elements($xpath, './w:rPr', $firstRun)[0] ?? null;
-        $runContent = $runProperties?->nextSibling ?? $firstRun->firstChild;
+        $tabRun = $document->createElementNS(self::W, 'w:r');
+        $sourceProperties = $this->elements($xpath, './w:rPr', $firstRun)[0] ?? null;
+        $tabProperties = $sourceProperties?->cloneNode(true) ?? $document->createElementNS(self::W, 'w:rPr');
+
+        foreach ($this->elements($xpath, './w:u', $tabProperties) as $underline) {
+            $tabProperties->removeChild($underline);
+        }
+
+        $underline = $document->createElementNS(self::W, 'w:u');
+        $underline->setAttributeNS(self::W, 'w:val', 'none');
+        $tabProperties->appendChild($underline);
+        $tabRun->appendChild($tabProperties);
 
         for ($index = 0; $index < $tabCount; $index++) {
-            $firstRun->insertBefore($document->createElementNS(self::W, 'w:tab'), $runContent);
+            $tabRun->appendChild($document->createElementNS(self::W, 'w:tab'));
         }
+
+        $paragraph->insertBefore($tabRun, $firstRun);
     }
 
     private function setParagraphKeepNext(DOMElement $paragraph): void

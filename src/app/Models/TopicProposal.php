@@ -136,7 +136,7 @@ class TopicProposal extends Model
             'resubmitted' => $this->revisionSourceLabel($latestVersion).' revision awaiting review',
             'approved' => $this->hasIssuedNoticeToProceed() ? 'Project monitoring' : 'Final signing',
             'rejected' => 'Closed',
-            default => 'Research Office screening',
+            default => 'Research Head review',
         };
     }
 
@@ -172,7 +172,7 @@ class TopicProposal extends Model
                 : 'GAD assessment';
         }
 
-        return 'Research Office screening';
+        return 'Research Head review';
     }
 
     public function revisionSourceLabel(?ProposalVersion $latestVersion = null): string
@@ -181,7 +181,7 @@ class TopicProposal extends Model
             'LREC review' => 'LREC',
             'Co-evaluator review' => 'Co-evaluator',
             'GAD assessment' => 'GAD',
-            default => 'Research Office',
+            default => 'Research Head',
         };
     }
 

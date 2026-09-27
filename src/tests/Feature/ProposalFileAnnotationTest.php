@@ -189,7 +189,7 @@ test('the existing Comment Response generator previews saved drafts and reflects
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//button[@data-comment-response-preview-button][@aria-haspopup="dialog"]')->length)->toBeGreaterThan(0)
         ->and($xpath->query('//*[@data-revision-file-list]//*[@data-comment-response-preview-button]')->length)->toBe(0)
-        ->and($xpath->query('//*[@data-review-revision-actions]/button[@data-comment-response-preview-button]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-review-feedback-preview]/button[@data-comment-response-preview-button]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-review-revision-actions]/button[@type="submit"]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(@href, "draft_version=")]')->length)->toBe(0);
 

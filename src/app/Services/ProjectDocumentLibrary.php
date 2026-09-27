@@ -6,14 +6,18 @@ use App\Models\ProjectDocument;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Models\TopicReview;
 use App\Models\User;
 use App\Support\ProposalPaperCatalog;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ProjectDocumentLibrary
 {
+    public function __construct(private readonly CommentResponseFeedback $commentResponseFeedback) {}
+
     /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int, canUpload: bool, uploadCategories: array<string, string>} */
     public function build(TopicProposal $topic, User $viewer): array
     {
@@ -62,6 +66,7 @@ class ProjectDocumentLibrary
                     });
             });
 
+        $this->appendCommentResponsePapers($topic, $viewer, $documents);
         $this->appendReleasedDocuments($topic, $documents, $seenPaths);
         $this->appendMonitoringDocuments($topic, $documents, $seenPaths);
 
@@ -111,6 +116,77 @@ class ProjectDocumentLibrary
                     User::WORKSPACE_FACULTY_RESEARCHER,
                 ]),
             'uploadCategories' => ProjectDocument::uploadCategoryOptions(),
+        ];
+    }
+
+    /** @param Collection<int, array<string, mixed>> $documents */
+    private function appendCommentResponsePapers(TopicProposal $topic, User $viewer, Collection $documents): void
+    {
+        if (! $viewer->can('generateCommentResponseForm', $topic)) {
+            return;
+        }
+
+        $topic->loadMissing([
+            'reviews.reviewer',
+            'reviews.topic',
+            'reviews.fileRevisions.file.version.files',
+            'reviews.fileRevisions.file.version.topic.stageTransitions',
+            'reviews.fileRevisions.annotations.reviewer',
+        ]);
+        $routePrefix = $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) ? 'research_head' : 'faculty';
+
+        foreach ($topic->reviews->where('decision', 'revision_requested') as $review) {
+            $version = $this->commentResponseFeedback->reviewedVersion($review);
+
+            foreach ([CommentResponseFeedback::FORM_RESEARCH_HEAD, CommentResponseFeedback::FORM_CO_EVALUATOR] as $source) {
+                $rows = $this->commentResponseFeedback->rowsForSource($review, $source);
+                if ($rows !== []) {
+                    $documents->push($this->commentResponsePaper($topic, $version, $routePrefix, $source, $rows, $review));
+                }
+            }
+        }
+
+        if ($routePrefix !== 'research_head'
+            || ! in_array($topic->status, ['pending', 'expert_review', 'resubmitted', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_REVIEW], true)) {
+            return;
+        }
+
+        $version = $topic->versions->sortByDesc('version_number')->first();
+        if ($version !== null) {
+            $rows = $this->commentResponseFeedback->draftRows($version);
+            if ($rows !== []) {
+                $documents->push($this->commentResponsePaper($topic, $version, $routePrefix, CommentResponseFeedback::FORM_RESEARCH_HEAD, $rows));
+            }
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, mixed>
+     */
+    private function commentResponsePaper(TopicProposal $topic, ?ProposalVersion $version, string $routePrefix, string $source, array $rows, ?TopicReview $review = null): array
+    {
+        $query = ['topic' => $topic, 'source' => $source, ...($review ? ['review' => $review->id] : ['draft_version' => $version->id])];
+        $stages = $this->commentResponseFeedback->stagesForRows($rows);
+        $stageLabels = array_map(fn (string $stage): string => CommentResponseFeedback::STAGE_LABELS[$stage], $stages);
+        $url = route($routePrefix.'.topics.comment-response-form.pdf', $query);
+        $versionLabel = $version ? 'Version '.$version->version_number : 'Version not recorded';
+
+        return [
+            'key' => 'comment-response-'.($review ? 'review-'.$review->id : 'draft-'.$version->id).'-'.$source,
+            'category' => ProjectDocument::CATEGORY_REVIEWS_RESPONSES,
+            'title' => ($source === CommentResponseFeedback::FORM_CO_EVALUATOR ? 'Co-Evaluator' : 'Research Head').' Comment Response Paper',
+            'filename' => (Str::slug($version?->title ?? $topic->title) ?: 'proposal').'-'.($version ? 'v'.$version->version_number : 'review-'.$review->id).'-'.$source.'-comment-response.pdf',
+            'note' => $review ? 'Generated from this review’s saved comments and submitted Faculty responses.' : 'Private draft from saved highlights. Sending a revision request shares the selected papers’ comments with Faculty.',
+            'source' => $versionLabel.' · '.implode(' / ', $stageLabels),
+            'uploaded_by' => $review?->reviewer?->name,
+            'uploaded_at' => $review?->created_at ?? $version?->created_at,
+            'file_size' => null,
+            'view_url' => $url,
+            'download_url' => $url,
+            'official' => false,
+            'generated_comment_response' => true,
+            'draft' => $review === null,
         ];
     }
 
