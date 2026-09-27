@@ -64,6 +64,24 @@ test('proposal dashboard supports search and status filters', function () {
         ->assertViewHas('topics', fn ($topics) => $topics->total() === 1 && $topics->first()->title === 'Mangrove Restoration');
 });
 
+test('the decision inbox excludes monitoring projects and closed proposals', function () {
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Proposal Requiring Review', 'status' => 'pending']);
+    createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Project Under Monitoring',
+        'status' => 'approved',
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
+    ]);
+    createDashboardTopic($this->researcher, $this->call, ['title' => 'Closed Proposal', 'status' => 'rejected']);
+
+    Livewire::actingAs($this->head)
+        ->test(ResearchHeadDashboard::class)
+        ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 1 && $topics->first()->title === 'Proposal Requiring Review')
+        ->assertSee('All active review stages')
+        ->assertSeeHtml('href="#active-projects"')
+        ->assertDontSeeHtml('value="approved"')
+        ->assertDontSeeHtml('value="rejected"');
+});
+
 test('proposal dashboard presents a focused research head workspace', function () {
     $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))
@@ -341,9 +359,10 @@ test('dashboard shows the proposal status overview and budget utilization analyt
         ->assertOk()
         ->assertSee('Proposal status overview')
         ->assertSee('Current proposals grouped by status.')
-        ->assertSee('4 total')
+        ->assertSee('3 total')
         ->assertSee('2 proposals')
-        ->assertSee('Faculty revision')
+        ->assertSee('Revision requested')
+        ->assertSee('Final signing')
         ->assertSee('Budget utilization')
         ->assertSee('₱30,000.00')
         ->assertSee('₱100,000.00')

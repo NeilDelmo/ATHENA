@@ -56,6 +56,8 @@
                 @endforeach
             @endforeach
 
+            <x-comment-response-stages :stages="app(\App\Services\CommentResponseFeedback::class)->stagesForRows($commentResponseRows)" />
+
             @can('generateCommentResponseForm', $topic)
                 @if ($commentResponseGroups->isNotEmpty())
                     <div class="grid gap-3 sm:grid-cols-2" aria-label="Comment-Response Form downloads">
@@ -68,12 +70,12 @@
                                     </span>
                                     <div>
                                         <h4 class="text-sm font-bold text-slate-900 dark:text-white">{{ $isCoEvaluatorForm ? 'Co-evaluator Comment-Response Form' : 'Research Head Comment-Response Form' }}</h4>
-                                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $sourceRows->count() }} recorded {{ Str::plural('comment', $sourceRows->count()) }}</p>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $sourceRows->count() }} recorded {{ Str::plural('comment', $sourceRows->count()) }}. Your saved responses are included in this paper when you submit the revision.</p>
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
-                                    <a href="{{ route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 transition hover:border-slate-300">Preview</a>
-                                    <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-[#7A0019] px-3 text-xs font-bold text-white transition hover:bg-[#650015]">Open PDF</a>
+                                    <a href="{{ route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" data-comment-response-preview class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-[#7A0019] shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-slate-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</a>
+                                    <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#7A0019] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#650015] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Open PDF</a>
                                 </div>
                             </section>
                         @endforeach
@@ -101,10 +103,11 @@
                                     <button type="button" @click="open = !open" :aria-expanded="open" class="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#7A0019] dark:hover:bg-slate-800 sm:px-4">
                                         <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black {{ $isCoEvaluatorForm ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300' : 'bg-red-100 text-[#7A0019] dark:bg-red-950/50 dark:text-red-300' }}">{{ $isCoEvaluatorForm ? 'CE' : 'RH' }}</span>
                                         <span class="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-                                            <strong class="block shrink-0 text-xs text-slate-900 dark:text-white">{{ $item['reviewer'] }}</strong>
+                                            <strong class="block shrink-0 text-xs text-slate-900 dark:text-white">{{ $item['reviewer'] }}@if (isset($item['stage']))<span class="ml-1 font-medium text-slate-500 dark:text-slate-400">· {{ \App\Services\CommentResponseFeedback::STAGE_LABELS[$item['stage']] ?? '' }}</span>@endif</strong>
                                             <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ $item['location'] }} — {{ $item['comment'] }}</span>
                                         </span>
                                         <span class="hidden shrink-0 rounded-full px-2 py-1 text-[10px] font-bold sm:inline-flex" :class="answered ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'" x-text="answered ? 'Answered' : 'Not yet answered'"></span>
+                                        <span data-feedback-response-action class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-[#7A0019] dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" x-text="open ? 'Close response' : (answered ? 'Edit Response' : 'Respond')">{{ $hasResponse ? 'Edit Response' : 'Respond' }}</span>
                                         <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-slate-400 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
                                     </button>
                                     <div x-show="open" x-cloak x-transition class="space-y-4 border-t border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-5">

@@ -8,10 +8,10 @@
             'resubmitted', 'expert_review', 'for_final_decision' => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
             default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
         };
-        $statusLabel = $topic->workflowStatusLabel();
+        $statusLabel = $topic->workflowStatusLabel($latestVersion);
         if ($topic->isAwaitingNoticeToProceed()) {
             $statusClass = 'bg-amber-100 text-amber-800';
-            $statusLabel = 'Preparing final release';
+            $statusLabel = 'Final signing';
         } elseif ($topic->isCompletedProject()) {
             $statusClass = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
             $statusLabel = 'Completed - archived';
@@ -290,7 +290,7 @@
                     <section aria-labelledby="project-team-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                         <p class="text-xs font-black uppercase tracking-wider text-red-600">Shared workspace</p>
                         <h3 id="project-team-heading" class="mt-1 text-sm font-black text-gray-900">Project team</h3>
-                        <p class="mt-1 text-xs leading-5 text-gray-500">The same team remains attached through review, approval, and project monitoring.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">The same team remains attached through review, final signing, and project monitoring.</p>
                         <ul class="mt-4 space-y-3">
                             <li class="flex items-start gap-3">
                                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-black text-white">PL</span>
@@ -371,7 +371,7 @@
                         @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                         @elseif ($topic->isAwaitingNoticeToProceed())
-                            Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
+                            Final signing is complete. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
                         @elseif ($topic->isCompletedProject())
                             This project is complete and archived. Its approved papers, Notice to Proceed, and previous monitoring records remain available as read-only records.
                         @elseif ($topic->status === 'approved')
@@ -507,7 +507,8 @@
                                 <p class="mt-2 text-sm text-gray-500">{{ $review->review_stage === 'lrec' ? 'LREC review' : 'Initial review' }}</p>
                                 @if ($review->decision === 'revision_requested')
                                     @can('generateCommentResponseForm', $topic)
-                                        <a href="{{ route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]) }}" class="mt-2 inline-block text-sm font-semibold text-red-700 dark:text-red-300">Download this round’s Comment-Response PDF</a>
+                                        <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">This review’s comments and submitted Faculty responses are collected in the Comment Response paper.</p>
+                                        <a href="{{ route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]) }}" target="_blank" rel="noopener" class="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-gray-950">View this review’s Comment Response Paper</a>
                                     @endcan
                                     @foreach ($review->committee_comments ?? [] as $commentIndex => $committeeComment)
                                         <div class="mt-3 rounded-xl border border-gray-200 p-4 text-base leading-7 dark:border-slate-700">
@@ -646,7 +647,7 @@
                             <section x-show="decision === 'lrec_queued'" x-cloak>
                                 <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
                                     <input type="checkbox" name="initial_clearance_confirmed" value="1" :disabled="decision !== 'lrec_queued'" :required="decision === 'lrec_queued'" class="mt-1 rounded border-gray-300 text-red-700">
-                                    <span>A passing GAD Office assessment and the central evaluator’s Narrative Evaluation are recorded for this version.</span>
+                                    <span>A passing GAD Office assessment and the co-evaluator’s Narrative Evaluation are recorded for this version.</span>
                                 </label>
                             </section>
                             <section x-show="decision === 'ready_for_signature'" x-cloak class="space-y-3">
@@ -682,10 +683,28 @@
 
                             <p x-show="decision === 'revision_requested'" x-cloak class="text-sm text-gray-600 dark:text-gray-300">Select the papers that need further changes in the document list above.</p>
 
-                            <button type="submit" :disabled="submitting || !decision" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD review', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
-                            </button>
+                            <div data-review-revision-actions class="flex flex-wrap items-center gap-3">
+                                <button type="submit" :disabled="submitting || !decision" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD assessment', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
+                                </button>
+                                @if ($latestVersion)
+                                <button type="button" x-show="decision === 'revision_requested'" x-cloak data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'review-comment-response-{{ $topic->id }}')" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
+                                @endif
+                            </div>
                         </form>
+                        @if ($latestVersion)
+                            <x-modal name="review-comment-response-{{ $topic->id }}" maxWidth="6xl" focusable class="!z-[140]" data-comment-response-preview-modal>
+                                <template x-if="show">
+                                    <section data-comment-response-preview-content role="dialog" aria-modal="true" aria-labelledby="review-comment-response-heading-{{ $topic->id }}">
+                                        <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                                            <h3 id="review-comment-response-heading-{{ $topic->id }}" class="text-base font-bold text-gray-950 dark:text-white">Comment Response paper preview</h3>
+                                            <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                                        </header>
+                                        <x-proposal-revision-pdf :configuration="['pdfUrl' => route('research_head.topics.comment-response-form.pdf', ['topic' => $topic, 'draft_version' => $latestVersion->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                                    </section>
+                                </template>
+                            </x-modal>
+                        @endif
                     </div>
                 </section>
             @elseif ($canReturnToRevision)

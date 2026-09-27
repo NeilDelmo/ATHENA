@@ -294,7 +294,8 @@
                         in_array($topic->status, ['revision_requested', 'ready_for_signature'], true) => 'bg-red-50 text-[#7A0019] ring-red-200 dark:bg-red-950/40 dark:text-red-200 dark:ring-red-900',
                         default => 'bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800',
                     };
-                    $statusLabel = $topic->workflowStatusLabel();
+                    $latestProposalVersion = $topic->versions->sortByDesc('version_number')->first();
+                    $statusLabel = $topic->workflowStatusLabel($latestProposalVersion);
                 @endphp
                 <article class="border-b border-gray-200 px-5 py-4 transition-colors last:border-b-0 hover:bg-gray-50/80 dark:border-gray-800 dark:hover:bg-gray-900/40">
                     <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-center">

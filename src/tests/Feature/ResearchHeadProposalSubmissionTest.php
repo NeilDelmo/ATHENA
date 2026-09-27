@@ -89,12 +89,14 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertOk()
         ->assertSee('Proposal Submissions')
         ->assertSee('Active proposal queue')
-        ->assertSee('Resubmitted')
-        ->assertSee('1 needs review')
-        ->assertSee('A red dot marks a submission that still needs your review.')
-        ->assertSee('data-proposal-attention="unread"', false)
-        ->assertSee('data-proposal-unread-dot', false)
-        ->assertSee('Needs review')
+        ->assertSee('All active review stages')
+        ->assertSee('Final signing')
+        ->assertDontSee('value="approved"', false)
+        ->assertDontSee('value="rejected"', false)
+        ->assertSee('data-proposal-status-label="New revision"', false)
+        ->assertSee('data-proposal-history-status-label="New revision"', false)
+        ->assertSee('A red accent marks a newly received package you have not opened.')
+        ->assertSee('data-proposal-state="new"', false)
         ->assertSee('Revised package received')
         ->assertSee('Version 2 · Faculty revision')
         ->assertSee('Open for review')
@@ -152,6 +154,44 @@ test('research heads can view every initial proposal submission and revision', f
     $otherPapers = $xpath->query('//details[summary[contains(., "Other submitted papers")]]');
     expect($otherPapers->length)->toBe(1)
         ->and($otherPapers->item(0)->hasAttribute('open'))->toBeFalse();
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('Needs review')
+        ->assertSee('data-proposal-status-label="Needs review"', false)
+        ->assertSee('data-proposal-history-status-label="Needs review"', false)
+        ->assertSee('data-proposal-state="opened"', false)
+        ->assertDontSee('data-proposal-status-label="New revision"', false);
+});
+
+test('an unopened initial package becomes needs review after the Research Head opens it', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'New Mangrove Study',
+        'status' => 'pending',
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty);
+
+    $this->actingAs($this->researchHead)
+        ->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-status-label="New submission"', false)
+        ->assertSee('data-proposal-state="new"', false)
+        ->assertDontSee('Under expert review')
+        ->assertDontSee('Awaiting decision')
+        ->assertDontSee('GAD and central evaluation');
+
+    $this->get(route('topics.show', $topic))->assertOk();
+
+    expect($topic->fresh()->research_head_viewed_version_id)->toBe($version->id);
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('Needs review')
+        ->assertSee('data-proposal-status-label="Needs review"', false)
+        ->assertSee('data-proposal-state="opened"', false)
+        ->assertDontSee('data-proposal-status-label="New submission"', false);
 });
 
 test('proposal submissions can be searched and filtered by type and status', function () {
@@ -190,6 +230,103 @@ test('proposal submissions can be searched and filtered by type and status', fun
         ->assertSee('Revision')
         ->assertSee('data-proposal-id="'.$revisedTopic->id.'"', false)
         ->assertDontSee('data-proposal-id="'.$initialTopic->id.'"', false);
+});
+
+test('terminal outcomes stay out of the active review queue', function () {
+    $monitoringTopic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Released Monitoring Project',
+        'status' => 'approved',
+        'project_status' => TopicProposal::PROJECT_STATUS_ONGOING,
+        'notice_to_proceed_issued_at' => now(),
+    ]);
+    createProposalSubmission($monitoringTopic, $this->faculty);
+
+    $closedTopic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Closed Proposal Record',
+        'status' => 'rejected',
+    ]);
+    createProposalSubmission($closedTopic, $this->faculty);
+
+    $this->actingAs($this->researchHead)
+        ->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertDontSee('data-proposal-id="'.$monitoringTopic->id.'"', false)
+        ->assertDontSee('data-proposal-id="'.$closedTopic->id.'"', false)
+        ->assertSee('Project monitoring')
+        ->assertSee('Closed')
+        ->assertDontSee('value="approved"', false)
+        ->assertDontSee('value="rejected"', false);
+});
+
+test('the queue separates GAD assessment from co-evaluator review', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Sequential Initial Review',
+        'status' => TopicProposal::STATUS_GAD_REVIEW,
+        'review_stage' => 'gad',
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty);
+    $gadChecklist = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        'position' => 1,
+        'file_path' => 'packages/gad-checklist.pdf',
+        'original_filename' => 'gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'is_carried_forward' => false,
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        'position' => 2,
+        'file_path' => 'packages/initial-screening.pdf',
+        'original_filename' => 'initial-screening.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+        'is_carried_forward' => false,
+    ]);
+
+    $this->actingAs($this->researchHead)
+        ->get(route('research_head.proposal-submissions.index', ['status' => 'gad_assessment']))
+        ->assertOk()
+        ->assertSee('GAD assessment')
+        ->assertSee('Record the completed GAD assessment before continuing.')
+        ->assertDontSee('Gender-sensitive')
+        ->assertDontSee('/ 20')
+        ->assertDontSee('GAD and central evaluation');
+
+    $version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/completed-gad.pdf',
+        'original_filename' => 'completed-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('d', 64),
+        'uploaded_by' => $this->researchHead->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 9.25,
+            'gad_outcome' => 'passed',
+            'gad_signature_confirmed' => true,
+        ],
+    ]);
+
+    $this->get(route('research_head.proposal-submissions.index', ['status' => 'co_evaluator_review']))
+        ->assertOk()
+        ->assertSee('Co-evaluator review')
+        ->assertSee('The GAD assessment is cleared. Record the co-evaluator review.')
+        ->assertDontSee('Gender-sensitive')
+        ->assertDontSee('/ 20')
+        ->assertDontSee('GAD and central evaluation');
 });
 
 test('proposal submissions are restricted to research heads', function () {
@@ -315,7 +452,7 @@ test('GAD uploads are blocked until the Research Head clears the proposal', func
     expect($version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('Research Head clearance opens GAD review before central evaluation and LREC', function () {
+test('Research Head clearance opens GAD assessment before co-evaluator review and LREC', function () {
     Notification::fake();
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
@@ -325,20 +462,28 @@ test('Research Head clearance opens GAD review before central evaluation and LRE
     ]);
     createProposalSubmission($topic, $this->faculty);
 
-    $this->actingAs($this->researchHead)->get(route('topics.show', $topic))
-        ->assertOk()
+    $initialPage = $this->actingAs($this->researchHead)->get(route('topics.show', $topic));
+
+    $initialPage->assertOk()
         ->assertSeeInOrder([
             'Research Office screening',
-            'Faculty revision',
             'GAD Office review',
-            'Central evaluation',
+            'Co-evaluator review',
             'LREC review',
             'Signing and release',
         ])
+        ->assertSee('data-horizontal-stepper', false)
+        ->assertSee('data-route-step', false)
+        ->assertSee('data-route-state="in-progress"', false)
+        ->assertDontSee('Researcher. Corrected proposal package and response.')
+        ->assertSee('Revision requests return to the review stage that issued them.')
+        ->assertDontSee('PROPOSAL ROUTING DOCKET')
         ->assertSee('value="gad_review"', false)
         ->assertSee('value="revision_requested"', false)
         ->assertSee('value="rejected"', false)
         ->assertDontSee('value="lrec_queued"', false);
+
+    expect(substr_count($initialPage->getContent(), 'data-route-step'))->toBe(5);
 
     foreach (['pending', 'expert_review', 'for_final_decision', 'resubmitted'] as $status) {
         $topic->update(['status' => $status]);
@@ -350,6 +495,12 @@ test('Research Head clearance opens GAD review before central evaluation and LRE
     }
 
     $topic->update(['status' => 'revision_requested']);
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-route-state="revision-requested"', false)
+        ->assertSee('data-current-route-stage="research-office-screening"', false)
+        ->assertSee('resubmit the corrected package to the review stage that requested it.');
+
     expect($topic->canRecordDecision(TopicProposal::STATUS_LREC_QUEUED))->toBeFalse();
     $revisionVersion = createProposalSubmission($topic, $this->faculty, [
         'version_number' => 2,
@@ -457,4 +608,84 @@ test('Research Head clearance opens GAD review before central evaluation and LRE
     ])->assertSessionHasNoErrors()->assertRedirect();
     expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_QUEUED)
         ->and($topic->fresh()->review_stage)->toBe('lrec');
+});
+
+test('revision requests remain attached to the review stage that issued them', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Stage-specific Revision Loop',
+        'status' => 'revision_requested',
+        'review_stage' => 'initial',
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty);
+
+    $this->actingAs($this->researchHead)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-current-route-stage="research-office-screening"', false)
+        ->assertSee('data-route-state="revision-requested"', false);
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-status-label="Research Office revision requested"', false)
+        ->assertSee('data-proposal-history-status-label="Research Office revision requested"', false);
+
+    $topic->update(['review_stage' => 'gad']);
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-current-route-stage="gad-office-review"', false)
+        ->assertSee('data-route-state="revision-requested"', false);
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-status-label="GAD revision requested"', false);
+
+    $gadChecklist = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        'position' => 1,
+        'file_path' => 'packages/revision-loop-gad-checklist.pdf',
+        'original_filename' => 'revision-loop-gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('b', 64),
+        'is_carried_forward' => false,
+    ]);
+    $version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/revision-loop-gad-assessment.pdf',
+        'original_filename' => 'revision-loop-gad-assessment.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('c', 64),
+        'uploaded_by' => $this->researchHead->id,
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_outcome' => 'passed',
+            'gad_signature_confirmed' => true,
+        ],
+    ]);
+
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-current-route-stage="co-evaluator-review"', false)
+        ->assertSee('data-route-state="revision-requested"', false);
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-status-label="Co-evaluator revision requested"', false);
+
+    $topic->update(['review_stage' => 'lrec']);
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-current-route-stage="lrec-review"', false)
+        ->assertSee('data-route-state="revision-requested"', false)
+        ->assertDontSee('Researcher. Corrected proposal package and response.');
+
+    $this->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('data-proposal-status-label="LREC revision requested"', false);
 });

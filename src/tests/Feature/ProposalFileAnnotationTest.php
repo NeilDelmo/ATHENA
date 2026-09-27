@@ -8,6 +8,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
+use App\Services\CommentResponseFormDocumentService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Support\ProposalRevisionTargetCatalog;
 use Illuminate\Http\UploadedFile;
@@ -157,7 +158,119 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertNotFound();
 });
 
+test('the existing Comment Response generator previews saved drafts and reflects edits without creating records', function () {
+    $pdfConverter = Mockery::mock(DocumentPdfConverter::class);
+    $pdfConverter->shouldReceive('convertDocx')->andReturn('%PDF-1.7 preview');
+    app()->instance(DocumentPdfConverter::class, $pdfConverter);
+    $documentService = Mockery::mock(CommentResponseFormDocumentService::class);
+    app()->instance(CommentResponseFormDocumentService::class, $documentService);
+    $previewUrl = route('research_head.topics.comment-response-form.pdf', ['topic' => $this->topic, 'draft_version' => $this->version->id]);
+    $fileCount = $this->version->files()->count();
+
+    $response = $this->actingAs($this->head)
+        ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()->assertSee('Preview Comment Response Paper')
+        ->assertSee('Saved highlights feed the Comment Response paper. Preview the draft here or from any Highlight page; sending the revision request shares the selected papers’ comments with Faculty.')
+        ->assertSee('Close preview')->assertSee('Loading Comment Response paper…');
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//button[@data-comment-response-preview-button][@type="button"]')->length)->toBe(2)
+        ->and($xpath->query('//button[@data-comment-response-preview-button][@x-show="paperFocusOpen"]')->length)->toBe(1)
+        ->and($xpath->query('//a[contains(@href, "comment-response-form/pdf")]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-comment-response-preview-modal]//template[@x-if="show"]//*[@data-pdf-annotation-config]')->length)->toBe(1);
+    $viewerConfiguration = json_decode($xpath->query('//*[@data-comment-response-preview-modal]//*[@data-pdf-annotation-config]')->item(0)->getAttribute('data-pdf-annotation-config'), true);
+    expect($viewerConfiguration['pdfUrl'])->toBe($previewUrl)
+        ->and($viewerConfiguration['canAnnotate'])->toBeFalse()
+        ->and($viewerConfiguration['annotations'])->toBe([]);
+
+    $reviewResponse = $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Preview Comment Response Paper');
+    @$dom->loadHTML($reviewResponse->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//button[@data-comment-response-preview-button][@aria-haspopup="dialog"]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//*[@data-revision-file-list]//*[@data-comment-response-preview-button]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-review-revision-actions]/button[@data-comment-response-preview-button]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-review-revision-actions]/button[@type="submit"]')->length)->toBe(1)
+        ->and($xpath->query('//a[contains(@href, "draft_version=")]')->length)->toBe(0);
+
+    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['feedback'] === [])->andReturn('docx');
+    $this->get($previewUrl)->assertOk()->assertHeader('Content-Type', 'application/pdf');
+
+    $annotationId = $this->postJson(route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]), [
+        'annotation_type' => ProposalFileAnnotation::TYPE_TEXT,
+        'page_number' => 2,
+        'selected_text' => 'Quarterly planting',
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.04]],
+        'comment' => 'Start planting in June.',
+    ])->assertCreated()->json('id');
+    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => count($data['feedback']) === 1
+        && $data['feedback'][0]['key'] === 'annotation_'.$annotationId
+        && $data['feedback'][0]['comment'] === 'Start planting in June.'
+        && str_contains($data['feedback'][0]['location'], 'Page 2'))->andReturn('docx');
+    $this->get($previewUrl)->assertOk()->assertContent('%PDF-1.7 preview')->assertHeader('Cache-Control', 'no-store, private');
+
+    $annotationUrl = route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotationId]);
+    $this->patchJson($annotationUrl, ['comment' => 'Start planting in July.'])->assertOk();
+    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['feedback'][0]['comment'] === 'Start planting in July.')->andReturn('docx');
+    $this->get($previewUrl)->assertOk();
+    $this->deleteJson($annotationUrl)->assertNoContent();
+    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['feedback'] === [])->andReturn('docx');
+    $this->get($previewUrl)->assertOk();
+
+    expect($this->topic->reviews()->count())->toBe(0)
+        ->and($this->version->files()->count())->toBe($fileCount);
+});
+
+test('draft Comment Response previews are private and scoped to the current topic version', function () {
+    $query = ['topic' => $this->topic, 'draft_version' => $this->version->id];
+    foreach (['faculty.topics.comment-response-form.pdf', 'faculty.topics.comment-response-form.download'] as $routeName) {
+        $this->actingAs($this->faculty)->get(route($routeName, $query))->assertForbidden();
+    }
+    $this->actingAs($this->head)->get(route('research_head.topics.comment-response-form.pdf', [...$query, 'draft_version' => $this->version->id + 1000]))->assertNotFound();
+    $this->get(route('research_head.topics.comment-response-form.pdf', [...$query, 'review' => 1]))->assertNotFound();
+    $this->get(route('research_head.topics.comment-response-form.pdf', [...$query, 'source' => 'co_evaluator']))->assertNotFound();
+    $this->topic->update(['status' => 'revision_requested']);
+    $this->get(route('research_head.topics.comment-response-form.pdf', $query))->assertNotFound();
+});
+
+test('sent highlights open their own Comment Response review including submitted faculty responses', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create(['reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'comment' => 'Original review']);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $this->file->id,
+        'document_type' => $this->file->document_type,
+        'original_filename' => $this->file->original_filename,
+    ]);
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id, 'topic_review_file_revision_id' => $revision->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA, 'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]], 'comment' => 'Original highlight',
+    ]);
+    $review->update(['feedback_responses' => ['annotation_'.$annotation->id => ['response' => 'Updated the schedule.']]]);
+    $this->topic->reviews()->create(['reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'comment' => 'Later review']);
+    $previewUrl = route('research_head.topics.comment-response-form.pdf', ['topic' => $this->topic, 'review' => $review->id]);
+    $this->actingAs($this->head)->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()->assertSee(str_replace('/', '\\/', $previewUrl), false)->assertDontSee('draft_version');
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('View this review’s Comment Response Paper');
+
+    $documentService = Mockery::mock(CommentResponseFormDocumentService::class);
+    $documentService->shouldReceive('generate')->once()->withArgs(fn (array $data): bool => $data['review_id'] === $review->id
+        && collect($data['feedback'])->firstWhere('key', 'annotation_'.$annotation->id)['response'] === 'Updated the schedule.'
+        && ! collect($data['feedback'])->contains('comment', 'Later review'))->andReturn('docx');
+    app()->instance(CommentResponseFormDocumentService::class, $documentService);
+    $converter = Mockery::mock(DocumentPdfConverter::class);
+    $converter->shouldReceive('convertDocx')->once()->with('docx')->andReturn('%PDF-1.7 sent review');
+    app()->instance(DocumentPdfConverter::class, $converter);
+    $this->get($previewUrl)->assertOk()->assertContent('%PDF-1.7 sent review');
+    $this->actingAs($this->faculty)->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()->assertSee(str_replace('/', '\\/', route('faculty.topics.comment-response-form.pdf', ['topic' => $this->topic, 'review' => $review->id])), false);
+});
+
 test('research head can annotate a submitted DOCX through its PDF preview', function () {
+    $sectionMap = Mockery::mock(ProposalRevisionSectionMap::class);
+    $sectionMap->shouldReceive('forFile')->andReturn([]);
+    app()->instance(ProposalRevisionSectionMap::class, $sectionMap);
+
     Storage::disk('local')->delete($this->file->file_path);
     Storage::disk('local')->put('proposal-packages/work-plan.docx', 'submitted work plan');
     $this->file->update([
@@ -514,7 +627,7 @@ test('a downloaded generated paper is staged in its matching revision attachment
         'reviewer_id' => $this->head->id,
         'decision' => 'revision_requested',
     ]);
-    $review->fileRevisions()->create([
+    $fileRevision = $review->fileRevisions()->create([
         'proposal_version_file_id' => $this->file->id,
         'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
         'original_filename' => $this->file->original_filename,
@@ -552,11 +665,14 @@ test('a downloaded generated paper is staged in its matching revision attachment
     expect($stagedFile->original_filename)->toBe('coastal-work-plan.docx')
         ->and($stagedFile->file_path)->not->toBeNull();
     Storage::disk('local')->assertExists($stagedFile->file_path);
+    $stagedSourceData = $stagedFile->source_data;
+    $stagedSourceData['entries'][0]['activity'] = 'Revised coastal fieldwork schedule';
+    $stagedFile->update(['source_data' => $stagedSourceData]);
 
     $response = $this->actingAs($this->faculty)
         ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('Replacement ready')
+        ->assertSee('Automatically uploaded: coastal-work-plan.docx')
         ->assertSee('coastal-work-plan.docx');
     $dom = new DOMDocument;
     @$dom->loadHTML($response->getContent());
@@ -566,6 +682,10 @@ test('a downloaded generated paper is staged in its matching revision attachment
     $this->actingAs($this->faculty)
         ->patch(route('faculty.topics.resubmit', $this->topic), [
             'revision_draft_id' => $draft->id,
+            'feedback_review_id' => $review->id,
+            'feedback_responses' => [
+                'file_'.$fileRevision->id => ['response' => 'Updated the requested work plan.'],
+            ],
             'title' => $this->topic->title,
             'description' => 'Updated work plan from the proposal workspace.',
             'estimated_budget' => 50000,
@@ -640,7 +760,7 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
     ]);
 
     expect($xpath->query($card)->length)->toBe(1)
-        ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" and normalize-space()="Preview"]')->length)->toBe(1)
+        ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" and @data-comment-response-preview and normalize-space()="Preview Comment Response Paper"]')->length)->toBe(1)
         ->and($xpath->query('//a[@href="'.$commentResponsePdfUrl.'" and @target="_blank" and normalize-space()="Open PDF"]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(@href, "/comment-response-form/download")]')->length)->toBe(0)
         ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(1)
@@ -655,15 +775,30 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="false"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
 
+    foreach ($xpath->query('//a[@data-comment-response-preview] | //span[@data-feedback-response-action] | //button[@data-revision-submit-button]') as $control) {
+        expect($control->getAttribute('class'))->toContain('rounded-lg', 'min-h-');
+    }
+
     $this->actingAs($this->head)->get(route('topics.show', $this->topic))
         ->assertOk()->assertDontSee('id="submit-revision"', false);
 });
 
 test('a successful revision return shows a clear server-confirmed receipt', function () {
     $this->topic->update(['status' => 'revision_requested']);
+    $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+    ]);
+
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.revision', $this->topic))
+        ->assertRedirect();
+
+    $draft = ProposalDraft::query()->where('topic_id', $this->topic->id)->sole();
 
     $this->actingAs($this->faculty)
         ->patch(route('faculty.topics.resubmit', $this->topic), [
+            'revision_draft_id' => $draft->id,
             'title' => $this->topic->title,
             'estimated_budget' => 50000,
             'estimated_duration_months' => 12,
@@ -798,6 +933,10 @@ test('revision editors open inside the feedback page with no application navigat
 ]);
 
 test('embedded editors expose only current published feedback and preserve the revision lock', function () {
+    $sectionMap = Mockery::mock(ProposalRevisionSectionMap::class);
+    $sectionMap->shouldReceive('forFile')->andReturn([]);
+    app()->instance(ProposalRevisionSectionMap::class, $sectionMap);
+
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create([
         'reviewer_id' => $this->head->id, 'decision' => 'revision_requested',
@@ -894,6 +1033,10 @@ test('embedded editors expose only current published feedback and preserve the r
     Storage::disk('local')->put('proposal-packages/coastal-habitat.pdf', '%PDF-1.4 primary');
     $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $this->topic), [
         'revision_draft_id' => $draft->id,
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => [
+            'annotation_'.$published->id => ['response' => 'Updated the work plan activity.'],
+        ],
         'title' => $this->topic->title,
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,

@@ -540,7 +540,7 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertDontSee('Required review sequence')
+        ->assertDontSee('Review progress')
         ->assertSee('id="version-history-tab-button"', false)
         ->assertSee('id="project-monitoring-tab-button"', false)
         ->assertSee('@click="setTopicTab(\'monitoring\', \'project-monitoring\')"', false)
@@ -561,7 +561,7 @@ test('the proposal review sequence remains visible before project monitoring beg
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Required review sequence')
+        ->assertSee('Review progress')
         ->assertDontSee('data-monitoring-schedule-table', false);
 });
 

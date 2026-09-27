@@ -26,7 +26,8 @@ class CommentResponseFormDocumentService
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
-     *     feedback?: list<array{reviewer: string, location: string, comment: string}>,
+     *     feedback?: list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}>,
+     *     evaluation_stages?: list<string>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -98,7 +99,8 @@ class CommentResponseFormDocumentService
      *     leader_campus: string,
      *     leader_college: string,
      *     leader_department: string,
-     *     feedback?: list<array{reviewer: string, location: string, comment: string}>,
+     *     feedback?: list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}>,
+     *     evaluation_stages?: list<string>,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }  $commentResponseForm
      */
@@ -107,6 +109,7 @@ class CommentResponseFormDocumentService
         [$document, $xpath] = $this->documentAndXPath($documentXml, 'document');
         $this->fillProjectTitle($xpath, $commentResponseForm['project_title']);
         $this->fillResearchers($xpath, $commentResponseForm);
+        $this->fillEvaluationStages($xpath, $commentResponseForm['evaluation_stages'] ?? []);
         $this->fillFeedbackTable($xpath, $commentResponseForm['feedback'] ?? []);
         $this->fillPreparedBy($xpath, $commentResponseForm['project_leader']);
 
@@ -120,6 +123,59 @@ class CommentResponseFormDocumentService
         $this->updateFooterPageFieldCache($xpath);
 
         return $this->serialized($document, 'footer');
+    }
+
+    /** @param list<string> $stages */
+    private function fillEvaluationStages(DOMXPath $xpath, array $stages): void
+    {
+        $stages = array_values(array_intersect(array_keys(CommentResponseFeedback::STAGE_LABELS), $stages));
+        if ($stages === []) {
+            return;
+        }
+
+        $heading = $xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "EVALUATION DONE")]]')->item(0);
+        $checkboxTable = $heading instanceof DOMElement ? $xpath->query('following-sibling::w:tbl[1]', $heading)->item(0) : null;
+        $cells = $checkboxTable instanceof DOMElement ? $this->elements($xpath, './w:tr/w:tc', $checkboxTable) : [];
+
+        if (count($cells) !== 2) {
+            throw new RuntimeException('The Comment-Response Form evaluation boxes are missing.');
+        }
+
+        $checked = [count(array_diff($stages, ['lrec'])) > 0, in_array('lrec', $stages, true)];
+        foreach ($cells as $index => $cell) {
+            if (! $checked[$index]) {
+                continue;
+            }
+
+            $properties = $xpath->query('./w:tcPr', $cell)->item(0);
+            $shade = $cell->ownerDocument->createElementNS(self::W, 'w:shd');
+            $shade->setAttributeNS(self::W, 'w:val', 'clear');
+            $shade->setAttributeNS(self::W, 'w:fill', '7A0019');
+            $properties->appendChild($shade);
+        }
+
+        $paragraph = $heading->cloneNode(true);
+        $this->removeRuns($xpath, $paragraph);
+        $paragraph->removeAttributeNS('http://schemas.microsoft.com/office/word/2010/wordml', 'paraId');
+        $paragraph->removeAttributeNS('http://schemas.microsoft.com/office/word/2010/wordml', 'textId');
+        $runProperties = $this->sourceRunProperties($xpath, $heading);
+        $this->appendRun($paragraph, 'Feedback stage: ', $runProperties);
+
+        foreach (CommentResponseFeedback::STAGE_LABELS as $stage => $label) {
+            $active = in_array($stage, $stages, true);
+            $properties = $runProperties?->cloneNode(true) ?? $paragraph->ownerDocument->createElementNS(self::W, 'w:rPr');
+            $size = $paragraph->ownerDocument->createElementNS(self::W, 'w:sz');
+            $size->setAttributeNS(self::W, 'w:val', '18');
+            $properties->appendChild($size);
+            if ($active) {
+                $shade = $paragraph->ownerDocument->createElementNS(self::W, 'w:shd');
+                $shade->setAttributeNS(self::W, 'w:fill', 'FCE7ED');
+                $properties->appendChild($shade);
+            }
+            $this->appendRun($paragraph, ($active ? '['.$label.']' : $label).($stage !== 'lrec' ? ' > ' : ''), $properties);
+        }
+
+        $heading->parentNode->insertBefore($paragraph, $heading);
     }
 
     /** @return array{DOMDocument, DOMXPath} */
@@ -236,7 +292,7 @@ class CommentResponseFormDocumentService
         }
     }
 
-    /** @param list<array{reviewer: string, location: string, comment: string}> $feedback */
+    /** @param list<array{reviewer: string, location: string, comment: string, stage?: string, response?: string, remarks?: string}> $feedback */
     private function fillFeedbackTable(DOMXPath $xpath, array $feedback): void
     {
         if ($feedback === []) {
@@ -275,7 +331,8 @@ class CommentResponseFormDocumentService
                 }
 
                 $cells = $this->elements($xpath, './w:tc', $row);
-                $values = [($index + 1).'.', $item['reviewer']."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+                $stageLabel = CommentResponseFeedback::STAGE_LABELS[$item['stage'] ?? ''] ?? null;
+                $values = [($index + 1).'.', $item['reviewer'].($stageLabel ? "\nStage: ".$stageLabel : '')."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
 
                 foreach ($cells as $offset => $cell) {
                     $paragraphs = $this->elements($xpath, './w:p', $cell);

@@ -27,6 +27,7 @@
     $coEvaluatorRecommendedAction = $coEvaluatorEvaluation?->source_data['recommended_action'] ?? null;
     $coEvaluatorRecommendedActionLabel = \App\Support\InitialScreeningSubmissionOrder::recommendationLabel($coEvaluatorRecommendedAction);
     $gadScore = $gadAssessment?->source_data['gad_score'] ?? null;
+    $gadScoreEntryMethod = $gadAssessment?->source_data['gad_score_entry_method'] ?? null;
     $gadRating = $gadAssessment?->source_data['gad_rating'] ?? null;
     $gadInterpretation = $gadAssessment?->source_data['gad_interpretation'] ?? null;
     $gadOutcome = $gadAssessment?->source_data['gad_outcome'] ?? null;
@@ -88,7 +89,7 @@
                 <div class="max-w-3xl">
                     <p class="text-xs font-bold tracking-[0.16em] text-red-800 dark:text-red-300">REVIEW ROUTING / VERSION {{ $latestVersion->version_number }}</p>
                     <h3 id="initial-review-workflow-heading" class="mt-2 text-2xl font-bold tracking-tight text-gray-950 dark:text-white">Clear each office in order</h3>
-                    <p class="mt-2 text-base leading-7 text-gray-600 dark:text-gray-300">The GAD Office reviews first. Only a passing GAD result opens central evaluation; only both clearances open LREC routing.</p>
+                    <p class="mt-2 text-base leading-7 text-gray-600 dark:text-gray-300">The GAD Office reviews first. Only a passing GAD result opens co-evaluator review; only both clearances open LREC routing.</p>
                 </div>
                 <button type="button" x-data x-on:click="$dispatch('open-modal', '{{ $supplementalModalName }}')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 sm:w-auto">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5.25v13.5M5.25 12h13.5" /></svg>
@@ -112,7 +113,7 @@
                                 <h4 class="text-xl font-bold text-gray-950 dark:text-white">Review proposal papers</h4>
                                 <span class="rounded-full {{ $gadAssessment ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-sm font-bold">{{ $gadAssessment ? 'Reviewed' : 'Start here' }}</span>
                             </div>
-                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">Read the faculty originals and save PDF highlights wherever a revision is needed.</p>
+                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">Read the faculty originals and save PDF highlights wherever a revision is needed. Saved comments feed the Comment Response paper; each Highlight page provides a preview before you send the revision request.</p>
                         </div>
                         <div class="flex flex-col gap-2 sm:flex-row">
                             <a href="{{ $showFacultyFiles ? '#head-upload-files-heading' : route('topics.head-uploads.index', $topic) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800">Review files</a>
@@ -149,6 +150,9 @@
                                                 {{ $gadScore !== null ? number_format((float) $gadScore, 2) : '—' }}
                                                 <span class="text-base font-semibold text-gray-500 dark:text-gray-400">/ 20</span>
                                             </p>
+                                            @if ($gadScoreEntryMethod === 'manual')
+                                                <p class="mt-1 text-xs font-bold text-amber-700 dark:text-amber-300">Confirmed from scanned copy</p>
+                                            @endif
                                         </div>
                                         <div class="min-w-0 sm:border-l sm:border-gray-200 sm:pl-4 dark:sm:border-gray-800">
                                             <div class="flex flex-wrap items-center gap-2">
@@ -193,12 +197,12 @@
                                     </div>
                                     @if ($gadNeedsRevision)
                                         <div data-gad-revision-required role="alert" class="mt-3 border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
-                                            <p class="font-black">This result cannot proceed to central evaluation.</p>
-                                            <p class="mt-1">Request revisions from the researcher. Upload the corrected version’s GAD assessment before routing it to the central evaluator.</p>
+                                            <p class="font-black">This result cannot proceed to co-evaluator review.</p>
+                                            <p class="mt-1">Request revisions from the researcher. Upload the corrected version’s GAD assessment before routing it to the co-evaluator.</p>
                                         </div>
                                     @elseif ($gadNeedsSignatureConfirmation)
                                         <div data-gad-signature-required role="alert" class="mt-3 border-l-4 border-amber-600 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
-                                            <p class="font-black">A passing score is not enough to unlock central evaluation.</p>
+                                            <p class="font-black">A passing score is not enough to unlock co-evaluator review.</p>
                                             <p class="mt-1">Replace this record after previewing the completed checklist and confirming the GAD verifier’s signature.</p>
                                         </div>
                                     @endif
@@ -220,11 +224,19 @@
                                                 <span class="min-w-0">
                                                     <span x-show="files.length === 0" class="block text-base font-black text-gray-900 dark:text-white">Drop completed GAD checklist here</span>
                                                     <span x-show="files.length > 0" x-cloak class="block truncate text-base font-black text-red-700 dark:text-red-300" x-text="files[0]?.name"></span>
-                                                    <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'Searchable PDF or DOCX · up to 25 MB · or click to browse'"></span>
+                                                    <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'PDF (including phone scans) or DOCX · up to 25 MB'"></span>
                                                 </span>
                                             </label>
                                             <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
                                         </div>
+                                        <label for="gad_score_{{ $topic->id }}" class="block rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
+                                            <strong class="block text-gray-950 dark:text-white">Score shown on a scanned PDF <span class="font-semibold text-gray-500">(optional)</span></strong>
+                                            <span class="block">Leave this blank for searchable files. Enter it only when the phone scan has no selectable text.</span>
+                                            <span class="mt-2 flex items-center gap-2">
+                                                <input id="gad_score_{{ $topic->id }}" name="gad_score" type="number" min="0" max="20" step="0.01" inputmode="decimal" value="{{ old('gad_score') }}" class="block min-h-11 w-32 rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                                <span class="font-bold text-gray-500 dark:text-gray-400">/ 20</span>
+                                            </span>
+                                        </label>
                                         <label for="gad_signature_confirmed_{{ $topic->id }}" class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 transition hover:border-red-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-red-900">
                                             <input id="gad_signature_confirmed_{{ $topic->id }}" name="gad_signature_confirmed" type="checkbox" value="1" required @checked(old('gad_signature_confirmed')) class="mt-1 h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 dark:border-gray-600 dark:bg-gray-900">
                                             <span><strong class="block text-gray-950 dark:text-white">Confirm the verifier’s signature</strong>I previewed the completed GAD Checklist and confirm that a signature is present in the “Checked and verified by” section.</span>
@@ -252,15 +264,15 @@
                     </span>
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h4 class="text-xl font-bold text-gray-950 dark:text-white">Central evaluator review</h4>
+                            <h4 class="text-xl font-bold text-gray-950 dark:text-white">Co-evaluator review</h4>
                             <span class="rounded-full {{ $coEvaluatorEvaluation && $gadPassed ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : ($gadPassed ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300') }} px-2.5 py-1 text-sm font-bold">{{ $coEvaluatorEvaluation && $gadPassed ? 'Completed' : ($gadPassed ? 'Ready' : 'Waiting for GAD clearance') }}</span>
                         </div>
-                        <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">After GAD clearance, record the central evaluator and upload the completed Initial Screening Form. ATHENA uses its Narrative Evaluation as the evaluator’s formal feedback.</p>
+                        <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">After GAD clearance, record the co-evaluator and upload the completed Initial Screening Form. ATHENA uses its Narrative Evaluation as the co-evaluator’s formal feedback.</p>
 
                         @if (! $gadPassed)
                             <div data-co-evaluator-step-locked class="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base font-semibold text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
                                 <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="10.25" width="10.5" height="8.5" rx="1.5" /><path stroke-linecap="round" d="M9 10.25V7.5a3 3 0 0 1 6 0v2.75" /></svg>
-                                {{ $gadNeedsRevision ? 'The GAD result requires a faculty revision before central evaluation.' : ($gadNeedsSignatureConfirmation ? 'Confirm the GAD verifier’s signature before central evaluation.' : 'Upload a passing, signed GAD assessment to unlock central evaluation.') }}
+                                {{ $gadNeedsRevision ? 'The GAD result requires a faculty revision before co-evaluator review.' : ($gadNeedsSignatureConfirmation ? 'Confirm the GAD verifier’s signature before co-evaluator review.' : 'Upload a passing, signed GAD assessment to unlock co-evaluator review.') }}
                             </div>
                         @elseif ($initialScreeningFile)
                             <div x-data="{ replacing: @js(! $coEvaluatorEvaluation) }" class="mt-4">
@@ -269,7 +281,7 @@
                                         <div class="min-w-0">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <p class="text-base font-black text-emerald-950 dark:text-emerald-100">Narrative Evaluation extracted</p>
-                                                <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-emerald-800 shadow-sm dark:bg-gray-950 dark:text-emerald-200">{{ $coEvaluatorEvaluation->source_data['co_evaluator_name'] ?? 'Central evaluator' }}</span>
+                                                <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-emerald-800 shadow-sm dark:bg-gray-950 dark:text-emerald-200">{{ $coEvaluatorEvaluation->source_data['co_evaluator_name'] ?? 'Co-evaluator' }}</span>
                                                 @if ($coEvaluatorRecommendedActionLabel)
                                                     <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-emerald-800 shadow-sm dark:bg-gray-950 dark:text-emerald-200">{{ $coEvaluatorRecommendedActionLabel }}</span>
                                                 @endif
@@ -299,7 +311,7 @@
                                         <input type="hidden" name="source_file_id" value="{{ $initialScreeningFile->id }}">
                                         <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION }}">
                                         <label for="co_evaluator_name_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
-                                            Central evaluator
+                                            Co-evaluator
                                             <input id="co_evaluator_name_{{ $topic->id }}" name="co_evaluator_name" type="text" maxlength="160" autocomplete="off" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
                                         </label>
                                         <label for="recommended_action_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
@@ -434,7 +446,7 @@
                                 <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
                                     <div>
                                         <p class="text-sm font-black text-gray-950 dark:text-white">Signed PDF preview</p>
-                                        <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Check the uploaded copy here before finalizing approval.</p>
+                                        <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Check the uploaded copy here before the final release.</p>
                                     </div>
                                     <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $activeSignedCopy]) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-800 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:bg-gray-800 dark:focus:ring-gray-400 dark:focus:ring-offset-gray-950">Open in new tab</a>
                                 </div>
@@ -455,7 +467,7 @@
                     @csrf
                     @method('PATCH')
                     <p class="text-sm font-semibold leading-6 text-gray-700 dark:text-gray-300">
-                        {{ $signaturesComplete ? 'Signed papers are ready. Prepare the signed Notice to Proceed to release the complete package.' : 'Final approval stays locked until all five required papers have signed PDFs.' }}
+                        {{ $signaturesComplete ? 'Signed papers are ready. Prepare the signed Notice to Proceed to release the complete package.' : 'Final release stays locked until all five required papers have signed PDFs.' }}
                     </p>
                     <button type="submit" @disabled(! $signaturesComplete) class="inline-flex shrink-0 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-600 dark:disabled:bg-gray-800 dark:disabled:text-gray-500">
                         Continue to Notice to Proceed
@@ -540,7 +552,7 @@
                                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Uploaded by {{ $researchHeadCopy->uploadedBy?->name ?? 'Research Head' }} · {{ $researchHeadCopy->created_at->format('M j, Y g:i A') }}</p>
                                             @if (($researchHeadCopy->source_data['purpose'] ?? null) === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
                                                 <div class="mt-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-950 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-                                                    <p class="font-black">Central evaluator · {{ $researchHeadCopy->source_data['co_evaluator_name'] ?? 'Name unavailable' }}</p>
+                                                    <p class="font-black">Co-evaluator · {{ $researchHeadCopy->source_data['co_evaluator_name'] ?? 'Name unavailable' }}</p>
                                                     <p class="mt-2 text-sm font-bold text-blue-700 dark:text-blue-300">Extracted Narrative Evaluation</p>
                                                     <p class="mt-1 whitespace-pre-line text-base leading-7">{{ $researchHeadCopy->source_data['narrative_evaluation'] ?? 'No narrative was extracted.' }}</p>
                                                 </div>

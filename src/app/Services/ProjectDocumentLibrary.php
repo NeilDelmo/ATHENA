@@ -164,7 +164,7 @@ class ProjectDocumentLibrary
         return match ($file->source_data['purpose'] ?? null) {
             ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED => ($targetLabel ?: 'Proposal paper').' — signed copy',
             ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'GAD assessment',
-            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Central evaluation',
+            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Co-evaluator review',
             default => 'Supporting project paper',
         };
     }
@@ -177,8 +177,8 @@ class ProjectDocumentLibrary
 
         return match ($file->source_data['purpose'] ?? null) {
             ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED => 'Signing record',
-            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'GAD review',
-            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Central evaluation',
+            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT => 'GAD assessment',
+            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION => 'Co-evaluator review',
             default => 'Project supporting file',
         };
     }

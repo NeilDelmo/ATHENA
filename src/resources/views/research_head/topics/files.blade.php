@@ -10,6 +10,8 @@
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No submitted version' }}
             </span>
         </div>
+
+        <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">

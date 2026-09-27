@@ -1070,7 +1070,7 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
         ->toContain('The methodology needs a clearer sampling frame.')
         ->not->toContain('Clarify the participant recruitment timeline.');
 
-    $this->get(route('topics.show', $topic))
+    $this->get(route('faculty.topics.revision', $topic))
         ->assertOk()
         ->assertSee('Research Head Comment-Response Form')
         ->assertSee('Co-evaluator Comment-Response Form')

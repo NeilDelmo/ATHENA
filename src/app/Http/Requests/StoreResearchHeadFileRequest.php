@@ -70,6 +70,9 @@ class StoreResearchHeadFileRequest extends FormRequest
             'gad_signature_confirmed' => $isGadAssessment
                 ? ['required', 'accepted']
                 : ['prohibited'],
+            'gad_score' => $isGadAssessment
+                ? ['nullable', 'numeric', 'between:0,20']
+                : ['prohibited'],
             'document_title' => [Rule::requiredIf($isSupplemental), 'nullable', 'string', 'max:255'],
             'issuing_office' => ['nullable', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:2000'],
@@ -90,13 +93,15 @@ class StoreResearchHeadFileRequest extends FormRequest
                 default => 'The upload must be a PDF, Word, or Excel document.',
             },
             'review_file.max' => 'The upload may not be larger than 25 MB.',
-            'purpose.in' => 'Choose whether this is a completed GAD assessment, central evaluator review, signed copy, or supplemental paper.',
+            'purpose.in' => 'Choose whether this is a completed GAD assessment, co-evaluator review, signed copy, or supplemental paper.',
             'document_title.required' => 'Enter a title for the supplemental paper.',
-            'co_evaluator_name.required' => 'Enter the central evaluator’s name for the completed Initial Screening Form.',
+            'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
             'recommended_action.required' => 'Record the Recommended Action selected on the completed Initial Screening Form.',
             'recommended_action.in' => 'Choose a valid Recommended Action from the completed Initial Screening Form.',
             'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
             'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
+            'gad_score.numeric' => 'Enter the GAD score shown on the scanned checklist.',
+            'gad_score.between' => 'The GAD score must be between 0 and 20.',
         ];
     }
 }

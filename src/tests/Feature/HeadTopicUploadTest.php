@@ -84,7 +84,7 @@ beforeEach(function () {
     }
 });
 
-test('research head workspace presents the GAD gate before central evaluation', function () {
+test('research head workspace presents the GAD gate before co-evaluator review', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
@@ -92,11 +92,16 @@ test('research head workspace presents the GAD gate before central evaluation', 
         ->get(route('topics.head-uploads.index', $this->topic));
 
     $workspace->assertOk()
+        ->assertSee('Review progress')
+        ->assertSee('data-horizontal-stepper', false)
+        ->assertSee('data-route-step', false)
+        ->assertDontSee('PROPOSAL ROUTING DOCKET')
         ->assertSee('Review PDF')
         ->assertSee('Initial review workflow')
         ->assertSee('Drop completed GAD checklist here')
         ->assertSee('Upload &amp; read score', false)
-        ->assertSee('Upload a passing, signed GAD assessment to unlock central evaluation.')
+        ->assertSee('Upload a passing, signed GAD assessment to unlock co-evaluator review.')
+        ->assertSee('Score shown on a scanned PDF')
         ->assertDontSee('Record evaluation')
         ->assertDontSee('Attach a reviewed copy for revision')
         ->assertDontSee('Upload reviewed copy')
@@ -171,6 +176,7 @@ XML);
             ->and($assessment->source_data['gad_rating'])->toBe('Gender-sensitive')
             ->and($assessment->source_data['gad_interpretation'])->toBe('Proposed project is gender-sensitive (proposal passes the GAD test).')
             ->and($assessment->source_data['gad_outcome'])->toBe('passed')
+            ->and($assessment->source_data['gad_score_entry_method'])->toBe('automatic')
             ->and($assessment->source_data['gad_signature_detected'])->toBeTrue()
             ->and($assessment->source_data['gad_signature_confirmed'])->toBeTrue()
             ->and($assessment->source_data['gad_signature_detection_method'])->toBe('embedded_signature_object');
@@ -194,6 +200,42 @@ XML);
     }
 });
 
+test('research head can confirm the score from a phone-scanned GAD checklist', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+
+    $response = $this->actingAs($this->head)
+        ->post(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $gadChecklist->id,
+            'review_file' => UploadedFile::fake()->createWithContent('phone-scanned-gad-checklist.pdf', "%PDF-1.4\nimage-only scan"),
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => '9.25',
+            'gad_signature_confirmed' => '1',
+        ]);
+
+    $response
+        ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+        ->assertSessionHas('success', 'Completed GAD Checklist uploaded. ATHENA recorded a confirmed Total GAD Score of 9.25 (Gender-sensitive) and recorded the verifier signature confirmation.');
+
+    $assessment = $this->version->files()
+        ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+        ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+        ->sole();
+
+    expect($assessment->source_data['gad_score'])->toBe(9.25)
+        ->and($assessment->source_data['gad_rating'])->toBe('Gender-sensitive')
+        ->and($assessment->source_data['gad_outcome'])->toBe('passed')
+        ->and($assessment->source_data['gad_score_entry_method'])->toBe('manual')
+        ->and($assessment->source_data['gad_signature_detected'])->toBeFalse()
+        ->and($assessment->source_data['gad_signature_confirmed'])->toBeTrue();
+
+    $this->get(route('topics.head-uploads.index', $this->topic))
+        ->assertOk()
+        ->assertSee('Confirmed from scanned copy');
+});
+
 test('GAD assessment upload requires the Research Head to confirm the verifier signature', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
@@ -213,7 +255,7 @@ test('GAD assessment upload requires the Research Head to confirm the verifier s
         ->count())->toBe(0);
 });
 
-test('central evaluation cannot be uploaded before a passing GAD assessment', function () {
+test('co-evaluator review cannot be uploaded before a passing GAD assessment', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $initialScreening = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
@@ -233,7 +275,7 @@ test('central evaluation cannot be uploaded before a passing GAD assessment', fu
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0);
 });
 
-test('a passing GAD score without signature confirmation keeps central evaluation locked', function () {
+test('a passing GAD score without signature confirmation keeps co-evaluator review locked', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
@@ -267,11 +309,11 @@ test('a passing GAD score without signature confirmation keeps central evaluatio
         ->assertOk()
         ->assertSee('Signature check required')
         ->assertSee('Signature evidence detected, but Research Head confirmation is still required.')
-        ->assertSee('Confirm the GAD verifier’s signature before central evaluation.')
+        ->assertSee('Confirm the GAD verifier’s signature before co-evaluator review.')
         ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
 });
 
-test('a non-passing GAD result returns the proposal to revision and keeps central evaluation locked', function () {
+test('a non-passing GAD result returns the proposal to revision and keeps co-evaluator review locked', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
@@ -324,8 +366,8 @@ test('a non-passing GAD result returns the proposal to revision and keeps centra
         ->get(route('topics.head-uploads.index', $this->topic))
         ->assertOk()
         ->assertSee('Return for revision')
-        ->assertSee('This result cannot proceed to central evaluation.')
-        ->assertSee('The GAD result requires a faculty revision before central evaluation.')
+        ->assertSee('This result cannot proceed to co-evaluator review.')
+        ->assertSee('The GAD result requires a faculty revision before co-evaluator review.')
         ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
 
     $this->actingAs($this->head)
@@ -403,7 +445,7 @@ XML);
             ]);
 
         $response->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
-            ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the central evaluator response.');
+            ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the co-evaluator response.');
 
         $evaluation = $this->version->files()
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
@@ -454,13 +496,18 @@ XML);
     }
 });
 
-test('replacing a signed copy preserves the superseded audit record before final approval', function () {
+test('replacing a signed copy preserves the superseded audit record before final release', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$gadChecklist->id],
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertSessionHasNoErrors();
@@ -471,7 +518,7 @@ test('replacing a signed copy preserves the superseded audit record before final
             'review_file' => UploadedFile::fake()->create('signed-gad-checklist.pdf', 200, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
         ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
 
     $originalSignedCopy = $this->version->files()
@@ -485,7 +532,7 @@ test('replacing a signed copy preserves the superseded audit record before final
             'review_file' => UploadedFile::fake()->create('corrected-signed-gad-checklist.pdf', 220, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
         ->assertSessionHas('success', 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.');
 
     $signedCopies = $this->version->files()
@@ -508,10 +555,15 @@ test('replacing a signed copy preserves the superseded audit record before final
 test('Research Head can return a signing-stage paper to revision and supersede its signed copy', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
+
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$workPlan->id],
+            'lrec_clearance_confirmed' => '1',
         ])
         ->assertSessionHasNoErrors();
 
@@ -559,33 +611,22 @@ test('Research Head can return a signing-stage paper to revision and supersede i
         ->assertNotFound();
 });
 
-test('a clean proposal moves to signing before it can be approved', function () {
-    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
-    $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+test('a cleared proposal moves to final signing without a manual approval step', function () {
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
 
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Choose the next step')
-        ->assertSee('Select papers → upload signed PDFs → approval unlocks')
-        ->assertSee('Mark files → add highlights/comments → request revision')
-        ->assertSee("x-show=\"decision === 'revision_requested'\"", false)
-        ->assertSee("x-bind:disabled=\"decision !== 'revision_requested'\"", false)
+        ->assertSee('Record the LREC outcome')
+        ->assertSee('Clear for signing')
+        ->assertSee('Request revisions')
         ->assertSee('@submit.prevent="submitDecision"', false)
-        ->assertSee('Continue to final signing?')
-        ->assertSee('Reject this proposal?')
-        ->assertSee("confirmButtonColor: '#dc2626'", false)
-        ->assertDontSee("confirmButtonColor: '#111827'", false)
-        ->assertSee("decision === signingDecision ? 'border-red-700 bg-red-50 shadow-md shadow-red-100", false)
-        ->assertSee('Which papers need a signed final PDF?')
-        ->assertSee('Nothing is selected automatically.')
-        ->assertDontSee('Approve — no signed copies needed')
-        ->assertSee('Reject proposal')
-        ->assertSee('Why is this proposal being rejected?')
-        ->assertSee('I confirm that this rejection is final.')
-        ->assertDontSee('Final signature required')
-        ->assertDontSee('No final signature required')
-        ->assertDontSee('Record note (optional)');
+        ->assertSee('Required signed papers')
+        ->assertSee('All five listed papers require signed PDFs before final release.')
+        ->assertDontSee('Approve proposal');
 
     $this->actingAs($this->head)
         ->from(route('topics.show', $this->topic))
@@ -595,17 +636,17 @@ test('a clean proposal moves to signing before it can be approved', function () 
         ->assertRedirect(route('topics.show', $this->topic))
         ->assertSessionHasErrors('status');
 
-    expect($this->topic->fresh()->status)->toBe('pending');
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_REVIEW);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
             'redirect_to' => 'topic',
-            'signature_file_ids' => [$workPlan->id, $gadChecklist->id],
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Review completed. Upload the required signed PDFs, then finalize approval.');
+        ->assertSessionHas('success', 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -614,10 +655,9 @@ test('a clean proposal moves to signing before it can be approved', function () 
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Upload the selected signed PDFs')
-        ->assertSee('0/2 uploaded')
+        ->assertSee('0/5 uploaded')
         ->assertSee('Signed final PDF')
-        ->assertSee('Finalize approval')
+        ->assertSee('Signing &amp; release', false)
         ->assertDontSee('One clear review process')
         ->assertDontSee('Research Head workspace')
         ->assertDontSee('Review faculty files')
@@ -628,25 +668,38 @@ test('a clean proposal moves to signing before it can be approved', function () 
         ->assertDontSee('Record note (optional)');
 });
 
-test('final signing never assumes which papers require a signature', function () {
+test('final signing always requires the fixed five-paper signing package', function () {
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
+
     $this->actingAs($this->head)
         ->from(route('topics.show', $this->topic))
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic))
-        ->assertSessionHasErrors('signature_file_ids');
+        ->assertRedirect(route('research_head.dashboard'))
+        ->assertSessionHasNoErrors();
 
-    expect($this->topic->fresh()->status)->toBe('pending')
-        ->and($this->version->files()
-            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->count())->toBe(0);
+    $signatureReview = $this->topic->reviews()
+        ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
+        ->sole();
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
+        ->and($signatureReview->required_signature_file_ids)->toHaveCount(5);
 });
 
 test('signed copies are limited to signature papers in the signing stage', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
     $expenseBreakdown = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN)->sole();
+
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
 
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [
@@ -659,7 +712,7 @@ test('signed copies are limited to signature papers in the signing stage', funct
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$workPlan->id],
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertSessionHasNoErrors();
@@ -686,14 +739,18 @@ test('signed copies are limited to signature papers in the signing stage', funct
         ->count())->toBe(0);
 });
 
-test('approval stays locked until every required signed PDF is uploaded', function () {
-    $detailedProposal = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+test('final release stays locked until every required signed PDF is uploaded', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$detailedProposal->id, $workPlan->id],
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertSessionHasNoErrors();
@@ -707,6 +764,9 @@ test('approval stays locked until every required signed PDF is uploaded', functi
     $requiredDocumentTypes = [
         ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
         ProposalVersionFile::TYPE_WORK_PLAN,
+        ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
     ];
 
     foreach ($requiredDocumentTypes as $documentType) {
@@ -719,7 +779,7 @@ test('approval stays locked until every required signed PDF is uploaded', functi
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                 'note' => 'Signed by the Research Head.',
             ])
-            ->assertRedirect(route('topics.show', $this->topic).'#proposal-review');
+            ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed');
     }
 
     $signedWorkPlan = $this->version->files()
@@ -744,10 +804,10 @@ test('approval stays locked until every required signed PDF is uploaded', functi
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
-        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
-        ->assertSessionHas('success', 'Signed documents finalized and released. Monitoring will open after the Notice to Proceed is issued.');
+        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
+        ->assertSessionHas('success', 'Signed papers are ready. Upload the signed Notice to Proceed to release the complete package to faculty.');
 
-    expect($this->topic->fresh()->status)->toBe('approved')
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 
@@ -758,14 +818,14 @@ test('approval stays locked until every required signed PDF is uploaded', functi
 
     $facultyResponse
         ->assertOk()
-        ->assertSee('signed-work_plan.pdf')
-        ->assertSee('Work Plan (signed official copy)');
+        ->assertDontSee('signed-work_plan.pdf')
+        ->assertDontSee('Work Plan (signed official copy)');
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY,
     ])->actingAs($this->faculty)
         ->get(route('topics.versions.files.download', [$this->topic, $this->version, $signedWorkPlan]))
-        ->assertDownload('signed-work_plan.pdf');
+        ->assertNotFound();
 });
 
 test('research head can upload a standalone supplemental paper after faculty turn in', function () {
@@ -939,17 +999,22 @@ test('a dual-role proposal owner only sees the faculty revision module in a facu
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Review status')
-        ->assertSee('Submit your revision')
-        ->assertSee('id="submit-revision"', false);
+        ->assertSee('Open revision workspace')
+        ->assertDontSee('id="submit-revision"', false);
 });
 
 test('the shared document list records Research Head uploads', function () {
     $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
 
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
+
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$workPlan->id],
+            'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
         ->assertSessionHasNoErrors();

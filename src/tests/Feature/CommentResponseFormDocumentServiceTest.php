@@ -1,6 +1,49 @@
 <?php
 
+use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
+
+test('official evaluation boxes and exact feedback stages are marked from comment origins', function (array $stages, array $checkedBoxes) {
+    $contents = app(CommentResponseFormDocumentService::class)->generate([
+        'project_title' => 'Coastal Habitat Restoration', 'project_leader' => 'Dr. Aurora Reyes',
+        'leader_campus' => 'Alangilan', 'leader_college' => 'CICS', 'leader_department' => '', 'staff' => [],
+        'evaluation_stages' => $stages,
+        'feedback' => array_map(fn (string $stage): array => [
+            'reviewer' => 'Reviewer', 'location' => 'Page 2', 'comment' => 'Clarify the sampling plan.',
+            'stage' => $stage, 'response' => 'Revised the sampling plan.',
+        ], $stages),
+    ]);
+    $path = tempnam(sys_get_temp_dir(), 'athena-stage-form-');
+    file_put_contents($path, $contents);
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $document = new DOMDocument;
+        expect($document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET))->toBeTrue();
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $boxes = $xpath->query('/w:document/w:body/w:tbl[1]/w:tr/w:tc/w:tcPr/w:shd');
+        expect($boxes->length)->toBe(count($checkedBoxes));
+        foreach ([1, 2] as $box) {
+            expect($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc/w:tcPr/w:shd[@w:fill="7A0019"]')->length)->toBe(in_array($box, $checkedBoxes, true) ? 1 : 0);
+        }
+        $indicator = $xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "Feedback stage:")]]')->item(0);
+        expect($indicator)->not->toBeNull()
+            ->and($xpath->query('./w:r/w:rPr/w:shd[@w:fill="FCE7ED"]', $indicator)->length)->toBe(count($stages))
+            ->and($document->textContent)->toContain('Initial Screening', 'Evaluation by the Local Research Evaluation Committee (LREC)', 'Revised the sampling plan.');
+        foreach ($stages as $stage) {
+            expect($indicator->textContent)->toContain('['.CommentResponseFeedback::STAGE_LABELS[$stage].']')
+                ->and($document->textContent)->toContain('Stage: '.CommentResponseFeedback::STAGE_LABELS[$stage]);
+        }
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+})->with([
+    'Research Head' => [['research_head'], [1]], 'GAD' => [['gad'], [1]],
+    'Co-Evaluator' => [['co_evaluator'], [1]], 'LREC' => [['lrec'], [2]],
+    'Mixed stages' => [['research_head', 'lrec'], [1, 2]],
+]);
 
 test('generated Comment-Response Forms preserve the official template layout', function () {
     $contents = app(CommentResponseFormDocumentService::class)->generate([

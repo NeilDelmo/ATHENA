@@ -52,7 +52,7 @@
                                 <td class="px-5 py-4 text-right"><a href="{{ route('topics.show', $project) }}#project-monitoring" class="inline-flex rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white">Open monitoring</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Approved projects appear here when implementation monitoring begins.</p></td></tr>
+                            <tr><td colspan="6" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Projects appear here after the final papers are completed and the Notice to Proceed is issued.</p></td></tr>
                         @endforelse
                     </tbody>
                 </table>

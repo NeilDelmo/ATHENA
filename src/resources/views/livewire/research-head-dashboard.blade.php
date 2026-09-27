@@ -22,19 +22,19 @@
             ];
         @endphp
         @foreach ($statCards as [$key, $label, $icon, $tone])
-            @if ($key === 'deadlines')
-                <a href="#dashboard-deadlines" class="group rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-rose-300 hover:shadow-md">
+            @if (in_array($key, ['deadlines', 'approved'], true))
+                <a href="{{ $key === 'approved' ? '#active-projects' : '#dashboard-deadlines' }}" class="group rounded-lg border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-rose-300 hover:shadow-md">
             @else
                 <button type="button" wire:click="setPipeline('{{ $key }}')" aria-pressed="{{ $pipeline === $key ? 'true' : 'false' }}" class="group rounded-lg border p-4 text-left shadow-sm transition hover:shadow-md {{ $pipeline === $key ? 'border-[#800000] bg-[#800000] text-white' : 'border-slate-200 bg-white' }}">
             @endif
                     <span class="flex items-start justify-between gap-3">
-                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-md border {{ $pipeline === $key && $key !== 'deadlines' ? 'border-white/20 bg-white/10 text-white' : $tone }}">
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-md border {{ $pipeline === $key && ! in_array($key, ['deadlines', 'approved'], true) ? 'border-white/20 bg-white/10 text-white' : $tone }}">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $icon }}" /></svg>
                         </span>
                         <strong class="text-2xl font-bold tabular-nums">{{ $summary[$key] }}</strong>
                     </span>
-                    <span class="mt-3 block text-xs font-semibold {{ $pipeline === $key && $key !== 'deadlines' ? 'text-rose-100' : 'text-slate-600' }}">{{ $label }}</span>
-            @if ($key === 'deadlines')
+                    <span class="mt-3 block text-xs font-semibold {{ $pipeline === $key && ! in_array($key, ['deadlines', 'approved'], true) ? 'text-rose-100' : 'text-slate-600' }}">{{ $label }}</span>
+            @if (in_array($key, ['deadlines', 'approved'], true))
                 </a>
             @else
                 </button>
@@ -61,8 +61,8 @@
                         <input id="proposal-search" wire:model.live.debounce.300ms="search" type="search" placeholder="Search proposal or faculty" class="w-full rounded-md border-slate-200 bg-white py-2 text-xs shadow-sm focus:border-[#800000] focus:ring-[#800000] sm:w-52">
                         <label class="sr-only" for="proposal-status">Review status</label>
                         <select id="proposal-status" wire:model.live="status" class="max-w-48 rounded-md border-slate-200 bg-white py-2 pl-3 pr-8 text-xs font-semibold shadow-sm focus:border-[#800000] focus:ring-[#800000]">
-                            <option value="">All statuses</option>
-                            @foreach ($stageLabels + ['approved' => 'Approved', 'rejected' => 'Rejected'] as $value => $label)
+                            <option value="">All active review stages</option>
+                            @foreach ($stageLabels as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
@@ -94,16 +94,12 @@
                             @forelse ($topics as $topic)
                                 @php
                                     $version = $topic->latestVersion;
-                                    $label = $topic->workflowStatusLabel();
+                                    $label = $topic->researchHeadQueueStatusLabel($version);
                                     $action = match (true) {
-                                        $topic->isAwaitingNoticeToProceed() => 'Issue NTP',
                                         $topic->status === 'ready_for_signature' => 'Sign',
-                                        in_array($topic->status, ['approved', 'rejected']) => 'Open',
                                         default => 'Review',
                                     };
                                     $badgeTone = match ($topic->status) {
-                                        'approved' => 'border-emerald-200 bg-emerald-50 text-emerald-800',
-                                        'rejected' => 'border-slate-200 bg-slate-100 text-slate-600',
                                         'revision_requested' => 'border-rose-200 bg-rose-50 text-rose-800',
                                         'resubmitted' => 'border-sky-200 bg-sky-50 text-sky-800',
                                         'ready_for_signature' => 'border-violet-200 bg-violet-50 text-violet-800',
@@ -199,10 +195,8 @@
                                 @php
                                     $stageShare = $analytics['pipelineTotal'] > 0 ? (int) round(($stage['count'] / $analytics['pipelineTotal']) * 100) : 0;
                                     $stageBarTone = match ($stage['key']) {
-                                        'approved' => 'bg-emerald-500',
                                         'revision_requested' => 'bg-sky-500',
                                         'ready_for_signature' => 'bg-violet-500',
-                                        'rejected' => 'bg-slate-400',
                                         default => 'bg-[#800000]',
                                     };
                                 @endphp
@@ -262,7 +256,7 @@
                 <div class="divide-y divide-slate-100">
                     @forelse ($analytics['attention'] as $item)
                         <a href="{{ route('topics.show', $item['topic']) }}#proposal-review" class="flex items-start justify-between gap-3 px-4 py-3 transition hover:bg-slate-50">
-                            <span class="min-w-0"><span class="block truncate text-xs font-semibold text-slate-900">{{ $item['topic']->title }}</span><span class="mt-0.5 block truncate text-[11px] text-slate-500">{{ $stageLabels[$item['topic']->status] }} · {{ $item['topic']->user?->name }}</span>@if ($item['past_revision_deadline'])<span class="mt-1 inline-flex rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-800">Past revision deadline</span>@endif</span>
+                            <span class="min-w-0"><span class="block truncate text-xs font-semibold text-slate-900">{{ $item['topic']->title }}</span><span class="mt-0.5 block truncate text-[11px] text-slate-500">{{ $item['topic']->researchHeadQueueStatusLabel($item['topic']->latestVersion) }} · {{ $item['topic']->user?->name }}</span>@if ($item['past_revision_deadline'])<span class="mt-1 inline-flex rounded bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-800">Past revision deadline</span>@endif</span>
                             <span class="shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[10px] font-bold text-slate-700">{{ $item['days'] !== null ? $item['days'].'d' : '—' }}</span>
                         </a>
                     @empty

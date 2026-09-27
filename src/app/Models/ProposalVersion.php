@@ -54,21 +54,21 @@ class ProposalVersion extends Model
 
     public function hasPassingGadAssessment(): bool
     {
-        $gadChecklistId = $this->files()
-            ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
-            ->value('id');
+        $files = $this->relationLoaded('files') ? $this->files : $this->files()->get();
+        $gadChecklistId = $files
+            ->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+            ?->getKey();
 
         if ($gadChecklistId === null) {
             return false;
         }
 
-        $assessment = $this->files()
-            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
-            ->where('source_version_file_id', $gadChecklistId)
-            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
-            ->where('source_data->target_document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
-            ->reorder()
-            ->latest('id')
+        $assessment = $files
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && $file->source_version_file_id === $gadChecklistId
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
+                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_GAD_CHECKLIST)
+            ->sortByDesc('id')
             ->first();
 
         if (! $assessment instanceof ProposalVersionFile) {
@@ -88,5 +88,23 @@ class ProposalVersion extends Model
         $score = $assessment->source_data['gad_score'] ?? null;
 
         return is_numeric($score) && (float) $score >= 8;
+    }
+
+    public function hasCoEvaluatorReview(): bool
+    {
+        $files = $this->relationLoaded('files') ? $this->files : $this->files()->get();
+        $initialScreeningFormId = $files
+            ->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
+            ?->getKey();
+
+        if ($initialScreeningFormId === null) {
+            return false;
+        }
+
+        return $files->contains(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+            && $file->source_version_file_id === $initialScreeningFormId
+            && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
+            && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
+            && filled($file->source_data['narrative_evaluation'] ?? null));
     }
 }

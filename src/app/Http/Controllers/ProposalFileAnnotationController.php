@@ -34,7 +34,7 @@ class ProposalFileAnnotationController extends Controller
         $isResearchHead = $request->user()->isUsingWorkspace('research_head');
         $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
         $annotations = $file->annotations()
-            ->with(['reviewer', 'fileRevision'])
+            ->with(['reviewer', 'fileRevision.review'])
             ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
             ->when(! $isResearchHead, fn ($query) => $query->whereNotNull('topic_review_file_revision_id'))
             ->oldest()
@@ -63,6 +63,23 @@ class ProposalFileAnnotationController extends Controller
                 'annotation_count' => $fileAnnotations->count(),
             ])
             ->values();
+        $commentResponseLinks = [];
+        if ($canAnnotate) {
+            $commentResponseLinks[] = [
+                'url' => route('research_head.topics.comment-response-form.pdf', ['topic' => $topic, 'draft_version' => $version->id]),
+                'label' => 'Preview Comment Response Paper',
+                'draft' => true,
+            ];
+        }
+        if ($request->user()->can('generateCommentResponseForm', $topic)) {
+            foreach ($annotations->pluck('fileRevision.review')->filter()->unique('id') as $review) {
+                $commentResponseLinks[] = [
+                    'url' => route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]),
+                    'label' => 'View Comment Response Paper · '.$review->created_at->format('M j, Y g:i A'),
+                    'draft' => false,
+                ];
+            }
+        }
         $annotationConfiguration = [
             'researchHeadName' => $isResearchHead ? $request->user()->name : ($annotations->first()?->reviewer?->name ?? 'Research Head'),
             'researchHeadAvatar' => $isResearchHead ? $request->user()->avatar : $annotations->first()?->reviewer?->avatar,
@@ -94,6 +111,7 @@ class ProposalFileAnnotationController extends Controller
             'file',
             'isResearchHead',
             'canAnnotate',
+            'commentResponseLinks',
             'annotationConfiguration',
         ));
     }
