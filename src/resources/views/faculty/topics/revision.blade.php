@@ -6,15 +6,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 19-7-7 7-7" /></svg>
                     Back to proposal
                 </a>
-                <div class="flex items-center gap-3" aria-label="Revision progress: step 1 of 4">
-                    <span class="text-xs font-bold text-slate-500 dark:text-slate-400">1 of 4 steps</span>
-                    <span class="flex gap-1" aria-hidden="true">
-                        <span class="h-1.5 w-8 rounded-full bg-[#7A0019]"></span>
-                        <span class="h-1.5 w-8 rounded-full bg-slate-200 dark:bg-slate-700"></span>
-                        <span class="h-1.5 w-8 rounded-full bg-slate-200 dark:bg-slate-700"></span>
-                        <span class="h-1.5 w-8 rounded-full bg-slate-200 dark:bg-slate-700"></span>
-                    </span>
-                </div>
+
             </div>
 
             <section data-revision-summary class="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-start sm:justify-between sm:p-6" aria-labelledby="revision-workspace-title">
@@ -47,25 +39,25 @@
                         <li>
                             <a href="#revision-feedback" class="flex h-full gap-3 rounded-xl border border-red-200 border-l-[3px] border-l-[#7A0019] bg-red-50 p-4 text-slate-800 transition hover:border-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-red-900 dark:border-l-red-500 dark:bg-red-950/30 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7A0019] text-xs font-black text-white">1</span>
-                                <span><strong class="block text-sm text-[#7A0019] dark:text-red-300">Respond to feedback</strong><span class="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-400">Address comments from the Research Head and co-evaluator.</span><span class="mt-2 inline-flex rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-[#7A0019] dark:bg-red-900/50 dark:text-red-200">In progress</span></span>
+                                <span><strong class="block text-sm text-[#7A0019] dark:text-red-300">Respond to feedback</strong><span class="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-400">Address comments from the Research Head and co-evaluator.</span></span>
                             </a>
                         </li>
                         <li>
                             <a href="#revision-papers" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">2</span>
-                                <span><strong class="block text-sm">Revise requested papers</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Update {{ $pendingFileRevisions->groupBy('document_type')->count() }} requested {{ Str::plural('paper', $pendingFileRevisions->groupBy('document_type')->count()) }}.</span><span class="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">Pending</span></span>
+                                <span><strong class="block text-sm">Revise requested papers</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">@if ($pendingFileRevisions->isEmpty())No paper changes requested.@else{{ $pendingFileRevisions->groupBy('document_type')->count() }} {{ Str::plural('paper', $pendingFileRevisions->groupBy('document_type')->count()) }} requested for revision.@endif</span></span>
                             </a>
                         </li>
                         <li>
                             <a href="#revision-details" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">3</span>
-                                <span><strong class="block text-sm">Confirm proposal details</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Verify the title, cost, description, and duration.</span><span class="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">Pending</span></span>
+                                <span><strong class="block text-sm">Confirm proposal details</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Verify the title, cost, description, and duration.</span></span>
                             </a>
                         </li>
                         <li>
                             <a href="#review-and-submit" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">4</span>
-                                <span><strong class="block text-sm">Review and send</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Create the next version and return it for review.</span><span class="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">Pending</span></span>
+                                <span><strong class="block text-sm">Review and send</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Create the next version and return it for review.</span></span>
                             </a>
                         </li>
                     </ol>

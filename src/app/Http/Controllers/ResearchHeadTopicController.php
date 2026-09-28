@@ -100,7 +100,17 @@ class ResearchHeadTopicController extends Controller
         }
 
         if ($validated['status'] === 'revision_requested') {
-            $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
+            $savedHighlightFileIds = ProposalFileAnnotation::query()
+                ->whereIn('proposal_version_file_id', $latestFacultyFiles->pluck('id'))
+                ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
+                ->whereNull('topic_review_file_revision_id')
+                ->distinct()
+                ->pluck('proposal_version_file_id');
+            $selectedIds = collect($validated['revision_file_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->merge($savedHighlightFileIds)
+                ->unique()
+                ->values();
             $selectedRevisionFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
 
             if ($latestFacultyFiles->isEmpty()) {

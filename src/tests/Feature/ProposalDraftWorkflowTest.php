@@ -152,6 +152,10 @@ beforeEach(function () {
 
     $this->completeDraft = function (ProposalDraft $draft): ProposalDraft {
         $draft->update(($this->projectDetails)());
+        $draft->update(['signatory_selections' => [
+            'comment_response_head' => ['name' => 'Selected Research Head'],
+            'comment_response_vice_chancellor' => ['name' => 'Selected Vice Chancellor'],
+        ]]);
 
         foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
             if ($paper['mode'] === 'automatic') {
@@ -1198,6 +1202,21 @@ test('generated papers can save partial source data as in-progress drafts', func
             'entries.0.months',
         ]);
 });
+
+test('initial submission requires both comments form signatories and keeps the draft intact', function (string $missingRole) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $selections = $draft->signatory_selections;
+    unset($selections[$missingRole]);
+    $draft->update(['signatory_selections' => $selections]);
+
+    expect(app(ProposalDraftReadiness::class)->isReady($draft->fresh()))->toBeFalse();
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasErrors('signatories.comment_response_form');
+    $this->assertModelExists($draft);
+    expect(TopicProposal::query()->count())->toBe(0);
+    $draft->documents->pluck('file_path')->filter()->each(fn ($path) => Storage::disk('local')->assertExists($path));
+})->with(['comment_response_head', 'comment_response_vice_chancellor']);
 
 test('incomplete drafts stay blocked but completed drafts can be submitted after a call closes', function () {
     $incomplete = ($this->createDraft)();

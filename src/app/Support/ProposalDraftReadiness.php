@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
+use App\Models\ProposalSignatory;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
@@ -94,7 +95,14 @@ class ProposalDraftReadiness
         return $this->projectDetailsAreComplete($draft)
             && $this->allPapersAreComplete($draft)
             && $this->proposalBudgetConsistency->compare($draft)['consistent']
+            && $this->commentResponseSignatoriesAreComplete($draft)
             && $this->submissionFilesArePrepared($draft);
+    }
+
+    public function commentResponseSignatoriesAreComplete(ProposalDraft $draft): bool
+    {
+        return collect(array_keys(ProposalSignatory::FIELDS['comment_response_form']))
+            ->every(fn (string $role): bool => filled($draft->signatory_selections[$role]['name'] ?? null));
     }
 
     public function submissionFilesArePrepared(ProposalDraft $draft): bool
@@ -123,6 +131,10 @@ class ProposalDraftReadiness
     public function errors(ProposalDraft $draft): array
     {
         $errors = [];
+
+        if (! $this->commentResponseSignatoriesAreComplete($draft)) {
+            $errors['signatories.comment_response_form'] = 'Choose the Research Head and Vice Chancellor signatories before submitting. These names carry forward to future Comment Response papers.';
+        }
 
         if (! $this->projectDetailsAreComplete($draft)) {
             $errors['project_details'] = 'Complete Project Details before submitting this proposal package.';

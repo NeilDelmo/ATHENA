@@ -43,7 +43,7 @@
                 </span>
                 <div>
                     <h3 id="comment-response-heading" class="text-base font-black text-slate-950 dark:text-white">1. Reviewer feedback</h3>
-                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Respond to every recorded comment before sending the revised package.</p>
+                    <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">Respond to every comment. Your responses are saved in the Comment Response paper when you submit this revision.</p>
                 </div>
             </div>
             <span class="inline-flex w-fit rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">{{ count($commentResponseRows) }} {{ Str::plural('comment', count($commentResponseRows)) }}</span>
@@ -56,18 +56,9 @@
                 @endforeach
             @endforeach
 
-            <x-comment-response-stages :stages="app(\App\Services\CommentResponseFeedback::class)->stagesForRows($commentResponseRows)" />
-            @if ($topic->revisionDraft)
-                @can('update', $topic->revisionDraft)
-                    <a href="{{ route('signatories.edit', [$topic->revisionDraft, 'paper' => 'comment_response_form']) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-600 dark:text-white">Choose comments-form signatories</a>
-                @endcan
-            @else
-                <a href="{{ route('faculty.proposal-drafts.revision', [$topic, 'signatories' => 'comment_response_form']) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-900 dark:border-slate-600 dark:text-white">Choose comments-form signatories</a>
-            @endif
-
             @can('generateCommentResponseForm', $topic)
                 @if ($commentResponseGroups->isNotEmpty())
-                    <div class="grid gap-3 sm:grid-cols-2" aria-label="Comment-Response Form downloads">
+                    <div class="grid gap-3 sm:grid-cols-2" aria-label="Comment Response papers">
                         @foreach ($commentResponseGroups as $source => $sourceRows)
                             @php($isCoEvaluatorForm = $source === \App\Services\CommentResponseFeedback::FORM_CO_EVALUATOR)
                             <section data-comment-response-source="{{ $source }}" class="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/60">
@@ -77,12 +68,11 @@
                                     </span>
                                     <div>
                                         <h4 class="text-sm font-bold text-slate-900 dark:text-white">{{ $isCoEvaluatorForm ? 'Co-evaluator Comment-Response Form' : 'Research Head Comment-Response Form' }}</h4>
-                                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $sourceRows->count() }} recorded {{ Str::plural('comment', $sourceRows->count()) }}. Your saved responses are included in this paper when you submit the revision.</p>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $sourceRows->count() }} recorded {{ Str::plural('comment', $sourceRows->count()) }}. Preview the recorded feedback and previously submitted responses.</p>
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
-                                    <a href="{{ route('faculty.topics.comment-response-form.preview', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" data-comment-response-preview class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-[#7A0019] shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-slate-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</a>
-                                    <a href="{{ route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#7A0019] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#650015] focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Open PDF</a>
+                                    <button type="button" data-comment-response-preview aria-haspopup="dialog" @click="$dispatch('open-modal', 'revision-comment-response-{{ $topic->id }}-{{ $source }}')" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-[#7A0019] shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-slate-900"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
                                 </div>
                             </section>
                         @endforeach
@@ -101,29 +91,16 @@
                                 <h4 class="text-xs font-black uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $commentResponseLabels[$source] ?? 'Reviewer feedback' }}</h4>
                             </div>
                             @foreach ($sourceRows as $item)
-                                @php($hasResponse = filled(old('feedback_responses.'.$item['key'].'.response', $item['response'])))
-                                <article
-                                    x-data="{ open: @js($loop->first), answered: @js($hasResponse) }"
-                                    class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
-                                    data-revision-feedback-item
-                                >
-                                    <button type="button" @click="open = !open" :aria-expanded="open" class="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#7A0019] dark:hover:bg-slate-800 sm:px-4">
-                                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-black {{ $isCoEvaluatorForm ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300' : 'bg-red-100 text-[#7A0019] dark:bg-red-950/50 dark:text-red-300' }}">{{ $isCoEvaluatorForm ? 'CE' : 'RH' }}</span>
-                                        <span class="min-w-0 flex-1 sm:flex sm:items-baseline sm:gap-2">
-                                            <strong class="block shrink-0 text-xs text-slate-900 dark:text-white">{{ $item['reviewer'] }}@if (isset($item['stage']))<span class="ml-1 font-medium text-slate-500 dark:text-slate-400">· {{ \App\Services\CommentResponseFeedback::STAGE_LABELS[$item['stage']] ?? '' }}</span>@endif</strong>
-                                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ $item['location'] }} — {{ $item['comment'] }}</span>
-                                        </span>
-                                        <span class="hidden shrink-0 rounded-full px-2 py-1 text-[10px] font-bold sm:inline-flex" :class="answered ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'" x-text="answered ? 'Answered' : 'Not yet answered'"></span>
-                                        <span data-feedback-response-action class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-[#7A0019] dark:border-red-900 dark:bg-red-950/40 dark:text-red-200" x-text="open ? 'Close response' : (answered ? 'Edit Response' : 'Respond')">{{ $hasResponse ? 'Edit Response' : 'Respond' }}</span>
-                                        <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 shrink-0 text-slate-400 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                                    </button>
-                                    <div x-show="open" x-cloak x-transition class="space-y-4 border-t border-slate-100 px-4 py-4 dark:border-slate-800 sm:px-5">
-                                        <blockquote class="whitespace-pre-line rounded-lg bg-[#eef3f8] px-4 py-3 text-sm leading-6 text-slate-800 dark:bg-slate-800 dark:text-slate-100">{{ $item['comment'] }}</blockquote>
-                                        <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">
-                                            Your response
-                                            <textarea x-ref="response" @input="answered = $event.target.value.trim().length > 0" name="feedback_responses[{{ $item['key'] }}][response]" rows="3" maxlength="5000" required placeholder="Explain what you changed and why" class="mt-2 block w-full rounded-lg border-slate-200 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea>
-                                        </label>
-                                    </div>
+                                <article class="space-y-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5" data-revision-feedback-item>
+                                    <header class="space-y-1">
+                                        <p class="text-sm font-bold text-slate-900 dark:text-white">{{ $item['reviewer'] }}</p>
+                                        <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $item['location'] }}@if (isset($item['stage'])) · {{ \App\Services\CommentResponseFeedback::STAGE_LABELS[$item['stage']] ?? '' }}@endif</p>
+                                    </header>
+                                    <blockquote class="whitespace-pre-line border-l-2 border-slate-300 pl-4 text-sm leading-6 text-slate-800 dark:border-slate-600 dark:text-slate-100">{{ $item['comment'] }}</blockquote>
+                                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                        Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
+                                        <textarea name="feedback_responses[{{ $item['key'] }}][response]" rows="3" maxlength="5000" required placeholder="Explain the change you made and where it can be found, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea>
+                                    </label>
                                 </article>
                             @endforeach
                         </section>
@@ -135,7 +112,7 @@
         </div>
     </section>
 
-    <section id="revision-papers" x-data="{ open: true }" class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="revision-papers-heading">
+    <section id="revision-papers" class="scroll-mt-28 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="revision-papers-heading">
         <header class="flex items-start justify-between gap-4 px-5 py-4 sm:px-6">
             <div class="flex min-w-0 items-start gap-3">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true">
@@ -143,19 +120,15 @@
                 </span>
                 <div>
                     <h3 id="revision-papers-heading" class="text-base font-black text-slate-950 dark:text-white">2. Requested papers</h3>
-                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">Address every requested file by editing it, uploading a replacement, or explaining why no file change is needed. Files that were not requested carry forward automatically.</p>
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $revisionGroups->isEmpty() ? 'This request contains comments on the overall proposal, without identifying a paper to replace.' : 'For each requested paper, save your edits, upload a replacement, or explain why no file change is needed. Other papers carry forward automatically.' }}</p>
                 </div>
             </div>
-            <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="requested-papers-content" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                <svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                <span class="sr-only">Toggle requested papers</span>
-            </button>
         </header>
-        <div id="requested-papers-content" x-show="open" x-cloak x-transition class="space-y-3 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6" data-requested-revision-files>
+        <div id="requested-papers-content" class="space-y-3 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6" data-requested-revision-files>
             @forelse ($revisionGroups as $documentType => $fileRevisions)
                 <x-proposal-revision-document :topic="$topic" :document-type="$documentType" :file-revisions="$fileRevisions" :staged-file="$stagedRevisionFiles->get($documentType)" :required="true" />
             @empty
-                <p class="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">No specific paper replacement was requested. Respond to the comments and confirm the proposal details below.</p>
+                <p class="rounded-xl bg-slate-50 px-4 py-5 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">No paper changes requested. Your current papers will carry forward. Respond to the overall feedback, check the proposal details, then submit your revision.</p>
             @endforelse
         </div>
     </section>
@@ -174,7 +147,7 @@
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef3f8] text-[#1f3b57] dark:bg-slate-800 dark:text-slate-200" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h9" /></svg></span>
                 <span><span id="proposal-details-heading" class="block text-base font-black text-slate-950 dark:text-white">3. Proposal details</span><span class="mt-1 block text-sm font-normal leading-6 text-slate-500 dark:text-slate-400">Confirm that the proposal information is correct and up to date.</span></span>
             </span>
-            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-4 w-4 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
+            <span class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-600 dark:text-slate-200" x-text="open ? 'Hide details' : 'Edit details'">Edit details</span>
         </button>
         <div id="proposal-details-fields" data-revision-proposal-details-fields x-show="open" x-cloak x-transition class="grid gap-4 border-t border-slate-100 p-5 dark:border-slate-800 sm:p-6 md:grid-cols-2">
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">Project title<input name="title" value="{{ old('title', $topic->title) }}" required class="mt-2 block w-full rounded-lg border-slate-200 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white"></label>
@@ -197,7 +170,7 @@
                     <span data-revision-submit-button-label>Submit for review</span>
                 </button>
             </div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-200">Summary of changes <span class="font-normal text-slate-400">(optional)</span><textarea name="change_summary" rows="3" maxlength="2000" placeholder="Briefly explain what you updated" class="mt-2 block w-full rounded-lg border-slate-200 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old('change_summary') }}</textarea></label>
+            <p class="text-sm leading-6 text-slate-600 dark:text-slate-300">Submitting saves your responses in the Comment Response paper and creates the next proposal version. Papers you did not replace carry forward automatically.</p>
             <div data-revision-submit-error role="alert" hidden class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"><p class="font-bold">Revision not sent</p><p data-revision-submit-error-message class="mt-1"></p></div>
         </div>
     </section>
@@ -211,3 +184,22 @@
         </div>
     </div>
 </form>
+
+@can('generateCommentResponseForm', $topic)
+    @foreach ($commentResponseGroups as $source => $sourceRows)
+        <x-modal name="revision-comment-response-{{ $topic->id }}-{{ $source }}" maxWidth="6xl" focusable class="!z-[140]" data-faculty-comment-response-preview-modal>
+            <template x-if="show">
+                <section role="dialog" aria-modal="true" aria-labelledby="revision-comment-response-heading-{{ $topic->id }}-{{ $source }}">
+                    <header class="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                        <div>
+                            <h3 id="revision-comment-response-heading-{{ $topic->id }}-{{ $source }}" class="text-base font-bold text-gray-950 dark:text-white">{{ $source === \App\Services\CommentResponseFeedback::FORM_CO_EVALUATOR ? 'Co-evaluator' : 'Research Head' }} Comment Response paper</h3>
+                            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Responses entered on this page are included after you submit the revision.</p>
+                        </div>
+                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                    </header>
+                    <x-proposal-revision-pdf :configuration="['pdfUrl' => route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'source' => $source, 'review' => $latestRevisionReview?->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                </section>
+            </template>
+        </x-modal>
+    @endforeach
+@endcan

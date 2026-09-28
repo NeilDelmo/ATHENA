@@ -700,6 +700,67 @@ test('a downloaded generated paper is staged in its matching revision attachment
         ->toBe('coastal-work-plan.docx');
 });
 
+test('saved highlights automatically request their paper even when selection is omitted', function () {
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id,
+        'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.2]],
+        'comment' => 'Start planting in June.',
+    ]);
+
+    $headPage = $this->actingAs($this->head)
+        ->withSession(['_old_input' => ['revision_file_ids' => []]])
+        ->get(route('topics.show', $this->topic))->assertOk();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($headPage->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//input[@name="revision_file_ids[]"][@value="'.$this->file->id.'"][@checked]')->length)->toBe(1);
+
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => 'revision_requested',
+    ])->assertSessionHasNoErrors();
+
+    $review = $this->topic->reviews()->sole();
+    $revision = $review->fileRevisions()->sole();
+    expect($revision->proposal_version_file_id)->toBe($this->file->id)
+        ->and($annotation->fresh()->topic_review_file_revision_id)->toBe($revision->id);
+    $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
+        ->assertOk()
+        ->assertSee('1 paper requested for revision.')
+        ->assertSee('data-revision-document="work_plan"', false)
+        ->assertSee('Start planting in June.');
+});
+
+test('overall feedback clearly carries forward papers without a replacement request', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+        'comment' => 'Confirm the project duration.',
+    ]);
+
+    $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
+        ->assertOk()
+        ->assertSee('No paper changes requested.')
+        ->assertSee('Your current papers will carry forward.')
+        ->assertDontSee('Update 0 requested papers')
+        ->assertDontSee('Toggle requested papers')
+        ->assertDontSee('Summary of changes')
+        ->assertDontSee('Choose comments-form signatories')
+        ->assertDontSee('LEVEL OF EVALUATION DONE:');
+    expect(substr_count($response->getContent(), $review->comment))->toBe(1);
+    $this->actingAs($this->faculty)->patch(route('faculty.topics.resubmit', $this->topic), [
+        'title' => $this->topic->title,
+        'estimated_budget' => 50000,
+        'estimated_duration_months' => 12,
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => ['overall' => ['response' => 'Confirmed the 12-month duration.']],
+    ])->assertSessionHasNoErrors();
+    expect($review->fresh()->feedback_responses['overall']['response'])->toBe('Confirmed the 12-month duration.')
+        ->and($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->is_carried_forward)->toBeTrue();
+});
+
 test('faculty revision cards keep requested feedback and replacement inputs together', function () {
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create([
@@ -732,7 +793,7 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
     $response = $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
         ->assertSee('Research proposal')
-        ->assertSee('1 of 4 steps')
+        ->assertDontSee('1 of 4 steps')
         ->assertSee('Prepare the corrected proposal package')
         ->assertSee('2. Requested papers')
         ->assertSee('Open for review')
@@ -741,7 +802,12 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->assertDontSee('What happens next')
         ->assertDontSee('Requested revision tasks')
         ->assertDontSee('Paper-level feedback')
-        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Requested papers', 'Summary of changes'])
+        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Requested papers', '4. Final review and submission'])
+        ->assertDontSee('Summary of changes')
+        ->assertDontSee('Choose comments-form signatories')
+        ->assertDontSee('LEVEL OF EVALUATION DONE:')
+        ->assertDontSee('Toggle requested papers')
+        ->assertDontSee('Close response')
         ->assertDontSee('Replace another file');
 
     $dom = new DOMDocument;
@@ -760,8 +826,9 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
     ]);
 
     expect($xpath->query($card)->length)->toBe(1)
-        ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" and @data-comment-response-preview and normalize-space()="Preview Comment Response Paper"]')->length)->toBe(1)
-        ->and($xpath->query('//a[@href="'.$commentResponsePdfUrl.'" and @target="_blank" and normalize-space()="Open PDF"]')->length)->toBe(1)
+        ->and($xpath->query('//button[@type="button"][@data-comment-response-preview][@aria-haspopup="dialog"]')->length)->toBe(1)
+        ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" or @href="'.$commentResponsePdfUrl.'"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-faculty-comment-response-preview-modal]//*[@data-pdf-annotation-config]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(@href, "/comment-response-form/download")]')->length)->toBe(0)
         ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(1)
         ->and($xpath->query($card.'//select[@data-revision-comment]/option[@data-annotation-id="'.$annotation->id.'"]')->length)->toBe(1)
@@ -775,7 +842,7 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="false"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
 
-    foreach ($xpath->query('//a[@data-comment-response-preview] | //span[@data-feedback-response-action] | //button[@data-revision-submit-button]') as $control) {
+    foreach ($xpath->query('//button[@data-comment-response-preview] | //button[@data-revision-submit-button]') as $control) {
         expect($control->getAttribute('class'))->toContain('rounded-lg', 'min-h-');
     }
 

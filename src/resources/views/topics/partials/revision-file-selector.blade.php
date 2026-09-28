@@ -18,7 +18,7 @@
 @if ($revisionFiles->isNotEmpty())
     <div x-data="{ selectedFiles: {} }" data-revision-file-list>
         @if ($showGuidance ?? true)
-            <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Select the documents faculty must update. Committee comments can provide the instructions; highlights are optional.' : 'Open a document to review it. To request changes to a PDF, save a highlight with a comment, then select the document.' }}</p>
+            <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Papers with saved highlights are included in the revision request. Select additional papers to update using committee comments as instructions.' : 'Open a document to review it. Saving a highlight with a comment includes that paper when you send the revision request.' }}</p>
         @endif
         @foreach ($fileGroups as $group => $groupFiles)
             @continue($groupFiles->isEmpty())
@@ -42,9 +42,8 @@
                     $fileAvailable = $availableSubmittedFileIds->contains($file->id);
                     $fileViewable = $viewableSubmittedFileIds->contains($file->id);
                     $canSelectHighlightedPdf = $topic->review_stage === 'lrec' || ! $fileViewable || $draftAnnotationCount > 0;
-                    $isSelected = is_array($oldRevisionFileIds)
-                        ? in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf
-                        : $draftAnnotationCount > 0;
+                    $isSelected = $draftAnnotationCount > 0
+                        || (is_array($oldRevisionFileIds) && in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf);
                     $annotationUrl = route('topics.versions.files.annotations.index', [$topic, $latestVersion, $file]);
 
                     if ($disableUnlessRevision) {
@@ -66,7 +65,7 @@
                             <label
                                 @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif
                                 class="inline-flex shrink-0 items-center p-1"
-                                @if ($fileViewable && $topic->review_stage !== 'lrec') :title="savedHighlightCount === 0 ? 'Save a highlight and comment before selecting this document.' : 'Include this document in the revision request.'" @endif
+                                :title="savedHighlightCount > 0 ? 'Saved highlights include this paper in the revision request. Remove its draft highlights to exclude it.' : 'Select this paper for revision when instructions are recorded.'"
                             >
                                 <input
                                     type="checkbox"
@@ -75,7 +74,7 @@
                                     value="{{ $file->id }}"
                                     x-model="needsRevision"
                                     @checked($isSelected)
-                                    x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}{{ ($fileViewable && $topic->review_stage !== 'lrec') ? 'savedHighlightCount === 0' : 'false' }}"
+                                    x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}savedHighlightCount > 0 || {{ ($fileViewable && $topic->review_stage !== 'lrec') ? 'savedHighlightCount === 0' : 'false' }}"
                                     class="h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900"
                                 >
                                 <span class="sr-only">Mark for revision: {{ $file->label() }}</span>
@@ -154,7 +153,7 @@
         @endforeach
         <p @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif class="mt-3 text-sm text-gray-600 dark:text-gray-300" role="status">
             <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="Object.values(selectedFiles).filter(Boolean).length + (Object.values(selectedFiles).filter(Boolean).length === 1 ? ' document marked for revision.' : ' documents marked for revision.')"></span>
-            Select only the documents that need changes.
+            Saved highlights include their papers automatically. Remove a draft highlight if you no longer want to request that change.
         </p>
     </div>
 @else
