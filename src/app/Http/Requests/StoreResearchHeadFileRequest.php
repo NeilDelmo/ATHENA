@@ -73,7 +73,20 @@ class StoreResearchHeadFileRequest extends FormRequest
             'document_title' => ['prohibited'],
             'issuing_office' => ['prohibited'],
             'note' => ['nullable', 'string', 'max:2000'],
+            'return_to_review' => ['sometimes', 'boolean'],
         ];
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        if ($this->boolean('return_to_review') && in_array($this->input('purpose'), [
+            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+        ], true)) {
+            return route('topics.show', $this->route('topic')).'#initial-review-workflow';
+        }
+
+        return parent::getRedirectUrl();
     }
 
     /** @return array<string, string> */

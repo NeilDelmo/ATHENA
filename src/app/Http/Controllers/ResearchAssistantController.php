@@ -6,6 +6,7 @@ use App\Exceptions\ResearchAssistantDocumentException;
 use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\AiChatCompletionService;
 use App\Services\ProposalAssistantContextService;
 use App\Services\ResearchAssistantConversationMemoryService;
 use App\Services\ResearchAssistantDocumentService;
@@ -15,7 +16,6 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
@@ -32,6 +32,7 @@ class ResearchAssistantController extends Controller
         private ResearchAssistantWorkflowContextService $workflowContext,
         private ResearchAssistantDocumentService $assistantDocuments,
         private ResearchAssistantConversationMemoryService $conversationMemory,
+        private AiChatCompletionService $ai,
     ) {}
 
     public function history(Request $request): JsonResponse
@@ -199,13 +200,9 @@ class ResearchAssistantController extends Controller
             ]);
         }
 
-        $apiKey = trim((string) config('services.gemini.key'));
-        $model = trim((string) config('services.gemini.model'));
-        $baseUrl = trim((string) config('services.gemini.base_url'));
-
-        if ($apiKey === '' || $model === '' || $baseUrl === '') {
+        if (! $this->ai->isConfigured()) {
             return response()->json([
-                'message' => 'Athena AI is not configured yet. Ask the administrator to set the Gemini API key before using the assistant.',
+                'message' => 'Athena AI is not configured yet. Ask the administrator to configure an AI provider before using the assistant.',
             ], 503);
         }
 
@@ -259,12 +256,7 @@ class ResearchAssistantController extends Controller
             }
         }
 
-        $memoryContext = $this->conversationMemory->promptContext(
-            $conversation,
-            $apiKey,
-            $model,
-            $baseUrl,
-        );
+        $memoryContext = $this->conversationMemory->promptContext($conversation);
 
         $aiMessages = [
             [
@@ -324,19 +316,17 @@ class ResearchAssistantController extends Controller
         array_push($aiMessages, ...$messages->all());
 
         try {
-            $response = Http::baseUrl($baseUrl)
-                ->withToken($apiKey)
-                ->acceptJson()
-                ->asJson()
-                ->connectTimeout(10)
-                ->timeout(45)
-                ->post('chat/completions', [
-                    'model' => $model,
+            $response = $this->ai->complete(
+                payload: [
                     'messages' => $aiMessages,
                     'temperature' => 0.25,
                     'max_completion_tokens' => 1400,
                     'stream' => false,
-                ]);
+                ],
+                usesVision: false,
+                connectTimeout: 10,
+                timeout: 45,
+            );
         } catch (ConnectionException $exception) {
             Log::warning('Gemini research assistant connection failed.', [
                 'exception' => $exception::class,
@@ -367,7 +357,7 @@ class ResearchAssistantController extends Controller
         if ($response->failed()) {
             Log::warning('Gemini research assistant request failed.', [
                 'status' => $response->status(),
-                'model' => $model,
+                'model' => $response->json('model'),
                 'request_id' => $response->header('x-request-id'),
                 'provider_error' => $response->json('error.code') ?? $response->json('error.type'),
             ]);
@@ -394,7 +384,7 @@ class ResearchAssistantController extends Controller
 
         return response()->json([
             'reply' => $reply,
-            'model' => $model,
+            'model' => $response->json('model', config('services.gemini.model')),
             'sources' => $this->researchKnowledge->publicSources($knowledgeSources),
             'usage' => [
                 'prompt_tokens' => $response->json('usage.prompt_tokens'),

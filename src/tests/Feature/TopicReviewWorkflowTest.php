@@ -435,6 +435,10 @@ test('faculty revision submission uses the topic revision draft when the browser
         ->and($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)?->source_data)
         ->toBe(['amounts' => ['telephone_expenses' => 3500]])
         ->and($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+    $noChangeRevision = $review->fileRevisions()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    expect($noChangeRevision->resolution_type)->toBe('no_file_change')
+        ->and($noChangeRevision->faculty_response)->toBe('Addressed in the revised proposal.')
+        ->and($review->fresh()->feedback_responses['file_'.$noChangeRevision->id]['response'])->toBe($noChangeRevision->faculty_response);
     expect($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
         ->source_data['comment_response_signatory_selections'])->toBe($commentsSignatories);
 });
@@ -714,7 +718,7 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->assertSee('Submit revision')
         ->assertSee('data-revision-proposal-details-button', false)
         ->assertSee('aria-controls="proposal-details-fields"', false)
-        ->assertSee('data-initially-open="false"', false)
+        ->assertSee('data-initially-open="true"', false)
         ->assertDontSee('<summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700', false)
         ->assertDontSee('data-topic-file-dropzone', false)
         ->assertSee('data-confirm-title="Submit this revision to the Research Head?"', false);
@@ -1091,12 +1095,21 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
         ->toContain('The methodology needs a clearer sampling frame.')
         ->not->toContain('Clarify the participant recruitment timeline.');
 
-    $this->get(route('faculty.topics.revision', $topic))
+    $revisionPage = $this->get(route('faculty.topics.revision', $topic))
         ->assertOk()
-        ->assertSee('Research Head Comment-Response Form')
-        ->assertSee('Co-evaluator Comment-Response Form')
+        ->assertSee('Research Head feedback')
+        ->assertSee('Co-evaluator feedback')
         ->assertSee('data-comment-response-source="research_head"', false)
         ->assertSee('data-comment-response-source="co_evaluator"', false);
+
+    $revisionDocument = new DOMDocument;
+    @$revisionDocument->loadHTML($revisionPage->getContent());
+    $revisionXPath = new DOMXPath($revisionDocument);
+    foreach ([CommentResponseFeedback::FORM_RESEARCH_HEAD, CommentResponseFeedback::FORM_CO_EVALUATOR] as $source) {
+        $group = '//section[@data-comment-response-source="'.$source.'"]';
+        expect($revisionXPath->query($group.'//button[@data-comment-response-preview]')->length)->toBe(1)
+            ->and($revisionXPath->query('//section[@data-revision-response-source="'.$source.'"]//textarea[@required]')->length)->toBeGreaterThan(0);
+    }
 
     expect($evaluation->source_data['narrative_evaluation'])->toBe('The methodology needs a clearer sampling frame.');
 });
@@ -1689,6 +1702,84 @@ test('research heads can persist an independent reviewed-paper checklist', funct
         ->and($notification->fresh()->read_at)->toBeNull();
 });
 
+test('opening a submitted paper for review automatically adds a quiet cue beside its title', function () {
+    Storage::fake('local');
+
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $otherHead = User::factory()->create();
+    $otherHead->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Review cue proposal',
+        'estimated_budget' => 25000,
+        'status' => 'pending',
+    ]);
+    $version = createTopicReviewSubmission($topic, $faculty);
+    $detailedProposal = $version->files()->sole();
+    $workPlan = $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 0,
+        'file_path' => 'proposals/review-cue-work-plan.pdf',
+        'original_filename' => 'review-cue-work-plan.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 9,
+        'checksum' => hash('sha256', 'work plan'),
+        'is_carried_forward' => false,
+    ]);
+    Storage::disk('local')->put($workPlan->file_path, 'work plan');
+
+    $annotationUrl = route('topics.versions.files.annotations.index', [$topic, $version, $detailedProposal]);
+
+    $this->actingAs($head)
+        ->get(route('topics.show', $topic).'?decision=revision_requested')
+        ->assertOk()
+        ->assertDontSee('data-review-progress', false)
+        ->assertSee('openedForReview: false', false)
+        ->assertSee($annotationUrl.'?decision=revision_requested', false)
+        ->assertSee('@click="openedForReview = true"', false)
+        ->assertSee('x-show="openedForReview"', false)
+        ->assertDontSee('data-paper-review-toggle', false)
+        ->assertSee('data-paper-reviewed-cue', false);
+
+    expect(ProposalFileReviewCheck::query()->count())->toBe(0);
+
+    $this->get($annotationUrl.'?decision=revision_requested')->assertOk();
+
+    $this->assertDatabaseHas('proposal_file_review_checks', [
+        'proposal_version_file_id' => $detailedProposal->id,
+        'reviewer_id' => $head->id,
+    ]);
+
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('openedForReview: true', false)
+        ->assertSee('openedForReview: false', false)
+        ->assertSee('data-paper-reviewed-cue', false)
+        ->assertSee('Opened for review');
+
+    $this->get($annotationUrl)->assertOk();
+
+    expect(ProposalFileReviewCheck::query()->count())->toBe(1);
+
+    $this->actingAs($otherHead)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('openedForReview: false', false)
+        ->assertSee('x-show="openedForReview"', false);
+
+    $this->actingAs($faculty)
+        ->get($annotationUrl)
+        ->assertNotFound();
+
+    expect(ProposalFileReviewCheck::query()->count())->toBe(1)
+        ->and($topic->fresh()->status)->toBe('pending')
+        ->and(ProposalFileAnnotation::query()->count())->toBe(0);
+});
+
 test('paper review checklist component is limited to research heads and files in the displayed version', function () {
     Storage::fake('local');
 
@@ -1826,12 +1917,31 @@ test('research heads review and request changes only against the latest resubmit
             'revision_file_ids' => [$latestFile->id],
             'redirect_to' => 'topic',
         ])
-        ->assertRedirect(route('topics.show', $topic))
-        ->assertSessionHas('success', 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.');
+        ->assertRedirect(route('topics.show', $topic).'#proposal-review')
+        ->assertSessionHas('topic_tab', 'review')
+        ->assertSessionHas('success', 'Revision request sent to the faculty member.');
 
     expect($topic->fresh()->status)->toBe('revision_requested')
         ->and($topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole()->proposal_version_file_id)
         ->toBe($latestFile->id);
+
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('data-topic-success', false)
+        ->assertSee('bg-emerald-50', false)
+        ->assertSee('Revision request sent')
+        ->assertSee('Submitted documents')
+        ->assertSee('data-read-only-review="true"', false)
+        ->assertSee('data-file-review-card="'.$latestFile->id.'"', false)
+        ->assertSee('data-review-and-highlight', false)
+        ->assertSee('title="Revision request already sent"', false)
+        ->assertSee('1 comment')
+        ->assertDontSee('data-research-head-file-workspace', false);
+
+    $this->get(route('topics.head-uploads.index', $topic))
+        ->assertOk()
+        ->assertSee('The revision request has been sent. Submitted papers and comments remain available for reference.')
+        ->assertDontSee('Review the submitted papers and save comments where changes are needed.');
 });
 
 test('comments form reviewer names come from frozen selections or unambiguous active directory roles', function (string $scenario, array $expectedNames) {

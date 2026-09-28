@@ -5,24 +5,21 @@ namespace App\Services;
 use App\Exceptions\LiteratureSynthesisException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
 class LiteratureSynthesisService
 {
+    public function __construct(private AiChatCompletionService $ai) {}
+
     /**
      * @param  array{title: string, authors?: string|null, year?: int|null, abstract?: string|null, is_open_access?: bool|null, evidence_basis: string, evidence_text?: string|null, proposal_title?: string|null, preceding_rrl_context?: string|null, connection_mode?: string|null}  $paper
      * @return array{synthesis: string, basis: string, notice: string, word_count: int, relationship: string, transition: string}
      */
     public function synthesize(array $paper): array
     {
-        $apiKey = trim((string) config('services.gemini.key'));
-        $model = trim((string) config('services.gemini.model'));
-        $baseUrl = trim((string) config('services.gemini.base_url'));
-
-        if ($apiKey === '' || $model === '' || $baseUrl === '') {
+        if (! $this->ai->isConfigured()) {
             throw new LiteratureSynthesisException(
                 'Automatic synthesis is not configured. You can still review the abstract and write the paragraph manually.',
             );
@@ -30,7 +27,7 @@ class LiteratureSynthesisService
 
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $maxCompletionTokens = $this->maxCompletionTokens($attempt);
-            $response = $this->requestSynthesis($baseUrl, $apiKey, $model, $paper, $attempt, $maxCompletionTokens);
+            $response = $this->requestSynthesis($paper, $attempt, $maxCompletionTokens);
             $generated = $this->parseGeneratedResponse((string) $response->json('choices.0.message.content'));
             $synthesis = $this->cleanSynthesis($generated['synthesis']);
             $wordCount = Str::wordCount($synthesis);
@@ -57,7 +54,7 @@ class LiteratureSynthesisService
                 'word_count' => $wordCount,
                 'finish_reason' => $finishReason,
                 'ends_cleanly' => $endsCleanly,
-                'model' => $model,
+                'model' => $response->json('model'),
                 'max_completion_tokens' => $maxCompletionTokens,
             ]);
         }
@@ -69,22 +66,20 @@ class LiteratureSynthesisService
     }
 
     /** @param array<string, mixed> $paper */
-    private function requestSynthesis(string $baseUrl, string $apiKey, string $model, array $paper, int $attempt, int $maxCompletionTokens): Response
+    private function requestSynthesis(array $paper, int $attempt, int $maxCompletionTokens): Response
     {
         try {
-            $response = Http::baseUrl($baseUrl)
-                ->withToken($apiKey)
-                ->acceptJson()
-                ->asJson()
-                ->connectTimeout(8)
-                ->timeout(45)
-                ->post('chat/completions', [
-                    'model' => $model,
+            $response = $this->ai->complete(
+                payload: [
                     'messages' => $this->messages($paper, $attempt),
                     'reasoning_effort' => $this->reasoningEffort(),
                     'max_completion_tokens' => $maxCompletionTokens,
                     'stream' => false,
-                ]);
+                ],
+                usesVision: false,
+                connectTimeout: 8,
+                timeout: 45,
+            );
         } catch (ConnectionException $exception) {
             Log::warning('Literature synthesis provider connection failed.', ['exception' => $exception::class]);
             throw new LiteratureSynthesisException('The synthesis service could not be reached. Review the evidence and try again.');
@@ -100,7 +95,7 @@ class LiteratureSynthesisService
         if ($response->failed()) {
             Log::warning('Literature synthesis provider request failed.', [
                 'status' => $response->status(),
-                'model' => $model,
+                'model' => $response->json('model'),
                 'request_id' => $response->header('x-request-id'),
             ]);
             throw new LiteratureSynthesisException('The synthesis service could not prepare a draft right now. Review the evidence and try again.', 502);

@@ -85,7 +85,8 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]).'?decision=revision_requested')
         ->assertOk()
         ->assertSee('Back to review')
-        ->assertDontSee('fixed bottom-4 right-4 z-40', false)
+        ->assertSee('data-fixed-back-link', false)
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
         ->assertDontSee('Back to proposal workspace')
         ->assertSee('Drag over the part that needs revision, then add a Research Head comment.')
@@ -390,7 +391,8 @@ test('research head can draft highlights while a legacy review is in progress', 
         ->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
         ->assertOk()
         ->assertSee('Back to review')
-        ->assertDontSee('fixed bottom-4 right-4 z-40', false)
+        ->assertSee('data-fixed-back-link', false)
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
         ->assertDontSee('Annotation mode')
         ->assertSee('Comments remain drafts until you send the revision request.')
         ->assertSee('Drag over the part that needs revision, then add a Research Head comment.')
@@ -525,6 +527,9 @@ test('sending a revision request publishes highlights for the faculty', function
     $this->actingAs($this->faculty)
         ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
+        ->assertSee('Back to proposal')
+        ->assertSee('data-fixed-back-link', false)
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
         ->assertSee('Prepare the corrected proposal package')
         ->assertDontSee('Focus this field')
         ->assertSee('data-revision-pdf-frame', false)
@@ -727,7 +732,7 @@ test('saved highlights automatically request their paper even when selection is 
         ->and($annotation->fresh()->topic_review_file_revision_id)->toBe($revision->id);
     $this->actingAs($this->faculty)->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
-        ->assertSee('1 paper requested for revision.')
+        ->assertSee('2. Revise papers')
         ->assertSee('data-revision-document="work_plan"', false)
         ->assertSee('Start planting in June.');
 });
@@ -761,7 +766,7 @@ test('overall feedback clearly carries forward papers without a replacement requ
         ->and($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->is_carried_forward)->toBeTrue();
 });
 
-test('faculty revision cards keep requested feedback and replacement inputs together', function () {
+test('faculty revision workspace keeps requested feedback and replacement inputs together', function () {
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create([
         'reviewer_id' => $this->head->id,
@@ -794,15 +799,22 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->assertOk()
         ->assertSee('Research proposal')
         ->assertDontSee('1 of 4 steps')
+        ->assertDontSee('aria-label="Revision steps"', false)
+        ->assertDontSee('Respond to feedback')
+        ->assertDontSee('Revise requested papers')
+        ->assertDontSee('Confirm proposal details')
+        ->assertDontSee('Review and send')
         ->assertSee('Prepare the corrected proposal package')
-        ->assertSee('2. Requested papers')
-        ->assertSee('Open for review')
+        ->assertSee('2. Revise papers')
+        ->assertSee('Revise paper')
+        ->assertDontSee('Open for review')
+        ->assertDontSee('Changes detected')
         ->assertSee('data-revision-dialog', false)
         ->assertDontSee('Faculty action required')
         ->assertDontSee('What happens next')
         ->assertDontSee('Requested revision tasks')
         ->assertDontSee('Paper-level feedback')
-        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Requested papers', '4. Final review and submission'])
+        ->assertSeeInOrder(['1. Reviewer feedback', 'Start planting in June.', '2. Revise papers', '5. Final review and submission'])
         ->assertDontSee('Summary of changes')
         ->assertDontSee('Choose comments-form signatories')
         ->assertDontSee('LEVEL OF EVALUATION DONE:')
@@ -826,11 +838,22 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
     ]);
 
     expect($xpath->query($card)->length)->toBe(1)
+        ->and($xpath->query($card.'//*[@data-revision-document-state][@hidden]')->length)->toBe(1)
         ->and($xpath->query('//button[@type="button"][@data-comment-response-preview][@aria-haspopup="dialog"]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//button[@data-comment-response-preview]')->length)->toBe(1)
+        ->and($xpath->query('//form[@id="submit-revision"]/section[@data-revision-step]')->length)->toBe(5)
+        ->and($xpath->query('//section[@data-revision-step="1"]//textarea')->length)->toBe(0)
+        ->and($xpath->query('//section[@data-revision-step="3"]//textarea[@required]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//section[@data-revision-step="3"]//textarea[@data-revision-response-document="work_plan"]')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//section[@data-revision-step="4"]//input[@data-revision-details-confirmed][@required]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-revision-step="5"]//button[@type="submit"]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-comment-response-source="research_head"]//article[@data-revision-feedback-item]//blockquote')->length)->toBeGreaterThan(0)
+        ->and($xpath->query('//section[@data-revision-response-source="research_head"]//textarea[@required]')->length)->toBe($xpath->query('//section[@data-comment-response-source="research_head"]//article[@data-revision-feedback-item]')->length)
         ->and($xpath->query('//a[@href="'.$commentResponsePreviewUrl.'" or @href="'.$commentResponsePdfUrl.'"]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-faculty-comment-response-preview-modal]//*[@data-pdf-annotation-config]')->length)->toBe(1)
         ->and($xpath->query('//a[contains(@href, "/comment-response-form/download")]')->length)->toBe(0)
-        ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(1)
+        ->and($xpath->query($card.'//input[@name="work_plan"]')->length)->toBe(0)
+        ->and($xpath->query($card.'//input[@name="work_plan"][@required]')->length)->toBe(0)
         ->and($xpath->query($card.'//select[@data-revision-comment]/option[@data-annotation-id="'.$annotation->id.'"]')->length)->toBe(1)
         ->and($xpath->query($card.'//iframe[@data-revision-editor-frame][contains(@src, "revision_embed=1")]')->length)->toBe(1)
         ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]/following-sibling::section[contains(@class, "revision-editor-panel")]//iframe[@data-revision-editor-frame]')->length)->toBe(1)
@@ -839,7 +862,7 @@ test('faculty revision cards keep requested feedback and replacement inputs toge
         ->and($xpath->query($card.'//button[@data-revision-open]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
-        ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="false"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="true"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
         ->and($xpath->query('//form[@id="submit-revision"]//button[@type="submit"]')->length)->toBe(1);
 
     foreach ($xpath->query('//button[@data-comment-response-preview] | //button[@data-revision-submit-button]') as $control) {

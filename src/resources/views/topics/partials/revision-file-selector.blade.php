@@ -3,20 +3,28 @@
     $oldRevisionFileIds = old('revision_file_ids');
     $disableUnlessRevision = $disableUnlessRevision ?? false;
     $decisionFormId = $decisionFormId ?? null;
-    $latestRevisionRequest = ($prioritizeRevisedFiles ?? false)
+    $showReviewChecks = $showReviewChecks ?? false;
+    $readOnlyReview = $readOnlyReview ?? false;
+    $latestRevisionRequest = (($prioritizeRevisedFiles ?? false) || $readOnlyReview)
         ? $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first()
         : null;
+    $sentRevisionFiles = $readOnlyReview
+        ? ($latestRevisionRequest?->fileRevisions ?? collect())->keyBy('proposal_version_file_id')
+        : collect();
+    $sentRevisionIds = $sentRevisionFiles->pluck('id');
     $requestedRevisions = ($latestRevisionRequest?->fileRevisions ?? collect())
         ->whereIn('resolved_by_version_file_id', $revisionFiles->pluck('id'))
         ->keyBy('resolved_by_version_file_id');
     $revisedPapers = $revisionFiles->whereIn('id', $requestedRevisions->keys());
-    $fileGroups = $revisedPapers->isNotEmpty()
-        ? ['revised' => $revisedPapers, 'other' => $revisionFiles->whereNotIn('id', $requestedRevisions->keys())]
-        : ['all' => $revisionFiles];
+    if ($readOnlyReview || $revisedPapers->isEmpty()) {
+        $fileGroups = ['all' => $revisionFiles];
+    } else {
+        $fileGroups = ['revised' => $revisedPapers, 'other' => $revisionFiles->whereNotIn('id', $requestedRevisions->keys())];
+    }
 @endphp
 
 @if ($revisionFiles->isNotEmpty())
-    <div x-data="{ selectedFiles: {} }" data-revision-file-list>
+    <div x-data="{ selectedFiles: {} }" data-revision-file-list data-read-only-review="{{ $readOnlyReview ? 'true' : 'false' }}">
         @if ($showGuidance ?? true)
             <p class="mb-4 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Papers with saved highlights are included in the revision request. Select additional papers to update using committee comments as instructions.' : 'Open a document to review it. Saving a highlight with a comment includes that paper when you send the revision request.' }}</p>
         @endif
@@ -39,11 +47,17 @@
             @foreach ($groupFiles as $file)
                 @php
                     $draftAnnotationCount = $file->annotations->whereNull('topic_review_file_revision_id')->count();
+                    $reviewCommentCount = $readOnlyReview
+                        ? $file->annotations->whereIn('topic_review_file_revision_id', $sentRevisionIds)->count()
+                        : $draftAnnotationCount;
                     $fileAvailable = $availableSubmittedFileIds->contains($file->id);
                     $fileViewable = $viewableSubmittedFileIds->contains($file->id);
                     $canSelectHighlightedPdf = $topic->review_stage === 'lrec' || ! $fileViewable || $draftAnnotationCount > 0;
-                    $isSelected = $draftAnnotationCount > 0
-                        || (is_array($oldRevisionFileIds) && in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf);
+                    $isSelected = $readOnlyReview
+                        ? $sentRevisionFiles->has($file->id)
+                        : ($draftAnnotationCount > 0
+                            || (is_array($oldRevisionFileIds) && in_array($file->id, $oldRevisionFileIds) && $canSelectHighlightedPdf));
+                    $fileReviewed = $showReviewChecks && $reviewedSubmittedFileIds->contains($file->id);
                     $annotationUrl = route('topics.versions.files.annotations.index', [$topic, $latestVersion, $file]);
 
                     if ($disableUnlessRevision) {
@@ -52,7 +66,7 @@
                 @endphp
 
                 <li
-                    x-data="{ needsRevision: @js($isSelected), savedHighlightCount: @js($draftAnnotationCount), menuOpen: false }"
+                    x-data="{ needsRevision: @js($isSelected), savedHighlightCount: @js($reviewCommentCount), openedForReview: @js($fileReviewed), menuOpen: false }"
                     x-init="selectedFiles[{{ $file->id }}] = needsRevision; $watch('needsRevision', value => selectedFiles[{{ $file->id }}] = value)"
                     @annotation-saved.window="if (Number($event.detail.fileId) === {{ $file->id }}) { savedHighlightCount = Number($event.detail.annotationCount); needsRevision = savedHighlightCount > 0; }"
                     :class="needsRevision ? 'bg-red-50/60 dark:bg-red-950/20' : ''"
@@ -65,7 +79,7 @@
                             <label
                                 @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif
                                 class="inline-flex shrink-0 items-center p-1"
-                                :title="savedHighlightCount > 0 ? 'Saved highlights include this paper in the revision request. Remove its draft highlights to exclude it.' : 'Select this paper for revision when instructions are recorded.'"
+                                @if ($readOnlyReview) title="Revision request already sent" @else :title="savedHighlightCount > 0 ? 'Saved highlights include this paper in the revision request. Remove its draft highlights to exclude it.' : 'Select this paper for revision when instructions are recorded.'" @endif
                             >
                                 <input
                                     type="checkbox"
@@ -74,17 +88,23 @@
                                     value="{{ $file->id }}"
                                     x-model="needsRevision"
                                     @checked($isSelected)
-                                    x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}savedHighlightCount > 0 || {{ ($fileViewable && $topic->review_stage !== 'lrec') ? 'savedHighlightCount === 0' : 'false' }}"
+                                    @if ($readOnlyReview) disabled @else x-bind:disabled="{{ $disableUnlessRevision ? "decision !== 'revision_requested' || " : '' }}savedHighlightCount > 0 || {{ ($fileViewable && $topic->review_stage !== 'lrec') ? 'savedHighlightCount === 0' : 'false' }}" @endif
                                     class="h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-900"
                                 >
-                                <span class="sr-only">Mark for revision: {{ $file->label() }}</span>
+                                <span class="sr-only">{{ $readOnlyReview ? 'Revision requested for: ' : 'Mark for revision: ' }}{{ $file->label() }}</span>
                             </label>
                             <h5 class="min-w-0 text-sm font-semibold leading-6 text-gray-900 dark:text-gray-100">{{ $file->label() }}</h5>
+                            @if ($showReviewChecks)
+                                <span x-show="openedForReview" @if (! $fileReviewed) x-cloak @endif class="inline-flex shrink-0 text-emerald-700 dark:text-emerald-400" title="Opened for review" data-paper-reviewed-cue>
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 2.5 2.5L16 9" /></svg>
+                                    <span class="sr-only">Opened for review</span>
+                                </span>
+                            @endif
                         </div>
 
                         <div class="col-start-1 row-start-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:col-start-2 sm:row-start-1 sm:flex-col sm:items-start">
                             <span x-show="needsRevision" @if (! $isSelected) x-cloak @endif class="font-semibold text-red-700 dark:text-red-300" data-file-review-status>Needs revision</span>
-                            <span x-show="savedHighlightCount > 0" @if ($draftAnnotationCount === 0) x-cloak @endif class="text-gray-500 dark:text-gray-400" x-text="savedHighlightCount + (savedHighlightCount === 1 ? ' comment' : ' comments')">{{ $draftAnnotationCount }} {{ $draftAnnotationCount === 1 ? 'comment' : 'comments' }}</span>
+                            <span x-show="savedHighlightCount > 0" @if ($reviewCommentCount === 0) x-cloak @endif class="text-gray-500 dark:text-gray-400" x-text="savedHighlightCount + (savedHighlightCount === 1 ? ' comment' : ' comments')">{{ $reviewCommentCount }} {{ $reviewCommentCount === 1 ? 'comment' : 'comments' }}</span>
                             @if (! $fileAvailable)
                                 <span class="text-amber-700 dark:text-amber-300">File unavailable</span>
                             @endif
@@ -92,7 +112,7 @@
 
                         <div class="col-start-2 row-span-2 row-start-1 flex items-center gap-1 sm:col-start-3 sm:row-span-1">
                             @if ($fileViewable)
-                                <a href="{{ $annotationUrl }}" aria-label="Review {{ $file->label() }}" class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-gray-950" data-review-and-highlight>
+                                <a href="{{ $annotationUrl }}" aria-label="Review {{ $file->label() }}" @if ($showReviewChecks) @click="openedForReview = true" @endif class="inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70 dark:focus-visible:ring-offset-gray-950" data-review-and-highlight>
                                     Review
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 5 7 7-7 7" /></svg>
                                 </a>
@@ -126,7 +146,7 @@
                         </div>
                     @endif
 
-                    @if (! $fileViewable)
+                    @if (! $fileViewable && ! $readOnlyReview)
                         <label x-show="needsRevision{{ $disableUnlessRevision ? " && decision === 'revision_requested'" : '' }}" x-cloak class="mt-3 block text-sm font-semibold text-gray-700 dark:text-gray-200">
                             Revision instructions <span class="text-red-600 dark:text-red-400">Required</span>
                             <textarea
@@ -151,10 +171,12 @@
                 </div>
             @endif
         @endforeach
-        <p @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif class="mt-3 text-sm text-gray-600 dark:text-gray-300" role="status">
-            <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="Object.values(selectedFiles).filter(Boolean).length + (Object.values(selectedFiles).filter(Boolean).length === 1 ? ' document marked for revision.' : ' documents marked for revision.')"></span>
-            Saved highlights include their papers automatically. Remove a draft highlight if you no longer want to request that change.
-        </p>
+        @unless ($readOnlyReview)
+            <p @if ($disableUnlessRevision) x-show="decision === 'revision_requested'" x-cloak @endif class="mt-3 text-sm text-gray-600 dark:text-gray-300" role="status">
+                <span class="font-semibold text-gray-900 dark:text-gray-100" x-text="Object.values(selectedFiles).filter(Boolean).length + (Object.values(selectedFiles).filter(Boolean).length === 1 ? ' document marked for revision.' : ' documents marked for revision.')"></span>
+                Saved highlights include their papers automatically. Remove a draft highlight if you no longer want to request that change.
+            </p>
+        @endunless
     </div>
 @else
     <p class="rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300">No submitted files are available for review.</p>

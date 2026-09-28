@@ -99,7 +99,7 @@
         class="mx-auto max-w-7xl space-y-6"
         x-data="{
             activeTopicTab: @js($initialTopicTab) || (
-                ['#proposal-review', '#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
+                ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
                         ? 'notice'
@@ -107,7 +107,7 @@
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
-                        : @js($canDecide ? 'review' : 'details')
+                        : @js($canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details')
             ),
             routingDocketOpen: false,
             setTopicTab(tab, hash) {
@@ -115,7 +115,7 @@
                 window.location.hash = hash;
             },
             syncTopicTab() {
-                if (['#proposal-review', '#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
+                if (['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
                     this.activeTopicTab = 'notice';
@@ -129,10 +129,11 @@
                 this.scrollToTopicHash();
             },
             init() {
+                try { this.routingDocketOpen = sessionStorage.getItem('review-workflow-{{ $topic->id }}') === 'shown'; } catch (error) {}
                 this.scrollToTopicHash();
             },
             scrollToTopicHash() {
-                if (['#submit-revision', '#review-and-submit'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
+                if (['#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
                     this.$nextTick(() => {
                         const card = document.getElementById(window.location.hash.slice(1));
                         if (!card) {
@@ -179,7 +180,7 @@
                 </div>
             </div>
         @elseif (session('success'))
-            <div class="rounded-2xl border border-gray-950 bg-gray-950 px-4 py-3 text-sm font-semibold text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">{{ session('success') }}</div>
+            <div data-topic-success role="status" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">{{ session('success') }}</div>
         @endif
         @if ($errors->any() || $resubmissionErrors->any())
             <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -220,7 +221,8 @@
             @unless ($canViewMonitoring)
                 <button
                     type="button"
-                    @click="routingDocketOpen = ! routingDocketOpen; setTopicTab('details', 'proposal-details')"
+                    @click="routingDocketOpen = ! routingDocketOpen; try { sessionStorage.setItem('review-workflow-{{ $topic->id }}', routingDocketOpen ? 'shown' : 'hidden') } catch (error) {}"
+                    data-review-workflow-toggle
                     :aria-expanded="routingDocketOpen.toString()"
                     aria-controls="proposal-routing-docket"
                     class="mb-2 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50"
@@ -228,27 +230,28 @@
                     title="Proposal routing information"
                 >
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path stroke-linecap="round" d="M12 10.5v5m0-8.25h.01" /></svg>
-                    <span class="hidden sm:inline">Review steps</span>
+                    <span x-text="routingDocketOpen ? 'Hide workflow' : 'Show workflow'">Show workflow</span>
                 </button>
             @endunless
         </div>
 
+        @unless ($canViewMonitoring)
+            <div
+                class="mb-5"
+                x-cloak
+                x-show="routingDocketOpen"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="-translate-y-2 opacity-0"
+                x-transition:enter-end="translate-y-0 opacity-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="translate-y-0 opacity-100"
+                x-transition:leave-end="-translate-y-2 opacity-0"
+            >
+                <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
+            </div>
+        @endunless
+
         <section id="proposal-details-tab" x-show="activeTopicTab === 'details'" x-cloak role="tabpanel" aria-labelledby="proposal-details-tab-button">
-            @unless ($canViewMonitoring)
-                <div
-                    class="mb-5"
-                    x-cloak
-                    x-show="routingDocketOpen"
-                    x-transition:enter="transition ease-out duration-200"
-                    x-transition:enter-start="-translate-y-2 opacity-0"
-                    x-transition:enter-end="translate-y-0 opacity-100"
-                    x-transition:leave="transition ease-in duration-150"
-                    x-transition:leave-start="translate-y-0 opacity-100"
-                    x-transition:leave-end="-translate-y-2 opacity-0"
-                >
-                    <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
-                </div>
-            @endunless
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
                 <section id="submitted-files" aria-labelledby="submitted-files-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
@@ -354,16 +357,16 @@
             }
         @endphp
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
-            @if ($canDecide)
+            @if ($canDecide || ($isResearchHead && $topic->status === 'revision_requested'))
                 <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
                     <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Submitted documents <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
                     <div data-review-feedback-preview class="my-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Committee comments and saved highlights are included in the Comment Response paper.' : 'Highlight sections that require revision and add a comment. Saved comments are included in the Comment Response paper.' }}</p>
-                        @if ($latestVersion)
+                        <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $canDecide ? ($topic->review_stage === 'lrec' ? 'Committee comments and saved highlights are included in the Comment Response paper.' : 'Highlight sections that require revision and add a comment. Saved comments are included in the Comment Response paper.') : 'Revision request sent. Open a paper to view its saved comments while the faculty member prepares the next version.' }}</p>
+                        @if ($canDecide && $latestVersion)
                             <button type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'review-comment-response-{{ $topic->id }}')" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
                         @endif
                     </div>
-                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true, 'decisionFormId' => 'research-head-decision-form', 'prioritizeRevisedFiles' => true, 'showGuidance' => false])
+                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => $canDecide, 'decisionFormId' => $canDecide ? 'research-head-decision-form' : null, 'prioritizeRevisedFiles' => true, 'showGuidance' => false, 'showReviewChecks' => true, 'readOnlyReview' => ! $canDecide])
                     @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                 </section>
             @endif
@@ -426,8 +429,8 @@
                 </div>
             @endif
 
-            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && $topic->status !== \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE)
-                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" />
+            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && ! in_array($topic->status, ['revision_requested', \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE], true))
+                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" :return-to-review="true" />
             @endif
 
             @if ($isResearchHead && $topic->status === 'lrec_queued')

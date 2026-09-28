@@ -21,7 +21,7 @@
                         <span>{{ $file->original_filename }}</span>
                     </p>
                 </div>
-                <x-back-link href="{{ $proposalWorkspaceUrl }}">Back to review</x-back-link>
+                <x-back-link fixed href="{{ $proposalWorkspaceUrl }}">Back to review</x-back-link>
             </div>
         </x-slot>
 

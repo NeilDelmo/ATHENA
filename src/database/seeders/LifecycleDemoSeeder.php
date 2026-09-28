@@ -6,6 +6,7 @@ use App\Actions\ArchiveProposalDraftDocumentHistory;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
@@ -13,7 +14,10 @@ use App\Models\ResearchPublication;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\DetailedProposalDocumentService;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProposalPackageService;
+use App\Support\DetailedProposalData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -149,8 +153,8 @@ class LifecycleDemoSeeder extends Seeder
 
             $directory = 'proposal-packages/lifecycle-demo/'.$topic->id;
             $primaryDocument = $draft->documents->firstWhere('document_type', 'detailed_proposal') ?? $draft->documents->firstOrFail();
-            $primaryPath = $this->copyDocument($primaryDocument->file_path, $directory.'/v1/'.$primaryDocument->document_type.'-'.$primaryDocument->position);
-            if (! $primaryPath) {
+            $primaryFile = $this->preparePrimaryDocument($primaryDocument, $directory, $draft->project_title);
+            if (! $primaryFile) {
                 throw new RuntimeException('The prepared detailed proposal file is missing for '.$draft->project_title.'.');
             }
             $version = $topic->versions()->create([
@@ -161,26 +165,31 @@ class LifecycleDemoSeeder extends Seeder
                 'title' => $draft->project_title,
                 'estimated_budget' => $this->draftBudget($draft),
                 'estimated_duration_months' => $draft->duration_months,
-                'file_path' => $primaryPath,
+                'file_path' => $primaryFile['file_path'],
                 'original_filename' => $primaryDocument->original_filename,
                 'mime_type' => $primaryDocument->mime_type,
-                'file_size' => $primaryDocument->file_size,
-                'checksum' => $primaryDocument->checksum,
+                'file_size' => $primaryFile['file_size'],
+                'checksum' => $primaryFile['checksum'],
             ]);
 
             foreach ($draft->documents as $document) {
-                $path = $document->is($primaryDocument)
-                    ? $primaryPath
-                    : $this->copyDocument($document->file_path, $directory.'/v1/'.$document->document_type.'-'.$document->position);
+                $file = $document->is($primaryDocument)
+                    ? $primaryFile
+                    : [
+                        'file_path' => $this->copyDocument($document->file_path, $directory.'/v1/'.$document->document_type.'-'.$document->position),
+                        'file_size' => $document->file_size,
+                        'checksum' => $document->checksum,
+                        'source_data' => $document->source_data,
+                    ];
                 $version->files()->create([
                     'document_type' => $document->document_type,
                     'position' => $document->position,
-                    'file_path' => $path,
+                    'file_path' => $file['file_path'],
                     'original_filename' => $document->original_filename,
                     'mime_type' => $document->mime_type,
-                    'file_size' => $document->file_size,
-                    'checksum' => $document->checksum,
-                    'source_data' => $document->source_data,
+                    'file_size' => $file['file_size'],
+                    'checksum' => $file['checksum'],
+                    'source_data' => $file['source_data'],
                     'uploaded_by' => $draft->user_id,
                 ]);
             }
@@ -209,6 +218,45 @@ class LifecycleDemoSeeder extends Seeder
         $source = $draft->documents->firstWhere('document_type', 'line_item_budget')?->source_data;
 
         return (float) ($source['computed_project_total'] ?? $source['project_total'] ?? 75000);
+    }
+
+    /** @return array{file_path: string, file_size: int|null, checksum: string|null, source_data: array<string, mixed>|null}|null */
+    private function preparePrimaryDocument(ProposalDraftDocument $document, string $directory, string $projectTitle): ?array
+    {
+        if (! $document->file_path || ! Storage::disk('local')->exists($document->file_path)) {
+            return null;
+        }
+
+        $sourceData = $document->source_data;
+        if ($document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL
+            && is_array($sourceData)
+            && filled($sourceData['project_title'] ?? null)) {
+            unset($sourceData['_revision_sections']);
+
+            $docx = app(DetailedProposalDocumentService::class)->generate(DetailedProposalData::fromValidated($sourceData));
+            $generated = app(ProposalPackageService::class)->storeGeneratedDetailedProposal(
+                $docx,
+                $directory.'/v1',
+                $projectTitle,
+                $sourceData,
+            );
+
+            return [
+                'file_path' => $generated['file_path'],
+                'file_size' => $generated['file_size'],
+                'checksum' => $generated['checksum'],
+                'source_data' => $generated['source_data'],
+            ];
+        }
+
+        $path = $this->copyDocument($document->file_path, $directory.'/v1/'.$document->document_type.'-'.$document->position);
+
+        return $path ? [
+            'file_path' => $path,
+            'file_size' => $document->file_size,
+            'checksum' => $document->checksum,
+            'source_data' => $sourceData,
+        ] : null;
     }
 
     private function copyDocument(?string $source, string $targetWithoutExtension): ?string

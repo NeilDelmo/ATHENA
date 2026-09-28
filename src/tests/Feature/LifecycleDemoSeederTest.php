@@ -1,8 +1,10 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchPublication;
 use App\Models\TopicProposal;
@@ -13,6 +15,10 @@ use Spatie\Permission\Models\Role;
 
 test('lifecycle demo promotes prepared drafts into connected process records', function () {
     Storage::fake('local');
+    $this->mock(DocumentPdfConverter::class)
+        ->shouldReceive('convertDocx')
+        ->once()
+        ->andReturn("%PDF-1.4\n%%EOF");
     Role::findOrCreate('research_head', 'web');
     Role::findOrCreate('faculty', 'web');
     $head = User::factory()->create();
@@ -71,6 +77,9 @@ test('lifecycle demo promotes prepared drafts into connected process records', f
                             ],
                         ],
                     ],
+                    'detailed_proposal' => $draftNumber === 1
+                        ? ['project_title' => $draft->project_title, 'project_leader' => $faculty->name]
+                        : [],
                     default => [],
                 },
                 'completed_at' => now(),
@@ -89,12 +98,17 @@ test('lifecycle demo promotes prepared drafts into connected process records', f
     $implementationReports = ProjectProgressReport::query()
         ->whereHas('topic', fn ($query) => $query->where('description', 'like', '[lifecycle-demo:%'))
         ->get();
+    $generatedDetail = $newSubmission?->latestVersion?->files()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->first();
 
     expect($topics)->toHaveCount(21)
         ->and($topics->whereIn('status', ['expert_review', 'for_final_decision']))->toBeEmpty()
         ->and($topics->contains(fn (TopicProposal $topic): bool => str_contains($topic->description, 'Under expert review') || str_contains($topic->description, 'For final decision')))->toBeFalse()
         ->and($newSubmission?->description)->toContain('New submission')
         ->and($newSubmission?->research_head_viewed_version_id)->toBeNull()
+        ->and($generatedDetail?->checksum)->not->toBe(hash('sha256', 'Prepared PDF for detailed_proposal'))
+        ->and(Storage::disk('local')->get($generatedDetail->file_path))->toStartWith('%PDF')
         ->and($needsReview?->description)->toContain('Needs review')
         ->and($needsReview?->research_head_viewed_version_id)->toBe($needsReview?->latestVersion()->value('id'))
         ->and($gadAssessment?->description)->toContain('GAD assessment')

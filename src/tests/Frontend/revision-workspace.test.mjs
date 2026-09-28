@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import initializeRevisionWorkspace, { applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
+import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
 
 test('all edits are saved before any replacement is prepared so later saves cannot invalidate earlier files', async () => {
     const files = new Map();
@@ -141,7 +141,6 @@ test('submit operates on the mounted editor without replacing the page or requir
     t.after(() => Object.assign(globalThis, original));
     const handlers = {};
     const events = [];
-    const upload = { required: true, files: [] };
     const status = { hidden: true, textContent: '' };
     const error = { hidden: true, scrollIntoView() {} };
     const errorMessage = { textContent: '' };
@@ -173,7 +172,7 @@ test('submit operates on the mounted editor without replacing the page or requir
         dataset: { revisionDocument: 'work_plan', revisionLabel: 'Work Plan' },
         querySelectorAll: () => [],
         querySelector(selector) {
-            if (selector === 'input[type="file"]') return upload;
+            if (selector === 'input[type="file"]') return null;
             if (selector === '[data-revision-editor-frame]') return frame;
             if (selector === '[data-revision-editor-status]') return status;
             if (selector === '[data-revision-document-state]') return documentState;
@@ -220,7 +219,7 @@ test('submit operates on the mounted editor without replacing the page or requir
         assert.equal(overlayClasses.has('hidden'), true);
         return true;
     });
-    assert.equal(upload.required, false);
+    assert.equal(card.querySelector('input[type="file"]'), null);
     assert.equal(form.elements.revision_draft_id.value, '8');
     assert.equal(field.value, 'Changed activity');
     assert.equal(frame.contentWindow.athenaRevisionEditor, api);
@@ -259,6 +258,7 @@ test('full-screen document switching preserves frames, synchronizes feedback and
         const dialogHandlers = {};
         const pdfHandlers = {};
         const selectionHandlers = {};
+        const editorHandlers = {};
         const options = ['11', '12'].map((id) => ({
             value: id, dataset: { annotationId: id, pdfUrl: '/pdf/' + type },
         }));
@@ -282,9 +282,11 @@ test('full-screen document switching preserves frames, synchronizes feedback and
         };
         const pdfLoading = { hidden: false };
         const editorLoading = { hidden: false };
-        const editorApi = { topicId: '3', documentType: type, focus(id) { actions.push(type + ' editor ' + id); } };
-        const editorFrame = { contentWindow: { athenaRevisionEditor: editorApi }, closest: () => card, addEventListener() {} };
+        const editorApi = { topicId: '3', documentType: type, focus(id, options) { actions.push(type + ' editor ' + id); this.pendingFocus = options; } };
+        const editorFrame = { contentWindow: { athenaRevisionEditor: editorApi }, closest: () => card, addEventListener(name, fn) { editorHandlers[name] = fn; } };
         const nodes = {
+            '[data-revision-no-change]': { checked: false },
+            '[data-revision-no-change-explanation]': { value: '' },
             '[data-revision-dialog]': dialog,
             '[data-revision-pdf-frame]': pdfFrame,
             '[data-revision-editor-frame]': editorFrame,
@@ -301,7 +303,7 @@ test('full-screen document switching preserves frames, synchronizes feedback and
             querySelector: (key) => nodes[key],
             querySelectorAll: () => bodies,
         };
-        return { card, dialog, selector, editorFrame, pdfFrame, pdfApi, pdfHandlers, selectionHandlers, bodies, pdfLoading, editorLoading };
+        return { card, dialog, selector, editorFrame, pdfFrame, pdfApi, pdfHandlers, selectionHandlers, editorHandlers, nodes, bodies, pdfLoading, editorLoading };
     };
     const first = makeCard('work_plan');
     const second = makeCard('line_item_budget');
@@ -327,6 +329,21 @@ test('full-screen document switching preserves frames, synchronizes feedback and
     assert.ok(actions.includes('work_plan editor 12'));
     first.pdfApi.onSelect('11');
     assert.equal(first.selector.value, '11');
+    // A delayed iframe load and previously queued annotation focus cannot interrupt typing.
+    const pendingFocus = first.editorFrame.contentWindow.athenaRevisionEditor.pendingFocus;
+    document.activeElement = { closest: () => first.nodes['[data-revision-no-change-explanation]'] };
+    assert.equal(pendingFocus.canFocus(), false);
+    first.nodes['[data-revision-no-change]'].checked = true;
+    const focusCount = actions.filter((action) => action.includes(' editor ')).length;
+    first.editorHandlers.load();
+    first.nodes['[data-revision-no-change-explanation]'].value = 'The existing objectives already address this comment.';
+    formHandlers.input({ target: {
+        matches: () => true, closest: () => first.card,
+    } });
+    first.selectionHandlers.change();
+    assert.equal(actions.filter((action) => action.includes(' editor ')).length, focusCount);
+    first.nodes['[data-revision-no-change]'].checked = false;
+    document.activeElement = null;
     const sameEditor = first.editorFrame.contentWindow.athenaRevisionEditor;
     workspace.open(second.card);
     pendingClose.shift()();
@@ -360,26 +377,31 @@ test('change tracking distinguishes edited values, checked controls and reverted
     assert.equal(revisionSourceControlFingerprint({ type: 'checkbox', value: '9' }, [1, 8, 12]), 'unchecked');
 });
 
-test('linked feedback and document badges distinguish review from actual changes', () => {
+test('draft edit states distinguish edited fields from untouched fields', () => {
     const statuses = [
         { dataset: { annotationId: '11' }, textContent: '' },
         { dataset: { annotationId: '12' }, textContent: '' },
         { dataset: { annotationId: '' }, textContent: '' },
     ];
     const documentStatus = { dataset: {}, textContent: '' };
+    const resolvedCue = { hidden: true };
     const card = {
         dataset: { revisionReviewed: 'true' },
         querySelectorAll: () => statuses,
-        querySelector: () => documentStatus,
+        querySelector: (selector) => selector === '[data-revision-resolved-cue]' ? resolvedCue : documentStatus,
     };
     assert.equal(applyRevisionModificationStates(card, { 11: true, 12: false, __document__: true }), true);
-    assert.equal(statuses[0].textContent, 'Changes detected');
-    assert.equal(statuses[1].textContent, 'Reviewed — no change detected');
-    assert.equal(statuses[2].textContent, 'Changes detected');
-    assert.equal(documentStatus.textContent, 'Changes detected');
+    assert.equal(statuses[0].textContent, 'Draft edited');
+    assert.equal(statuses[1].textContent, 'No draft edits');
+    assert.equal(statuses[2].textContent, 'Draft edited');
+    assert.equal(documentStatus.textContent, 'Draft edited');
+    assert.equal(resolvedCue.hidden, false);
     assert.equal(applyRevisionModificationStates(card, {}, true), true);
     assert.ok(statuses.every((status) => status.textContent === 'Replacement selected'));
     assert.equal(documentStatus.textContent, 'Replacement selected');
+    assert.equal(resolvedCue.hidden, false);
+    assert.equal(applyRevisionModificationStates(card), false);
+    assert.equal(resolvedCue.hidden, true);
 });
 
 
@@ -425,25 +447,36 @@ test('workspace-only version metadata does not create a false change badge', () 
     );
 });
 
-test('an explanation resolves a comment without pretending the file was modified', () => {
+test('a no-change explanation reveals the paper cue only after it is complete', () => {
     const checkbox = { checked: true };
-    const explanation = { value: 'The existing value already satisfies this informational comment.' };
+    const explanation = { value: '' };
     const documentStatus = { dataset: {}, textContent: '' };
     const feedbackStatus = { dataset: { annotationId: '11' }, textContent: '' };
+    const resolvedCue = { hidden: true };
     const card = {
         querySelectorAll: () => [feedbackStatus],
         querySelector(selector) {
             if (selector === '[data-revision-no-change]') return checkbox;
             if (selector === '[data-revision-no-change-explanation]') return explanation;
             if (selector === '[data-revision-document-state]') return documentStatus;
+            if (selector === '[data-revision-resolved-cue]') return resolvedCue;
             return null;
         },
     };
 
+    assert.deepEqual(revisionNoChangeResolution(card), { selected: true, complete: false });
+    assert.equal(applyRevisionModificationStates(card, {}), false);
+    assert.equal(documentStatus.dataset.addressed, 'false');
+    assert.equal(resolvedCue.hidden, true);
+    applyRevisionModificationStates(card, { __document__: true, 11: true });
+    assert.equal(documentStatus.dataset.addressed, 'false');
+    assert.equal(resolvedCue.hidden, true);
+    explanation.value = 'The existing value already satisfies this informational comment.';
     assert.deepEqual(revisionNoChangeResolution(card), { selected: true, complete: true });
     assert.equal(applyRevisionModificationStates(card, {}), false);
     assert.equal(documentStatus.dataset.modified, 'false');
     assert.equal(documentStatus.dataset.addressed, 'true');
+    assert.equal(resolvedCue.hidden, false);
     assert.equal(documentStatus.textContent, 'Explained — no file change');
     assert.equal(feedbackStatus.textContent, 'Explained — no file change');
 });
@@ -483,4 +516,165 @@ test('document state detects an added or removed repeating row', () => {
         revisionCurrentSourceFingerprint(documentRoot, null, returnedSource),
         revisionSourceFingerprint(documentRoot, null, returnedSource),
     );
+});
+
+function workflowFixture({ unresolved = false, responseComplete = true, confirmed = false } = {}) {
+    const listeners = {};
+    const button = () => ({ hidden: false, addEventListener(type, fn) { this[type] = fn; } });
+    const next = button();
+    const back = button();
+    const progress = {};
+    const error = {};
+    const confirmation = { checked: confirmed, checkValidity() { return this.checked; }, reportValidity() {}, focus() {} };
+    const response = { checkValidity: () => responseComplete, reportValidity() {}, focus() {} };
+    const panels = ['Read feedback', 'Revise papers', 'Write responses', 'Confirm details', 'Submit'].map((label, index) => ({
+        dataset: { revisionStep: String(index + 1), revisionStepLabel: label },
+        querySelectorAll: () => index === 2 ? [response] : (index === 3 ? [confirmation] : []),
+        setAttribute() {}, focus() {}, scrollIntoView() {},
+    }));
+    const status = { dataset: { addressed: String(!unresolved) } };
+    const card = { dataset: { revisionLabel: 'Work Plan' }, querySelector: () => status };
+    const form = {
+        dataset: { revisionStartStep: '1' },
+        querySelectorAll(selector) {
+            if (selector === '[data-revision-step]') return panels;
+            if (selector === '[data-revision-document]') return [card];
+            return [];
+        },
+        querySelector(selector) {
+            return { '[data-revision-progress]': progress, '[data-revision-step-back]': back,
+                '[data-revision-step-continue]': next, '[data-revision-step-error]': error,
+                '[data-revision-details-confirmed]': confirmation }[selector];
+        },
+        addEventListener(type, fn) { listeners[type] = fn; },
+    };
+    return { form, panels, next, back, confirmation, status, listeners, error };
+}
+
+test('workflow gates paper actions, then responses, then confirmation before submission', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { location: { search: '', hash: '' } };
+    try {
+        const fixture = workflowFixture({ unresolved: true });
+        const workflow = initializeRevisionWorkflow(fixture.form);
+        let opened = 0;
+        workflow.setDialogs({ open() { opened++; } });
+        assert.deepEqual(fixture.panels.map((panel) => panel.hidden), [false, true, true, true, true]);
+        fixture.next.click();
+        fixture.next.click();
+        assert.equal(opened, 1);
+        assert.equal(fixture.panels[1].hidden, false);
+        fixture.status.dataset.addressed = 'true';
+        fixture.next.click();
+        assert.equal(fixture.panels[2].hidden, false);
+        fixture.next.click();
+        fixture.next.click();
+        assert.equal(fixture.panels[3].hidden, false);
+        assert.equal(fixture.error.hidden, false);
+        fixture.confirmation.checked = true;
+        fixture.next.click();
+        assert.equal(workflow.canSubmit(), true);
+        fixture.listeners.input({ target: { closest: () => ({}) } });
+        assert.equal(fixture.confirmation.checked, false);
+        assert.equal(workflow.canSubmit(), false);
+        assert.equal(fixture.panels[3].hidden, false);
+        fixture.back.click();
+        assert.equal(fixture.panels[2].hidden, false);
+    } finally { globalThis.window = previousWindow; }
+});
+
+test('workflow keeps incomplete responses on the response step and Enter cannot submit early', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { location: { search: '', hash: '' } };
+    try {
+        const fixture = workflowFixture({ responseComplete: false });
+        const workflow = initializeRevisionWorkflow(fixture.form);
+        assert.equal(workflow.canSubmit(), false);
+        assert.equal(fixture.panels[1].hidden, false);
+        fixture.next.click();
+        fixture.next.click();
+        assert.equal(fixture.panels[2].hidden, false);
+        assert.match(fixture.error.textContent, /every comment/);
+    } finally { globalThis.window = previousWindow; }
+});
+
+test('a linked annotation or staged upload returns to papers without bypassing confirmation', () => {
+    const previousWindow = globalThis.window;
+    try {
+        for (const location of [{ search: '?revision_annotation=12', hash: '' }, { search: '', hash: '#review-and-submit' }]) {
+            globalThis.window = { location };
+            const fixture = workflowFixture();
+            initializeRevisionWorkflow(fixture.form);
+            assert.equal(fixture.panels[1].hidden, false);
+            assert.equal(fixture.confirmation.checked, false);
+        }
+    } finally { globalThis.window = previousWindow; }
+});
+
+test('no-change panel expands upward, shrinks downward and keeps room for the editor', () => {
+    const handlers = {};
+    const classes = new Set();
+    let captured;
+    const panel = { style: {}, getBoundingClientRect() { return { height: Number.parseFloat(this.style.height || '200') }; } };
+    const handle = {
+        addEventListener(name, fn) { handlers[name] = fn; },
+        setPointerCapture(id) { captured = id; },
+    };
+    const card = {
+        classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) },
+        querySelector(selector) {
+            return { '[data-revision-resolution-resize]': handle, '[data-revision-resolution-panel]': panel,
+                '.revision-editor-panel': { clientHeight: 600 } }[selector];
+        },
+    };
+    initializeRevisionPanelResize(card);
+    handlers.pointerdown({ button: 0, pointerId: 7, clientY: 400, preventDefault() {} });
+    assert.equal(captured, 7);
+    assert.equal(classes.has('revision-panel-resizing'), true);
+    handlers.pointermove({ clientY: 300 });
+    assert.equal(panel.style.height, '300px');
+    handlers.pointermove({ clientY: 550 });
+    assert.equal(panel.style.height, '96px');
+    handlers.pointermove({ clientY: -1000 });
+    assert.equal(panel.style.height, '480px');
+    handlers.pointerup();
+    assert.equal(classes.has('revision-panel-resizing'), false);
+    handlers.pointermove({ clientY: 500 });
+    assert.equal(panel.style.height, '480px');
+    handlers.keydown({ key: 'ArrowDown', preventDefault() {} });
+    assert.equal(panel.style.height, '456px');
+    handlers.keydown({ key: 'ArrowUp', preventDefault() {} });
+    assert.equal(panel.style.height, '480px');
+    handlers.pointerdown({ button: 0, pointerId: 8, clientY: 400, preventDefault() {} });
+    handlers.pointercancel();
+    assert.equal(classes.has('revision-panel-resizing'), false);
+});
+
+test('no-change explanations fill matching replies, track edits and preserve faculty-written responses', () => {
+    const checkbox = { checked: true };
+    const explanation = { value: 'The existing schedule already addresses the comment.' };
+    const card = { dataset: { revisionDocument: 'work_plan' }, querySelector(selector) {
+        return selector === '[data-revision-no-change]' ? checkbox : explanation;
+    } };
+    const reply = (type, value = '') => ({ dataset: { revisionResponseDocument: type }, value });
+    const replies = [reply('work_plan'), reply('work_plan'), reply('line_item_budget'), reply(''), reply('work_plan', 'My own explanation.')];
+    const form = { querySelectorAll: () => replies };
+    synchronizeRevisionNoChangeResponses(form, card);
+    assert.equal(replies[0].value, explanation.value);
+    assert.equal(replies[1].value, explanation.value);
+    assert.equal(replies[2].value, '');
+    assert.equal(replies[3].value, '');
+    assert.equal(replies[4].value, 'My own explanation.');
+    replies[1].value = 'The schedule on page 2 already includes June fieldwork.';
+    explanation.value = 'The current schedule remains correct.';
+    synchronizeRevisionNoChangeResponses(form, card);
+    assert.equal(replies[0].value, explanation.value);
+    assert.equal(replies[1].value, 'The schedule on page 2 already includes June fieldwork.');
+    checkbox.checked = false;
+    synchronizeRevisionNoChangeResponses(form, card);
+    assert.equal(replies[0].value, '');
+    assert.equal(replies[1].value, 'The schedule on page 2 already includes June fieldwork.');
+    checkbox.checked = true;
+    synchronizeRevisionNoChangeResponses(form, card);
+    assert.equal(replies[0].value, explanation.value);
 });

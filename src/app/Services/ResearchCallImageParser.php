@@ -6,13 +6,14 @@ use App\Exceptions\ResearchCallImageExtractionException;
 use Carbon\Carbon;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use JsonException;
 use Throwable;
 
 class ResearchCallImageParser
 {
+    public function __construct(private AiChatCompletionService $ai) {}
+
     /**
      * @return array{
      *     title: ?string,
@@ -61,25 +62,15 @@ class ResearchCallImageParser
      */
     public function extractWithEvidence(UploadedFile $image): array
     {
-        $apiKey = trim((string) config('services.gemini.key'));
-        $model = trim((string) config('services.gemini.vision_model', config('services.gemini.model')));
-        $baseUrl = trim((string) config('services.gemini.base_url'));
-
-        if ($apiKey === '' || $model === '' || $baseUrl === '') {
+        if (! $this->ai->isConfigured(usesVision: true)) {
             throw new ResearchCallImageExtractionException(
-                'Image reading is not configured yet. Ask the administrator to set the Gemini API key.',
+                'Image reading is not configured yet. Ask the administrator to configure an AI provider.',
             );
         }
 
         try {
-            $response = Http::baseUrl($baseUrl)
-                ->withToken($apiKey)
-                ->acceptJson()
-                ->asJson()
-                ->connectTimeout(10)
-                ->timeout(60)
-                ->post('chat/completions', [
-                    'model' => $model,
+            $response = $this->ai->complete(
+                payload: [
                     'messages' => [
                         [
                             'role' => 'system',
@@ -105,7 +96,11 @@ class ResearchCallImageParser
                     'max_completion_tokens' => 4500,
                     'response_format' => ['type' => 'json_object'],
                     'stream' => false,
-                ]);
+                ],
+                usesVision: true,
+                connectTimeout: 10,
+                timeout: 60,
+            );
         } catch (ConnectionException $exception) {
             throw new ResearchCallImageExtractionException(
                 'The image reader could not be reached. You can still complete the form manually.',

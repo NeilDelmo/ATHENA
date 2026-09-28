@@ -306,7 +306,7 @@ function initializeEmbeddedEditor() {
             if (!editor || editor.autoSaveBlocked) return null;
             return editor.downloadDocument();
         },
-        async focus(annotationId) {
+        async focus(annotationId, { canFocus = () => true } = {}) {
             const annotation = targets[annotationId];
             if (!annotation?.target) return false;
             const targetId = annotation.target;
@@ -316,6 +316,7 @@ function initializeEmbeddedEditor() {
             const itemId = Number(targetId.match(/^expense-(?:category|account|sub-account|particulars|unit|quantity|unit-cost|details|purpose)-(\d+)$/)?.[1]);
             if (itemId && editor?.items?.some((item) => item.id === itemId)) editor.expandedItemId = itemId;
             await window.Alpine.nextTick();
+            if (!canFocus()) return false;
             const target = findRevisionTarget(document, targetId);
             return target ? focusRevisionTarget(target, targetId, { withinDocument: true, comment: annotation.comment, label: annotation.label }) : false;
         },
@@ -376,21 +377,23 @@ export function applyRevisionModificationStates(card, states = {}, replacementSe
         const annotationId = status.dataset.annotationId;
         const modified = replacementSelected || Boolean(states[annotationId || '__document__']);
         status.dataset.modified = String(modified);
-        status.dataset.addressed = String(noChange.complete || modified);
+        status.dataset.addressed = String(noChange.selected ? noChange.complete : modified);
         status.dataset.reviewed = String(reviewed);
         status.textContent = noChange.selected
             ? (noChange.complete ? 'Explained — no file change' : 'Explanation required')
-            : (replacementSelected ? 'Replacement selected' : (modified ? 'Changes detected' : (reviewed ? 'Reviewed — no change detected' : 'Not reviewed yet')));
+            : (replacementSelected ? 'Replacement selected' : (modified ? 'Draft edited' : 'No draft edits'));
         documentModified ||= modified;
     });
     const documentStatus = card.querySelector('[data-revision-document-state]');
     if (documentStatus) {
         documentStatus.dataset.modified = String(documentModified);
-        documentStatus.dataset.addressed = String(noChange.complete || documentModified);
+        documentStatus.dataset.addressed = String(noChange.selected ? noChange.complete : documentModified);
         documentStatus.dataset.reviewed = String(reviewed);
         documentStatus.textContent = noChange.selected
             ? (noChange.complete ? 'Explained — no file change' : 'Explanation required')
-            : (replacementSelected ? 'Replacement selected' : (documentModified ? 'Changes detected' : (reviewed ? 'Reviewed — action required' : 'Review required')));
+            : (replacementSelected ? 'Replacement selected' : (documentModified ? 'Draft edited' : 'Action needed'));
+        const cue = card.querySelector('[data-revision-resolved-cue]');
+        if (cue) cue.hidden = documentStatus.dataset.addressed !== 'true';
     }
     return documentModified;
 }
@@ -399,6 +402,49 @@ export function revisionDocumentsWithoutResolution(form) {
     return [...form.querySelectorAll('[data-revision-document]')].filter((card) => {
         const status = card.querySelector('[data-revision-document-state]');
         return status && status.dataset.addressed !== 'true';
+    });
+}
+
+export function synchronizeRevisionNoChangeResponses(form, card) {
+    const explanation = card.querySelector('[data-revision-no-change-explanation]')?.value || '';
+    const selected = Boolean(card.querySelector('[data-revision-no-change]')?.checked);
+    form.querySelectorAll('[data-revision-response-document]').forEach((response) => {
+        if (response.dataset.revisionResponseDocument !== card.dataset.revisionDocument) return;
+        const previous = response.dataset.revisionAutomaticResponse;
+        if (previous === undefined && response.value.trim() !== '') return;
+        if (previous !== undefined && response.value !== previous) return;
+        response.value = selected ? explanation : '';
+        response.dataset.revisionAutomaticResponse = response.value;
+    });
+}
+
+export function initializeRevisionPanelResize(card) {
+    const handle = card.querySelector('[data-revision-resolution-resize]');
+    const panel = card.querySelector('[data-revision-resolution-panel]');
+    if (!handle || !panel) return;
+    let drag = null;
+    const resize = (height) => {
+        const available = card.querySelector('.revision-editor-panel').clientHeight;
+        panel.style.height = `${Math.round(Math.max(96, Math.min(Math.max(96, available - 120), height)))}px`;
+    };
+    handle.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        drag = { y: event.clientY, height: panel.getBoundingClientRect().height };
+        handle.setPointerCapture(event.pointerId);
+        card.classList.add('revision-panel-resizing');
+    });
+    handle.addEventListener('pointermove', (event) => {
+        if (drag) resize(drag.height + drag.y - event.clientY);
+    });
+    const stop = () => { drag = null; card.classList.remove('revision-panel-resizing'); };
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+    handle.addEventListener('lostpointercapture', stop);
+    handle.addEventListener('keydown', (event) => {
+        if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        event.preventDefault();
+        resize(panel.getBoundingClientRect().height + (event.key === 'ArrowUp' ? 24 : -24));
     });
 }
 
@@ -428,13 +474,19 @@ export function initializeRevisionDialogs(form, topicId) {
         const explanation = card.querySelector('[data-revision-no-change-explanation]');
         const details = card.querySelector('[data-revision-no-change-details]');
         const upload = card.querySelector('input[type="file"]');
-        if (!checkbox || !explanation || !details || !upload) return;
+        if (!checkbox || !explanation || !details) return;
         details.hidden = !checkbox.checked;
         explanation.required = checkbox.checked;
-        upload.required = !checkbox.checked && !card.querySelector('[data-revision-editor-frame]');
+        if (upload) upload.required = !checkbox.checked && !card.querySelector('[data-revision-editor-frame]');
         refreshModificationStates(card);
     };
-    const selectFeedback = (card, syncPdf = true) => {
+    const dialogIsOpen = (card) => Boolean(card.querySelector('[data-revision-dialog]')?.open);
+    const canFocusEditor = (card) => {
+        const active = document.activeElement;
+        return !revisionNoChangeResolution(card).selected
+            && !active?.closest?.('[data-revision-resolution-panel], .revision-upload-alternative');
+    };
+    const selectFeedback = (card, syncPdf = true, focusEditor = true) => {
         const selector = card.querySelector('[data-revision-comment]');
         const option = selector?.selectedOptions[0];
         if (!option) return;
@@ -454,7 +506,9 @@ export function initializeRevisionDialogs(form, topicId) {
         } else if (!url) {
             setFrameLoading(card, 'pdf', false);
         }
-        if (option.dataset.annotationId) void editorFor(card)?.focus(option.dataset.annotationId);
+        if (focusEditor && option.dataset.annotationId && canFocusEditor(card)) {
+            void editorFor(card)?.focus(option.dataset.annotationId, { canFocus: () => dialogIsOpen(card) && canFocusEditor(card) });
+        }
     };
     const close = (card) => card.querySelector('[data-revision-dialog]').close();
     const open = (card) => {
@@ -476,6 +530,7 @@ export function initializeRevisionDialogs(form, topicId) {
     };
 
     cards.forEach((card) => {
+        initializeRevisionPanelResize(card);
         const dialog = card.querySelector('[data-revision-dialog]');
         dialog.addEventListener('close', () => {
             // Switching documents must not unmount or navigate either editor.
@@ -508,12 +563,13 @@ export function initializeRevisionDialogs(form, topicId) {
                 editor.onChange = (states) => refreshModificationStates(card, states);
                 refreshModificationStates(card);
             }
-            if (dialog.open) selectFeedback(card);
+            if (dialog.open) selectFeedback(card, true, false);
         };
         editorFrame?.addEventListener('load', bindEditor);
         if (editorFrame && editorFor(card)) bindEditor();
         card.querySelector('[data-revision-comment]')?.addEventListener('change', () => selectFeedback(card));
         synchronizeNoChange(card);
+        synchronizeRevisionNoChangeResponses(form, card);
     });
 
     form.addEventListener('click', (event) => {
@@ -531,6 +587,8 @@ export function initializeRevisionDialogs(form, topicId) {
             const upload = card.querySelector('input[type="file"]');
             if (event.target.checked && upload?.files?.length) upload.value = '';
             synchronizeNoChange(card);
+            synchronizeRevisionNoChangeResponses(form, card);
+            if (event.target.checked) card.querySelector('[data-revision-no-change-explanation]')?.focus();
             return;
         }
         if (!event.target.matches?.('input[type="file"]')) return;
@@ -541,7 +599,10 @@ export function initializeRevisionDialogs(form, topicId) {
     form.addEventListener('input', (event) => {
         if (!event.target.matches?.('[data-revision-no-change-explanation]')) return;
         const card = event.target.closest('[data-revision-document]');
-        if (card) refreshModificationStates(card);
+        if (card) {
+            refreshModificationStates(card);
+            synchronizeRevisionNoChangeResponses(form, card);
+        }
     });
     form.addEventListener('invalid', (event) => {
         const card = event.target.closest('[data-revision-document]');
@@ -562,6 +623,91 @@ export function initializeRevisionDialogs(form, topicId) {
         }
     }
     return { open, close };
+}
+
+export function initializeRevisionWorkflow(form) {
+    const panels = [...form.querySelectorAll('[data-revision-step]')];
+    if (!panels.length) return null;
+    const progress = form.querySelector('[data-revision-progress]');
+    const back = form.querySelector('[data-revision-step-back]');
+    const next = form.querySelector('[data-revision-step-continue]');
+    const error = form.querySelector('[data-revision-step-error]');
+    const confirmation = form.querySelector('[data-revision-details-confirmed]');
+    let current = 1;
+    let dialogs;
+    const show = (step, focus = true) => {
+        current = Math.max(1, Math.min(panels.length, Number(step) || 1));
+        panels.forEach((panel) => { panel.hidden = Number(panel.dataset.revisionStep) !== current; });
+        const panel = panels[current - 1];
+        progress.textContent = `Step ${current} of ${panels.length} - ${panel.dataset.revisionStepLabel}`;
+        form.querySelectorAll('[data-revision-progress-step]').forEach((item) => {
+            const number = Number(item.dataset.revisionProgressStep);
+            if (number === current) item.setAttribute('aria-current', 'step');
+            else item.removeAttribute('aria-current');
+            item.classList.toggle('font-bold', number === current);
+            item.querySelector('[data-revision-progress-mark]').textContent = number < current ? '\u2713' : String(number);
+        });
+        back.hidden = current === 1;
+        next.hidden = current === panels.length;
+        next.textContent = `Continue to ${panels[current]?.dataset.revisionStepLabel.toLowerCase() || 'submit'}`;
+        error.hidden = true;
+        if (current === panels.length) {
+            const title = form.querySelector('[data-revision-summary-title]');
+            const cost = form.querySelector('[data-revision-summary-cost]');
+            const duration = form.querySelector('[data-revision-summary-duration]');
+            if (title) title.textContent = form.elements.title.value;
+            if (cost) cost.textContent = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(form.elements.estimated_budget.value));
+            if (duration) duration.textContent = `${form.elements.estimated_duration_months.value} months`;
+        }
+        if (focus) {
+            panel.setAttribute('tabindex', '-1');
+            panel.focus({ preventScroll: true });
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+    const validate = (step) => {
+        if (step === 2) {
+            const unresolved = revisionDocumentsWithoutResolution(form);
+            if (unresolved.length) {
+                show(2);
+                error.textContent = `Address ${unresolved[0].dataset.revisionLabel}: revise it, upload a replacement, or explain why no change is needed.`;
+                error.hidden = false;
+                dialogs?.open(unresolved[0]);
+                return false;
+            }
+        }
+        const controls = [...panels[step - 1].querySelectorAll('input, textarea, select')];
+        const invalid = controls.find((control) => !control.checkValidity());
+        if (invalid) {
+            show(step);
+            error.textContent = step === 3 ? 'Write a response to every comment before continuing.' : 'Check the proposal details and confirm they are correct.';
+            error.hidden = false;
+            invalid.reportValidity();
+            invalid.focus();
+            return false;
+        }
+        return true;
+    };
+    next.addEventListener('click', () => { if (validate(current)) show(current + 1); });
+    back.addEventListener('click', () => show(current - 1));
+    form.addEventListener('input', (event) => {
+        if (event.target.closest('[data-revision-proposal-details-fields]')) confirmation.checked = false;
+    });
+    form.addEventListener('invalid', (event) => {
+        const panel = event.target.closest('[data-revision-step]');
+        if (panel) show(panel.dataset.revisionStep, false);
+    }, true);
+    const requestedAnnotation = new URLSearchParams(window.location.search).has('revision_annotation');
+    const returnedToSubmit = window.location.hash === '#review-and-submit';
+    show(requestedAnnotation || returnedToSubmit ? 2 : form.dataset.revisionStartStep, false);
+    return {
+        show,
+        setDialogs(value) { dialogs = value; },
+        canSubmit() {
+            if (current !== panels.length) { if (validate(current)) show(current + 1); return false; }
+            return [2, 3, 4].every(validate);
+        },
+    };
 }
 
 export default function initializeRevisionWorkspace(confirmSubmission, {
@@ -635,13 +781,14 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
         frames.forEach((frame) => {
             const card = frame.closest('[data-revision-document]');
             // In-page editors produce their own attachment; uploads remain an explicit alternative.
-            card.querySelector('input[type="file"]').required = false;
+            const upload = card.querySelector('input[type="file"]');
+            if (upload) upload.required = false;
             const report = () => {
                 const editor = revisionEditorForFrame(frame, topicId);
                 const message = card.querySelector('[data-revision-editor-status]');
                 message.textContent = editor
                     ? 'Changes save as you type. Submit revision generates and attaches the updated PDF.'
-                    : 'Editor could not load. Reload this page, or upload a replacement file.';
+                    : 'Editor could not load. Reload this page to try again.';
                 if (editor) {
                     form.elements.revision_draft_id.value = String(editor.draftId);
 
@@ -651,10 +798,13 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
             if (revisionEditorForFrame(frame, topicId)) report();
         });
 
+        const workflow = initializeRevisionWorkflow(form);
         const revisionDialogs = initializeRevisionDialogs(form, topicId);
+        workflow?.setDialogs(revisionDialogs);
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
+            if (workflow && !workflow.canSubmit()) return;
             const attempt = lockSubmission();
             if (!attempt) return;
             let submitted = false;
@@ -703,7 +853,7 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                     const card = frame.closest('[data-revision-document]');
                     if (revisionNoChangeResolution(card).selected) continue;
                     const editor = revisionEditorForFrame(frame, topicId);
-                    if (card.querySelector('input[type="file"]').files.length > 0 && editor) {
+                    if ((card.querySelector('input[type="file"]')?.files?.length || 0) > 0 && editor) {
                         resumeEditors.push(await editor.pauseForUpload());
                         if (attempt.cancelled) return;
                     }
@@ -711,10 +861,10 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                 const editors = frames.flatMap((frame) => {
                     const card = frame.closest('[data-revision-document]');
                     if (revisionNoChangeResolution(card).selected) return [];
-                    if (card.querySelector('input[type="file"]').files.length > 0) return [];
+                    if ((card.querySelector('input[type="file"]')?.files?.length || 0) > 0) return [];
                     const editor = revisionEditorForFrame(frame, topicId);
                     if (!editor) {
-                        throw new Error('The ' + card.dataset.revisionLabel + ' editor has not loaded. Wait for it to load, or upload a replacement.');
+                        throw new Error('The ' + card.dataset.revisionLabel + ' editor has not loaded. Wait for it to load, or reload this page.');
                     }
                     return [{ ...editor, label: card.dataset.revisionLabel }];
                 });

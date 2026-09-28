@@ -50,6 +50,13 @@ return [
         'provider' => env('AI_PROVIDER', 'gemini'),
     ],
 
+    'openrouter' => [
+        'key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'google/gemini-3.8-flash'),
+        'vision_model' => env('OPENROUTER_VISION_MODEL', env('OPENROUTER_MODEL', 'google/gemini-3.8-flash')),
+        'base_url' => rtrim(env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'), '/'),
+    ],
+
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-3.5-flash'),

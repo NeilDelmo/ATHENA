@@ -33,13 +33,14 @@ class ProjectDocumentLibrary
 
         $documents = collect();
         $seenPaths = collect();
+        $latestVersionId = $topic->versions->sortByDesc('version_number')->first()?->id;
 
         $topic->versions
             ->sortByDesc('version_number')
-            ->each(function (ProposalVersion $version) use ($topic, $viewer, $documents, $seenPaths): void {
+            ->each(function (ProposalVersion $version) use ($topic, $viewer, $documents, $seenPaths, $latestVersionId): void {
                 $version->files
                     ->sortByDesc('created_at')
-                    ->each(function (ProposalVersionFile $file) use ($topic, $viewer, $version, $documents, $seenPaths): void {
+                    ->each(function (ProposalVersionFile $file) use ($topic, $viewer, $version, $documents, $seenPaths, $latestVersionId): void {
                         if (! $file->canPreviewAsPdf()
                             || ! Storage::disk('local')->exists($file->file_path)
                             || $seenPaths->contains($file->file_path)
@@ -59,6 +60,10 @@ class ProjectDocumentLibrary
                             'uploaded_at' => $file->created_at,
                             'file_size' => $file->file_size,
                             'view_url' => route('topics.versions.files.view', [$topic, $version, $file]),
+                            'review_url' => $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+                                && $version->id === $latestVersionId
+                                && ! in_array($file->document_type, [ProposalVersionFile::TYPE_HEAD_UPLOAD, ProposalVersionFile::TYPE_COMMENT_RESPONSE], true)
+                                    ? route('topics.versions.files.annotations.index', [$topic, $version, $file]) : null,
                             'download_url' => route('topics.versions.files.download', [$topic, $version, $file]),
                             'official' => $file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD
                                 || ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,

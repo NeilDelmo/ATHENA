@@ -335,7 +335,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
-                : 'Revision requested; highlighted comments and file-specific instructions were shared with the faculty member.',
+                : 'Revision request sent to the faculty member.',
             'rejected' => 'Proposal rejected.',
         };
 
@@ -343,12 +343,20 @@ class ResearchHeadTopicController extends Controller
             ? route('topics.show', $topic)
             : route('research_head.dashboard');
 
-        if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE
-            && ($validated['redirect_to'] ?? null) === 'topic') {
+        $returnToReview = ($validated['redirect_to'] ?? null) === 'topic'
+            && in_array($validated['status'], ['revision_requested', TopicProposal::STATUS_READY_FOR_SIGNATURE], true);
+
+        if ($returnToReview) {
             $redirectUrl .= '#proposal-review';
         }
 
-        return redirect()->to($redirectUrl)->with('success', $message);
+        $response = redirect()->to($redirectUrl)->with('success', $message);
+
+        if ($returnToReview) {
+            $response->with('topic_tab', 'review');
+        }
+
+        return $response;
     }
 
     public function finalizeApproval(

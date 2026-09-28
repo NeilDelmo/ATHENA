@@ -95,6 +95,32 @@ class ProposalVersionFile extends Model
         return $this->hasMany(ProposalFileReviewCheck::class);
     }
 
+    public function toggleReviewCheck(User $reviewer): bool
+    {
+        $reviewCheck = $this->reviewChecks()->whereBelongsTo($reviewer, 'reviewer')->first();
+
+        if ($reviewCheck) {
+            $reviewCheck->delete();
+
+            return false;
+        }
+
+        $this->reviewChecks()->create([
+            'reviewer_id' => $reviewer->id,
+            'reviewed_at' => now(),
+        ]);
+
+        return true;
+    }
+
+    public function markReviewedBy(User $reviewer): void
+    {
+        $this->reviewChecks()->firstOrCreate(
+            ['reviewer_id' => $reviewer->id],
+            ['reviewed_at' => now()],
+        );
+    }
+
     public function label(): string
     {
         $catalogLabel = app(ProposalPaperCatalog::class)->label($this->document_type);

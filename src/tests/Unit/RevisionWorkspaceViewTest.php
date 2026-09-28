@@ -69,8 +69,10 @@ test('requested documents open a single dialog with submitted PDF left and the e
         ->and($xpath->query($dialog.'//select[@data-revision-comment]/option[@data-annotation-id="11"][contains(@data-pdf-url,"revision_embed=1")]')->length)->toBe(1)
         ->and($xpath->query($dialog.'//*[@data-revision-comment-body="12"][@hidden]')->length)->toBe(1)
         ->and($xpath->query($dialog.'//*[@data-revision-modification-status="11"][@data-modified="false"]')->length)->toBe(1)
-        ->and($xpath->query('//article//*[@data-revision-document-state][@data-modified="false"][@data-addressed="false"]')->length)->toBe(1)
-        ->and($xpath->query('//input[@name="work_plan"]')->length)->toBe(1)
+        ->and($xpath->query($dialog.'//*[@data-revision-modification-status="11"][@hidden]')->length)->toBe(1)
+        ->and($xpath->query('//article//*[@data-revision-document-state][@hidden][@data-modified="false"][@data-addressed="false"]')->length)->toBe(1)
+        ->and($xpath->query('//article[@data-revision-document="work_plan"]//*[@data-revision-resolved-cue][@hidden]/following-sibling::button[@data-revision-open]')->length)->toBe(1)
+        ->and($xpath->query('//input[@name="work_plan"]')->length)->toBe(0)
         ->and($xpath->query('//form//button[@type="submit"]')->length)->toBe(1)
         ->and($xpath->query('//form//*[@data-revision-submit-overlay][@role="status"][@aria-hidden="true"][contains(concat(" ", normalize-space(@class), " "), " hidden ")]')->length)->toBe(1)
         ->and($xpath->query('//form//*[@data-revision-submit-overlay][contains(concat(" ", normalize-space(@class), " "), " flex ")]')->length)->toBe(0)
@@ -84,12 +86,16 @@ test('requested documents open a single dialog with submitted PDF left and the e
         ->and($xpath->query('//input[@name="gad_checklist"]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="curricula_vitae[]"]')->length)->toBe(0)
         ->and($xpath->query($dialog.'//button[@type="submit"]')->length)->toBe(0)
-        ->and($html)->toContain('Move fieldwork to June.', 'May fieldwork', 'data-revision-open', 'Review required', 'Not reviewed yet')
-        ->and($html)->toContain('Address every requested file', 'Files that were not requested carry forward automatically.', 'No file change needed', 'Saving your edits and generating the requested PDFs…')
-        ->and($xpath->query('//input[@name="revision_resolutions[work_plan][action]"][@value="no_change"]')->length)->toBe(1)
-        ->and($xpath->query('//textarea[@name="revision_resolutions[work_plan][explanation]"]')->length)->toBe(1)
+        ->and($html)->toContain('Move fieldwork to June.', 'May fieldwork', 'data-revision-open', 'Revise paper', 'Revision action recorded')
+        ->and($html)->toContain('2. Revise papers', 'Update each paper, upload a replacement, or explain why no change is needed.', 'No file change needed', 'Saving your edits and generating the requested PDFs…')
+        ->and($html)->not->toContain('Open for review', 'Changes detected', 'Upload a replacement instead')
+        ->and($xpath->query($dialog.'//div[@data-revision-resolution-panel]//input[@name="revision_resolutions[work_plan][action]"][@value="no_change"]')->length)->toBe(1)
+        ->and($xpath->query($dialog.'//div[@data-revision-resolution-panel]//div[@data-revision-no-change-details][@hidden]//textarea[@name="revision_resolutions[work_plan][explanation]"]')->length)->toBe(1)
+        ->and($xpath->query($dialog.'//div[contains(@class,"revision-comment-strip")]//*[@data-revision-no-change]')->length)->toBe(0)
+        ->and($xpath->query($dialog.'//section[contains(@class,"revision-feedback")]//*[@data-revision-resolution-panel]')->length)->toBe(0)
+        ->and($xpath->query($dialog.'//section[contains(@class,"revision-editor-panel")]//div[@data-revision-resolution-panel]')->length)->toBe(1)
         ->and($html)->not->toContain('Focus editor', 'Focus this field', 'View highlighted PDF', 'Replace another file')
-        ->and($html)->toContain('It does not judge whether the feedback has been fully addressed.');
+        ->and($html)->toContain('Explanation', '(required)', 'data-revision-resolution-resize', 'Resize no-change explanation panel');
 });
 
 test('upload-only revisions retain their PDF and feedback beside one required file input', function () {
@@ -123,7 +129,8 @@ test('generated paper revisions use the saved form without requiring a research 
 
     expect($xpath->query('//dialog//iframe[@data-revision-editor-frame]')->length)->toBe(1)
         ->and($xpath->query('//dialog//input[@name="work_plan"][@required]')->length)->toBe(0)
-        ->and($html)->toContain('Upload a replacement instead');
+        ->and($xpath->query('//dialog//input[@type="file"]')->length)->toBe(0)
+        ->and($html)->not->toContain('Upload a replacement instead');
 });
 
 test('feedback without highlighted annotations still opens its submitted PDF', function () {
@@ -146,12 +153,12 @@ test('embedded PDF uses the same annotation renderer without nested sidebars or 
         ->not->toContain('<aside', 'Expand paper', 'Exit focus');
 });
 
-test('revision steps use the light application surface instead of a solid black panel', function () {
+test('revision page uses the form sections without a duplicate sidebar', function () {
     $view = file_get_contents(resource_path('views/faculty/topics/revision.blade.php'));
 
     expect($view)
-        ->toContain('data-revision-step-panel', 'data-revision-summary', '1 of 4 steps', 'In progress')
-        ->not->toContain('bg-slate-950 text-white');
+        ->toContain('data-revision-summary', '<main class="min-w-0">', 'max-w-6xl')
+        ->not->toContain('data-revision-step-panel', 'aria-label="Revision steps"', 'Respond to feedback', 'bg-slate-950 text-white');
 });
 
 test('revision introduction uses a light surface instead of an unconditional black background', function () {
@@ -169,11 +176,12 @@ test('revision introduction uses a light surface instead of an unconditional bla
         ->not->toContain('bg-slate-950');
 });
 
-test('revision workspace follows the compact mockup card hierarchy', function () {
+test('revision workspace presents the guided workflow in the order faculty completes revisions', function () {
     $page = file_get_contents(resource_path('views/faculty/topics/revision.blade.php'));
     $form = file_get_contents(resource_path('views/components/proposal-revision-form.blade.php'));
 
-    expect($page)->toContain('Research proposal', 'Revision required', 'data-revision-step-panel', 'max-w-7xl')
-        ->and($form)->toContain('1. Reviewer feedback', '2. Requested papers', '3. Proposal details', '4. Final review and submission', 'data-revision-feedback-item')
+    expect($page)->toContain('Research proposal', 'Revision required', 'max-w-6xl')
+        ->and($page)->not->toContain('data-revision-step-panel')
+        ->and($form)->toContain('1. Reviewer feedback', '2. Revise papers', '3. Write responses', '4. Proposal details', '5. Final review and submission', 'data-revision-details-confirmed', 'data-revision-step-continue', 'data-revision-feedback-item')
         ->and($form)->not->toContain('Revised page and paragraph', '[remarks]');
 });

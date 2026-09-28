@@ -1,13 +1,7 @@
 <x-app-layout>
     <div class="-mx-4 -my-6 min-h-full bg-slate-50/80 px-4 py-6 dark:bg-slate-950 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-        <div class="mx-auto max-w-7xl space-y-5">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <a href="{{ route('topics.show', $topic) }}#proposal-review" class="inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-[#7A0019] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:focus-visible:ring-offset-slate-950">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 19-7-7 7-7" /></svg>
-                    Back to proposal
-                </a>
-
-            </div>
+        <div class="mx-auto max-w-6xl space-y-5">
+            <x-back-link fixed href="{{ route('topics.show', $topic) }}#proposal-review">Back to proposal</x-back-link>
 
             <section data-revision-summary class="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:flex-row sm:items-start sm:justify-between sm:p-6" aria-labelledby="revision-workspace-title">
                 <div class="flex min-w-0 gap-4">
@@ -33,46 +27,15 @@
                 </span>
             </section>
 
-            <div class="grid items-start gap-5 lg:grid-cols-[17rem_minmax(0,1fr)]">
-                <aside class="lg:sticky lg:top-32" aria-label="Revision steps">
-                    <ol data-revision-step-panel class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1">
-                        <li>
-                            <a href="#revision-feedback" class="flex h-full gap-3 rounded-xl border border-red-200 border-l-[3px] border-l-[#7A0019] bg-red-50 p-4 text-slate-800 transition hover:border-red-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-red-900 dark:border-l-red-500 dark:bg-red-950/30 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#7A0019] text-xs font-black text-white">1</span>
-                                <span><strong class="block text-sm text-[#7A0019] dark:text-red-300">Respond to feedback</strong><span class="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-400">Address comments from the Research Head and co-evaluator.</span></span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="#revision-papers" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">2</span>
-                                <span><strong class="block text-sm">Revise requested papers</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">@if ($pendingFileRevisions->isEmpty())No paper changes requested.@else{{ $pendingFileRevisions->groupBy('document_type')->count() }} {{ Str::plural('paper', $pendingFileRevisions->groupBy('document_type')->count()) }} requested for revision.@endif</span></span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="#revision-details" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">3</span>
-                                <span><strong class="block text-sm">Confirm proposal details</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Verify the title, cost, description, and duration.</span></span>
-                            </a>
-                        </li>
-                        <li>
-                            <a href="#review-and-submit" class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 text-slate-800 transition hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus-visible:ring-offset-slate-950">
-                                <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-black text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">4</span>
-                                <span><strong class="block text-sm">Review and send</strong><span class="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Create the next version and return it for review.</span></span>
-                            </a>
-                        </li>
-                    </ol>
-                </aside>
-
-                <main class="min-w-0">
-                    <x-proposal-revision-form
-                        :comment-response-rows="$commentResponseRows"
-                        :topic="$topic"
-                        :pending-file-revisions="$pendingFileRevisions"
-                        :staged-revision-files="$stagedRevisionFiles"
-                        :display-project-cost="$displayProjectCost"
-                    />
-                </main>
-            </div>
+            <main class="min-w-0">
+                <x-proposal-revision-form
+                    :comment-response-rows="$commentResponseRows"
+                    :topic="$topic"
+                    :pending-file-revisions="$pendingFileRevisions"
+                    :staged-revision-files="$stagedRevisionFiles"
+                    :display-project-cost="$displayProjectCost"
+                />
+            </main>
         </div>
     </div>
 </x-app-layout>

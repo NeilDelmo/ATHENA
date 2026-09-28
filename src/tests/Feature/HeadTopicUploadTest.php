@@ -92,6 +92,9 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->get(route('topics.head-uploads.index', $this->topic));
 
     $workspace->assertOk()
+        ->assertSee('Back to submitted proposal')
+        ->assertSee('data-fixed-back-link', false)
+        ->assertSee('fixed bottom-4 right-4 z-40', false)
         ->assertSee('Review progress')
         ->assertSee('data-horizontal-stepper', false)
         ->assertSee('data-route-step', false)
@@ -101,9 +104,16 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->assertSee('Drop completed GAD checklist here')
         ->assertSee('Upload &amp; read score', false)
         ->assertDontSee('data-co-evaluator-screening-panel', false)
-        ->assertSee('Score shown on a scanned PDF')
-        ->assertSee('Review faculty files')
-        ->assertSee('Faculty-submitted files')
+        ->assertSee('Enter score only if automatic reading fails')
+        ->assertSee('Leave this blank first. If ATHENA cannot read the score, enter the final score printed on the completed checklist and upload it again.')
+        ->assertDontSee('Score shown on a scanned PDF')
+        ->assertSee('Hide workflow')
+        ->assertSee('data-review-workflow-toggle', false)
+        ->assertSee('Open project folder')
+        ->assertSee('data-project-documents-inline-trigger', false)
+        ->assertDontSee('data-project-documents-floating-trigger', false)
+        ->assertDontSee('Review faculty files')
+        ->assertDontSee('Faculty-submitted files')
         ->assertDontSee('Record evaluation')
         ->assertDontSee('Attach a reviewed copy for revision')
         ->assertDontSee('Upload reviewed copy')
@@ -202,7 +212,11 @@ test('the review page reveals controls only for the active stage', function (str
     } else {
         expect($xpath->query($reviewTab.'//*[@data-current-review-controls="'.$activeControls.'"]')->length)->toBe(1);
         if ($activeControls === 'co-evaluator') {
-            expect($xpath->query($reviewTab.'//*[@data-completed-gad-assessment-content][@x-show="assessmentOpen"][@x-cloak]//*[@data-gad-checklist-dropzone]')->length)->toBe(1);
+            expect($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-gad-review-card]')->length)->toBe(1)
+                ->and($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-co-evaluator-review-card]')->length)->toBe(1)
+                ->and($xpath->query($reviewTab.'//*[@data-gad-review-card]//*[@x-show]//*[@data-gad-score-summary]')->length)->toBe(0)
+                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]/div[@data-co-evaluator-details]/label')->length)->toBe(2)
+                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]/div[@data-co-evaluator-dropzone]')->length)->toBe(1);
         }
     }
 
@@ -273,7 +287,7 @@ test('other submitted paper groups use buttons without native triangle disclosur
         ->and($xpath->query($otherPapers.'/*[@x-show="otherPapersOpen"]')->item(0)->hasAttribute('x-cloak'))->toBe(! $hasSavedComment);
 })->with([false, true]);
 
-test('research head can upload a completed GAD checklist and extract its final score', function () {
+test('research head can upload a completed GAD checklist and extract its final score', function (bool $returnToReview) {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
@@ -306,10 +320,11 @@ XML);
                 'review_file' => UploadedFile::fake()->createWithContent('completed-gad-checklist.docx', $contents),
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
                 'gad_signature_confirmed' => '1',
+                'return_to_review' => $returnToReview,
             ]);
 
         $response
-            ->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+            ->assertRedirect(route($returnToReview ? 'topics.show' : 'topics.head-uploads.index', $this->topic).'#initial-review-workflow')
             ->assertSessionHas('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of 12.32 (Gender-sensitive) and recorded the verifier signature confirmation.');
 
         $assessment = $this->version->files()
@@ -344,6 +359,21 @@ XML);
             unlink($temporaryPath);
         }
     }
+})->with(['documents page' => false, 'review tab' => true]);
+
+test('GAD upload errors keep the Research Head on the original review tab', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+    $this->actingAs($this->head)->post(route('topics.head-uploads.store', $this->topic), [
+        'source_file_id' => $gadChecklist->id,
+        'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+        'return_to_review' => true,
+    ])->assertRedirect(route('topics.show', $this->topic).'#initial-review-workflow')
+        ->assertSessionHasErrors(['review_file'], null, 'headUpload');
+    $this->get(route('topics.show', $this->topic))->assertOk()
+        ->assertSee('data-review-workflow-toggle', false)
+        ->assertSee('name="return_to_review" value="1"', false)
+        ->assertSee("'#initial-review-workflow'", false);
 });
 
 test('research head can confirm the score from a phone-scanned GAD checklist', function () {
@@ -533,7 +563,7 @@ test('a non-passing GAD result returns the proposal to revision and keeps co-eva
             ->count())->toBe(0);
 });
 
-test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function () {
+test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function (bool $returnToReview) {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
@@ -588,9 +618,10 @@ XML);
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
                 'co_evaluator_name' => 'Dr. Maria Santos',
                 'recommended_action' => InitialScreeningSubmissionOrder::MAJOR_REVISION,
+                'return_to_review' => $returnToReview,
             ]);
 
-        $response->assertRedirect(route('topics.head-uploads.index', $this->topic).'#initial-review-workflow')
+        $response->assertRedirect(route($returnToReview ? 'topics.show' : 'topics.head-uploads.index', $this->topic).'#initial-review-workflow')
             ->assertSessionHas('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the co-evaluator response.');
 
         $evaluation = $this->version->files()
@@ -640,7 +671,7 @@ XML);
             unlink($temporaryPath);
         }
     }
-});
+})->with(['documents page' => false, 'review tab' => true]);
 
 test('replacing a signed copy preserves the superseded audit record before final release', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();

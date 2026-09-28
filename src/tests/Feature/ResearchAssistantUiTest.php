@@ -17,6 +17,9 @@ use Illuminate\Testing\TestResponse;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
+    config(['services.openrouter.key' => '']);
+    Http::preventStrayRequests();
+
     Role::firstOrCreate(['name' => 'faculty']);
     Role::firstOrCreate(['name' => 'faculty_researcher']);
     Role::firstOrCreate(['name' => 'research_head']);

@@ -31,20 +31,7 @@ class ResearchHeadProposalFileChecklist extends Component
         $researchHead = $this->researchHead();
         $file = $this->reviewableFilesQuery()->whereKey($fileId)->first();
         abort_if($file === null, 404);
-        $reviewCheck = $file->reviewChecks()
-            ->whereBelongsTo($researchHead, 'reviewer')
-            ->first();
-
-        if ($reviewCheck) {
-            $reviewCheck->delete();
-
-            return;
-        }
-
-        $file->reviewChecks()->create([
-            'reviewer_id' => $researchHead->id,
-            'reviewed_at' => now(),
-        ]);
+        $file->toggleReviewCheck($researchHead);
     }
 
     public function render(ProposalPaperCatalog $paperCatalog): View

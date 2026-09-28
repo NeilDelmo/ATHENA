@@ -1,4 +1,4 @@
-@props(['topic', 'library'])
+@props(['topic', 'library', 'floating' => true])
 
 @php
     $projectDocumentErrors = $errors->getBag('projectDocuments');
@@ -17,15 +17,15 @@
         x-ref="trigger"
         type="button"
         @click="openDrawer()"
-        class="fixed bottom-5 right-4 z-40 inline-flex min-h-12 items-center gap-2 rounded-full bg-red-700 px-3.5 py-2.5 text-sm font-black text-white shadow-lg shadow-red-950/20 transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 motion-reduce:transition-none sm:bottom-auto sm:right-5 sm:top-28"
+        class="{{ $floating ? 'fixed bottom-5 right-4 z-40 rounded-full shadow-lg shadow-red-950/20 sm:bottom-auto sm:right-5 sm:top-28' : 'rounded-xl whitespace-nowrap' }} inline-flex min-h-12 items-center gap-2 bg-red-700 px-3.5 py-2.5 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 motion-reduce:transition-none"
         aria-label="Open project files"
         title="Open project files"
-        data-project-documents-floating-trigger
+        @if ($floating) data-project-documents-floating-trigger @else data-project-documents-inline-trigger @endif
     >
         <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" />
         </svg>
-        <span class="hidden sm:inline">Files</span>
+        <span class="{{ $floating ? 'hidden sm:inline' : '' }}">{{ $floating ? 'Files' : 'Open project folder' }}</span>
         <span class="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] tabular-nums">{{ $library['total'] }}</span>
     </button>
 
@@ -202,6 +202,9 @@
                                                     </div>
                                                 </div>
                                                 <div class="mt-3 flex justify-end gap-2">
+                                                    @if ($document['review_url'] ?? null)
+                                                        <a href="{{ $document['review_url'] }}" data-project-document-review class="inline-flex min-h-10 items-center justify-center rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">Review PDF</a>
+                                                    @endif
                                                     @if ($document['view_url'])
                                                         @if ($document['generated_comment_response'] ?? false)
                                                             <button type="button" data-project-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>

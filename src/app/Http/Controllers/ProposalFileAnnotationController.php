@@ -33,6 +33,9 @@ class ProposalFileAnnotationController extends Controller
 
         $isResearchHead = $request->user()->isUsingWorkspace('research_head');
         $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
+        if ($canAnnotate) {
+            $file->markReviewedBy($request->user());
+        }
         $annotations = $file->annotations()
             ->with(['reviewer', 'fileRevision.review'])
             ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)

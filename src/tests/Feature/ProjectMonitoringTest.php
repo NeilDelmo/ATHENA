@@ -566,7 +566,7 @@ test('the proposal review sequence remains visible before project monitoring beg
         ->assertSee('data-proposal-routing-docket', false)
         ->assertSee('routingDocketOpen: false', false)
         ->assertSee('aria-controls="proposal-routing-docket"', false)
-        ->assertSee('Review steps')
+        ->assertSee('Show workflow')
         ->assertSee('data-horizontal-stepper', false)
         ->assertSee('grid-cols-5', false)
         ->assertDontSee('data-monitoring-schedule-table', false);

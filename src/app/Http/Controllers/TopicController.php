@@ -8,6 +8,7 @@ use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
 use App\Models\ProposalDraft;
+use App\Models\ProposalFileReviewCheck;
 use App\Models\ProposalSignatory;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
@@ -213,6 +214,12 @@ class TopicController extends Controller
             ->filter(fn (ProposalVersionFile $file): bool => $availableSubmittedFileIds->contains($file->id)
                 && $file->canPreviewAsPdf())
             ->pluck('id');
+        $reviewedSubmittedFileIds = $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+            ? ProposalFileReviewCheck::query()
+                ->whereBelongsTo($request->user(), 'reviewer')
+                ->whereIn('proposal_version_file_id', $submittedFiles->pluck('id'))
+                ->pluck('proposal_version_file_id')
+            : collect();
         $reviewDocuments = ($latestVersion?->files ?? collect())
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD);
 
@@ -301,6 +308,7 @@ class TopicController extends Controller
             'submittedFiles',
             'availableSubmittedFileIds',
             'viewableSubmittedFileIds',
+            'reviewedSubmittedFileIds',
             'reviewDocuments',
             'availableReviewDocumentIds',
             'viewableReviewDocumentIds',
@@ -634,7 +642,7 @@ class TopicController extends Controller
 
                 $newVersionFiles = $version->files()->get();
                 $pendingRevisions = TopicReviewFileRevision::query()
-                    ->with('file')
+                    ->with(['file', 'annotations'])
                     ->whereNull('resolved_at')
                     ->whereHas('review', fn ($query) => $query->where('topic_id', $revisedTopic->id))
                     ->lockForUpdate()
@@ -642,6 +650,15 @@ class TopicController extends Controller
 
                 foreach ($pendingRevisions as $pendingRevision) {
                     $noChangeResponse = $noChangeResponses->get($pendingRevision->document_type);
+                    if ($noChangeResponse !== null) {
+                        $responseKeys = $pendingRevision->annotations->map(fn ($annotation): string => 'annotation_'.$annotation->id)
+                            ->prepend('file_'.$pendingRevision->id);
+                        $commentReplies = $responseKeys->map(fn (string $key): string => trim((string) ($responses[$key]['response'] ?? '')))
+                            ->filter()->unique()->values();
+                        if ($commentReplies->isNotEmpty()) {
+                            $noChangeResponse = $commentReplies->implode("\n\n");
+                        }
+                    }
                     $resolutionCandidates = $newVersionFiles
                         ->where('document_type', $pendingRevision->document_type)
                         ->when(
@@ -824,6 +841,7 @@ class TopicController extends Controller
         return view('research_head.topics.files', [
             'topic' => $topic,
             'workspace' => $headUploadWorkspace,
+            'projectDocumentLibrary' => $this->projectDocumentLibrary->build($topic, $request->user()),
             ...$headUploadWorkspace,
         ]);
     }
@@ -1062,13 +1080,13 @@ class TopicController extends Controller
             $scoreAction = $gadScoreEnteredManually ? 'recorded a confirmed Total GAD Score of ' : 'extracted a Total GAD Score of ';
 
             return redirect()
-                ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+                ->to($this->initialReviewUploadReturnUrl($topic))
                 ->with('success', 'Completed GAD Checklist uploaded. ATHENA '.$scoreAction.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].') and recorded the verifier signature confirmation.');
         }
 
         if ($isEvaluation) {
             return redirect()
-                ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+                ->to($this->initialReviewUploadReturnUrl($topic))
                 ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the co-evaluator response.');
         }
 
@@ -1183,6 +1201,11 @@ class TopicController extends Controller
         );
     }
 
+    private function initialReviewUploadReturnUrl(TopicProposal $topic): string
+    {
+        return (request()->boolean('return_to_review') ? route('topics.show', $topic) : route('topics.head-uploads.index', $topic)).'#initial-review-workflow';
+    }
+
     /** @param array<string, string|array<int, string>> $errors */
     private function headUploadErrorResponse(
         TopicProposal $topic,
@@ -1190,7 +1213,7 @@ class TopicController extends Controller
         array $errors,
     ): RedirectResponse {
         $response = $isInitialReviewUpload
-            ? redirect()->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
+            ? redirect()->to($this->initialReviewUploadReturnUrl($topic))
             : back();
 
         return $response

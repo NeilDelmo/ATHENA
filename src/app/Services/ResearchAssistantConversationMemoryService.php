@@ -3,18 +3,16 @@
 namespace App\Services;
 
 use App\Models\ResearchAssistantConversation;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Throwable;
 
 class ResearchAssistantConversationMemoryService
 {
+    public function __construct(private AiChatCompletionService $ai) {}
+
     public function promptContext(
         ?ResearchAssistantConversation $conversation,
-        string $apiKey,
-        string $model,
-        string $baseUrl,
     ): ?string {
         if (! $conversation) {
             return null;
@@ -48,9 +46,6 @@ class ResearchAssistantConversationMemoryService
             $summary = $this->summarize(
                 (string) $conversation->summary,
                 $pendingMessages,
-                $apiKey,
-                $model,
-                $baseUrl,
                 $conversation->getKey(),
             );
             $conversation->forceFill([
@@ -95,9 +90,6 @@ PROMPT;
     private function summarize(
         string $existingSummary,
         array $messages,
-        string $apiKey,
-        string $model,
-        string $baseUrl,
         int $conversationId,
     ): string {
         $maximumSummaryCharacters = (int) config('research_assistant.conversation_memory.maximum_summary_characters');
@@ -111,14 +103,8 @@ PROMPT;
         );
 
         try {
-            $response = Http::baseUrl($baseUrl)
-                ->withToken($apiKey)
-                ->acceptJson()
-                ->asJson()
-                ->connectTimeout(10)
-                ->timeout(30)
-                ->post('chat/completions', [
-                    'model' => $model,
+            $response = $this->ai->complete(
+                payload: [
                     'messages' => [
                         [
                             'role' => 'system',
@@ -132,7 +118,11 @@ PROMPT;
                     'temperature' => 0.1,
                     'max_completion_tokens' => (int) config('research_assistant.conversation_memory.maximum_completion_tokens'),
                     'stream' => false,
-                ]);
+                ],
+                usesVision: false,
+                connectTimeout: 10,
+                timeout: 30,
+            );
 
             $summary = trim((string) $response->json('choices.0.message.content'));
 

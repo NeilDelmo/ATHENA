@@ -474,6 +474,8 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ])
         ->assertSee('data-horizontal-stepper', false)
         ->assertSee('data-route-step', false)
+        ->assertSee('data-review-workflow-toggle', false)
+        ->assertDontSee("routingDocketOpen = ! routingDocketOpen; setTopicTab('details', 'proposal-details')", false)
         ->assertSee('data-route-state="in-progress"', false)
         ->assertDontSee('Researcher. Corrected proposal package and response.')
         ->assertSee('Revision requests return to the review stage that issued them.')
@@ -484,6 +486,12 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ->assertDontSee('value="lrec_queued"', false);
 
     expect(substr_count($initialPage->getContent(), 'data-route-step'))->toBe(5);
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($initialPage->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//*[@id="proposal-routing-docket"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@id="proposal-details-tab"]//*[@id="proposal-routing-docket"]')->length)->toBe(0);
 
     foreach (['pending', 'expert_review', 'for_final_decision', 'resubmitted'] as $status) {
         $topic->update(['status' => $status]);

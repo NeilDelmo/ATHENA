@@ -1,4 +1,4 @@
-@props(['topic', 'workspace', 'showFacultyFiles' => true])
+@props(['topic', 'workspace', 'showFacultyFiles' => true, 'returnToReview' => false])
 
 @php
     $latestVersion = $workspace['latestVersion'];
@@ -62,8 +62,13 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div class="max-w-3xl">
                     <p class="text-xs font-black uppercase tracking-[0.14em] text-red-700 dark:text-red-300">Research Head workspace</p>
-                    <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review faculty files</h3>
-                    <p class="mt-3 text-sm leading-6 text-gray-700 dark:text-gray-200">Open each faculty original and use PDF highlights to record exact revision comments. Download a file when you need an offline copy. Corrections and signatures are verified manually.</p>
+                    @if ($topic->status === 'revision_requested')
+                        <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Revision request sent</h3>
+                        <p class="mt-3 text-sm leading-6 text-gray-700 dark:text-gray-200">The faculty member has the requested changes. These submitted files and review comments remain available for reference while you wait for the next version.</p>
+                    @else
+                        <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review faculty files</h3>
+                        <p class="mt-3 text-sm leading-6 text-gray-700 dark:text-gray-200">Open each faculty original and use PDF highlights to record exact revision comments. Download a file when you need an offline copy. Corrections and signatures are verified manually.</p>
+                    @endif
                 </div>
                 <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-950 px-3.5 py-2 text-sm font-bold text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">
                     {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No submitted version' }}
@@ -80,22 +85,22 @@
     @endif
 
     @if ($latestVersion && $canUploadEvaluation)
-        <section id="initial-review-workflow" data-current-review-controls="{{ $gadPassed ? 'co-evaluator' : 'gad' }}" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
-            @if ($gadPassed)
-                <div x-data="{ assessmentOpen: false }" data-completed-gad-assessment>
-                    <button type="button" @click="assessmentOpen = !assessmentOpen" :aria-expanded="assessmentOpen" aria-controls="completed-gad-assessment-{{ $topic->id }}" class="inline-flex min-h-11 items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900" x-text="assessmentOpen ? 'Hide recorded GAD assessment' : 'View recorded GAD assessment'">View recorded GAD assessment</button>
-                    <div id="completed-gad-assessment-{{ $topic->id }}" data-completed-gad-assessment-content x-show="assessmentOpen" x-cloak>
-            @else
-                <h3 class="text-lg font-bold text-gray-950 dark:text-white">GAD Office review</h3>
+        <div id="initial-review-workflow" data-current-review-controls="{{ $gadPassed ? 'co-evaluator' : 'gad' }}" class="space-y-5 scroll-mt-6">
+            <section id="gad-office-review" data-gad-review-card aria-labelledby="gad-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h3 id="gad-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">GAD Office review</h3>
+                    @if ($gadPassed)
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>Completed</span>
+                    @endif
+                </div>
                 @if ($gadNeedsSignatureConfirmation || $gadNeedsRevision)
                     <p class="mt-2 text-sm font-semibold text-amber-800 dark:text-amber-200">{{ $gadNeedsRevision ? 'Return for revision' : 'Signature check required' }}</p>
                 @endif
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload the completed, signed GAD Checklist. ATHENA reads its score to determine whether this package can proceed.</p>
-            @endif
+                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $gadPassed ? 'The signed checklist and passing score are recorded. Continue with co-evaluator review below.' : 'Upload the completed, signed GAD Checklist to read its score.' }}</p>
             @if ($gadChecklistFile)
                 <div x-data="{ replacing: @js(! $gadAssessment) }" class="mt-4">
                     @if ($gadAssessment)
-                        <div data-gad-score-summary role="status" class="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60 sm:grid-cols-[9rem_minmax(0,1fr)_auto] sm:items-center">
+                        <div data-gad-score-summary role="status" class="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60 md:grid-cols-[9rem_minmax(0,1fr)]">
                             <div>
                                 <p class="text-sm font-bold text-gray-600 dark:text-gray-300">Detected total</p>
                                 <p class="mt-1 text-3xl font-bold text-gray-950 dark:text-white">
@@ -124,7 +129,7 @@
                                             @if ($gadSignatureConfirmed && $gadSignatureDetected)
                                                 Signature evidence detected in the file and confirmed after preview.
                                             @elseif ($gadSignatureConfirmed)
-                                                Manually confirmed after preview; automatic detection was inconclusive.
+                                                Confirmed by the Research Head after preview.
                                             @elseif ($gadSignatureDetected)
                                                 Signature evidence detected, but Research Head confirmation is still required.
                                             @else
@@ -135,7 +140,7 @@
                                 </div>
                                 <p class="mt-1 truncate text-sm font-semibold text-gray-500 dark:text-gray-400">{{ $gadAssessment->original_filename }}</p>
                             </div>
-                            <div class="flex flex-wrap gap-2">
+                            <div class="flex flex-wrap justify-end gap-2 md:col-span-2">
                                 @if ($gadAssessmentViewable)
                                     <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $gadAssessment]) }}" target="_blank" rel="noopener" class="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-bold text-emerald-900 hover:bg-emerald-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 sm:flex-none dark:border-emerald-800 dark:bg-gray-950 dark:text-emerald-100 dark:hover:bg-emerald-950">View</a>
                                 @endif
@@ -163,6 +168,7 @@
                     @if ($canUploadEvaluation)
                         <form id="gad-assessment-replacement-{{ $topic->id }}" x-show="replacing" @if ($gadAssessment) x-cloak x-transition.opacity @endif action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" class="{{ $gadAssessment ? 'mt-3' : '' }} grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                             @csrf
+                            @if ($returnToReview)<input type="hidden" name="return_to_review" value="1">@endif
                             <input type="hidden" name="source_file_id" value="{{ $gadChecklistFile->id }}">
                             <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT }}">
                             <div class="min-w-0 space-y-3">
@@ -182,8 +188,8 @@
                                 <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
                             </div>
                             <label for="gad_score_{{ $topic->id }}" class="block rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                                <strong class="block text-gray-950 dark:text-white">Score shown on a scanned PDF <span class="font-semibold text-gray-500">(optional)</span></strong>
-                                <span class="block">Leave this blank for searchable files. Enter it only when the phone scan has no selectable text.</span>
+                                <strong class="block text-gray-950 dark:text-white">Enter score only if automatic reading fails</strong>
+                                <span class="block">Leave this blank first. If ATHENA cannot read the score, enter the final score printed on the completed checklist and upload it again.</span>
                                 <span class="mt-2 flex items-center gap-2">
                                     <input id="gad_score_{{ $topic->id }}" name="gad_score" type="number" min="0" max="20" step="0.01" inputmode="decimal" value="{{ old('gad_score') }}" class="block min-h-11 w-32 rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
                                     <span class="font-bold text-gray-500 dark:text-gray-400">/ 20</span>
@@ -201,11 +207,11 @@
             @else
                 <p role="alert" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">The submitted package does not include a GAD checklist.</p>
             @endif
+            </section>
             @if ($gadPassed)
-                    </div>
-                </div>
-                <h3 class="mt-4 text-lg font-bold text-gray-950 dark:text-white">Co-evaluator review</h3>
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Record the co-evaluator and upload the completed Initial Screening Form, including its Narrative Evaluation.</p>
+                <section id="co-evaluator-review" data-co-evaluator-review-card aria-labelledby="co-evaluator-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
+                <h3 id="co-evaluator-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">Co-evaluator review</h3>
+                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Enter the evaluator’s name and recommendation, then attach their completed Initial Screening Form.</p>
                 @if ($initialScreeningFile)
                     <div x-data="{ replacing: @js(! $coEvaluatorEvaluation) }" class="mt-4">
                         @if ($coEvaluatorEvaluation)
@@ -238,23 +244,26 @@
                         @endif
 
                         @if ($canUploadEvaluation)
-                            <form id="co-evaluator-upload-{{ $topic->id }}" x-show="replacing" @if ($coEvaluatorEvaluation) x-cloak x-transition.opacity @endif action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" data-co-evaluator-screening-panel="true" class="{{ $coEvaluatorEvaluation ? 'mt-3' : '' }} grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50 lg:grid-cols-[minmax(12rem,0.5fr)_minmax(13rem,0.55fr)_minmax(0,1fr)_auto] lg:items-end">
+                            <form id="co-evaluator-upload-{{ $topic->id }}" x-show="replacing" @if ($coEvaluatorEvaluation) x-cloak x-transition.opacity @endif action="{{ route('topics.head-uploads.store', $topic) }}" method="POST" enctype="multipart/form-data" data-co-evaluator-screening-panel="true" class="{{ $coEvaluatorEvaluation ? 'mt-5' : '' }} space-y-5">
                                 @csrf
+                                @if ($returnToReview)<input type="hidden" name="return_to_review" value="1">@endif
                                 <input type="hidden" name="source_file_id" value="{{ $initialScreeningFile->id }}">
                                 <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION }}">
-                                <label for="co_evaluator_name_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
-                                    Co-evaluator
+                                <div class="grid gap-4 md:grid-cols-2" data-co-evaluator-details>
+                                <label for="co_evaluator_name_{{ $topic->id }}" class="block text-sm font-bold text-gray-800 dark:text-gray-100">
+                                    Co-evaluator name
                                     <input id="co_evaluator_name_{{ $topic->id }}" name="co_evaluator_name" type="text" maxlength="160" autocomplete="off" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
                                 </label>
-                                <label for="recommended_action_{{ $topic->id }}" class="block text-base font-bold text-gray-800 dark:text-gray-100">
+                                <label for="recommended_action_{{ $topic->id }}" class="block text-sm font-bold text-gray-800 dark:text-gray-100">
                                     Recommended action
                                     <select id="recommended_action_{{ $topic->id }}" name="recommended_action" required class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                                        <option value="">Select the checked action</option>
+                                        <option value="">Select the recommendation on the form</option>
                                         <option value="{{ \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT)>For Endorsement</option>
                                         <option value="{{ \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION)>Minor Revision</option>
                                         <option value="{{ \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION }}" @selected(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION)>Major Revision</option>
                                     </select>
                                 </label>
+                                </div>
                                 <div data-co-evaluator-dropzone x-data="fileDropzone({ accept: '.pdf,.docx', maxBytes: 26214400, multiple: false })" @paste="paste($event)" class="min-w-0">
                                     <label for="co_evaluator_file_{{ $topic->id }}" class="sr-only">Completed Initial Screening Form</label>
                                     <label for="co_evaluator_file_{{ $topic->id }}" data-file-dropzone tabindex="0" @dragenter.prevent="dragEnter()" @dragover.prevent="dragging = true" @dragleave.prevent="dragLeave()" @drop.prevent="drop($event)" @keydown.enter.prevent="browse()" @keydown.space.prevent="browse()" :class="dragging ? 'border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950'" class="flex min-h-20 cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed px-4 py-3 text-left transition hover:border-red-400 hover:bg-red-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:hover:bg-red-950/20 dark:focus-visible:ring-offset-gray-950">
@@ -270,15 +279,18 @@
                                     </label>
                                     <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
                                 </div>
-                                <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 lg:w-auto">Record evaluation</button>
+                                <div class="flex justify-end border-t border-gray-200 pt-4 dark:border-gray-800">
+                                    <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 sm:w-auto">Record evaluation</button>
+                                </div>
                             </form>
                         @endif
                     </div>
                 @else
                     <p role="alert" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">The submitted package does not include an Initial Screening Form.</p>
                 @endif
+                </section>
             @endif
-        </section>
+        </div>
     @endif
 
     @if ($requiredSignatureFiles->isNotEmpty() && ($isSigningStage || $topic->status === 'approved'))

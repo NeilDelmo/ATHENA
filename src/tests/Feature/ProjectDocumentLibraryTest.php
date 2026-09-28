@@ -93,6 +93,32 @@ test('the floating folder lists generated review papers with their source versio
     expect($this->topic->projectDocuments()->count())->toBe(0)->and($version->files()->count())->toBe(3)->and($this->topic->reviews()->count())->toBe(1);
 });
 
+test('project folder offers review access only for current faculty papers in the Research Head workspace', function () {
+    [$oldVersion, $oldPaper] = ($this->makeResponseVersion)();
+    [$currentVersion, $currentPaper] = ($this->makeResponseVersion)(2);
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $path = 'head-uploads/recorded-gad.pdf';
+    Storage::disk('local')->put($path, '%PDF-1.7 recorded assessment');
+    $assessment = $currentVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90, 'file_path' => $path, 'original_filename' => 'recorded-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT],
+    ]);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->actingAs($head);
+    $documents = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $head)['documents'];
+    expect($documents->firstWhere('key', 'proposal-version-file-'.$currentPaper->id)['review_url'])
+        ->toBe(route('topics.versions.files.annotations.index', [$this->topic, $currentVersion, $currentPaper]))
+        ->and($documents->firstWhere('key', 'proposal-version-file-'.$oldPaper->id)['review_url'])->toBeNull()
+        ->and($documents->firstWhere('key', 'proposal-version-file-'.$assessment->id)['review_url'])->toBeNull();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])->actingAs($this->faculty);
+    $facultyDocuments = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $this->faculty)['documents'];
+    expect($facultyDocuments->whereNotNull('review_url'))->toHaveCount(0);
+});
+
 test('legacy review comments remain accessible even when no proposal version was recorded', function () {
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create(['reviewer_id' => $this->faculty->id, 'decision' => 'revision_requested', 'comment' => 'Legacy review feedback.']);
