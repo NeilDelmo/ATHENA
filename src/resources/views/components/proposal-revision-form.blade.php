@@ -22,7 +22,7 @@
     data-faculty-revision-required
     data-revision-workspace="{{ $topic->id }}"
     data-confirm-title="Submit this revision to the Research Head?"
-    data-confirm-text="Your updated details and replacement files will be saved as a new version. Unchanged files carry forward automatically."
+    data-confirm-text="Edited papers will generate PDFs for the new version. Uploaded replacements and unchanged papers will be included too."
     data-confirm-button="Submit revision"
     data-confirm-icon="question"
     @invalid.capture="if ($event.target.closest('[data-revision-proposal-details-fields]')) window.dispatchEvent(new CustomEvent('open-revision-proposal-details'))"
@@ -120,7 +120,7 @@
                 </span>
                 <div>
                     <h3 id="revision-papers-heading" class="text-base font-black text-slate-950 dark:text-white">2. Requested papers</h3>
-                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $revisionGroups->isEmpty() ? 'This request contains comments on the overall proposal, without identifying a paper to replace.' : 'For each requested paper, save your edits, upload a replacement, or explain why no file change is needed. Other papers carry forward automatically.' }}</p>
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $revisionGroups->isEmpty() ? 'This request contains comments on the overall proposal, without identifying a paper to replace.' : 'Where a paper has an editor, update its saved fields; submission generates and attaches the revised PDF. You can upload a replacement instead, or explain why no change is needed. Other papers carry forward automatically.' }}</p>
                 </div>
             </div>
         </header>

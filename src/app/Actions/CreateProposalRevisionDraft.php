@@ -107,9 +107,11 @@ class CreateProposalRevisionDraft
                     $key = $documentType.':'.$position;
                     $documentVersion = $historyByType->get($key);
                     $versionFile = $versionFiles->get($key);
-                    $documentSource = is_array($documentVersion?->source_data) && $documentVersion->source_data !== []
-                        ? $documentVersion->source_data
-                        : (is_array($versionFile?->source_data) ? $versionFile->source_data : $source);
+                    $documentSource = is_array($versionFile?->source_data) && $versionFile->source_data !== []
+                        ? $versionFile->source_data
+                        : (is_array($documentVersion?->source_data) && $documentVersion->source_data !== []
+                            ? $documentVersion->source_data
+                            : $source);
 
                     $draft->documents()->create([
                         'document_type' => $documentType,
@@ -128,8 +130,8 @@ class CreateProposalRevisionDraft
     /** @return array<string, mixed> */
     private function sourceFor(Collection $historyByType, Collection $versionFiles, string $documentType): array
     {
-        $source = $historyByType
-            ->filter(fn (ProposalDraftDocumentVersion $version): bool => $version->document_type === $documentType)
+        $source = $versionFiles
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === $documentType)
             ->first()
             ?->source_data;
 
@@ -137,8 +139,8 @@ class CreateProposalRevisionDraft
             return $source;
         }
 
-        $source = $versionFiles
-            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === $documentType)
+        $source = $historyByType
+            ->filter(fn (ProposalDraftDocumentVersion $version): bool => $version->document_type === $documentType)
             ->first()
             ?->source_data;
 

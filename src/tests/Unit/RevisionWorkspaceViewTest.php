@@ -109,6 +109,23 @@ test('upload-only revisions retain their PDF and feedback beside one required fi
         ->and($xpath->query('//iframe[@data-revision-editor-frame]')->length)->toBe(0);
 });
 
+test('generated paper revisions use the saved form without requiring a research call or replacement upload', function () {
+    $this->topic->research_call_id = null;
+    $this->topic->setRelation('researchCall', null);
+
+    $html = view('components.proposal-revision-document', [
+        'topic' => $this->topic, 'documentType' => 'work_plan',
+        'fileRevisions' => collect([$this->revision]), 'required' => true,
+    ])->render();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($html);
+    $xpath = new DOMXPath($dom);
+
+    expect($xpath->query('//dialog//iframe[@data-revision-editor-frame]')->length)->toBe(1)
+        ->and($xpath->query('//dialog//input[@name="work_plan"][@required]')->length)->toBe(0)
+        ->and($html)->toContain('Upload a replacement instead');
+});
+
 test('feedback without highlighted annotations still opens its submitted PDF', function () {
     $this->revision->setRelation('annotations', collect());
     $html = view('components.proposal-revision-document', [

@@ -7,8 +7,7 @@
     $label = app(\App\Support\ProposalPaperCatalog::class)->label($documentType) ?? str($documentType)->replace('_', ' ')->title();
     $revisionTargetCatalog = app(\App\Support\ProposalRevisionTargetCatalog::class);
     $paper = app(\App\Support\ProposalPaperCatalog::class)->forDocumentType($documentType);
-    $canEmbed = $required && $topic->research_call_id
-        && ($paper['mode'] ?? null) === 'generated'
+    $canEmbed = $required && ($paper['mode'] ?? null) === 'generated'
         && (! $multiple || ($fileRevisions->count() === 1 && $fileRevisions->first()->file?->position === 0));
     $editorUrl = $canEmbed ? route('faculty.proposal-drafts.revision', [
         'topic' => $topic, 'document_type' => $documentType, 'revision_embed' => 1,
@@ -177,7 +176,7 @@
                             <details class="revision-upload-alternative border-t border-gray-200 dark:border-slate-700">
                                 <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-gray-600 dark:text-slate-300">Upload a replacement instead</summary>
                                 <p class="px-4 pt-2 text-xs text-gray-500">An uploaded file takes precedence over the editor.</p>
-                                <x-proposal-revision-upload :input-name="$inputName" :accept="$accept" :multiple="$multiple" :required="$required" :staged-file="$stagedFile" :label="$label" :document-type="$documentType" :file-errors="$fileErrors" />
+                                <x-proposal-revision-upload :input-name="$inputName" :accept="$accept" :multiple="$multiple" :required="false" :staged-file="$stagedFile" :label="$label" :document-type="$documentType" :file-errors="$fileErrors" />
                             </details>
                         @else
                             <h4 class="px-4 pt-4 text-sm font-bold">Upload your revised {{ $label }}</h4>

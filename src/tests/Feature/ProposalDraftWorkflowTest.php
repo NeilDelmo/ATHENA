@@ -1740,6 +1740,50 @@ test('final submission creates one immutable package then rejects a duplicate re
     expect($revisionDraft->signatory_selections)->toBe($commentsSignatories);
 });
 
+test('revision drafts reuse the latest submitted paper fields without a research call', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'title' => 'Coastal survey revision',
+        'estimated_duration_months' => 12,
+        'status' => 'revision_requested',
+    ]);
+    $version = $topic->versions()->create([
+        'submitted_by' => $this->faculty->id,
+        'version_number' => 2,
+        'submission_type' => 'revision',
+        'file_path' => 'proposals/coastal-survey.pdf',
+        'original_filename' => 'coastal-survey.pdf',
+        'title' => $topic->title,
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => 'proposals/coastal-survey.pdf',
+        'original_filename' => 'coastal-survey.pdf',
+        'source_data' => ['project_leader' => 'Faculty Owner', 'rationale' => 'Latest submitted rationale'],
+    ]);
+    $version->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 0,
+        'file_path' => 'proposals/coastal-work-plan.pdf',
+        'original_filename' => 'coastal-work-plan.pdf',
+        'source_data' => ['entries' => [['objective' => 'Latest submitted objective']]],
+    ]);
+    ProposalDraftDocumentVersion::create([
+        'topic_id' => $topic->id,
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 0,
+        'version_number' => 1,
+        'source_data' => ['entries' => [['objective' => 'Older draft objective']]],
+    ]);
+
+    $draft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+
+    expect($draft->research_call_id)->toBeNull()
+        ->and($draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)?->source_data['rationale'])->toBe('Latest submitted rationale')
+        ->and($draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)?->source_data['entries'][0]['objective'])->toBe('Latest submitted objective');
+});
+
 test('an rrl backed proposal completes submission revision approval notice and monitoring', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)([
