@@ -8,6 +8,7 @@ use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
 use App\Models\ProposalDraft;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -20,10 +21,12 @@ use App\Services\GADChecklistScoreExtractor;
 use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
+use App\Services\ProjectDocumentLibrary;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
 use App\Services\WorkPlanDocumentService;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalRevisionFileScope;
@@ -50,6 +53,7 @@ class TopicController extends Controller
         private ProposalSignatureWorkflow $signatureWorkflow,
         private NoticeToProceedDataService $noticeToProceedDataService,
         private MonitoringQuarterService $monitoringQuarterService,
+        private ProjectDocumentLibrary $projectDocumentLibrary,
     ) {}
 
     public function index(ProposalDraftReadiness $readiness): View
@@ -174,6 +178,10 @@ class TopicController extends Controller
             'reviews' => fn ($query) => $query->with(['reviewer', 'fileRevisions.file', 'fileRevisions.annotations.reviewer'])->oldest(),
         ]);
 
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $topic->markLatestVersionViewedByResearchHead();
+        }
+
         $monitoringReports = $topic->progressReports->values();
 
         $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic);
@@ -255,18 +263,27 @@ class TopicController extends Controller
 
         $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
         $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
+        $projectDocumentLibrary = $this->projectDocumentLibrary->build($topic, $request->user());
 
         $nextClearanceDecision = match (true) {
             $topic->review_stage === 'lrec' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'Clear for signing'],
             $topic->status === TopicProposal::STATUS_GAD_REVIEW => [TopicProposal::STATUS_LREC_QUEUED, 'Send to LREC'],
-            default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD review'],
+            default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD assessment'],
         };
+        $coEvaluatorEvaluation = $headUploadWorkspace['coEvaluatorEvaluation'] ?? null;
+        $canSendToLrec = ($headUploadWorkspace['gadPassed'] ?? false)
+            && $coEvaluatorEvaluation !== null
+            && ! in_array($coEvaluatorEvaluation->source_data['recommended_action'] ?? null, [
+                InitialScreeningSubmissionOrder::MINOR_REVISION,
+                InitialScreeningSubmissionOrder::MAJOR_REVISION,
+            ], true);
         $researchHeadDecisionOptions = $request->user()->isUsingWorkspace('research_head')
             ? collect([
                 $nextClearanceDecision[0] => $nextClearanceDecision[1],
                 'revision_requested' => 'Request revisions',
                 'rejected' => 'Reject proposal',
-            ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision))->all()
+            ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision)
+                && ($decision !== TopicProposal::STATUS_LREC_QUEUED || $canSendToLrec))->all()
             : [];
 
         return view('topics.show', compact(
@@ -290,6 +307,7 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+            'projectDocumentLibrary',
         ));
     }
 
@@ -577,6 +595,20 @@ class TopicController extends Controller
                 $nextVersion = ((int) $revisedTopic->versions()->max('version_number')) + 1;
                 $previousVersion = $revisedTopic->latestVersion()->with('files')->first();
                 $snapshotFiles = $packageService->revisionSnapshot($previousVersion, $replacementFiles, $revisedTopic);
+                if ($revisionDraft) {
+                    foreach ($snapshotFiles as &$snapshotFile) {
+                        if ($snapshotFile['document_type'] === ProposalVersionFile::TYPE_DETAILED_PROPOSAL) {
+                            $snapshotFile['source_data'] = [
+                                ...($snapshotFile['source_data'] ?? []),
+                                'comment_response_signatory_selections' => array_intersect_key(
+                                    $revisionDraft->signatory_selections ?? [],
+                                    ProposalSignatory::FIELDS['comment_response_form'],
+                                ),
+                            ];
+                        }
+                    }
+                    unset($snapshotFile);
+                }
                 $primaryFile = $packageService->primaryFile($snapshotFiles);
 
                 $revisedTopic->update([
@@ -814,7 +846,7 @@ class TopicController extends Controller
             return $this->headUploadErrorResponse(
                 $topic,
                 true,
-                ['review_file' => 'GAD review opens only after the Research Head explicitly clears the latest proposal version.'],
+                ['review_file' => 'GAD assessment opens only after the Research Head explicitly clears the latest proposal version.'],
             );
         }
 
@@ -847,7 +879,7 @@ class TopicController extends Controller
             return $this->headUploadErrorResponse(
                 $topic,
                 true,
-                ['source_file_id' => 'A completed central evaluator review must be linked to the original Initial Screening Form in the latest proposal version.'],
+                ['source_file_id' => 'A completed co-evaluator review must be linked to the original Initial Screening Form in the latest proposal version.'],
             );
         }
 
@@ -855,7 +887,7 @@ class TopicController extends Controller
             return $this->headUploadErrorResponse(
                 $topic,
                 true,
-                ['review_file' => 'Central evaluation opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.'],
+                ['review_file' => 'Co-evaluator review opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.'],
             );
         }
 
@@ -876,16 +908,28 @@ class TopicController extends Controller
         $file = $request->file('review_file');
         $narrativeEvaluation = null;
         $gadAssessment = null;
+        $gadScoreEnteredManually = false;
 
         if ($isGadAssessment) {
             try {
                 $gadAssessment = $gadScoreExtractor->extract($file);
             } catch (RuntimeException $exception) {
-                return $this->headUploadErrorResponse(
-                    $topic,
-                    true,
-                    ['review_file' => $exception->getMessage()],
-                );
+                if (! is_numeric($validated['gad_score'] ?? null)) {
+                    return $this->headUploadErrorResponse(
+                        $topic,
+                        true,
+                        ['review_file' => $exception->getMessage().' If this is a phone-scanned PDF, enter the final GAD score shown on the checklist and upload it again.'],
+                    );
+                }
+
+                $gadScore = round((float) $validated['gad_score'], 2);
+                $gadAssessment = [
+                    'gad_score' => $gadScore,
+                    ...$gadScoreExtractor->interpretationFor($gadScore),
+                    'gad_signature_detected' => false,
+                    'gad_signature_detection_method' => null,
+                ];
+                $gadScoreEnteredManually = true;
             }
         }
 
@@ -923,6 +967,7 @@ class TopicController extends Controller
                     'gad_rating' => $gadAssessment['gad_rating'] ?? null,
                     'gad_interpretation' => $gadAssessment['gad_interpretation'] ?? null,
                     'gad_outcome' => $gadAssessment['gad_outcome'] ?? null,
+                    'gad_score_entry_method' => $gadScoreEnteredManually ? 'manual' : ($isGadAssessment ? 'automatic' : null),
                     'gad_signature_detected' => $gadAssessment['gad_signature_detected'] ?? false,
                     'gad_signature_confirmed' => $isGadAssessment && $request->boolean('gad_signature_confirmed'),
                     'gad_signature_detection_method' => $gadAssessment['gad_signature_detection_method'] ?? null,
@@ -934,7 +979,7 @@ class TopicController extends Controller
                 $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
 
                 if (($isGadAssessment || $isEvaluation) && $lockedTopic->status !== TopicProposal::STATUS_GAD_REVIEW) {
-                    throw ValidationException::withMessages(['review_file' => 'GAD review is closed or the proposal stage changed. Reload the proposal workflow.']);
+                    throw ValidationException::withMessages(['review_file' => 'GAD assessment is closed or the proposal stage changed. Reload the proposal workflow.']);
                 }
 
                 if ($isSignedCopy && $lockedTopic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
@@ -952,7 +997,7 @@ class TopicController extends Controller
                     ->firstOrFail();
 
                 if ($isEvaluation && ! $lockedVersion->hasPassingGadAssessment()) {
-                    throw ValidationException::withMessages(['review_file' => 'Central evaluation opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.']);
+                    throw ValidationException::withMessages(['review_file' => 'Co-evaluator review opens only after the GAD Office records a passing score and the Research Head confirms the verifier’s signature.']);
                 }
 
                 $existingSignedCopies = $isSignedCopy
@@ -1014,15 +1059,17 @@ class TopicController extends Controller
         }
 
         if ($isGadAssessment) {
+            $scoreAction = $gadScoreEnteredManually ? 'recorded a confirmed Total GAD Score of ' : 'extracted a Total GAD Score of ';
+
             return redirect()
                 ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
-                ->with('success', 'Completed GAD Checklist uploaded. ATHENA extracted a Total GAD Score of '.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].') and recorded the verifier signature confirmation.');
+                ->with('success', 'Completed GAD Checklist uploaded. ATHENA '.$scoreAction.number_format($gadAssessment['gad_score'], 2).' ('.$gadAssessment['gad_rating'].') and recorded the verifier signature confirmation.');
         }
 
         if ($isEvaluation) {
             return redirect()
                 ->to(route('topics.head-uploads.index', $topic).'#initial-review-workflow')
-                ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the central evaluator response.');
+                ->with('success', 'Completed Initial Screening Form uploaded. Its Narrative Evaluation was recorded for the co-evaluator response.');
         }
 
         return redirect()

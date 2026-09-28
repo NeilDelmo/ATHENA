@@ -63,6 +63,7 @@ class TopicProposal extends Model
         'notice_to_proceed_issued_at',
         'notice_to_proceed_data',
         'status',
+        'research_head_viewed_version_id',
         'review_stage',
         'lrec_cleared_at',
         'project_status',
@@ -124,22 +125,63 @@ class TopicProposal extends Model
         return in_array($decision, $allowed, true);
     }
 
-    public function workflowStatusLabel(): string
+    public function workflowStatusLabel(?ProposalVersion $latestVersion = null): string
     {
         return match ($this->status) {
-            self::STATUS_GAD_REVIEW => 'GAD and central evaluation',
+            self::STATUS_GAD_REVIEW => $this->currentReviewStageLabel($latestVersion),
             self::STATUS_LREC_QUEUED => 'Awaiting LREC presentation',
             self::STATUS_LREC_REVIEW => 'LREC review',
-            self::STATUS_READY_FOR_SIGNATURE => 'Signing and Notice to Proceed',
-            'revision_requested' => match ($this->review_stage) {
-                'lrec' => 'LREC revisions requested',
-                'gad' => 'GAD or central revisions requested',
-                default => 'Research Head revisions requested',
-            },
-            'resubmitted' => $this->review_stage === 'lrec' ? 'LREC revision awaiting review' : 'Research Head revision awaiting review',
-            'approved' => $this->hasIssuedNoticeToProceed() ? 'Approved and released' : 'Preparing final release',
-            'rejected' => 'Rejected',
-            default => 'Initial review',
+            self::STATUS_READY_FOR_SIGNATURE => 'Final signing',
+            'revision_requested' => $this->revisionSourceLabel($latestVersion).' revision requested',
+            'resubmitted' => $this->revisionSourceLabel($latestVersion).' revision awaiting review',
+            'approved' => $this->hasIssuedNoticeToProceed() ? 'Project monitoring' : 'Final signing',
+            'rejected' => 'Closed',
+            default => 'Research Head review',
+        };
+    }
+
+    public function researchHeadQueueStatusLabel(?ProposalVersion $latestVersion = null): string
+    {
+        $latestVersionViewed = $latestVersion !== null
+            && (int) $this->research_head_viewed_version_id === (int) $latestVersion->getKey();
+
+        if ($this->status === 'pending' && ! $latestVersionViewed) {
+            return 'New submission';
+        }
+
+        if ($this->status === 'resubmitted' && ! $latestVersionViewed) {
+            return 'New revision';
+        }
+
+        if (in_array($this->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true)) {
+            return 'Needs review';
+        }
+
+        return $this->workflowStatusLabel($latestVersion);
+    }
+
+    public function currentReviewStageLabel(?ProposalVersion $latestVersion = null): string
+    {
+        if ($this->review_stage === 'lrec' || in_array($this->status, [self::STATUS_LREC_QUEUED, self::STATUS_LREC_REVIEW], true)) {
+            return 'LREC review';
+        }
+
+        if ($this->review_stage === 'gad' || $this->status === self::STATUS_GAD_REVIEW) {
+            return ($latestVersion?->hasPassingGadAssessment() ?? false)
+                ? 'Co-evaluator review'
+                : 'GAD assessment';
+        }
+
+        return 'Research Head review';
+    }
+
+    public function revisionSourceLabel(?ProposalVersion $latestVersion = null): string
+    {
+        return match ($this->currentReviewStageLabel($latestVersion)) {
+            'LREC review' => 'LREC',
+            'Co-evaluator review' => 'Co-evaluator',
+            'GAD assessment' => 'GAD',
+            default => 'Research Head',
         };
     }
 
@@ -400,9 +442,44 @@ class TopicProposal extends Model
             ->latest();
     }
 
+    public function projectDocuments(): HasMany
+    {
+        return $this->hasMany(ProjectDocument::class, 'topic_id')->latest();
+    }
+
     public function latestVersion(): HasOne
     {
         return $this->hasOne(ProposalVersion::class, 'topic_id')->ofMany('version_number', 'max');
+    }
+
+    public function researchHeadViewedVersion(): BelongsTo
+    {
+        return $this->belongsTo(ProposalVersion::class, 'research_head_viewed_version_id');
+    }
+
+    public function latestVersionHasBeenViewedByResearchHead(): bool
+    {
+        $latestVersionId = $this->relationLoaded('latestVersion')
+            ? $this->latestVersion?->getKey()
+            : $this->latestVersion()->value('id');
+
+        return $latestVersionId !== null
+            && (int) $this->research_head_viewed_version_id === (int) $latestVersionId;
+    }
+
+    public function markLatestVersionViewedByResearchHead(): void
+    {
+        $latestVersionId = $this->relationLoaded('latestVersion')
+            ? $this->latestVersion?->getKey()
+            : $this->latestVersion()->value('id');
+
+        if ($latestVersionId === null || (int) $this->research_head_viewed_version_id === (int) $latestVersionId) {
+            return;
+        }
+
+        static::withoutTimestamps(function () use ($latestVersionId): void {
+            $this->forceFill(['research_head_viewed_version_id' => $latestVersionId])->saveQuietly();
+        });
     }
 
     public function revisionDraft(): HasOne

@@ -338,6 +338,8 @@ body {
 
 .gad-signatories strong {
     font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2pt;
 }
 
 .gad-guide-page h2 {

@@ -27,15 +27,9 @@
             <div class="mb-4 flex items-end justify-between gap-4">
                 <div>
                     <h3 id="active-proposal-queue-heading" class="text-lg font-black text-gray-900 dark:text-white">Active proposal queue</h3>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current record per proposal. A red dot marks a submission that still needs your review.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current record per proposal. A red accent marks a newly received package you have not opened.</p>
                 </div>
                 <div class="flex flex-wrap justify-end gap-2 text-xs font-bold">
-                    @if (count($unreadProposalTopicIds) > 0)
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700 ring-1 ring-inset ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900">
-                            <span class="h-2 w-2 rounded-full bg-red-600 dark:bg-red-400" aria-hidden="true"></span>
-                            {{ count($unreadProposalTopicIds) }} {{ count($unreadProposalTopicIds) === 1 ? 'needs' : 'need' }} review
-                        </span>
-                    @endif
                     <span class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-slate-800 dark:text-slate-300">{{ $activeProposals->total() }} active {{ Str::plural('proposal', $activeProposals->total()) }}</span>
                 </div>
             </div>
@@ -43,45 +37,45 @@
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 @forelse ($activeProposals as $proposal)
                     @php
-                        [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
-                            'gad_review' => ['GAD and central evaluation', 'Research Head clearance is recorded. Complete GAD review before central evaluation.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
-                            'lrec_queued' => ['Awaiting LREC presentation', 'Initial review is cleared. Record the outcome after the presentation.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
-                            'lrec_review' => ['LREC review', 'Record committee feedback or clear the proposal for signing.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
-                            'expert_review' => ['Under expert review', 'The assigned expert is evaluating this package.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
-                            'for_final_decision' => ['Awaiting decision', 'The review stage is complete and the proposal needs a Research Head decision.', 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200'],
-                            'revision_requested' => ['Revision requested', 'The faculty member is preparing the requested corrections.', 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200'],
-                            'resubmitted' => ['Resubmitted', 'A revised package was received and needs another review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
-                            'ready_for_signature' => ['Final signing', 'Selected final papers are awaiting signed copies.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
-                            default => ['New submission', 'A proposal package was received and is ready to enter review.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
-                        };
                         $latestSubmission = $proposal->latestVersion;
+                        $latestVersionViewed = $proposal->latestVersionHasBeenViewedByResearchHead();
+                        $isNewlyReceivedVersion = in_array($proposal->status, ['pending', 'resubmitted'], true) && ! $latestVersionViewed;
+                        $gadPassed = $latestSubmission?->hasPassingGadAssessment() ?? false;
+                        $hasCoEvaluatorReview = $latestSubmission?->hasCoEvaluatorReview() ?? false;
+                        $statusLabel = $proposal->researchHeadQueueStatusLabel($latestSubmission);
+                        [$statusDescription, $statusStyle] = match (true) {
+                            $proposal->status === 'pending' && ! $latestVersionViewed => ['A new proposal package was received and has not been opened.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                            $proposal->status === 'resubmitted' && ! $latestVersionViewed => ['A revised proposal package was received and has not been opened.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                            in_array($proposal->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true) => ['Review the current package and record the next action.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
+                            $proposal->status === 'gad_review' && ! $gadPassed => ['Record the completed GAD assessment before continuing.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
+                            $proposal->status === 'gad_review' && ! $hasCoEvaluatorReview => ['The GAD assessment is cleared. Record the co-evaluator review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
+                            $proposal->status === 'gad_review' => ['The co-evaluator review is complete. This proposal can be routed to LREC.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
+                            $proposal->status === 'lrec_queued' => ['Initial review is cleared. Record the outcome after the presentation.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
+                            $proposal->status === 'lrec_review' => ['Record committee feedback or clear the proposal for signing.', 'bg-gray-100 text-gray-800 dark:bg-slate-800 dark:text-slate-200'],
+                            $proposal->status === 'revision_requested' => ['The faculty member is preparing corrections requested during '.$proposal->currentReviewStageLabel($latestSubmission).'.', 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200'],
+                            $proposal->status === 'ready_for_signature' => ['Selected final papers are awaiting signed copies.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                            default => ['A proposal package was received and is ready to enter review.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
+                        };
                         $receivedAt = $latestSubmission?->created_at ?? $proposal->created_at;
-                        $requiresAttention = in_array($proposal->id, $unreadProposalTopicIds, true);
                         $isRevisedSubmission = $latestSubmission?->submission_type === 'revision';
                     @endphp
 
                     <article
                         data-proposal-id="{{ $proposal->id }}"
-                        data-proposal-attention="{{ $requiresAttention ? 'unread' : 'seen' }}"
+                        data-proposal-state="{{ $isNewlyReceivedVersion ? 'new' : 'opened' }}"
                         @class([
                             'relative flex min-h-64 flex-col overflow-hidden rounded-2xl border bg-white p-5 shadow-sm transition dark:bg-slate-900',
-                            'border-red-300 ring-2 ring-red-100 shadow-red-100/60 dark:border-red-800 dark:ring-red-950/70 dark:shadow-none' => $requiresAttention,
-                            'border-gray-200 dark:border-slate-800' => ! $requiresAttention,
+                            'border-red-300 ring-2 ring-red-100 shadow-red-100/60 dark:border-red-800 dark:ring-red-950/70 dark:shadow-none' => $isNewlyReceivedVersion,
+                            'border-gray-200 dark:border-slate-800' => ! $isNewlyReceivedVersion,
                         ])
                     >
-                        @if ($requiresAttention)
+                        @if ($isNewlyReceivedVersion)
                             <div class="absolute inset-x-0 top-0 h-1 bg-red-600 dark:bg-red-500" aria-hidden="true"></div>
                         @endif
 
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex flex-wrap items-center gap-2">
-                                @if ($requiresAttention)
-                                    <span data-proposal-unread-dot class="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-                                        <span class="h-2 w-2 rounded-full bg-white" aria-hidden="true"></span>
-                                        Needs review
-                                    </span>
-                                @endif
-                                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
+                                <span data-proposal-status-label="{{ $statusLabel }}" class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
                             </div>
                             <time datetime="{{ $receivedAt?->toIso8601String() }}" class="shrink-0 text-[11px] text-gray-500 dark:text-slate-400">{{ $receivedAt?->diffForHumans() }}</time>
                         </div>
@@ -151,21 +145,18 @@
                 <option value="revision" @selected($submissionType === 'revision')>Revisions</option>
             </select>
 
-            <label class="sr-only" for="proposal-submission-status">Proposal status</label>
+            <label class="sr-only" for="proposal-submission-status">Active review stage</label>
             <select id="proposal-submission-status" name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                <option value="">All proposal statuses</option>
+                <option value="">All active review stages</option>
                 @foreach ([
-                    'pending' => 'Pending',
-                    'expert_review' => 'Awaiting Research Head',
-                    'for_final_decision' => 'Awaiting Research Head',
-                    'gad_review' => 'GAD and central evaluation',
+                    'pending' => 'New submission / Needs review',
+                    'gad_assessment' => 'GAD assessment',
+                    'co_evaluator_review' => 'Co-evaluator review',
                     'lrec_queued' => 'Awaiting LREC presentation',
                     'lrec_review' => 'LREC review',
                     'revision_requested' => 'Revision requested',
-                    'resubmitted' => 'Resubmitted',
-                    'ready_for_signature' => 'Ready for signature',
-                    'approved' => 'Approved',
-                    'rejected' => 'Rejected',
+                    'resubmitted' => 'New revision / Needs review',
+                    'ready_for_signature' => 'Final signing',
                 ] as $value => $label)
                     <option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>
                 @endforeach
@@ -203,6 +194,7 @@
                             @php
                                 $isRevision = $submission->submission_type === 'revision';
                                 $fileCount = $submission->package_files_count ?: ($submission->file_path ? 1 : 0);
+                                $historyStatusLabel = $submission->topic->researchHeadQueueStatusLabel($submission->topic->latestVersion);
                                 $statusStyle = match ($submission->topic->status) {
                                     'approved' => 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
                                     'ready_for_signature' => 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
@@ -236,7 +228,7 @@
                                     @endif
                                 </td>
                                 <td class="px-5 py-4">
-                                    <span class="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ str($submission->topic->status)->replace('_', ' ')->title() }}</span>
+                                    <span data-proposal-history-status-label="{{ $historyStatusLabel }}" class="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $historyStatusLabel }}</span>
                                 </td>
                                 <td class="px-5 py-4">
                                     <p class="whitespace-nowrap text-xs font-black text-gray-700 dark:text-slate-200">{{ $fileCount }} {{ Str::plural('package file', $fileCount) }}</p>

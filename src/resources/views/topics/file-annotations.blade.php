@@ -26,6 +26,22 @@
         </x-slot>
 
         <div x-data="pdfAnnotationWorkspace" data-pdf-annotation-config='@json($annotationConfiguration)' @resize.window="positionCommentComposer()" @scroll.window.capture="positionCommentComposer()" class="mx-auto max-w-[1600px] space-y-4">
+            @if ($commentResponseLinks !== [])
+                <section data-comment-response-access aria-label="Comment Response paper" class="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30 sm:p-5">
+                    <div class="max-w-3xl">
+                        <h3 class="text-base font-bold text-gray-950 dark:text-white">Highlights → Comment Response paper</h3>
+                        <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">{{ $canAnnotate ? 'Saved highlights feed the Comment Response paper. Preview the draft here or from any Highlight page; sending the revision request shares the selected papers’ comments with Faculty.' : 'These comments belong to the Comment Response paper for the review below, together with the Faculty responses.' }}</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach ($commentResponseLinks as $link)
+                            <button type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'highlight-comment-response-{{ $loop->index }}')" @if ($link['draft']) :disabled="saving || !!deletingAnnotationId" @endif class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950">
+                                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                {{ $link['label'] }}
+                            </button>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
             @if (! $canAnnotate && $isResearchHead)
                 <p class="rounded-xl bg-gray-100 px-4 py-3 text-base leading-7 text-gray-700 dark:bg-gray-900 dark:text-gray-300">This review is locked. Saved comments remain available, but cannot be changed after the decision is sent.</p>
             @elseif (! $isResearchHead)
@@ -42,7 +58,7 @@
                 :role="paperFocusOpen ? 'dialog' : null"
                 :aria-modal="paperFocusOpen ? 'true' : null"
                 :aria-label="paperFocusOpen ? 'Focused PDF review workspace' : null"
-                @keydown.escape.window="if (!draftSelection) closePaperFocus()"
+                @keydown.escape.window="if (!draftSelection && !document.querySelector('[data-comment-response-preview-content]')) closePaperFocus()"
                 class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-3 dark:border-gray-800 sm:px-4">
@@ -54,7 +70,12 @@
                             <p class="text-base text-gray-600 dark:text-gray-300" x-text="modeInstruction"></p>
                         @endif
                     </div>
-                    <button x-ref="paperFocusClose" type="button" @click="paperFocusOpen ? closePaperFocus() : openPaperFocus()" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" x-text="paperFocusOpen ? 'Exit focus' : 'Expand paper'">Expand paper</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        @foreach ($commentResponseLinks as $link)
+                            <button x-show="paperFocusOpen" x-cloak type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'highlight-comment-response-{{ $loop->index }}')" @if ($link['draft']) :disabled="saving || !!deletingAnnotationId" @endif class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950">{{ $link['label'] }}</button>
+                        @endforeach
+                        <button x-ref="paperFocusClose" type="button" @click="paperFocusOpen ? closePaperFocus() : openPaperFocus()" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" x-text="paperFocusOpen ? 'Exit focus' : 'Expand paper'">Expand paper</button>
+                    </div>
                 </div>
 
                 <div :class="paperFocusOpen ? 'min-h-0 flex-1' : 'h-[76dvh] min-h-[32rem]'" class="grid grid-rows-[minmax(14rem,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-1">
@@ -128,6 +149,19 @@
                     </section>
                 @endif
             </div>
+            @foreach ($commentResponseLinks as $link)
+                <x-modal name="highlight-comment-response-{{ $loop->index }}" maxWidth="6xl" focusable class="!z-[140]" data-comment-response-preview-modal>
+                    <template x-if="show">
+                        <section data-comment-response-preview-content role="dialog" aria-modal="true" aria-labelledby="highlight-comment-response-heading-{{ $loop->index }}">
+                            <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                                <h3 id="highlight-comment-response-heading-{{ $loop->index }}" class="text-base font-bold text-gray-950 dark:text-white">{{ $link['label'] }}</h3>
+                                <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                            </header>
+                            <x-proposal-revision-pdf :configuration="['pdfUrl' => $link['url'], 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                        </section>
+                    </template>
+                </x-modal>
+            @endforeach
         </div>
     @endif
 </x-app-layout>

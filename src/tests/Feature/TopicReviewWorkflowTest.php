@@ -2,8 +2,10 @@
 
 use App\Contracts\DocumentPdfConverter;
 use App\Livewire\ResearchHeadProposalFileChecklist;
+use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalFileReviewCheck;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -376,6 +378,10 @@ test('faculty revision submission uses the topic revision draft when the browser
         'revision_note' => 'Update this paper.',
     ]));
 
+    $commentsSignatories = [
+        'comment_response_head' => ['name' => 'Revision Research Head'],
+        'comment_response_vice_chancellor' => ['name' => 'Revision Vice Chancellor'],
+    ];
     $draft = $topic->revisionDraft()->create([
         'user_id' => $faculty->id,
         'research_call_id' => $this->researchCall->id,
@@ -383,6 +389,7 @@ test('faculty revision submission uses the topic revision draft when the browser
         'duration_months' => 12,
         'project_leader' => $faculty->name,
         'status' => 'draft',
+        'signatory_selections' => $commentsSignatories,
     ]);
     foreach ([
         ProposalVersionFile::TYPE_LINE_ITEM_BUDGET => ['path' => 'proposal-drafts/revision/revised-budget.pdf', 'source' => ['amounts' => ['telephone_expenses' => 3500]]],
@@ -410,6 +417,9 @@ test('faculty revision submission uses the topic revision draft when the browser
             'estimated_budget' => 3500,
             'estimated_duration_months' => 12,
             'redirect_to' => 'topic',
+            'feedback_review_id' => $review->id,
+            'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($review))
+                ->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Addressed in the revised proposal.', 'remarks' => 'Updated']])->all(),
             'revision_resolutions' => [
                 ProposalVersionFile::TYPE_DETAILED_PROPOSAL => [
                     'action' => 'no_change',
@@ -425,6 +435,8 @@ test('faculty revision submission uses the topic revision draft when the browser
         ->and($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)?->source_data)
         ->toBe(['amounts' => ['telephone_expenses' => 3500]])
         ->and($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+    expect($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->source_data['comment_response_signatory_selections'])->toBe($commentsSignatories);
 });
 
 test('a Research Head may request another revision only after receiving the faculty resubmission', function () {
@@ -554,7 +566,6 @@ test('decision history is collapsed and organized newest first', function () {
         ->assertOk()
         ->assertSee('data-decision-history', false)
         ->assertSee('2 decisions')
-        ->assertSee('Latest:')
         ->assertSee('Rejected')
         ->assertSee('View history')
         ->assertSeeInOrder(['Newest rejection reason.', 'Older revision request.']);
@@ -564,7 +575,11 @@ test('decision history is collapsed and organized newest first', function () {
     $xpath = new DOMXPath($document);
 
     expect($xpath->query('//section[@data-decision-history][@data-initially-open="false"]//button[@aria-controls="decision-history-list"]')->length)->toBe(1)
-        ->and($xpath->query('//section[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2);
+        ->and($xpath->query('//section[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2)
+        ->and($xpath->query('//*[@id="proposal-review-tab"]//*[@data-decision-history]')->length)->toBe(0)
+        ->and($xpath->query('//*[@id="version-history-tab"]//*[@data-decision-history]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-decision-history]//a[contains(@href, "comment-response-form/pdf")][@target="_blank"]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-history-comment-response-preview]//template[@x-if="show"]//*[@data-pdf-annotation-config]')->length)->toBe(1);
 });
 
 test('legacy review records do not block the Research Head from starting final signing', function () {
@@ -690,22 +705,30 @@ test('review feedback and revision controls are visible on both dashboards', fun
         ->assertDontSee('Completed comment-response form')
         ->assertDontSee('presentation-comment-response.docx')
         ->assertSee('Decision history')
+        ->assertSee('Open revision workspace')
+        ->assertDontSee('data-revision-proposal-details-button', false);
+
+    $this->actingAs($faculty)
+        ->get(route('faculty.topics.revision', $topic))
+        ->assertOk()
         ->assertSee('Submit revision')
         ->assertSee('data-revision-proposal-details-button', false)
         ->assertSee('aria-controls="proposal-details-fields"', false)
         ->assertSee('data-initially-open="false"', false)
         ->assertDontSee('<summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-700', false)
-        ->assertSee('data-topic-file-dropzone="detailed_proposal"', false)
-        ->assertSee('data-topic-file-dropzone="curricula_vitae"', false)
-        ->assertSee('Choose or drop replacement file')
-        ->assertSee('Choose or drop replacement files')
+        ->assertDontSee('data-topic-file-dropzone', false)
         ->assertSee('data-confirm-title="Submit this revision to the Research Head?"', false);
 
     $this->actingAs($head)
         ->get('/research-head/dashboard')
         ->assertOk()
+        ->assertSee('Research Operations Dashboard');
+
+    $this->actingAs($head)
+        ->get(route('topics.show', $topic))
+        ->assertOk()
         ->assertSee('Please tighten the literature review.')
-        ->assertSee('Waiting for faculty revision');
+        ->assertSee('Waiting for the faculty revision');
 });
 
 test('research details reads total project cost from the line-item budget attachment', function () {
@@ -813,18 +836,6 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         ],
     ]);
 
-    $this->actingAs($faculty)
-        ->get(route('faculty.topics.comment-response-form.preview', $topic))
-        ->assertOk()
-        ->assertSee('BatStateU Comment-Response Form')
-        ->assertSee('Coastal Habitat Restoration')
-        ->assertSee('Dr. Aurora Reyes')
-        ->assertSee('Alangilan')
-        ->assertSee('CICS')
-        ->assertSee('Department of Computing Sciences')
-        ->assertSee('Bea Santos')
-        ->assertSee('Carlos Lim');
-
     app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
     {
         public function convertDocx(string $contents): string
@@ -837,6 +848,17 @@ test('faculty can preview and download an auto-filled official Comment-Response 
             throw new LogicException('An XLSX conversion was not expected.');
         }
     });
+
+    $preview = $this->actingAs($faculty)
+        ->get(route('faculty.topics.comment-response-form.preview', $topic))
+        ->assertOk()
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertHeader('x-content-type-options', 'nosniff')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+
+    expect($preview->headers->get('content-disposition'))
+        ->toContain('inline')
+        ->toContain('coastal-habitat-restoration-research-head-comment-response-form.pdf');
 
     $pdf = $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.pdf', $topic))
@@ -879,20 +901,17 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         expect($documentDom->textContent)
             ->toContain('Coastal Habitat Restoration')
             ->toContain('Dr. Aurora Reyes')
-            ->toContain('Alangilan')
-            ->toContain('CICS')
-            ->toContain('Department of Computing Sciences')
             ->toContain('Bea Santos')
             ->toContain('Carlos Lim')
             ->toContain('Initial Screening')
-            ->toContain('Evaluation by the Local Research Evaluation Committee (LREC)')
+            ->toContain('Local Research Evaluation')
             ->toContain('COMMENTS AND SUGGESTIONS')
             ->toContain('ACTION AND RESPONSE')
             ->toContain('REMARKS')
             ->toContain('Research Head/ RDES Head')
             ->toContain('Vice Chancellor for Research, Development and Extension Services');
         expect($footerDom->textContent)
-            ->toContain('Comment-Response Form | Coastal Habitat Restoration')
+            ->not->toContain('Comment-Response Form | Coastal Habitat Restoration')
             ->not->toContain('insert the research proposal title here');
 
         $footerXpath = new DOMXPath($footerDom);
@@ -908,7 +927,11 @@ test('faculty can preview and download an auto-filled official Comment-Response 
         $xpath = new DOMXPath($documentDom);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
 
-        foreach ($xpath->query('/w:document/w:body/w:tbl[3]/w:tr[position() > 1]/w:tc[position() > 1]') as $responseCell) {
+        $title = $xpath->query('/w:document/w:body/w:p[.//w:t[contains(., "Coastal Habitat Restoration")]]')->item(0);
+        expect($title?->textContent)->toBe('TITLE OF RESEARCH PROPOSAL: Coastal Habitat Restoration')
+            ->and($xpath->query('.//w:tab | .//w:u', $title)->length)->toBe(0);
+
+        foreach ($xpath->query('/w:document/w:body/w:tbl[2]/w:tr[position() > 1]/w:tc[position() > 1]') as $responseCell) {
             expect(trim($responseCell->textContent))->toBe('');
         }
 
@@ -916,7 +939,7 @@ test('faculty can preview and download an auto-filled official Comment-Response 
             $entry = $template->statIndex($index);
             $name = $entry['name'];
 
-            if (! in_array($name, ['word/document.xml', 'word/footer1.xml', 'word/settings.xml'], true)) {
+            if (! in_array($name, ['word/document.xml', 'word/header1.xml', 'word/footer1.xml', 'word/settings.xml'], true)) {
                 expect($generated->getFromName($name))->toBe($template->getFromName($name));
             }
         }
@@ -1011,25 +1034,64 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
     $headQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD, 'review' => $review->id];
     $coEvaluatorQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_CO_EVALUATOR, 'review' => $review->id];
 
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\ngenerated comment-response form";
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            throw new LogicException('An XLSX conversion was not expected.');
+        }
+    });
+
     $this->actingAs($faculty)
         ->get(route('faculty.topics.comment-response-form.preview', $headQuery))
         ->assertOk()
-        ->assertSee('Research Head Comment-Response Form')
-        ->assertSee('Clarify the participant recruitment timeline.')
-        ->assertDontSee('The methodology needs a clearer sampling frame.');
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
     $this->get(route('faculty.topics.comment-response-form.preview', $coEvaluatorQuery))
         ->assertOk()
-        ->assertSee('Co-evaluator Comment-Response Form')
-        ->assertSee('Dr. Maria Santos')
-        ->assertSee('The methodology needs a clearer sampling frame.')
-        ->assertDontSee('Clarify the participant recruitment timeline.');
-    $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
+        ->assertHeader('content-type', 'application/pdf')
+        ->assertContent("%PDF-1.7\ngenerated comment-response form");
+    $headDownload = $this->get(route('faculty.topics.comment-response-form.download', $headQuery))
         ->assertOk()
         ->assertDownload('mangrove-recovery-study-research-head-comment-response-form.docx');
-    $this->get(route('faculty.topics.comment-response-form.download', $coEvaluatorQuery))
+    $coEvaluatorDownload = $this->get(route('faculty.topics.comment-response-form.download', $coEvaluatorQuery))
         ->assertOk()
         ->assertDownload('mangrove-recovery-study-co-evaluator-comment-response-form.docx');
-    $this->get(route('topics.show', $topic))
+
+    $documentText = static function ($response): string {
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'athena-comment-response-source-test-');
+        expect($temporaryPath)->not->toBeFalse();
+        file_put_contents($temporaryPath, $response->streamedContent());
+        $archive = new ZipArchive;
+
+        try {
+            expect($archive->open($temporaryPath))->toBeTrue();
+            $documentXml = $archive->getFromName('word/document.xml');
+            expect($documentXml)->not->toBeFalse();
+            $document = new DOMDocument;
+            expect($document->loadXML($documentXml, LIBXML_NONET))->toBeTrue();
+
+            return $document->textContent;
+        } finally {
+            $archive->close();
+            unlink($temporaryPath);
+        }
+    };
+
+    expect($documentText($headDownload))
+        ->toContain('Clarify the participant recruitment timeline.')
+        ->not->toContain('The methodology needs a clearer sampling frame.')
+        ->and($documentText($coEvaluatorDownload))
+        ->toContain('Dr. Maria Santos')
+        ->toContain('The methodology needs a clearer sampling frame.')
+        ->not->toContain('Clarify the participant recruitment timeline.');
+
+    $this->get(route('faculty.topics.revision', $topic))
         ->assertOk()
         ->assertSee('Research Head Comment-Response Form')
         ->assertSee('Co-evaluator Comment-Response Form')
@@ -1122,7 +1184,7 @@ test('faculty researchers can browse and open only their own approved research r
         ->assertOk()
         ->assertSee('Approved - awaiting notice')
         ->assertSee('PHP 14,500.00')
-        ->assertSee('Submitted proposal files')
+        ->assertSee('Proposal package')
         ->assertSee('Decision history')
         ->assertSee('id="notice-to-proceed-tab-button"', false)
         ->assertSee('id="notice-to-proceed-tab"', false)
@@ -1373,7 +1435,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Submitted proposal files')
+        ->assertSee('Proposal package')
         ->assertSee('Research details')
         ->assertSee('Decision history')
         ->assertDontSee('Research Head documents')
@@ -1384,7 +1446,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($head)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Submitted proposal files')
+        ->assertSee('Proposal package')
         ->assertSee('7/7 files available')
         ->assertDontSee('id="notice-to-proceed-tab-button"', false)
         ->assertSee('Detailed Research Proposal')
@@ -1392,10 +1454,10 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertSee('View')
         ->assertSee('Download')
         ->assertSee('Latest submitted package')
-        ->assertSee('File review and decision actions are available under the')
+        ->assertSee('Open the project folder to view these files together with signed papers')
         ->assertDontSee('Review latest package')
         ->assertSee('data-latest-review-version="1"', false)
-        ->assertSee('Reviewing Version 1 &mdash; latest submitted package', false)
+        ->assertSee('Record the Research Head decision')
         ->assertSee('Record the Research Head decision')
         ->assertSee('Submitted documents')
         ->assertDontSee('Your paper review checklist')
@@ -1483,19 +1545,23 @@ test('the proposal workspace is complete role-aware and private', function () {
             'estimated_duration_months' => 18,
             'change_summary' => 'Updated the implementation schedule.',
             'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        ]);
+            'feedback_review_id' => $fileRevision->topic_review_id,
+            'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($fileRevision->review))->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Extended the schedule through the second year.', 'remarks' => 'Updated']])->all(),
+        ])->assertSessionHasNoErrors(null, 'resubmission');
 
     expect($topic->fresh()->status)->toBe('resubmitted')
         ->and($fileRevision->fresh()->resolved_at)->not->toBeNull()
         ->and($fileRevision->fresh()->resolutionFile?->original_filename)->toBe('work-plan-v2.docx');
 
     $latestVersion = $topic->latestVersion()->with('files')->firstOrFail();
+    $topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
     $signatureFileIds = $latestVersion->files
         ->whereIn('document_type', [
             ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
             ProposalVersionFile::TYPE_WORK_PLAN,
             ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
             ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
         ])
         ->pluck('id')
         ->all();
@@ -1503,6 +1569,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($head)
         ->patch(route('research_head.topics.updateStatus', $topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+            'lrec_clearance_confirmed' => '1',
             'signature_file_ids' => $signatureFileIds,
             'evaluation_document' => UploadedFile::fake()->create('final-evaluation.pdf', 100, 'application/pdf'),
         ])
@@ -1513,6 +1580,7 @@ test('the proposal workspace is complete role-aware and private', function () {
         ProposalVersionFile::TYPE_WORK_PLAN,
         ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
         ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
     ] as $documentType) {
         $sourceFile = $latestVersion->files->firstWhere('document_type', $documentType);
 
@@ -1522,14 +1590,14 @@ test('the proposal workspace is complete role-aware and private', function () {
                 'review_file' => UploadedFile::fake()->create("signed-{$documentType}.pdf", 100, 'application/pdf'),
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
             ])
-            ->assertRedirect(route('topics.show', $topic).'#proposal-review');
+            ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
     }
 
     $this->actingAs($head)
         ->patch(route('research_head.topics.finalizeApproval', $topic))
-        ->assertRedirect(route('topics.show', $topic).'#proposal-review');
+        ->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
 
-    expect($topic->fresh()->status)->toBe('approved')
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($topic->fresh()->project_status)->toBeNull()
         ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
@@ -1735,7 +1803,7 @@ test('research heads review and request changes only against the latest resubmit
         ->assertOk()
         ->assertSee('data-latest-review-version="2"', false)
         ->assertSee('data-latest-review-version-id="'.$latestVersion->id.'"', false)
-        ->assertSee('Reviewing Version 2 &mdash; latest submitted package', false)
+        ->assertSee('Submitted documents')
         ->assertSee('data-file-review-card="'.$latestFile->id.'"', false)
         ->assertDontSee('data-file-review-card="'.$originalFile->id.'"', false);
 
@@ -1765,3 +1833,56 @@ test('research heads review and request changes only against the latest resubmit
         ->and($topic->reviews()->latest()->firstOrFail()->fileRevisions()->sole()->proposal_version_file_id)
         ->toBe($latestFile->id);
 });
+
+test('comments form reviewer names come from frozen selections or unambiguous active directory roles', function (string $scenario, array $expectedNames) {
+    foreach (['faculty', 'research_head'] as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $topic = TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Comment Signatures', 'estimated_duration_months' => 12, 'status' => 'revision_requested']);
+    $version = createTopicReviewSubmission($topic, $faculty);
+    $review = $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'revision_requested', 'comment' => 'Clarify the scope.']);
+    $keys = ['comment_response_head', 'comment_response_vice_chancellor'];
+    $selections = [];
+    foreach ($keys as $index => $key) {
+        ProposalSignatory::create(['role_key' => $key, 'name' => 'Directory Signer '.($index + 1), 'position' => 'Role', 'active' => $scenario !== 'inactive']);
+        $selections[$key] = ['id' => $index + 1, 'name' => 'Selected Signer '.($index + 1), 'position' => 'Role'];
+        if ($scenario === 'ambiguous') {
+            ProposalSignatory::create(['role_key' => $key, 'name' => 'Other Signer '.($index + 1), 'position' => 'Role', 'active' => true]);
+        }
+    }
+    if ($scenario === 'submitted') {
+        $version->files()->first()->update(['source_data' => ['comment_response_signatory_selections' => $selections]]);
+    }
+    if ($scenario === 'revision') {
+        ProposalDraft::create(['user_id' => $faculty->id, 'topic_id' => $topic->id, 'project_title' => $topic->title, 'signatory_selections' => $selections]);
+    }
+    $download = $this->actingAs($faculty)->get(route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'review' => $review->id]))->assertOk();
+    $path = tempnam(sys_get_temp_dir(), 'comments-signatures-');
+    file_put_contents($path, $download->streamedContent());
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $names = $xpath->query('/w:document/w:body/w:tbl[.//w:t[contains(., "Research Head/ RDES Head")]]/w:tr[1]/w:tc/w:p[1]');
+        expect([$names->item(0)->textContent, $names->item(1)->textContent])->toBe($expectedNames);
+        foreach ($names as $paragraph) {
+            expect($xpath->query('./w:r/w:rPr/w:b', $paragraph)->length)->toBe(1);
+        }
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+})->with([
+    'Existing proposal with directory roles' => ['directory', ['Directory Signer 1', 'Directory Signer 2']],
+    'Submitted names stay frozen' => ['submitted', ['Selected Signer 1', 'Selected Signer 2']],
+    'Revision draft selections reflect in preview' => ['revision', ['Selected Signer 1', 'Selected Signer 2']],
+    'Multiple directory entries require a selection' => ['ambiguous', ['', '']],
+    'Inactive signatories are excluded' => ['inactive', ['', '']],
+]);

@@ -177,15 +177,14 @@
             <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 @forelse ($submittedProposals as $proposal)
                     @php
-                        [$statusLabel, $statusDescription, $statusStyle] = match ($proposal->status) {
-                            'gad_review' => ['GAD and central evaluation', 'The Research Head cleared this version. It must pass GAD review before central evaluation.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
-                            'expert_review' => ['Under expert review', 'Your package is being evaluated by the assigned expert.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
-                            'for_final_decision' => ['Awaiting decision', 'The review stage is complete and the Research Head is deciding.', 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/50 dark:text-cyan-200'],
-                            'revision_requested' => ['Revision required', 'The Research Head returned this proposal with feedback. Review the requested changes and resubmit your updated package.', 'bg-red-700 text-white dark:bg-red-600 dark:text-white'],
-                            'resubmitted' => ['Resubmitted', 'Your revised package has been received for another review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
-                            'ready_for_signature' => ['Final signing', 'The selected final papers are waiting for signed copies.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
-                            'approved' => ['Approved project', 'This proposal is approved. Its project records and monitoring remain in the project workflow.', 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200'],
-                            'rejected' => ['Not approved', 'This proposal received a final decision and is available as a record.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                        [$statusLabel, $statusDescription, $statusStyle] = match (true) {
+                            $proposal->status === 'gad_review' => ['GAD assessment', 'The Research Head cleared this version. It must pass GAD assessment before co-evaluator review.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
+                            in_array($proposal->status, ['expert_review', 'for_final_decision'], true) => ['Research Head review', 'Your submitted package is awaiting a Research Head action.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
+                            $proposal->status === 'revision_requested' => ['Revision required', 'The Research Head returned this proposal with feedback. Review the requested changes and resubmit your updated package.', 'bg-red-700 text-white dark:bg-red-600 dark:text-white'],
+                            $proposal->status === 'resubmitted' => ['Resubmitted', 'Your revised package has been received for another review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
+                            $proposal->status === 'ready_for_signature' || ($proposal->status === 'approved' && ! $proposal->hasIssuedNoticeToProceed()) => ['Final signing', 'The final signed papers and Notice to Proceed are being completed.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
+                            $proposal->status === 'approved' => ['Project monitoring', 'The Notice to Proceed was released. This research is now managed in Project Monitoring.', 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200'],
+                            $proposal->status === 'rejected' => ['Closed', 'This proposal is retained as a historical record and requires no further review action.', 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'],
                             default => ['Submitted', 'Your package was received and is waiting for the Research Office review.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
                         };
                         $latestSubmission = $proposal->latestVersion;

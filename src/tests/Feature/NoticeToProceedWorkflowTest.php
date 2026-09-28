@@ -7,6 +7,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\NoticeToProceedDataService;
+use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -58,6 +59,8 @@ beforeEach(function () {
 });
 
 test('the signed Notice to Proceed promotes the faculty member and opens monitoring', function () {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
+
     expect($this->faculty->hasRole('faculty_researcher'))->toBeFalse()
         ->and($this->topic->isMonitoringAvailable())->toBeFalse();
 
@@ -66,8 +69,8 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
     ])->actingAs($this->faculty)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Approved - awaiting notice')
-        ->assertSee('Review the details and prepare the unsigned PDF for signature.')
+        ->assertSee('Final signing')
+        ->assertSee('Reviews are complete. The research office is collecting signed papers and the signed Notice to Proceed. They will be released together.')
         ->assertDontSee('Project monitoring');
 
     $this->withSession([
@@ -120,9 +123,8 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertSee('Download unsigned PDF')
         ->assertSee('Signed Notice to Proceed PDF')
         ->assertSee('Drop signed notice to proceed pdf here')
-        ->assertSee('Release signed PDF')
+        ->assertSee('Release papers and Notice to Proceed')
         ->assertDontSee('Awaiting signed PDF')
-        ->assertDontSee('Research Office')
         ->assertDontSee('Notice release workflow')
         ->assertDontSee('Complete signatures offline')
         ->assertDontSee('Upload and release the signed copy')
@@ -144,7 +146,7 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
             'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
-        ->assertSessionHas('success', 'Signed Notice to Proceed uploaded and issued. Faculty Researcher access and project monitoring are now open.');
+        ->assertSessionHas('success', 'Signed papers and Notice to Proceed released together. Faculty Researcher access and project monitoring are now open.');
 
     $this->topic->refresh();
     $this->faculty->refresh();
@@ -154,7 +156,7 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->and($this->topic->project_status)->toBe('ongoing')
         ->and($this->topic->isMonitoringAvailable())->toBeTrue()
         ->and($this->faculty->hasRole('faculty_researcher'))->toBeTrue()
-        ->and($this->faculty->notifications()->firstOrFail()->data['title'])->toBe('Signed Notice to Proceed issued')
+        ->and($this->faculty->notifications()->firstOrFail()->data['title'])->toBe('Signed papers and Notice to Proceed released')
         ->and($this->faculty->notifications()->firstOrFail()->data['url'])->toBe(route('topics.show', $this->topic).'#project-monitoring');
 
     Storage::disk('local')->assertExists($this->topic->notice_to_proceed_path);
@@ -168,15 +170,16 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER,
     ])->actingAs($this->faculty)
-        ->get(route('research.show', $this->topic))
+        ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Official project record')
-        ->assertSee('Download PDF')
-        ->assertSee('View notice details')
+        ->assertSee('Download signed PDF')
+        ->assertSee('Released documents')
         ->assertSee('Project monitoring');
 });
 
 test('issuing the Notice to Proceed promotes every accepted linked collaborator into the shared researcher workspace', function () {
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
+
     $collaborator = User::factory()->create(['name' => 'Collaborating Researcher']);
     $collaborator->assignRole('faculty');
     $this->topic->collaborators()->create([
@@ -235,13 +238,13 @@ test('issuing the Notice to Proceed promotes every accepted linked collaborator 
         ->and($unacceptedCollaborator->fresh()->hasRole('faculty_researcher'))->toBeFalse()
         ->and($this->topic->collaborators()->where('email', $emailMatchedCollaborator->email)->sole()->user_id)
         ->toBe($emailMatchedCollaborator->id)
-        ->and($this->faculty->notifications()->where('data->title', 'Signed Notice to Proceed issued')->sole()->data['sidebar_area'])
+        ->and($this->faculty->notifications()->where('data->title', 'Signed papers and Notice to Proceed released')->sole()->data['sidebar_area'])
         ->toBe(ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS)
-        ->and($collaborator->notifications()->where('data->title', 'Signed Notice to Proceed issued')->count())
+        ->and($collaborator->notifications()->where('data->title', 'Signed papers and Notice to Proceed released')->count())
         ->toBe(1)
-        ->and($emailMatchedCollaborator->notifications()->where('data->title', 'Signed Notice to Proceed issued')->count())
+        ->and($emailMatchedCollaborator->notifications()->where('data->title', 'Signed papers and Notice to Proceed released')->count())
         ->toBe(1)
-        ->and($unacceptedCollaborator->notifications()->where('data->title', 'Signed Notice to Proceed issued')->count())
+        ->and($unacceptedCollaborator->notifications()->where('data->title', 'Signed papers and Notice to Proceed released')->count())
         ->toBe(0);
 
     $this->withSession([
@@ -345,7 +348,7 @@ test('an approved paper remains outside monitoring until its notice is issued', 
         ->get(route('research_head.projects.index'))
         ->assertOk()
         ->assertSee('No projects found')
-        ->assertSee('Projects appear here after their Notice to Proceed is issued.')
+        ->assertSee('Projects appear here after the final papers are completed and the Notice to Proceed is issued.')
         ->assertDontSee(route('topics.show', $this->topic).'#project-monitoring', false);
 });
 
@@ -425,3 +428,56 @@ test('a notice cannot be prepared before proposal approval', function () {
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse()
         ->and(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
 });
+
+function completeSignedProposalPackage(TopicProposal $topic, User $faculty, User $head): void
+{
+    $version = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 1,
+        'submission_type' => 'initial',
+        'file_path' => 'proposal-packages/final-package.pdf',
+        'original_filename' => 'final-package.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 100,
+        'checksum' => str_repeat('a', 64),
+        'title' => $topic->title,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+
+    foreach (ProposalSignatureWorkflow::REQUIRED_DOCUMENT_TYPES as $position => $documentType) {
+        $sourcePath = "proposal-packages/{$documentType}.pdf";
+        $signedPath = "head-uploads/signed-{$documentType}.pdf";
+        Storage::disk('local')->put($sourcePath, '%PDF-1.4 original');
+        Storage::disk('local')->put($signedPath, '%PDF-1.4 signed');
+
+        $source = $version->files()->create([
+            'document_type' => $documentType,
+            'position' => $position,
+            'file_path' => $sourcePath,
+            'original_filename' => "{$documentType}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'checksum' => hash('sha256', "original-{$documentType}"),
+            'is_carried_forward' => false,
+        ]);
+
+        $version->files()->create([
+            'source_version_file_id' => $source->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 100 + $position,
+            'file_path' => $signedPath,
+            'original_filename' => "signed-{$documentType}.pdf",
+            'mime_type' => 'application/pdf',
+            'file_size' => 100,
+            'checksum' => hash('sha256', "signed-{$documentType}"),
+            'uploaded_by' => $head->id,
+            'source_data' => [
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+                'target_document_type' => $documentType,
+            ],
+        ]);
+    }
+
+    $topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+}

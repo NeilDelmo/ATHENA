@@ -15,6 +15,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectBudgetUtilizationController;
 use App\Http\Controllers\ProjectDisseminationController;
+use App\Http\Controllers\ProjectDocumentController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
 use App\Http\Controllers\ProposalDraftController;
@@ -221,6 +222,15 @@ Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApprova
 Route::get('/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'download'])
     ->middleware('auth')
     ->name('topics.notice-to-proceed.download');
+Route::post('/topics/{topic}/documents', [ProjectDocumentController::class, 'store'])
+    ->middleware(['auth', 'workspace:faculty|faculty_researcher'])
+    ->name('topics.documents.store');
+Route::scopeBindings()->middleware('auth')->group(function () {
+    Route::get('/topics/{topic}/documents/{projectDocument}/view', [ProjectDocumentController::class, 'view'])
+        ->name('topics.documents.view');
+    Route::get('/topics/{topic}/documents/{projectDocument}/download', [ProjectDocumentController::class, 'download'])
+        ->name('topics.documents.download');
+});
 Route::get('/topics/{topic}', [TopicController::class, 'show'])
     ->middleware('auth')
     ->name('topics.show');

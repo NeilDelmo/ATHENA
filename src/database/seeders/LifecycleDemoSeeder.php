@@ -6,6 +6,7 @@ use App\Actions\ArchiveProposalDraftDocumentHistory;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\ResearchPublication;
@@ -25,23 +26,23 @@ class LifecycleDemoSeeder extends Seeder
 
     /** @var list<array{key: string, label: string, final_status: string, project_status: ?string}> */
     private const SCENARIOS = [
-        ['key' => 'pending', 'label' => 'Submitted for initial review', 'final_status' => 'pending', 'project_status' => null],
-        ['key' => 'expert-review', 'label' => 'Under expert review', 'final_status' => 'expert_review', 'project_status' => null],
+        ['key' => 'pending', 'label' => 'New submission', 'final_status' => 'pending', 'project_status' => null],
+        ['key' => 'expert-review', 'label' => 'Needs review', 'final_status' => 'pending', 'project_status' => null],
         ['key' => 'initial-revision', 'label' => 'Initial revision requested', 'final_status' => 'revision_requested', 'project_status' => null],
         ['key' => 'resubmitted', 'label' => 'Revision resubmitted', 'final_status' => 'resubmitted', 'project_status' => null],
-        ['key' => 'final-decision', 'label' => 'For final decision', 'final_status' => 'for_final_decision', 'project_status' => null],
+        ['key' => 'final-decision', 'label' => 'GAD assessment', 'final_status' => TopicProposal::STATUS_GAD_REVIEW, 'project_status' => null],
         ['key' => 'lrec-queue', 'label' => 'Awaiting LREC presentation', 'final_status' => TopicProposal::STATUS_LREC_QUEUED, 'project_status' => null],
         ['key' => 'lrec-review', 'label' => 'Under LREC review', 'final_status' => TopicProposal::STATUS_LREC_REVIEW, 'project_status' => null],
         ['key' => 'signing', 'label' => 'Ready for signature', 'final_status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'project_status' => null],
         ['key' => 'rejected', 'label' => 'Rejected after evaluation', 'final_status' => 'rejected', 'project_status' => null],
-        ['key' => 'approved', 'label' => 'Approved, awaiting Notice to Proceed', 'final_status' => 'approved', 'project_status' => null],
+        ['key' => 'approved', 'label' => 'Final signing and Notice to Proceed preparation', 'final_status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'project_status' => null],
         ['key' => 'ongoing', 'label' => 'Ongoing implementation', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_ONGOING],
         ['key' => 'delayed', 'label' => 'Delayed implementation', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_DELAYED],
         ['key' => 'completed-presented', 'label' => 'Completed with conference presentation', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED],
         ['key' => 'completed-published', 'label' => 'Completed with indexed publication', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED],
         ['key' => 'pending-second', 'label' => 'Additional proposal in initial review', 'final_status' => 'pending', 'project_status' => null],
         ['key' => 'revision-second', 'label' => 'Additional proposal requiring revision', 'final_status' => 'revision_requested', 'project_status' => null],
-        ['key' => 'resubmitted-second', 'label' => 'Additional revised proposal resubmitted', 'final_status' => 'resubmitted', 'project_status' => null],
+        ['key' => 'resubmitted-second', 'label' => 'Co-evaluator review', 'final_status' => TopicProposal::STATUS_GAD_REVIEW, 'project_status' => null],
         ['key' => 'lrec-review-second', 'label' => 'Additional proposal under LREC review', 'final_status' => TopicProposal::STATUS_LREC_REVIEW, 'project_status' => null],
         ['key' => 'ongoing-second', 'label' => 'Additional project under implementation', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_ONGOING],
         ['key' => 'delayed-second', 'label' => 'Additional delayed project with monitoring', 'final_status' => 'approved', 'project_status' => TopicProposal::PROJECT_STATUS_DELAYED],
@@ -69,6 +70,8 @@ class LifecycleDemoSeeder extends Seeder
                 ->first();
 
             if ($existingTopic) {
+                $this->synchronizeScenarioState($existingTopic, $head, $scenario);
+
                 if ($existingTopic->project_status) {
                     $this->seedImplementationRecords($existingTopic, $head, $approvedWorkPlan, $quarterService);
                 }
@@ -96,6 +99,7 @@ class LifecycleDemoSeeder extends Seeder
 
             $topic = $this->promoteDraft($draft, $call, $categories->get($index % max($categories->count(), 1)), $scenario, $archiveHistory);
             $this->advanceProposal($topic, $head, $scenario, $approvedWorkPlan, $quarterService);
+            $this->synchronizeScenarioState($topic, $head, $scenario);
             $this->command?->info($scenario['label'].': '.$topic->title);
         }
 
@@ -233,26 +237,26 @@ class LifecycleDemoSeeder extends Seeder
     ): void {
         $paths = [
             'pending' => [],
-            'expert-review' => ['expert_review'],
-            'initial-revision' => ['expert_review', 'revision_requested'],
-            'resubmitted' => ['expert_review', 'revision_requested', 'resubmitted'],
-            'final-decision' => ['expert_review', 'revision_requested', 'resubmitted', 'for_final_decision'],
-            'lrec-queue' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED],
-            'lrec-review' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW],
-            'signing' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE],
-            'rejected' => ['expert_review', 'rejected'],
-            'approved' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'ongoing' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'delayed' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'completed-presented' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'completed-published' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'expert-review' => [],
+            'initial-revision' => ['revision_requested'],
+            'resubmitted' => ['revision_requested', 'resubmitted'],
+            'final-decision' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW],
+            'lrec-queue' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED],
+            'lrec-review' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW],
+            'signing' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE],
+            'rejected' => ['rejected'],
+            'approved' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE],
+            'ongoing' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'delayed' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'completed-presented' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'completed-published' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
             'pending-second' => [],
-            'revision-second' => ['expert_review', 'revision_requested'],
-            'resubmitted-second' => ['expert_review', 'revision_requested', 'resubmitted'],
-            'lrec-review-second' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW],
-            'ongoing-second' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'delayed-second' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
-            'completed-published-second' => ['expert_review', 'revision_requested', 'resubmitted', TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'revision-second' => ['revision_requested'],
+            'resubmitted-second' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW],
+            'lrec-review-second' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW],
+            'ongoing-second' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'delayed-second' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
+            'completed-published-second' => ['revision_requested', 'resubmitted', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'],
         ];
 
         foreach ($paths[$scenario['key']] as $status) {
@@ -324,25 +328,12 @@ class LifecycleDemoSeeder extends Seeder
 
     private function recordReviewStep(TopicProposal $topic, User $head, string $status): void
     {
-        if ($status === 'expert_review') {
-            $topic->expertAssignments()->create([
-                'expert_id' => $head->id,
-                'assigned_by' => $head->id,
-                'status' => 'completed',
-                'recommendation' => 'recommend_revision',
-                'comment' => 'The concept is relevant; clarify the sampling plan and measurable outcomes.',
-                'reviewed_at' => now()->subMonths(10),
-            ]);
-
-            return;
-        }
-
         $comments = [
             'revision_requested' => 'Revise the methodology and connect each activity to a measurable output.',
+            TopicProposal::STATUS_GAD_REVIEW => 'Research Head screening is complete. The proposal is ready for GAD assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'Initial requirements are complete. Endorsed for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'Proposal presented to LREC and queued for committee deliberation.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC requirements are satisfied. Prepare the final signed package.',
-            'for_final_decision' => 'Expert responses are complete and the revision is ready for the final decision.',
             'approved' => 'Final proposal package approved.',
             'rejected' => 'The proposal does not meet the feasibility requirements for this cycle.',
         ];
@@ -355,6 +346,80 @@ class LifecycleDemoSeeder extends Seeder
                 'comment' => $comments[$status],
             ]);
         }
+    }
+
+    /** @param array{key: string, label: string, final_status: string, project_status: ?string} $scenario */
+    private function synchronizeScenarioState(TopicProposal $topic, User $head, array $scenario): void
+    {
+        $latestVersionId = $topic->versions()->max('id');
+        $reviewStage = match (true) {
+            $scenario['final_status'] === TopicProposal::STATUS_GAD_REVIEW => 'gad',
+            in_array($scenario['final_status'], [TopicProposal::STATUS_LREC_QUEUED, TopicProposal::STATUS_LREC_REVIEW, TopicProposal::STATUS_READY_FOR_SIGNATURE, 'approved'], true) => 'lrec',
+            default => 'initial',
+        };
+
+        $attributes = [
+            'description' => self::MARKER.$scenario['key'].'] '.$scenario['label'].'. This record was promoted from a prepared proposal draft.',
+            'status' => $scenario['final_status'],
+            'review_stage' => $reviewStage,
+        ];
+
+        if ($scenario['key'] === 'expert-review') {
+            $attributes['research_head_viewed_version_id'] = $latestVersionId;
+        } elseif (in_array($scenario['key'], ['pending', 'pending-second'], true)) {
+            $attributes['research_head_viewed_version_id'] = null;
+        }
+
+        $topic->update($attributes);
+
+        if ($scenario['key'] === 'resubmitted-second') {
+            $this->seedPassingGadAssessment($topic, $head);
+        }
+    }
+
+    private function seedPassingGadAssessment(TopicProposal $topic, User $head): void
+    {
+        $version = $topic->latestVersion()->with('files')->firstOrFail();
+        $gadChecklist = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
+
+        if (! $gadChecklist instanceof ProposalVersionFile) {
+            return;
+        }
+
+        $existingAssessment = $version->files
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && $file->source_version_file_id === $gadChecklist->id
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+            ->first();
+
+        if ($existingAssessment instanceof ProposalVersionFile) {
+            return;
+        }
+
+        $version->files()->create([
+            'source_version_file_id' => $gadChecklist->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 90,
+            'file_path' => $gadChecklist->file_path,
+            'original_filename' => 'completed-'.$gadChecklist->original_filename,
+            'mime_type' => $gadChecklist->mime_type,
+            'file_size' => $gadChecklist->file_size,
+            'checksum' => $gadChecklist->checksum,
+            'uploaded_by' => $head->id,
+            'source_data' => [
+                'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                'document_title' => 'Completed GAD Checklist',
+                'gad_score' => 9.25,
+                'gad_rating' => 'Gender-sensitive',
+                'gad_interpretation' => 'Proposed project is gender-sensitive (proposal passes the GAD test).',
+                'gad_outcome' => 'passed',
+                'gad_score_entry_method' => 'manual',
+                'gad_signature_detected' => false,
+                'gad_signature_confirmed' => true,
+                'gad_signature_detection_method' => null,
+            ],
+        ]);
     }
 
     private function seedImplementationRecords(

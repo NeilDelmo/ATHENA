@@ -213,7 +213,7 @@ class LineItemBudgetDocumentService
     private function fillPreparedBy(DOMXPath $xpath, DOMElement $row, array $budget): void
     {
         $paragraphs = $this->elements($xpath, './/w:p', $row);
-        $this->replaceParagraphByExactText($xpath, $paragraphs, 'NAME', $budget['project_leader'], true);
+        $this->replaceSignatureName($xpath, $paragraphs, $budget['project_leader']);
         $this->replaceParagraphByPrefix($xpath, $paragraphs, 'Date Signed:', 'Date Signed:');
     }
 
@@ -257,7 +257,7 @@ class LineItemBudgetDocumentService
             throw new RuntimeException('The certified-correct signature block is incomplete.');
         }
 
-        $this->replaceParagraphText($paragraphs[$nameIndex], $budget['certified_by'], true);
+        $this->replaceSignatureName($xpath, $paragraphs, $budget['certified_by']);
         $this->replaceParagraphText($paragraphs[$nameIndex + 1], $budget['certified_role']);
         $this->replaceParagraphText($paragraphs[$nameIndex + 2], '');
         $this->replaceParagraphByPrefix($xpath, $paragraphs, 'Date Signed:', 'Date Signed:');
@@ -286,6 +286,25 @@ class LineItemBudgetDocumentService
         }
 
         $this->replaceParagraphText($paragraphs[$index], $text, $bold);
+    }
+
+    /** @param array<int, DOMElement> $paragraphs */
+    private function replaceSignatureName(DOMXPath $xpath, array $paragraphs, string $name): void
+    {
+        $nameIndex = $this->paragraphIndex($xpath, $paragraphs, 'NAME');
+
+        if ($nameIndex === null || $nameIndex === 0) {
+            throw new RuntimeException('A Line-Item Budget signature slot is incomplete.');
+        }
+
+        $signatureLine = trim((string) $xpath->evaluate('string(.)', $paragraphs[$nameIndex - 1]));
+
+        if (preg_match('/^_{10,}$/', $signatureLine) !== 1) {
+            throw new RuntimeException('A Line-Item Budget handwritten signature line is missing.');
+        }
+
+        $this->replaceParagraphText($paragraphs[$nameIndex - 1], '');
+        $this->replaceParagraphText($paragraphs[$nameIndex], $name, true, underline: true);
     }
 
     /** @param array<int, DOMElement> $paragraphs */
@@ -339,6 +358,7 @@ class LineItemBudgetDocumentService
         bool $bold = false,
         bool $italic = false,
         ?string $alignment = null,
+        bool $underline = false,
     ): void {
         foreach (iterator_to_array($paragraph->childNodes) as $child) {
             if (! $child instanceof DOMElement || $child->localName !== 'pPr') {
@@ -357,7 +377,7 @@ class LineItemBudgetDocumentService
         $document = $paragraph->ownerDocument;
         $run = $document->createElementNS(self::W, 'w:r');
 
-        if ($bold || $italic) {
+        if ($bold || $italic || $underline) {
             $runProperties = $document->createElementNS(self::W, 'w:rPr');
 
             if ($bold) {
@@ -366,6 +386,12 @@ class LineItemBudgetDocumentService
 
             if ($italic) {
                 $runProperties->appendChild($document->createElementNS(self::W, 'w:i'));
+            }
+
+            if ($underline) {
+                $underlineElement = $document->createElementNS(self::W, 'w:u');
+                $underlineElement->setAttributeNS(self::W, 'w:val', 'single');
+                $runProperties->appendChild($underlineElement);
             }
 
             $run->appendChild($runProperties);

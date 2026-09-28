@@ -283,7 +283,7 @@
         </div>
     @elseif (! $topic->hasIssuedNoticeToProceed())
         <div class="px-5 py-5 text-sm text-gray-600 sm:px-7">
-            The approved proposal is waiting for the Research Head to prepare, sign, and release its official Notice to Proceed.
+            The final signing package is waiting for the Research Head to prepare, sign, and release its official Notice to Proceed.
         </div>
     @endif
 </section>

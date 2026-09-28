@@ -41,7 +41,7 @@
                     <tr class="total-row"><th colspan="5">Total for Capital Outlays (CO)</th><td class="amount">{{ number_format($lineItemBudget['co_total'], 2) }}</td></tr>
                     <tr class="spacer-row"><td colspan="5"></td><td></td></tr>
                     <tr class="project-total"><th colspan="5">TOTAL PROJECT COST</th><td class="amount">{{ number_format($lineItemBudget['project_total'], 2) }}</td></tr>
-                    <tr><td colspan="6" class="signature-cell"><p class="signature-heading">Prepared by:</p><p class="signature-line"></p><p class="signature-name">{{ $lineItemBudget['project_leader'] }}</p><p>Project Leader</p><p class="date-signed">Date Signed:</p></td></tr>
+                    <tr><td colspan="6" class="signature-cell"><p class="signature-heading">Prepared by:</p><p class="signature-name">{{ $lineItemBudget['project_leader'] }}</p><p>Project Leader</p><p class="date-signed">Date Signed:</p></td></tr>
                     <tr><td colspan="6" class="research-office-heading"><em>To be accomplished by the Research Office</em></td></tr>
                     <tr><td colspan="6" class="research-office"><strong>Level of Call</strong><br><span>{{ $lineItemBudget['level_of_call'] === 'central_agency' ? '☒' : '☐' }} Central Agency (VPRDES, President)</span><span>{{ $lineItemBudget['level_of_call'] === 'constituent_campus' ? '☒' : '☐' }} Constituent Campus (VCRDES, Chancellor)</span></td></tr>
                     <tr><td colspan="6" class="approval-line">
@@ -51,7 +51,7 @@
                             Approved by the Research Council/Local Research Evaluation Committee as per Research Council Resolution No. _____, S. _____/LREC Resolution No. _____, S. _____
                         @endif
                     </td></tr>
-                    <tr><td colspan="6" class="signature-cell certified"><p class="signature-heading">Certified correct:</p><p class="signature-line"></p><p class="signature-name">{{ $lineItemBudget['certified_by'] }}</p><p>{{ $lineItemBudget['certified_role'] }}</p><p class="date-signed">Date Signed:</p></td></tr>
+                    <tr><td colspan="6" class="signature-cell certified"><p class="signature-heading">Certified correct:</p><p class="signature-name">{{ $lineItemBudget['certified_by'] }}</p><p>{{ $lineItemBudget['certified_role'] }}</p><p class="date-signed">Date Signed:</p></td></tr>
                 </tbody>
             </table>
 

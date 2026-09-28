@@ -16,20 +16,25 @@
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal">
                 <div>Republic of the Philippines<strong>BATANGAS STATE UNIVERSITY</strong><span>The National Engineering University</span></div>
             </header>
-            <h1>COMMENT-RESPONSE FORM</h1>
-            <p><strong>REVIEW SOURCE:</strong> {{ $commentResponseForm['form_label'] }}</p>
-            <p class="evaluation">PREVIOUS EVALUATION DONE:<br>☐ Initial Screening<br>☐ Evaluation by the Local Research Evaluation Committee (LREC)<br><span>(date presented: ______________)</span></p>
-            <p><strong>TITLE OF RESEARCH PROPOSAL:</strong><br>{{ $commentResponseForm['project_title'] }}</p>
-            <p><strong>RESEARCHERS:</strong></p>
-            <table class="researchers">
-                <thead><tr><th>POSITION</th><th>NAME</th><th>CAMPUS</th><th>COLLEGE</th><th>DEPARTMENT</th></tr></thead>
-                <tbody>
-                    <tr><td>Project Leader</td><td>{{ $commentResponseForm['project_leader'] }}</td><td>{{ $commentResponseForm['leader_campus'] }}</td><td>{{ $commentResponseForm['leader_college'] }}</td><td>{{ $commentResponseForm['leader_department'] }}</td></tr>
-                    @foreach ($commentResponseForm['staff'] as $member)
-                        <tr><td>Project Staff</td><td>{{ $member['name'] }}</td><td>{{ $member['campus'] }}</td><td>{{ $member['college'] }}</td><td>{{ $member['department'] }}</td></tr>
+            <h1>MATRIX ON THE ACTIONS MADE FOR THE COMMENTS AND SUGGESTIONS</h1>
+            @php
+                $stages = array_intersect(array_keys(\App\Services\CommentResponseFeedback::STAGE_LABELS), $commentResponseForm['evaluation_stages'] ?? []);
+                $evaluationLevels = [
+                    ['label' => 'Initial Screening', 'checked' => count(array_diff($stages, ['lrec'])) > 0],
+                    ['label' => 'Local Research Evaluation', 'checked' => in_array('lrec', $stages, true)],
+                ];
+                $researchers = array_filter([$commentResponseForm['project_leader'], ...array_column($commentResponseForm['staff'], 'name')]);
+            @endphp
+            <section class="evaluation" aria-label="Level of evaluation done">
+                <p><strong>LEVEL OF EVALUATION DONE:</strong></p>
+                <ul class="evaluation-levels">
+                    @foreach ($evaluationLevels as $level)
+                        <li><span class="evaluation-box {{ $level['checked'] ? 'is-checked' : '' }}" aria-hidden="true"></span>{{ $level['label'] }}<span class="sr-only">{{ $level['checked'] ? ' — Selected' : ' — Not selected' }}</span></li>
                     @endforeach
-                </tbody>
-            </table>
+                </ul>
+            </section>
+            <p><strong>TITLE OF RESEARCH PROPOSAL:</strong> <strong>{{ $commentResponseForm['project_title'] }}</strong></p>
+            <p><strong>PROJECT STAFF:</strong> <strong>{{ implode(', ', $researchers) }}</strong></p>
             <table class="feedback">
                 <colgroup><col class="number"><col class="comments"><col class="response"><col class="remarks"></colgroup>
                 <thead><tr><th>NO.</th><th>COMMENTS AND SUGGESTIONS</th><th>ACTION AND RESPONSE<small>(Changes made in the revised proposal)</small></th><th>REMARKS<small>Page and paragraph number of the changes made</small></th></tr></thead>
@@ -51,11 +56,10 @@
                 <p class="signature-name"><strong>{{ $commentResponseForm['project_leader'] }}</strong><br>Project Leader</p>
                 <p>Checked and Reviewed by:</p>
                 <div class="review-signatures">
-                    <p>____________________________<br>Research Head / RDES Head<br>Member, LREC</p>
-                    <p>____________________________<br>Vice Chancellor for Research,<br>Development and Extension Services<br>Member, LREC</p>
+                    <p><strong>{{ $commentResponseForm['comment_response_head'] ?? '' }}</strong><br>Research Head / RDES Head<br>Member, LREC</p>
+                    <p><strong>{{ $commentResponseForm['comment_response_vice_chancellor'] ?? '' }}</strong><br>Vice Chancellor for Research,<br>Development and Extension Services<br>Member, LREC</p>
                 </div>
             </section>
-            <footer>{{ $commentResponseForm['form_label'] }} | {{ $commentResponseForm['project_title'] }}</footer>
         </main>
     </body>
 </html>

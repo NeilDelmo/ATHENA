@@ -63,7 +63,7 @@ class ResearchHeadDashboard extends Component
     {
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
         $callId = null;
-        $allowedStatuses = [...array_keys(ResearchDashboardAnalytics::STAGES), 'approved', 'rejected'];
+        $allowedStatuses = array_keys(ResearchDashboardAnalytics::STAGES);
         $summary = [
             'awaiting_review' => $analytics->topics($callId)->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_queued', 'lrec_review'])->count(),
             'revision_requested' => $analytics->topics($callId)->where('status', 'revision_requested')->count(),
@@ -81,12 +81,13 @@ class ResearchHeadDashboard extends Component
             ->orderBy('title')
             ->get();
         $topics = $analytics->topics($callId)
-            ->with(['user:id,name', 'researchCall:id,title', 'latestVersion' => fn ($query) => $query->withCount(['files' => fn (Builder $files) => $files->where('document_type', '!=', 'head_upload')])])
+            ->whereIn('status', $allowedStatuses)
+            ->with(['user:id,name', 'researchCall:id,title', 'latestVersion' => fn ($query) => $query
+                ->with('files')
+                ->withCount(['files' => fn (Builder $files) => $files->where('document_type', '!=', 'head_upload')])])
             ->when(in_array($this->status, $allowedStatuses, true), fn (Builder $query) => $query->where('status', $this->status))
             ->when($this->pipeline === 'awaiting_review', fn (Builder $query) => $query->whereIn('status', ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_queued', 'lrec_review']))
             ->when(in_array($this->pipeline, ['revision_requested', 'ready_for_signature'], true), fn (Builder $query) => $query->where('status', $this->pipeline))
-            ->when($this->pipeline === 'awaiting_notice', fn (Builder $query) => $query->where('status', 'approved')->whereNull('notice_to_proceed_issued_at'))
-            ->when($this->pipeline === 'approved', fn (Builder $query) => $query->monitoringAvailable())
             ->when($this->attention === 'repeat', fn (Builder $query) => $query->whereIn('status', array_keys(ResearchDashboardAnalytics::STAGES))->whereHas('reviews', fn (Builder $reviews) => $reviews->where('decision', 'revision_requested'), '>=', 2))
             ->when($this->search !== '', function (Builder $query): void {
                 $query->where(function (Builder $search): void {

@@ -37,7 +37,7 @@ class ResearchHeadTopicController extends Controller
         if (! $topic->canRecordDecision($validated['status'])) {
             $message = $topic->status === 'revision_requested'
                 ? 'A revision round is already open. Wait for the faculty member to submit the current revision before recording another decision.'
-                : 'Follow the current proposal stage. Research Head clearance is required before GAD review, and GAD and central evaluation must be complete before LREC.';
+                : 'Follow the current proposal stage. Research Head clearance is required before GAD assessment, and the GAD assessment and co-evaluator review must be complete before LREC.';
 
             throw ValidationException::withMessages([
                 'status' => $message,
@@ -89,9 +89,9 @@ class ResearchHeadTopicController extends Controller
             }
 
             if (! $hasCoEvaluatorNarrative) {
-                $missingSteps->push('record the central evaluator’s Narrative Evaluation');
+                $missingSteps->push('record the co-evaluator’s Narrative Evaluation');
             } elseif ($coEvaluationRequiresRevision) {
-                $missingSteps->push('complete the central evaluator’s '.str($coEvaluatorRecommendedAction)->replace('_', ' ')->toString().' and upload a new endorsed evaluation');
+                $missingSteps->push('complete the co-evaluator’s '.str($coEvaluatorRecommendedAction)->replace('_', ' ')->toString().' and upload a new endorsed evaluation');
             }
 
             throw ValidationException::withMessages([
@@ -100,7 +100,17 @@ class ResearchHeadTopicController extends Controller
         }
 
         if ($validated['status'] === 'revision_requested') {
-            $selectedIds = collect($validated['revision_file_ids'] ?? [])->map(fn ($id) => (int) $id);
+            $savedHighlightFileIds = ProposalFileAnnotation::query()
+                ->whereIn('proposal_version_file_id', $latestFacultyFiles->pluck('id'))
+                ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
+                ->whereNull('topic_review_file_revision_id')
+                ->distinct()
+                ->pluck('proposal_version_file_id');
+            $selectedIds = collect($validated['revision_file_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->merge($savedHighlightFileIds)
+                ->unique()
+                ->values();
             $selectedRevisionFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
 
             if ($latestFacultyFiles->isEmpty()) {
@@ -274,7 +284,7 @@ class ResearchHeadTopicController extends Controller
         );
 
         $notificationDetails = match ($validated['status']) {
-            TopicProposal::STATUS_GAD_REVIEW => ['Cleared for GAD review', 'The Research Head cleared “'.$topic->title.'”. The corrected proposal now proceeds to the GAD Office before central evaluation.', 'info'],
+            TopicProposal::STATUS_GAD_REVIEW => ['Cleared for GAD assessment', 'The Research Head cleared “'.$topic->title.'”. The corrected proposal now proceeds to the GAD Office before co-evaluator review.', 'info'],
             TopicProposal::STATUS_LREC_QUEUED => ['Queued for LREC', 'Initial review is complete for “'.$topic->title.'”. Await the LREC presentation schedule from the research office.', 'info'],
             TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
@@ -320,7 +330,7 @@ class ResearchHeadTopicController extends Controller
 
         $message = match ($validated['status']) {
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
-            TopicProposal::STATUS_LREC_QUEUED => 'GAD and central evaluation cleared. The proposal is queued for LREC presentation.',
+            TopicProposal::STATUS_LREC_QUEUED => 'GAD assessment and co-evaluator review cleared. The proposal is queued for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
             TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.',
             'revision_requested' => $returningFromSigning

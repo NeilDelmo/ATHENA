@@ -90,7 +90,6 @@
                         <td colspan="3">
                             <section class="work-plan-signature-block">
                                 <p class="work-plan-signature-heading">Prepared by:</p>
-                                <p class="work-plan-signature-line" data-signature-line aria-hidden="true"></p>
                                 <p class="work-plan-signature-name" data-signature-name>{{ $workPlan['prepared_by'] }}</p>
                                 <p class="work-plan-signature-role">Project Leader</p>
                                 <p class="work-plan-signature-date" data-signature-date>Date Signed:</p>
@@ -99,7 +98,6 @@
                         <td colspan="13">
                             <section class="work-plan-signature-block">
                                 <p class="work-plan-signature-heading">Checked &amp; Verified by:</p>
-                                <p class="work-plan-signature-line" data-signature-line aria-hidden="true"></p>
                                 <p class="work-plan-signature-name" data-signature-name>{{ $workPlan['verified_by'] }}</p>
                                 <p class="work-plan-signature-role">{{ $workPlan['verified_role'] }}</p>
                                 <p class="work-plan-signature-date" data-signature-date>Date Signed:</p>

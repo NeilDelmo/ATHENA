@@ -11,11 +11,11 @@ use Illuminate\Database\Eloquent\Builder;
 class ResearchDashboardAnalytics
 {
     public const STAGES = [
-        'pending' => 'Initial review', 'resubmitted' => 'Resubmission review',
-        'expert_review' => 'Expert review', 'for_final_decision' => 'Final decision',
-        'gad_review' => 'GAD and central evaluation',
+        'pending' => 'Needs review', 'resubmitted' => 'Needs review',
+        'expert_review' => 'Needs review', 'for_final_decision' => 'Needs review',
+        'gad_review' => 'GAD assessment',
         'lrec_queued' => 'Awaiting LREC', 'lrec_review' => 'LREC review',
-        'revision_requested' => 'Faculty revision', 'ready_for_signature' => 'Signing',
+        'revision_requested' => 'Revision requested', 'ready_for_signature' => 'Final signing',
     ];
 
     public function topics(?int $callId): Builder
@@ -47,9 +47,8 @@ class ResearchDashboardAnalytics
         $reviewStatuses = array_values(array_diff(array_keys(self::STAGES), ['revision_requested', 'ready_for_signature']));
         $pipelineFunnel = collect([
             ['key' => 'in_review', 'label' => 'In review', 'count' => (int) $statusCounts->only($reviewStatuses)->sum()],
-            ['key' => 'revision_requested', 'label' => 'Faculty revision', 'count' => (int) $statusCounts->get('revision_requested', 0)],
-            ['key' => 'approved', 'label' => 'Approved', 'count' => (int) $statusCounts->get('approved', 0)],
-            ['key' => 'rejected', 'label' => 'Rejected', 'count' => (int) $statusCounts->get('rejected', 0)],
+            ['key' => 'revision_requested', 'label' => 'Revision requested', 'count' => (int) $statusCounts->get('revision_requested', 0)],
+            ['key' => 'ready_for_signature', 'label' => 'Final signing', 'count' => (int) $statusCounts->get('ready_for_signature', 0)],
         ]);
         $pipelineTotal = (int) $pipelineFunnel->sum('count');
         $stageDurations = ProposalStageTransition::query()
@@ -60,7 +59,7 @@ class ResearchDashboardAnalytics
             ->selectRaw('from_status, COUNT(*) as samples, AVG(TIMESTAMPDIFF(SECOND, previous_started_at, changed_at)) / 86400 as average_days')
             ->groupBy('from_status')->orderByDesc('average_days')->get();
         $attention = $this->topics($callId)->whereIn('status', array_keys(self::STAGES))
-            ->with(['user:id,name', 'researchCall:id,title,paper_revisions_end_date', 'latestVersion'])
+            ->with(['user:id,name', 'researchCall:id,title,paper_revisions_end_date', 'latestVersion.files'])
             ->withMax('versions as last_submitted_at', 'created_at')
             ->orderByRaw('COALESCE(status_started_at, last_submitted_at) IS NULL')
             ->orderByRaw('COALESCE(status_started_at, last_submitted_at) ASC')->limit(5)->get()

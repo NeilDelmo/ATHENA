@@ -82,11 +82,28 @@ test('lifecycle demo promotes prepared drafts into connected process records', f
     $this->seed(LifecycleDemoSeeder::class);
 
     $topics = TopicProposal::query()->where('description', 'like', '[lifecycle-demo:%')->with('latestProgressReport')->get();
+    $newSubmission = $topics->first(fn (TopicProposal $topic): bool => str_contains($topic->description, '[lifecycle-demo:pending]'));
+    $needsReview = $topics->first(fn (TopicProposal $topic): bool => str_contains($topic->description, '[lifecycle-demo:expert-review]'));
+    $gadAssessment = $topics->first(fn (TopicProposal $topic): bool => str_contains($topic->description, '[lifecycle-demo:final-decision]'));
+    $coEvaluatorReview = $topics->first(fn (TopicProposal $topic): bool => str_contains($topic->description, '[lifecycle-demo:resubmitted-second]'));
     $implementationReports = ProjectProgressReport::query()
         ->whereHas('topic', fn ($query) => $query->where('description', 'like', '[lifecycle-demo:%'))
         ->get();
 
     expect($topics)->toHaveCount(21)
+        ->and($topics->whereIn('status', ['expert_review', 'for_final_decision']))->toBeEmpty()
+        ->and($topics->contains(fn (TopicProposal $topic): bool => str_contains($topic->description, 'Under expert review') || str_contains($topic->description, 'For final decision')))->toBeFalse()
+        ->and($newSubmission?->description)->toContain('New submission')
+        ->and($newSubmission?->research_head_viewed_version_id)->toBeNull()
+        ->and($needsReview?->description)->toContain('Needs review')
+        ->and($needsReview?->research_head_viewed_version_id)->toBe($needsReview?->latestVersion()->value('id'))
+        ->and($gadAssessment?->description)->toContain('GAD assessment')
+        ->and($gadAssessment?->status)->toBe(TopicProposal::STATUS_GAD_REVIEW)
+        ->and($gadAssessment?->latestVersion?->hasPassingGadAssessment())->toBeFalse()
+        ->and($coEvaluatorReview?->description)->toContain('Co-evaluator review')
+        ->and($coEvaluatorReview?->status)->toBe(TopicProposal::STATUS_GAD_REVIEW)
+        ->and($coEvaluatorReview?->latestVersion?->hasPassingGadAssessment())->toBeTrue()
+        ->and($topics->filter(fn (TopicProposal $topic): bool => $topic->status === 'approved' && $topic->notice_to_proceed_issued_at === null))->toBeEmpty()
         ->and($topics->every(fn (TopicProposal $topic): bool => $topic->versions()->exists()))->toBeTrue()
         ->and($topics->where('project_status', TopicProposal::PROJECT_STATUS_COMPLETED))->toHaveCount(3)
         ->and($topics->filter(fn (TopicProposal $topic): bool => in_array($topic->project_status, [TopicProposal::PROJECT_STATUS_ONGOING, TopicProposal::PROJECT_STATUS_DELAYED], true)

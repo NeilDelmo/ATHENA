@@ -12,6 +12,7 @@
             </x-proposal-alert>
         @endif
         <p class="text-sm text-gray-600 dark:text-gray-300">Choose names supplied by the Research Head. Project-leader names come from Project Details. Attachment C (CV) and Estimated Expense Breakdown do not require signatures.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-300">The Comment Response form requires a Research Head and Vice Chancellor before initial submission. These selections carry forward when the proposal is returned for revision.</p>
         <form action="{{ route('signatories.select', $proposalDraft) }}" method="POST" class="space-y-4">@csrf @method('PUT')
             <input type="hidden" name="lock_version" value="{{ $proposalDraft->lock_version }}">
             @if ($returnPaper !== '')
@@ -28,7 +29,7 @@
                         @endphp
                         <label class="text-sm text-gray-700 dark:text-gray-200">{{ $label }}
                             <select name="signatories[{{ $key }}]" class="mt-1 block w-full rounded-lg border-gray-300 text-sm dark:bg-gray-800">
-                                <option value="">{{ $saved ? 'Keep: '.$saved['name'].' — '.$saved['position'] : 'Select a name' }}</option>
+                                <option value="">{{ $saved ? 'Keep: '.$saved['name'].' — '.($saved['position'] ?? '') : 'Select a name' }}</option>
                                 @foreach($people as $person)<option value="{{ $person->id }}" @selected((string) old('signatories.'.$key) === (string) $person->id)>{{ $person->name }} — {{ $person->position }}</option>@endforeach
                             </select>
                             @if($people->isEmpty())<span class="mt-1 block text-xs text-amber-700 dark:text-amber-300">Ask the Research Head to add a name for this role.</span>@endif

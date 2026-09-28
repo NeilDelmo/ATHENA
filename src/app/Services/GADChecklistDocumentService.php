@@ -92,7 +92,7 @@ class GADChecklistDocumentService
         foreach ($xpath->query('//w:p') as $paragraph) {
             $text = trim($paragraph->textContent);
             if ($text === config('gad_checklist.verifier.name')) {
-                $this->replaceParagraphText($paragraph, $checklist['verifier_name'], true);
+                $this->replaceParagraphText($paragraph, $checklist['verifier_name'], true, true);
             } elseif ($text === config('gad_checklist.verifier.role')) {
                 $this->replaceParagraphText($paragraph, $checklist['verifier_role']);
             }
@@ -179,7 +179,7 @@ class GADChecklistDocumentService
 
             if ($preparedByParagraph instanceof DOMElement) {
                 if (trim($text) === 'NAME') {
-                    $this->replaceParagraphText($paragraph, $leader, true);
+                    $this->replaceParagraphText($paragraph, $leader, true, true);
 
                     return;
                 }
@@ -195,7 +195,7 @@ class GADChecklistDocumentService
         throw new RuntimeException('The GAD Generic Checklist project leader slot is missing.');
     }
 
-    private function appendRun(DOMElement $paragraph, string $text, bool $bold = false): void
+    private function appendRun(DOMElement $paragraph, string $text, bool $bold = false, bool $underline = false): void
     {
         if ($text === '') {
             return;
@@ -214,6 +214,12 @@ class GADChecklistDocumentService
             $runProperties->appendChild($document->createElementNS(self::W, 'w:b'));
         }
 
+        if ($underline) {
+            $underlineElement = $document->createElementNS(self::W, 'w:u');
+            $underlineElement->setAttributeNS(self::W, 'w:val', 'single');
+            $runProperties->appendChild($underlineElement);
+        }
+
         $size = $document->createElementNS(self::W, 'w:sz');
         $size->setAttributeNS(self::W, 'w:val', '22');
         $runProperties->appendChild($size);
@@ -229,15 +235,19 @@ class GADChecklistDocumentService
         $paragraph->appendChild($run);
     }
 
-    private function replaceParagraphText(DOMElement $paragraph, string $text, bool $bold = false): void
-    {
+    private function replaceParagraphText(
+        DOMElement $paragraph,
+        string $text,
+        bool $bold = false,
+        bool $underline = false,
+    ): void {
         foreach (iterator_to_array($paragraph->childNodes) as $child) {
             if (! $child instanceof DOMElement || $child->localName !== 'pPr') {
                 $paragraph->removeChild($child);
             }
         }
 
-        $this->appendRun($paragraph, $text, $bold);
+        $this->appendRun($paragraph, $text, $bold, $underline);
     }
 
     private function paragraphText(DOMElement $paragraph): string

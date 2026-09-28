@@ -8,10 +8,10 @@
             'resubmitted', 'expert_review', 'for_final_decision' => 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
             default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
         };
-        $statusLabel = $topic->workflowStatusLabel();
+        $statusLabel = $topic->workflowStatusLabel($latestVersion);
         if ($topic->isAwaitingNoticeToProceed()) {
             $statusClass = 'bg-amber-100 text-amber-800';
-            $statusLabel = 'Preparing final release';
+            $statusLabel = 'Final signing';
         } elseif ($topic->isCompletedProject()) {
             $statusClass = 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
             $statusLabel = 'Completed - archived';
@@ -54,7 +54,7 @@
         ]);
         $reviewTabHash = 'proposal-review';
         $initialTopicTab = $resubmissionErrors->any()
-            || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*', 'committee_comments.*', 'initial_clearance_confirmed', 'lrec_clearance_confirmed', 'signature_file_ids'])
+            || $errors->hasAny(['status', 'revision_file_ids', 'revision_file_notes.*', 'committee_comments.*', 'research_head_clearance_confirmed', 'initial_clearance_confirmed', 'lrec_clearance_confirmed', 'signature_file_ids'])
             || ($isFacultyWorkspace && $topic->status === 'revision_requested')
             ? 'review'
             : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
@@ -92,6 +92,8 @@
             </div>
         </div>
     </x-slot>
+
+    <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" />
 
     <div
         class="mx-auto max-w-7xl space-y-6"
@@ -251,8 +253,8 @@
                 <section id="submitted-files" aria-labelledby="submitted-files-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-red-600">Received package</p>
-                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Submitted proposal files</h3>
+                            <p class="text-xs font-black uppercase tracking-wider text-red-600">Latest faculty submission</p>
+                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Proposal package</h3>
                             <p class="mt-1 text-sm text-gray-600">
                                 @if ($latestVersion)
                                     Version {{ $latestVersion->version_number }} submitted by {{ $latestVersion->submitter?->name ?? $topic->user->name }} on {{ $latestVersion->created_at->format('M j, Y g:i A') }}.
@@ -265,61 +267,31 @@
                             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }}">
                                 {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} files available
                             </span>
+                            <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-9 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
+                                Open files
+                            </button>
                         </div>
                     </div>
 
-                    @if ($isResearchHead)
-                        <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
-                            <div class="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-                                <h4 class="text-sm font-black text-gray-950">Latest submitted package</h4>
-                                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-700">
+                    <div class="p-5 sm:p-6" data-latest-package-summary="{{ $latestVersion?->id }}">
+                        <div class="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h4 class="text-sm font-black text-gray-950 dark:text-white">Latest submitted package</h4>
+                                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">
                                     @if ($latestVersion)
-                                        Version {{ $latestVersion->version_number }} is the package currently awaiting your decision. File review and decision actions are available under the <span class="font-black">Review &amp; decision</span> tab.
+                                        Version {{ $latestVersion->version_number }} contains {{ $submittedFiles->count() }} required {{ \Illuminate\Support\Str::plural('paper', $submittedFiles->count()) }}. Open the project folder to view these files together with signed papers, review responses, the Notice to Proceed, and later project records.
                                     @else
-                                        No submitted package is available for review yet.
+                                        No submitted package is available yet. Generated and uploaded PDFs will appear in the project folder.
                                     @endif
                                 </p>
                             </div>
+                            <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 dark:bg-white dark:text-gray-950">
+                                Browse {{ $projectDocumentLibrary['total'] }} {{ \Illuminate\Support\Str::plural('file', $projectDocumentLibrary['total']) }}
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                            </button>
                         </div>
-                    @else
-                    <div class="divide-y divide-gray-100">
-                        @forelse ($submittedFiles as $file)
-                            @php
-                                $fileAvailable = $availableSubmittedFileIds->contains($file->id);
-                                $fileViewable = $viewableSubmittedFileIds->contains($file->id);
-                            @endphp
-                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                                <div class="flex min-w-0 items-start gap-3">
-                                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl {{ $fileAvailable ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-400' }} text-xs font-black">FILE</span>
-                                    <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <h4 class="text-sm font-black text-gray-900">{{ $file->label() }}</h4>
-                                            @if (! $fileAvailable)
-                                                <span class="rounded-full bg-red-50 px-2 py-0.5 text-xs font-black uppercase tracking-wider text-red-700">Unavailable</span>
-                                            @endif
-                                        </div>
-                                        <p class="mt-1 break-all text-sm font-semibold text-gray-600">{{ $file->original_filename }}</p>
-                                        <p class="mt-1 text-xs text-gray-500">{{ $file->file_size ? \Illuminate\Support\Number::fileSize($file->file_size) : 'Size unavailable' }}@if ($file->is_carried_forward) &middot; Carried forward from an earlier version @endif</p>
-                                    </div>
-                                </div>
-
-                                <div class="flex w-full shrink-0 gap-2 sm:w-auto">
-                                    @if ($fileViewable)
-                                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $file]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-700 focus:ring-offset-2 sm:flex-none">View</a>
-                                    @endif
-                                    @if ($fileAvailable)
-                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $file]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 sm:flex-none">Download</a>
-                                    @endif
-                                </div>
-                            </article>
-                        @empty
-                            <div class="p-8 text-center">
-                                <p class="text-sm font-black text-gray-800">No individual submitted files are available</p>
-                                <p class="mt-1 text-xs text-gray-500">Legacy proposals may only provide a combined proposal download.</p>
-                            </div>
-                        @endforelse
                     </div>
-                    @endif
                 </section>
 
                 <section aria-labelledby="research-details-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -347,7 +319,7 @@
                     <section aria-labelledby="project-team-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                         <p class="text-xs font-black uppercase tracking-wider text-red-600">Shared workspace</p>
                         <h3 id="project-team-heading" class="mt-1 text-sm font-black text-gray-900">Project team</h3>
-                        <p class="mt-1 text-xs leading-5 text-gray-500">The same team remains attached through review, approval, and project monitoring.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">The same team remains attached through review, final signing, and project monitoring.</p>
                         <ul class="mt-4 space-y-3">
                             <li class="flex items-start gap-3">
                                 <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-black text-white">PL</span>
@@ -384,8 +356,14 @@
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
             @if ($canDecide)
                 <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
-                    <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Review submitted papers <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
-                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true, 'decisionFormId' => 'research-head-decision-form', 'prioritizeRevisedFiles' => true])
+                    <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Submitted documents <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
+                    <div data-review-feedback-preview class="my-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $topic->review_stage === 'lrec' ? 'Committee comments and saved highlights are included in the Comment Response paper.' : 'Highlight sections that require revision and add a comment. Saved comments are included in the Comment Response paper.' }}</p>
+                        @if ($latestVersion)
+                            <button type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'review-comment-response-{{ $topic->id }}')" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
+                        @endif
+                    </div>
+                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => true, 'decisionFormId' => 'research-head-decision-form', 'prioritizeRevisedFiles' => true, 'showGuidance' => false])
                     @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                 </section>
             @endif
@@ -428,7 +406,7 @@
                         @if ($topic->status === 'revision_requested')
                             The Research Head requested changes. Review the highlighted comments and file-specific instructions, then replace only the files marked for revision.
                         @elseif ($topic->isAwaitingNoticeToProceed())
-                            Your proposal papers are approved. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
+                            Final signing is complete. Wait for the Research Head to issue the Notice to Proceed before beginning the project or entering monitoring.
                         @elseif ($topic->isCompletedProject())
                             This project is complete and archived. Its approved papers, Notice to Proceed, and previous monitoring records remain available as read-only records.
                         @elseif ($topic->status === 'approved')
@@ -452,162 +430,6 @@
                 <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" />
             @endif
 
-            @if ($reviewDocuments->isNotEmpty())
-                <section x-data="{ open: false }" data-review-documents-disclosure data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                    <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-documents-content" class="flex min-h-16 w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:px-6">
-                        <span class="flex items-start gap-4 sm:items-center">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300" aria-hidden="true">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                            </span>
-                            <span>
-                                <span class="block text-xl font-bold text-gray-950 dark:text-white">Research Head documents</span>
-                                <span class="mt-1 block text-base font-normal leading-6 text-gray-600 dark:text-gray-300">{{ $reviewDocuments->count() }} document(s) shared by the Research Head.</span>
-                            </span>
-                        </span>
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 transition-transform duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
-                    </button>
-                    <div id="review-documents-content" x-show="open" x-cloak x-transition class="border-t border-gray-100 dark:border-gray-800">
-                        <div class="divide-y divide-gray-100">
-                            @foreach ($reviewDocuments as $reviewDocument)
-                            @php
-                                $reviewDocumentAvailable = $availableReviewDocumentIds->contains($reviewDocument->id);
-                                $reviewDocumentViewable = $viewableReviewDocumentIds->contains($reviewDocument->id);
-                                $documentDecision = $reviewDocument->source_data['decision'] ?? null;
-                                $documentPurpose = $reviewDocument->source_data['purpose'] ?? null;
-                            @endphp
-                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                                <div class="min-w-0">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="text-lg font-bold text-gray-950 dark:text-white">{{ $reviewDocument->label() }}</h4>
-                                        @if ($documentDecision)
-                                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-xs font-black text-red-700">{{ str($documentDecision)->replace('_', ' ')->title() }}</span>
-                                        @endif
-                                        @if ($documentPurpose)
-                                            <span class="rounded-full px-2.5 py-1 text-xs font-black {{ $documentPurpose === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : ($documentPurpose === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200') }}">{{ $reviewDocument->headUploadPurposeLabel() }}</span>
-                                        @endif
-                                    </div>
-                                    <p class="mt-1 break-all text-sm font-semibold text-gray-600">{{ $reviewDocument->original_filename }}</p>
-                                    <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Shared by {{ $reviewDocument->uploadedBy?->name ?? 'Research Head' }} on {{ $reviewDocument->created_at->format('M j, Y g:i A') }}</p>
-                                </div>
-                                <div class="flex w-full shrink-0 gap-2 sm:w-auto">
-                                    @if ($reviewDocumentViewable)
-                                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $reviewDocument]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 sm:flex-none">View</a>
-                                    @endif
-                                    @if ($reviewDocumentAvailable)
-                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $reviewDocument]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800 sm:flex-none">Download</a>
-                                    @endif
-                                </div>
-                            </article>
-                            @endforeach
-                        </div>
-                    </div>
-                </section>
-            @endif
-
-            @php
-                $decisionReviews = $topic->reviews
-                    ->where('decision', '!=', 'head_upload')
-                    ->sortByDesc('created_at')
-                    ->values();
-                $latestDecisionReview = $decisionReviews->first();
-            @endphp
-            <section x-data="{ open: false }" data-decision-history data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="decision-history-list" class="flex min-h-16 w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:px-6">
-                    <span class="flex min-w-0 items-start gap-4 sm:items-center">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-900 dark:text-gray-400" aria-hidden="true">
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                        </span>
-                        <span class="min-w-0">
-                            <span class="flex flex-wrap items-center gap-2">
-                                <span class="text-xl font-bold text-gray-950 dark:text-white">Decision history</span>
-                                <span class="rounded-full bg-gray-100 px-2.5 py-1 text-sm font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span>
-                            </span>
-                            <span class="mt-1 block truncate text-base font-normal text-gray-600 dark:text-gray-400">
-                                @if ($latestDecisionReview)
-                                    Latest: <span class="font-bold text-gray-800 dark:text-gray-200">{{ str($latestDecisionReview->decision)->replace('_', ' ')->title() }}</span>
-                                    <span aria-hidden="true">&middot;</span>
-                                    <time datetime="{{ $latestDecisionReview->created_at->toIso8601String() }}">{{ $latestDecisionReview->created_at->format('M j, Y') }}</time>
-                                @else
-                                    No Research Head decisions recorded yet.
-                                @endif
-                            </span>
-                        </span>
-                    </span>
-                    <span class="flex shrink-0 items-center gap-3 text-gray-500 dark:text-gray-400">
-                        <span class="hidden text-sm font-bold sm:inline" x-text="open ? 'Hide history' : 'View history'">View history</span>
-                        <span class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-950" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 transition-transform duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
-                    </span>
-                </button>
-                <div id="decision-history-list" x-show="open" x-cloak x-transition class="max-h-[42rem] overflow-y-auto overscroll-contain border-t border-gray-100 dark:border-gray-800" data-decision-history-list>
-                    @if ($decisionReviews->isNotEmpty())
-                        <ol class="divide-y divide-gray-100 dark:divide-gray-800">
-                        @foreach ($decisionReviews as $review)
-                            <li class="p-5 sm:p-6">
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ str($review->decision)->replace('_', ' ')->title() }}</p>
-                                        @if ($loop->first)
-                                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">Latest</span>
-                                        @endif
-                                    </div>
-                                    <time datetime="{{ $review->created_at->toIso8601String() }}" class="text-sm text-gray-500 dark:text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</time>
-                                </div>
-                                <p class="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>
-                                @if ($review->comment)
-                                    <div class="mt-3 rounded-xl bg-gray-50 p-4 text-base leading-7 text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                                        @if ($review->decision === 'rejected')
-                                            <p class="text-sm font-bold text-red-700 dark:text-red-300">Rejection reason</p>
-                                        @endif
-                                        <p @class(['whitespace-pre-line', 'mt-1' => $review->decision === 'rejected'])>{{ $review->comment }}</p>
-                                    </div>
-                                @endif
-                                <p class="mt-2 text-sm text-gray-500">{{ $review->review_stage === 'lrec' ? 'LREC review' : 'Initial review' }}</p>
-                                @if ($review->decision === 'revision_requested')
-                                    @can('generateCommentResponseForm', $topic)
-                                        <a href="{{ route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]) }}" class="mt-2 inline-block text-sm font-semibold text-red-700 dark:text-red-300">Download this round’s Comment-Response PDF</a>
-                                    @endcan
-                                    @foreach ($review->committee_comments ?? [] as $commentIndex => $committeeComment)
-                                        <div class="mt-3 rounded-xl border border-gray-200 p-4 text-base leading-7 dark:border-slate-700">
-                                            <p class="font-semibold">LREC · {{ $committeeComment['reviewer'] }}</p>
-                                            <p class="text-sm text-gray-500">{{ $committeeComment['location'] ?? '' }}</p>
-                                            <p class="mt-2 whitespace-pre-line">{{ $committeeComment['comment'] }}</p>
-                                            @if ($answer = ($review->feedback_responses['committee_'.$commentIndex] ?? null))
-                                                <p class="mt-2 font-semibold">Faculty response</p><p class="whitespace-pre-line">{{ $answer['response'] }}</p><p class="text-sm text-gray-500">{{ $answer['remarks'] ?? '' }}</p>
-                                            @endif
-                                        </div>
-                                    @endforeach
-                                @endif
-                                @if ($review->fileRevisions->isNotEmpty())
-                                    <div class="mt-3 space-y-2">
-                                        @foreach ($review->fileRevisions as $fileRevision)
-                                            @php
-                                                $annotationVersion = $topic->versions->firstWhere('id', $fileRevision->file?->proposal_version_id);
-                                            @endphp
-                                            <div class="rounded-xl border px-4 py-4 text-base {{ $fileRevision->resolved_at ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200' : 'border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200' }}">
-                                                <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-bold">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-sm font-bold">{{ ! $fileRevision->resolved_at ? 'Revision required' : ($fileRevision->resolution_type === 'no_file_change' ? 'Resolved — no file change' : 'Resolved — revised file') }}</span></div>
-                                                <p class="mt-1 text-sm opacity-75">{{ $fileRevision->original_filename }}</p>
-                                                @if ($fileRevision->revision_note)<p class="mt-2 leading-6">{{ $fileRevision->revision_note }}</p>@endif
-                                                @if ($fileRevision->resolved_at && $fileRevision->faculty_response)<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p class="text-sm font-bold">Faculty response</p><p class="mt-1 whitespace-pre-line leading-7">{{ $fileRevision->faculty_response }}</p></div>@endif
-                                                @if ($fileRevision->annotations->isNotEmpty() && $annotationVersion && $fileRevision->file)
-                                                    @php
-                                                        $firstAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first();
-                                                        $annotationDeepLink = route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $fileRevision->file]).'?annotation='.$firstAnnotation->id.'#proposal-review';
-                                                    @endphp
-                                                    <a href="{{ $annotationDeepLink }}" class="mt-3 inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-800">View {{ $fileRevision->annotations->count() }} highlighted comment(s)</a>
-                                                @endif
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @endif
-                            </li>
-                        @endforeach
-                        </ol>
-                    @else
-                        <p class="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No Research Head decision has been recorded.</p>
-                    @endif
-                </div>
-            </section>
-
             @if ($isResearchHead && $topic->status === 'lrec_queued')
                 <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="space-y-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                     @csrf @method('PATCH')
@@ -620,21 +442,12 @@
             @endif
 
             @if ($canDecide)
-                <section x-data="{ open: true }" data-review-decision-disclosure data-initially-open="true" class="overflow-hidden rounded-2xl border-2 border-red-200 bg-white shadow-lg dark:border-red-900 dark:bg-gray-950" data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
-                    <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-decision-content" class="flex min-h-16 w-full items-center justify-between gap-4 bg-red-50 px-5 py-4 text-left transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:bg-red-950/30 dark:hover:bg-red-950/50 sm:px-6">
-                        <span class="flex items-start gap-4 sm:items-center">
-                            <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-700 text-white" aria-hidden="true"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg></span>
-                            <span>
-                                <span class="block text-sm font-bold text-red-700 dark:text-red-300">Action required</span>
-                                <span class="mt-0.5 block text-xl font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : 'Complete the ordered review route' }}</span>
-                                @if ($latestVersion)
-                                    <span class="mt-1 block text-sm font-semibold text-red-800 dark:text-red-200">Reviewing Version {{ $latestVersion->version_number }} &mdash; latest submitted package</span>
-                                @endif
-                            </span>
-                        </span>
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-200 bg-white text-red-700 shadow-sm dark:border-red-900 dark:bg-gray-950 dark:text-red-300" aria-hidden="true"><svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 transition-transform duration-200 motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg></span>
+                <section x-data="{ open: true }" data-review-decision-disclosure data-initially-open="true" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950" data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
+                    <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-decision-content" class="flex min-h-12 w-full items-center justify-between gap-4 px-5 py-3 text-left hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:hover:bg-gray-900 sm:px-6">
+                        <span class="text-base font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : ($topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW ? 'Record the review outcome' : 'Record the Research Head decision') }}</span>
+                        <svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 text-gray-500 transition-transform motion-reduce:transition-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
                     </button>
-                    <div id="review-decision-content" x-show="open" x-cloak x-transition class="border-t border-red-200 bg-white dark:border-red-900 dark:bg-gray-950">
+                    <div id="review-decision-content" x-show="open" x-cloak x-transition class="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
                         <form
                             id="research-head-decision-form"
                             action="{{ route('research_head.topics.updateStatus', $topic) }}"
@@ -679,7 +492,7 @@
                             @endif
                             <input type="hidden" name="redirect_to" value="topic">
                             <fieldset>
-                                <legend class="mb-3 text-lg font-bold text-gray-950 dark:text-white">Review decision</legend>
+                                <legend class="sr-only">Review decision</legend>
                                 <div class="flex flex-wrap gap-2" data-review-decision-options>
                                     @foreach ($researchHeadDecisionOptions as $decisionValue => $decisionLabel)
                                         <label
@@ -703,7 +516,7 @@
                             <section x-show="decision === 'lrec_queued'" x-cloak>
                                 <label class="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
                                     <input type="checkbox" name="initial_clearance_confirmed" value="1" :disabled="decision !== 'lrec_queued'" :required="decision === 'lrec_queued'" class="mt-1 rounded border-gray-300 text-red-700">
-                                    <span>A passing GAD Office assessment and the central evaluator’s Narrative Evaluation are recorded for this version.</span>
+                                    <span>A passing GAD Office assessment and the co-evaluator’s Narrative Evaluation are recorded for this version.</span>
                                 </label>
                             </section>
                             <section x-show="decision === 'ready_for_signature'" x-cloak class="space-y-3">
@@ -739,10 +552,25 @@
 
                             <p x-show="decision === 'revision_requested'" x-cloak class="text-sm text-gray-600 dark:text-gray-300">Select the papers that need further changes in the document list above.</p>
 
-                            <button type="submit" :disabled="submitting || !decision" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
-                                <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD review', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
-                            </button>
+                            <div data-review-revision-actions class="flex flex-wrap items-center gap-3">
+                                <button type="submit" :disabled="submitting || !decision" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                                    <span x-text="submitting ? 'Saving decision…' : ({ rejected: 'Reject proposal', revision_requested: 'Send revision request', gad_review: 'Clear for GAD assessment', lrec_queued: 'Route to LREC', ready_for_signature: 'Proceed to signing' }[decision] || 'Save decision')">Send revision request</span>
+                                </button>
+                            </div>
                         </form>
+                        @if ($latestVersion)
+                            <x-modal name="review-comment-response-{{ $topic->id }}" maxWidth="6xl" focusable class="!z-[140]" data-comment-response-preview-modal>
+                                <template x-if="show">
+                                    <section data-comment-response-preview-content role="dialog" aria-modal="true" aria-labelledby="review-comment-response-heading-{{ $topic->id }}">
+                                        <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                                            <h3 id="review-comment-response-heading-{{ $topic->id }}" class="text-base font-bold text-gray-950 dark:text-white">Comment Response paper preview</h3>
+                                            <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                                        </header>
+                                        <x-proposal-revision-pdf :configuration="['pdfUrl' => route('research_head.topics.comment-response-form.pdf', ['topic' => $topic, 'draft_version' => $latestVersion->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                                    </section>
+                                </template>
+                            </x-modal>
+                        @endif
                     </div>
                 </section>
             @elseif ($canReturnToRevision)
@@ -799,6 +627,143 @@
         @endif
 
         <section id="version-history-tab" x-show="activeTopicTab === 'history'" x-cloak role="tabpanel" aria-labelledby="version-history-tab-button" class="space-y-5">
+            @if ($reviewDocuments->isNotEmpty())
+                <section x-data="{ open: false }" data-review-documents-disclosure data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                    <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-documents-content" class="flex min-h-11 w-full items-center justify-between gap-4 px-5 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:px-6">
+                        <span class="text-sm font-semibold text-gray-950 dark:text-white">Research Head documents <span class="ml-2 font-normal text-gray-500 dark:text-gray-400">{{ $reviewDocuments->count() }} documents</span></span>
+                    <svg :class="open ? 'rotate-180' : ''" class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                </button>
+                    <div id="review-documents-content" x-show="open" x-cloak x-transition class="border-t border-gray-100 dark:border-gray-800">
+                        <div class="divide-y divide-gray-100">
+                            @foreach ($reviewDocuments as $reviewDocument)
+                            @php
+                                $reviewDocumentAvailable = $availableReviewDocumentIds->contains($reviewDocument->id);
+                                $reviewDocumentViewable = $viewableReviewDocumentIds->contains($reviewDocument->id);
+                                $documentDecision = $reviewDocument->source_data['decision'] ?? null;
+                                $documentPurpose = $reviewDocument->source_data['purpose'] ?? null;
+                            @endphp
+                            <article class="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                    <h4 class="text-lg font-bold text-gray-950 dark:text-white">{{ $reviewDocument->label() }}</h4>
+                                        @if ($documentDecision)
+                                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-xs font-black text-red-700">{{ str($documentDecision)->replace('_', ' ')->title() }}</span>
+                                        @endif
+                                        @if ($documentPurpose)
+                                            <span class="rounded-full px-2.5 py-1 text-xs font-black {{ $documentPurpose === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : ($documentPurpose === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_REVISION ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200') }}">{{ $reviewDocument->headUploadPurposeLabel() }}</span>
+                                        @endif
+                                    </div>
+                                    <p class="mt-1 break-all text-sm font-semibold text-gray-600">{{ $reviewDocument->original_filename }}</p>
+                                    <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400">Shared by {{ $reviewDocument->uploadedBy?->name ?? 'Research Head' }} on {{ $reviewDocument->created_at->format('M j, Y g:i A') }}</p>
+                                </div>
+                                <div class="flex w-full shrink-0 gap-2 sm:w-auto">
+                                    @if ($reviewDocumentViewable)
+                                        <a href="{{ route('topics.versions.files.view', [$topic, $latestVersion, $reviewDocument]) }}" target="_blank" rel="noopener" class="inline-flex flex-1 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 sm:flex-none">View</a>
+                                    @endif
+                                    @if ($reviewDocumentAvailable)
+                                        <a href="{{ route('topics.versions.files.download', [$topic, $latestVersion, $reviewDocument]) }}" class="inline-flex flex-1 items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-gray-800 sm:flex-none">Download</a>
+                                    @endif
+                                </div>
+                            </article>
+                            @endforeach
+                        </div>
+                    </div>
+                </section>
+            @endif
+
+            @php
+                $decisionReviews = $topic->reviews
+                    ->where('decision', '!=', 'head_upload')
+                    ->sortByDesc('created_at')
+                    ->values();
+            @endphp
+            <section x-data="{ open: false }" data-decision-history data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="decision-history-list" class="flex min-h-11 w-full items-center justify-between gap-4 px-5 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:px-6">
+                    <span class="text-sm font-semibold text-gray-950 dark:text-white">Decision history <span class="ml-2 font-normal text-gray-500 dark:text-gray-400">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span></span>
+                    <span class="text-sm text-gray-500 dark:text-gray-400" x-text="open ? 'Hide history' : 'View history'">View history</span>
+                </button>
+                <div id="decision-history-list" x-show="open" x-cloak x-transition class="max-h-[42rem] overflow-y-auto overscroll-contain border-t border-gray-100 dark:border-gray-800" data-decision-history-list>
+                    @if ($decisionReviews->isNotEmpty())
+                        <ol class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach ($decisionReviews as $review)
+                            <li class="p-5 sm:p-6">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="text-lg font-bold text-gray-900 dark:text-gray-100">{{ str($review->decision)->replace('_', ' ')->title() }}</p>
+                                        @if ($loop->first)
+                                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300">Latest</span>
+                                        @endif
+                                    </div>
+                                    <time datetime="{{ $review->created_at->toIso8601String() }}" class="text-sm text-gray-500 dark:text-gray-400">{{ $review->created_at->format('M d, Y h:i A') }}</time>
+                                </div>
+                                <p class="mt-1 text-sm font-semibold text-gray-500 dark:text-gray-400">{{ $review->reviewer?->name ?? 'Former Research Head' }}</p>
+                                @if ($review->comment)
+                                    <div class="mt-3 rounded-xl bg-gray-50 p-4 text-base leading-7 text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                                        @if ($review->decision === 'rejected')
+                                            <p class="text-sm font-bold text-red-700 dark:text-red-300">Rejection reason</p>
+                                        @endif
+                                        <p @class(['whitespace-pre-line', 'mt-1' => $review->decision === 'rejected'])>{{ $review->comment }}</p>
+                                    </div>
+                                @endif
+                                <p class="mt-2 text-sm text-gray-500">{{ match ($review->review_stage) { 'lrec' => 'LREC review', 'gad' => 'GAD / Co-evaluator review', default => 'Research Head review' } }}</p>
+                                @if ($review->decision === 'revision_requested')
+                                    @can('generateCommentResponseForm', $topic)
+                                        <p class="mt-3 text-sm leading-6 text-gray-600 dark:text-gray-300">This review’s comments and submitted Faculty responses are collected in the Comment Response paper.</p>
+                                        <button type="button" @click="$dispatch('open-modal', 'history-comment-response-{{ $review->id }}')" aria-haspopup="dialog" class="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-800 hover:bg-red-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70">View this review’s Comment Response Paper</button>
+                                        <x-modal name="history-comment-response-{{ $review->id }}" maxWidth="6xl" focusable class="!z-[140]" data-history-comment-response-preview>
+                                            <template x-if="show">
+                                                <section role="dialog" aria-modal="true" aria-labelledby="history-comment-response-heading-{{ $review->id }}">
+                                                    <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                                                        <h3 id="history-comment-response-heading-{{ $review->id }}" class="text-base font-bold text-gray-950 dark:text-white">Comment Response paper · {{ $review->created_at->format('M j, Y') }}</h3>
+                                                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                                                    </header>
+                                                    <x-proposal-revision-pdf :configuration="['pdfUrl' => route(($isResearchHead ? 'research_head' : 'faculty').'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                                                </section>
+                                            </template>
+                                        </x-modal>
+                                    @endcan
+                                    @foreach ($review->committee_comments ?? [] as $commentIndex => $committeeComment)
+                                        <div class="mt-3 rounded-xl border border-gray-200 p-4 text-base leading-7 dark:border-slate-700">
+                                            <p class="font-semibold">LREC · {{ $committeeComment['reviewer'] }}</p>
+                                            <p class="text-sm text-gray-500">{{ $committeeComment['location'] ?? '' }}</p>
+                                            <p class="mt-2 whitespace-pre-line">{{ $committeeComment['comment'] }}</p>
+                                            @if ($answer = ($review->feedback_responses['committee_'.$commentIndex] ?? null))
+                                                <p class="mt-2 font-semibold">Faculty response</p><p class="whitespace-pre-line">{{ $answer['response'] }}</p><p class="text-sm text-gray-500">{{ $answer['remarks'] ?? '' }}</p>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                @endif
+                                @if ($review->fileRevisions->isNotEmpty())
+                                    <div class="mt-3 space-y-2">
+                                        @foreach ($review->fileRevisions as $fileRevision)
+                                            @php
+                                                $annotationVersion = $topic->versions->firstWhere('id', $fileRevision->file?->proposal_version_id);
+                                            @endphp
+                                            <div class="rounded-xl border px-4 py-4 text-base {{ $fileRevision->resolved_at ? 'border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200' : 'border-red-300 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200' }}">
+                                                <div class="flex flex-wrap items-center justify-between gap-2"><span class="font-bold">{{ $fileRevision->file?->label() ?? str($fileRevision->document_type)->replace('_', ' ')->title() }}</span><span class="text-sm font-bold">{{ ! $fileRevision->resolved_at ? 'Revision required' : ($fileRevision->resolution_type === 'no_file_change' ? 'Resolved — no file change' : 'Resolved — revised file') }}</span></div>
+                                                <p class="mt-1 text-sm opacity-75">{{ $fileRevision->original_filename }}</p>
+                                                @if ($fileRevision->revision_note)<p class="mt-2 leading-6">{{ $fileRevision->revision_note }}</p>@endif
+                                                @if ($fileRevision->resolved_at && $fileRevision->faculty_response)<div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p class="text-sm font-bold">Faculty response</p><p class="mt-1 whitespace-pre-line leading-7">{{ $fileRevision->faculty_response }}</p></div>@endif
+                                                @if ($fileRevision->annotations->isNotEmpty() && $annotationVersion && $fileRevision->file)
+                                                    @php
+                                                        $firstAnnotation = $fileRevision->annotations->sortBy([['page_number', 'asc'], ['id', 'asc']])->first();
+                                                        $annotationDeepLink = route('topics.versions.files.annotations.index', [$topic, $annotationVersion, $fileRevision->file]).'?annotation='.$firstAnnotation->id.'#proposal-review';
+                                                    @endphp
+                                                    <a href="{{ $annotationDeepLink }}" class="mt-3 inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-800">View {{ $fileRevision->annotations->count() }} highlighted comment(s)</a>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </li>
+                        @endforeach
+                        </ol>
+                    @else
+                        <p class="p-6 text-center text-sm text-gray-500 dark:text-gray-400">No Research Head decision has been recorded.</p>
+                    @endif
+                </div>
+            </section>
+
             @if ($topic->status === 'revision_requested')
                 <section class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100" data-working-revision-status>
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

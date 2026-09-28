@@ -19,6 +19,7 @@ $maxWidth = [
 <div
     x-data="{
         show: @js($show),
+        trigger: null,
         focusables() {
             // All focusable element types...
             let selector = 'a, button, input:not([type=\'hidden\']), textarea, select, details, [tabindex]:not([tabindex=\'-1\'])'
@@ -39,16 +40,17 @@ $maxWidth = [
             {{ $attributes->has('focusable') ? 'setTimeout(() => firstFocusable().focus(), 100)' : '' }}
         } else {
             document.body.classList.remove('overflow-y-hidden');
+            $nextTick(() => trigger?.focus());
         }
     })"
-    x-on:open-modal.window="$event.detail == '{{ $name }}' ? show = true : null"
+    x-on:open-modal.window="if ($event.detail == '{{ $name }}') { trigger = document.activeElement; show = true; }"
     x-on:close-modal.window="$event.detail == '{{ $name }}' ? show = false : null"
     x-on:close.stop="show = false"
     x-on:keydown.escape.window="show = false"
     x-on:keydown.tab.prevent="$event.shiftKey || nextFocusable().focus()"
     x-on:keydown.shift.tab.prevent="prevFocusable().focus()"
     x-show="show"
-    class="fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50"
+    {{ $attributes->merge(['class' => 'fixed inset-0 overflow-y-auto px-4 py-6 sm:px-0 z-50']) }}
     style="display: {{ $show ? 'block' : 'none' }};"
 >
     <div

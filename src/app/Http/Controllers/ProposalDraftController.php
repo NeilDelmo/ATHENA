@@ -236,6 +236,9 @@ class ProposalDraftController extends Controller
         }
 
         $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+        if ($request->string('signatories')->toString() === 'comment_response_form') {
+            return redirect()->route('signatories.edit', [$proposalDraft, 'paper' => 'comment_response_form']);
+        }
         $paper = $catalog->forDocumentType($documentType);
 
         $url = $this->revisionWorkspaceUrl($proposalDraft, $paper, $editorTarget);

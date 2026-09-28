@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\ProposalVersion;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
-use App\Notifications\ProposalActivityNotification;
-use App\Services\SidebarAttentionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -14,18 +12,15 @@ use Illuminate\View\View;
 
 class ResearchHeadProposalSubmissionController extends Controller
 {
-    private const STATUSES = [
+    private const FILTER_STATUSES = [
         'pending',
-        'expert_review',
-        'for_final_decision',
-        TopicProposal::STATUS_GAD_REVIEW,
+        'gad_assessment',
+        'co_evaluator_review',
         'lrec_queued',
         'lrec_review',
         'revision_requested',
         'resubmitted',
         TopicProposal::STATUS_READY_FOR_SIGNATURE,
-        'approved',
-        'rejected',
     ];
 
     private const SUBMISSION_TYPES = ['initial', 'revision'];
@@ -42,18 +37,13 @@ class ResearchHeadProposalSubmissionController extends Controller
         TopicProposal::STATUS_READY_FOR_SIGNATURE,
     ];
 
-    public function index(Request $request, SidebarAttentionService $sidebarAttention): View
+    public function index(Request $request): View
     {
         Gate::authorize('viewAny', TopicProposal::class);
 
         $search = $request->string('search')->trim()->toString();
         $submissionType = $request->string('type')->toString();
         $status = $request->string('status')->toString();
-        $unreadProposalTopicIds = $sidebarAttention->unreadTopicIdsFor(
-            $request->user(),
-            ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
-        );
-
         $summary = [
             'proposals' => ProposalVersion::query()->distinct()->count('topic_id'),
             'active' => TopicProposal::query()->whereIn('status', self::ACTIVE_STATUSES)->count(),
@@ -69,6 +59,8 @@ class ResearchHeadProposalSubmissionController extends Controller
                 'research_call_id',
                 'title',
                 'status',
+                'review_stage',
+                'research_head_viewed_version_id',
                 'created_at',
                 'updated_at',
             ])
@@ -76,9 +68,9 @@ class ResearchHeadProposalSubmissionController extends Controller
             ->with([
                 'user:id,name,email,college',
                 'researchCall:id,title,academic_year',
-                'latestVersion',
+                'latestVersion.files',
             ])
-            ->when(in_array($status, self::STATUSES, true), fn (Builder $query): Builder => $query->where('status', $status))
+            ->when(in_array($status, self::FILTER_STATUSES, true), fn (Builder $query): Builder => $this->applyStatusFilter($query, $status))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
@@ -104,9 +96,10 @@ class ResearchHeadProposalSubmissionController extends Controller
             ])
             ->with([
                 'submitter:id,name,email',
-                'topic:id,user_id,research_call_id,title,status',
+                'topic:id,user_id,research_call_id,title,status,review_stage,research_head_viewed_version_id,notice_to_proceed_issued_at',
                 'topic.user:id,name,email,college',
                 'topic.researchCall:id,title,academic_year',
+                'topic.latestVersion.files',
             ])
             ->withCount([
                 'files as package_files_count' => fn (Builder $query): Builder => $query->whereNotIn('document_type', [
@@ -115,7 +108,7 @@ class ResearchHeadProposalSubmissionController extends Controller
                 ]),
             ])
             ->when(in_array($submissionType, self::SUBMISSION_TYPES, true), fn (Builder $query): Builder => $query->where('submission_type', $submissionType))
-            ->when(in_array($status, self::STATUSES, true), fn (Builder $query): Builder => $query->whereHas('topic', fn (Builder $query): Builder => $query->where('status', $status)))
+            ->when(in_array($status, self::FILTER_STATUSES, true), fn (Builder $query): Builder => $query->whereHas('topic', fn (Builder $query): Builder => $this->applyStatusFilter($query, $status)))
             ->when($search !== '', function (Builder $query) use ($search): void {
                 $query->where(function (Builder $query) use ($search): void {
                     $query->where('title', 'like', "%{$search}%")
@@ -134,7 +127,33 @@ class ResearchHeadProposalSubmissionController extends Controller
             'activeProposals',
             'submissions',
             'summary',
-            'unreadProposalTopicIds',
         ));
+    }
+
+    private function applyStatusFilter(Builder $query, string $status): Builder
+    {
+        if ($status === 'gad_assessment') {
+            return $query
+                ->where('status', TopicProposal::STATUS_GAD_REVIEW)
+                ->whereDoesntHave('latestVersion.files', fn (Builder $query): Builder => $this->passingGadAssessmentQuery($query));
+        }
+
+        if ($status === 'co_evaluator_review') {
+            return $query
+                ->where('status', TopicProposal::STATUS_GAD_REVIEW)
+                ->whereHas('latestVersion.files', fn (Builder $query): Builder => $this->passingGadAssessmentQuery($query));
+        }
+
+        return $query->where('status', $status);
+    }
+
+    private function passingGadAssessmentQuery(Builder $query): Builder
+    {
+        return $query
+            ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
+            ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)
+            ->where('source_data->target_document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+            ->where('source_data->gad_signature_confirmed', true)
+            ->whereIn('source_data->gad_outcome', ['passed', 'commended']);
     }
 }

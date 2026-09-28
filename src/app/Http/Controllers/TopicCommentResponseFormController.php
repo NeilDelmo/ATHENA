@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Contracts\DocumentPdfConverter;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
+use App\Models\TopicReview;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
 use App\Services\CommentResponseFormDocumentService;
@@ -13,18 +15,17 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TopicCommentResponseFormController extends Controller
 {
-    public function preview(Request $request, TopicProposal $topic): View
-    {
-        Gate::authorize('generateCommentResponseForm', $topic);
-
-        $commentResponseForm = $this->commentResponseFormData($topic, $this->formSource($request), $request->integer('review'));
-
-        return view('faculty.comment-response-form.preview', compact('commentResponseForm', 'topic'));
+    public function preview(
+        Request $request,
+        TopicProposal $topic,
+        CommentResponseFormDocumentService $documentService,
+        DocumentPdfConverter $pdfConverter,
+    ): Response {
+        return $this->downloadPdf($request, $topic, $documentService, $pdfConverter);
     }
 
     public function download(
@@ -35,7 +36,7 @@ class TopicCommentResponseFormController extends Controller
         Gate::authorize('generateCommentResponseForm', $topic);
 
         $source = $this->formSource($request);
-        $contents = $documentService->generate($this->commentResponseFormData($topic, $source, $request->integer('review')));
+        $contents = $documentService->generate($this->commentResponseFormData($topic, $source, $request->integer('review'), $this->draftVersionId($request, $topic, $source)));
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
         $sourceSlug = Str::of($source)->replace('_', '-')->toString();
 
@@ -58,7 +59,7 @@ class TopicCommentResponseFormController extends Controller
 
         $source = $this->formSource($request);
         $contents = $pdfConverter->convertDocx($documentService->generate(
-            $this->commentResponseFormData($topic, $source, $request->integer('review')),
+            $this->commentResponseFormData($topic, $source, $request->integer('review'), $this->draftVersionId($request, $topic, $source)),
         ));
         $filenameBase = Str::slug($topic->title) ?: 'research-project';
         $sourceSlug = Str::of($source)->replace('_', '-')->toString();
@@ -69,6 +70,7 @@ class TopicCommentResponseFormController extends Controller
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 
@@ -82,14 +84,27 @@ class TopicCommentResponseFormController extends Controller
      *     form_source: string,
      *     form_label: string,
      *     review_id: int|null,
-     *     feedback: list<array{reviewer: string, location: string, comment: string}>,
+     *     feedback: list<array{reviewer: string, location: string, comment: string, stage: string, response: string, remarks: string}>,
+     *     evaluation_stages: list<string>,
+     *     comment_response_head: string,
+     *     comment_response_vice_chancellor: string,
      *     staff: list<array{name: string, campus: string, college: string, department: string}>
      * }
      */
-    private function commentResponseFormData(TopicProposal $topic, string $source, int $reviewId): array
+    private function commentResponseFormData(TopicProposal $topic, string $source, int $reviewId, int $draftVersionId = 0): array
     {
-        $topic->loadMissing(['user:id,name,college', 'latestVersion.files']);
-        $files = $topic->latestVersion?->files ?? collect();
+        $topic->loadMissing(['user:id,name,college', 'latestVersion.files', 'revisionDraft']);
+        $feedbackService = app(CommentResponseFeedback::class);
+        $review = $draftVersionId > 0 ? null : $this->feedbackReview($topic, $reviewId);
+        abort_unless(auth()->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $review !== null || $topic->status === 'revision_requested', 403);
+        $version = $draftVersionId > 0 ? $topic->latestVersion : ($review ? $feedbackService->reviewedVersion($review) : $topic->latestVersion);
+        $files = $version?->files ?? collect();
+        $feedback = $draftVersionId > 0
+            ? $feedbackService->draftRows($version)
+            : $feedbackService->rowsForSource($review, $source);
+        $fallbackStage = $draftVersionId > 0
+            ? $feedbackService->currentStage($topic, $version)
+            : ($source === CommentResponseFeedback::FORM_CO_EVALUATOR ? null : $feedbackService->reviewStage($review));
         $detailedProposal = $this->sourceData($files->firstWhere(
             'document_type',
             ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
@@ -104,7 +119,11 @@ class TopicCommentResponseFormController extends Controller
         ));
 
         return [
-            'project_title' => (string) $topic->title,
+            ...$this->commentResponseSignatories(
+                $detailedProposal['comment_response_signatory_selections'] ?? [],
+                $version?->id === $topic->latestVersion?->id ? ($topic->revisionDraft?->signatory_selections ?? []) : [],
+            ),
+            'project_title' => (string) ($version?->title ?? $topic->title),
             'project_leader' => $this->firstFilled(
                 $detailedProposal['project_leader'] ?? null,
                 $lineItemBudget['project_leader'] ?? null,
@@ -126,13 +145,51 @@ class TopicCommentResponseFormController extends Controller
             'staff' => $this->staffRows($detailedProposal, $lineItemBudget),
             'form_source' => $source,
             'form_label' => app(CommentResponseFeedback::class)->formLabel($source),
-            'review_id' => $reviewId ?: null,
-            'feedback' => $this->feedbackRows($topic, $source, $reviewId),
+            'review_id' => $review?->id,
+            'feedback' => $feedback,
+            'evaluation_stages' => $feedbackService->stagesForRows($feedback, $fallbackStage),
         ];
     }
 
-    /** @return list<array{reviewer: string, location: string, comment: string}> */
-    private function feedbackRows(TopicProposal $topic, string $source, int $reviewId): array
+    private function draftVersionId(Request $request, TopicProposal $topic, string $source): int
+    {
+        if (! $request->has('draft_version')) {
+            return 0;
+        }
+
+        abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
+        abort_unless($source === CommentResponseFeedback::FORM_RESEARCH_HEAD && ! $request->has('review'), 404);
+        $versionId = $request->integer('draft_version');
+        abort_unless($versionId > 0 && $topic->latestVersion()->whereKey($versionId)->exists(), 404);
+        abort_unless(in_array($topic->status, ['pending', 'expert_review', 'resubmitted', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true), 404);
+
+        return $versionId;
+    }
+
+    /**
+     * @param  array<string, array{name: string}>  $submittedSelections
+     * @param  array<string, array{name: string}>  $draftSelections
+     * @return array<string, string>
+     */
+    private function commentResponseSignatories(array $submittedSelections, array $draftSelections): array
+    {
+        $roles = array_keys(ProposalSignatory::FIELDS['comment_response_form']);
+        $directory = ProposalSignatory::query()->where('active', true)->whereIn('role_key', $roles)
+            ->get(['role_key', 'name'])->groupBy('role_key');
+        $names = [];
+        foreach ($roles as $role) {
+            $people = $directory->get($role, collect());
+            $names[$role] = $this->firstFilled(
+                $draftSelections[$role]['name'] ?? null,
+                $submittedSelections[$role]['name'] ?? null,
+                $people->count() === 1 ? $people->first()->name : null,
+            );
+        }
+
+        return $names;
+    }
+
+    private function feedbackReview(TopicProposal $topic, int $reviewId): ?TopicReview
     {
         $review = $topic->reviews()->where('decision', 'revision_requested')
             ->when($reviewId > 0, fn ($query) => $query->whereKey($reviewId))
@@ -140,7 +197,7 @@ class TopicCommentResponseFormController extends Controller
 
         abort_if($reviewId > 0 && $review === null, 404);
 
-        return app(CommentResponseFeedback::class)->rowsForSource($review, $source);
+        return $review;
     }
 
     private function formSource(Request $request): string

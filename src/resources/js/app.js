@@ -6,6 +6,7 @@ import 'sweetalert2/dist/sweetalert2.min.css';
 import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
+import { projectDocumentDrawer } from './project-document-drawer';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
 import initializeResearchCallImageExtractors from './research-call-image-extractor';
@@ -55,6 +56,7 @@ import {
 
 window.Alpine = Alpine;
 Alpine.data('journalFinder', journalFinder);
+Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
     candidates: Array.isArray(config.candidates) ? config.candidates : [],
     selectedId: config.selectedId || '',

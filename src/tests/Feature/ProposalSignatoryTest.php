@@ -2,7 +2,9 @@
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalSignatory;
+use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\CommentResponseFormDocumentService;
 use App\Services\DetailedProposalDocumentService;
 use App\Services\GADChecklistDocumentService;
 use App\Services\InitialScreeningFormDocumentService;
@@ -228,7 +230,7 @@ test('faculty can refresh frozen signatory names after the research head renames
         ]);
 });
 
-test('all five generated papers contain the selected signatory names', function () {
+test('all six generated papers contain the selected signatory names', function () {
     $selections = [];
     foreach (array_keys(ProposalSignatory::roles()) as $index => $key) {
         $selections[$key] = ['id' => $index + 1, 'name' => 'Selected Signer '.($index + 1), 'position' => 'Selected Position'];
@@ -241,6 +243,7 @@ test('all five generated papers contain the selected signatory names', function 
         'line_item_budget' => app(LineItemBudgetDocumentService::class)->generate(LineItemBudgetData::fromValidated([...$base, 'amounts' => [], ...$draft->signatoryFields('line_item_budget')])),
         'gad_checklist' => app(GADChecklistDocumentService::class)->generate(GADChecklistData::fromValidated([...$base, ...$draft->signatoryFields('gad_checklist')])),
         'initial_screening_form' => app(InitialScreeningFormDocumentService::class)->generate([...$base, ...$draft->signatoryFields('initial_screening_form')]),
+        'comment_response_form' => app(CommentResponseFormDocumentService::class)->generate([...$base, 'staff' => [], ...$draft->signatoryFields('comment_response_form')]),
     ];
     foreach ($documents as $paper => $contents) {
         $path = tempnam(sys_get_temp_dir(), 'signatory-test-');
@@ -258,4 +261,61 @@ test('all five generated papers contain the selected signatory names', function 
             unlink($path);
         }
     }
+});
+
+test('research head supplies both comments form roles and faculty can select them by the correct role', function () {
+    $this->withoutVite();
+    foreach (['faculty', 'research_head'] as $role) {
+        Role::firstOrCreate(['name' => $role]);
+    }
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $draft = ProposalDraft::create(['user_id' => $faculty->id, 'project_title' => 'Comments Form Selection', 'lock_version' => 0]);
+    $preparedPaper = $draft->documents()->create(['document_type' => 'work_plan', 'position' => 0, 'file_path' => 'prepared-work-plan.pdf', 'lock_version' => 0]);
+    $selectedIds = [];
+    foreach (ProposalSignatory::FIELDS['comment_response_form'] as $key => $label) {
+        $this->actingAs($head)->post(route('signatories.store'), [
+            'role_key' => $key, 'name' => 'Signer for '.$key, 'position' => $label, 'active' => 1,
+        ])->assertSessionHasNoErrors();
+        $selectedIds[$key] = ProposalSignatory::where('role_key', $key)->where('name', 'Signer for '.$key)->sole()->id;
+    }
+    $this->actingAs($faculty)->get(route('signatories.edit', [$draft, 'paper' => 'comment_response_form']))
+        ->assertOk()->assertSee('Comment Response Form')->assertSee('Signer for comment_response_head')
+        ->assertSee('Signer for comment_response_vice_chancellor');
+    $this->put(route('signatories.select', $draft), [
+        'lock_version' => 0, 'return_paper' => 'comment_response_form',
+        'signatories' => ['comment_response_head' => $selectedIds['comment_response_vice_chancellor']],
+    ])->assertSessionHasErrors('signatories.comment_response_head');
+    $this->put(route('signatories.select', $draft), [
+        'lock_version' => 0, 'return_paper' => 'comment_response_form', 'signatories' => $selectedIds,
+    ])->assertSessionHasNoErrors()->assertRedirectToRoute('faculty.proposal-drafts.show', $draft);
+    expect($draft->fresh()->signatoryFields('comment_response_form'))->toBe([
+        'comment_response_head' => 'Signer for comment_response_head',
+        'comment_response_vice_chancellor' => 'Signer for comment_response_vice_chancellor',
+    ]);
+    expect($preparedPaper->fresh()->file_path)->toBe('prepared-work-plan.pdf');
+});
+
+test('faculty can open comments form signatories before starting a revision draft and return to feedback', function () {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'faculty']);
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id, 'title' => 'Comments Form Revision', 'status' => 'revision_requested',
+    ]);
+    $this->actingAs($faculty)->get(route('faculty.proposal-drafts.revision', [$topic, 'signatories' => 'comment_response_form']))
+        ->assertRedirect(route('signatories.edit', [$topic->revisionDraft()->sole(), 'paper' => 'comment_response_form']));
+    $draft = $topic->revisionDraft()->sole();
+    $this->get(route('signatories.edit', [$draft, 'paper' => 'comment_response_form']))
+        ->assertOk()->assertSee(route('faculty.topics.revision', $topic).'#revision-feedback', false);
+    $this->put(route('signatories.select', $draft), [
+        'lock_version' => 0, 'return_paper' => 'comment_response_form', 'signatories' => ['comment_response_head' => null],
+    ])->assertSessionHasNoErrors()->assertRedirect(route('faculty.topics.revision', $topic).'#revision-feedback');
+    $other = User::factory()->create();
+    $other->assignRole('faculty');
+    $this->actingAs($other)->get(route('faculty.proposal-drafts.revision', [$topic, 'signatories' => 'comment_response_form']))
+        ->assertForbidden();
 });

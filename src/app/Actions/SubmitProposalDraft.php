@@ -6,6 +6,8 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalDraftMember;
+use App\Models\ProposalSignatory;
+use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -231,6 +233,7 @@ class SubmitProposalDraft
                             $document,
                             $paper,
                             $permanentDirectory,
+                            array_intersect_key($lockedDraft->signatory_selections ?? [], ProposalSignatory::FIELDS['comment_response_form']),
                         );
                     }
                 }
@@ -314,12 +317,14 @@ class SubmitProposalDraft
 
     /**
      * @param  array<string, mixed>  $paper
+     * @param  array<string, array<string, mixed>>  $commentResponseSelections
      * @return array<string, mixed>
      */
     private function copyStagedDocument(
         ProposalDraftDocument $document,
         array $paper,
         string $permanentDirectory,
+        array $commentResponseSelections,
     ): array {
         $extension = strtolower(pathinfo($document->original_filename, PATHINFO_EXTENSION));
         $path = $permanentDirectory.'/'.$paper['slug'].'/'.Str::uuid().'.'.$extension;
@@ -341,7 +346,9 @@ class SubmitProposalDraft
             'mime_type' => $document->mime_type ?: Storage::disk('local')->mimeType($path),
             'file_size' => Storage::disk('local')->size($path),
             'checksum' => hash_file('sha256', $absolutePath) ?: null,
-            'source_data' => $document->source_data,
+            'source_data' => $document->document_type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL
+                ? [...($document->source_data ?? []), 'comment_response_signatory_selections' => $commentResponseSelections]
+                : $document->source_data,
             'is_carried_forward' => false,
         ];
     }

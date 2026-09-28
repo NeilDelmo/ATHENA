@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\RecordProposalDraftDocumentVersion;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
@@ -151,6 +152,10 @@ beforeEach(function () {
 
     $this->completeDraft = function (ProposalDraft $draft): ProposalDraft {
         $draft->update(($this->projectDetails)());
+        $draft->update(['signatory_selections' => [
+            'comment_response_head' => ['name' => 'Selected Research Head'],
+            'comment_response_vice_chancellor' => ['name' => 'Selected Vice Chancellor'],
+        ]]);
 
         foreach (app(ProposalPaperCatalog::class)->all() as $paper) {
             if ($paper['mode'] === 'automatic') {
@@ -760,6 +765,8 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         $documentXpath = new DOMXPath($documentDom);
         $documentXpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
 
+        $projectLeaderSignature = $documentXpath->query('//w:p[normalize-space(.) = "Faculty Owner"]')->item(0);
+
         $answerMarks = 0;
 
         foreach ($documentXpath->query('//w:t') as $textNode) {
@@ -768,7 +775,8 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
             }
         }
 
-        expect($answerMarks)->toBe(0);
+        expect($answerMarks)->toBe(0)
+            ->and($documentXpath->query('./w:r/w:rPr/w:u[@w:val = "single"]', $projectLeaderSignature)->length)->toBe(1);
 
         $gadFooterXml = $generated->getFromName('word/footer1.xml');
         $gadSettingsXml = $generated->getFromName('word/settings.xml');
@@ -885,6 +893,8 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         expect($documentXPath->query('//w:p[contains(string(.), "First Submission")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(1)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Minor Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
             ->and($documentXPath->query('//w:p[contains(string(.), "Revised with Major Changes")]//w:checkBox/w:checked[@w:val = "1"]')->length)->toBe(0)
+            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/w:r/w:rPr/w:u[@w:val = "single"]')->length)->toBe(3)
+            ->and($documentXPath->query('//w:p[normalize-space(.) = "NAME"]/preceding-sibling::w:p[1][not(normalize-space(.))]')->length)->toBe(3)
             ->and($draft->fresh()->topic_id)->toBeNull()
             ->and(app(InitialScreeningSubmissionOrder::class)->forDraft($draft->fresh()))->toBe(InitialScreeningSubmissionOrder::FIRST_SUBMISSION);
 
@@ -1207,6 +1217,21 @@ test('generated papers can save partial source data as in-progress drafts', func
             'entries.0.months',
         ]);
 });
+
+test('initial submission requires both comments form signatories and keeps the draft intact', function (string $missingRole) {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $selections = $draft->signatory_selections;
+    unset($selections[$missingRole]);
+    $draft->update(['signatory_selections' => $selections]);
+
+    expect(app(ProposalDraftReadiness::class)->isReady($draft->fresh()))->toBeFalse();
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasErrors('signatories.comment_response_form');
+    $this->assertModelExists($draft);
+    expect(TopicProposal::query()->count())->toBe(0);
+    $draft->documents->pluck('file_path')->filter()->each(fn ($path) => Storage::disk('local')->assertExists($path));
+})->with(['comment_response_head', 'comment_response_vice_chancellor']);
 
 test('incomplete drafts stay blocked but completed drafts can be submitted after a call closes', function () {
     $incomplete = ($this->createDraft)();
@@ -1578,6 +1603,11 @@ test('a prepared third proposal remains a draft until a submission slot becomes 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
+    $commentsSignatories = [
+        'comment_response_head' => ['name' => 'Selected Research Head'],
+        'comment_response_vice_chancellor' => ['name' => 'Selected Vice Chancellor'],
+    ];
+    $draft->update(['signatory_selections' => $commentsSignatories]);
     $draft->members()->create([
         'user_id' => $this->otherFaculty->id,
         'name' => $this->otherFaculty->name,
@@ -1598,6 +1628,8 @@ test('final submission creates one immutable package then rejects a duplicate re
 
     $topic = TopicProposal::query()->sole();
     $version = $topic->versions()->with('files')->sole();
+    expect($version->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->source_data['comment_response_signatory_selections'])->toBe($commentsSignatories);
     $workPlan = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
     $lineItemBudget = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
     $expenseBreakdown = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
@@ -1702,6 +1734,10 @@ test('final submission creates one immutable package then rejects a duplicate re
     expect(TopicProposal::query()->count())->toBe(1)
         ->and($topic->versions()->count())->toBe(1);
     Notification::assertSentToTimes($this->head, ProposalActivityNotification::class, 1);
+
+    $topic->update(['status' => 'revision_requested']);
+    $revisionDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    expect($revisionDraft->signatory_selections)->toBe($commentsSignatories);
 });
 
 test('an rrl backed proposal completes submission revision approval notice and monitoring', function () {
