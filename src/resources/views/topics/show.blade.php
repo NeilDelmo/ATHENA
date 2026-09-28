@@ -91,9 +91,6 @@
                 </div>
             </div>
         </div>
-            @unless ($canViewMonitoring)
-                <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
-            @endunless
     </x-slot>
 
     <div
@@ -110,6 +107,7 @@
                         ? 'history'
                         : @js($canDecide ? 'review' : 'details')
             ),
+            routingDocketOpen: false,
             setTopicTab(tab, hash) {
                 this.activeTopicTab = tab;
                 window.location.hash = hash;
@@ -188,8 +186,9 @@
             </div>
         @endif
 
-        <div class="overflow-x-auto border-b border-gray-200" role="tablist" aria-label="Proposal workspace sections">
-            <nav class="flex min-w-max gap-6">
+        <div class="flex items-end gap-3 border-b border-gray-200">
+            <div class="min-w-0 flex-1 overflow-x-auto" role="tablist" aria-label="Proposal workspace sections">
+                <nav class="flex min-w-max gap-6">
                 <button id="proposal-details-tab-button" type="button" role="tab" aria-controls="proposal-details-tab" :aria-selected="activeTopicTab === 'details'" @click="setTopicTab('details', 'proposal-details')" :class="activeTopicTab === 'details' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-600 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-bold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v13.5A2.25 2.25 0 0 1 17.75 21H6.25A2.25 2.25 0 0 1 4 18.75V5.25Z" /><path stroke-linecap="round" d="M8 8h8M8 12h8M8 16h5" /></svg>
                     Proposal
@@ -214,10 +213,40 @@
                         Monitoring
                     </button>
                 @endif
-            </nav>
+                </nav>
+            </div>
+            @unless ($canViewMonitoring)
+                <button
+                    type="button"
+                    @click="routingDocketOpen = ! routingDocketOpen; setTopicTab('details', 'proposal-details')"
+                    :aria-expanded="routingDocketOpen.toString()"
+                    aria-controls="proposal-routing-docket"
+                    class="mb-2 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50"
+                    aria-label="Show proposal routing information"
+                    title="Proposal routing information"
+                >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path stroke-linecap="round" d="M12 10.5v5m0-8.25h.01" /></svg>
+                    <span class="hidden sm:inline">Review steps</span>
+                </button>
+            @endunless
         </div>
 
         <section id="proposal-details-tab" x-show="activeTopicTab === 'details'" x-cloak role="tabpanel" aria-labelledby="proposal-details-tab-button">
+            @unless ($canViewMonitoring)
+                <div
+                    class="mb-5"
+                    x-cloak
+                    x-show="routingDocketOpen"
+                    x-transition:enter="transition ease-out duration-200"
+                    x-transition:enter-start="-translate-y-2 opacity-0"
+                    x-transition:enter-end="translate-y-0 opacity-100"
+                    x-transition:leave="transition ease-in duration-150"
+                    x-transition:leave-start="translate-y-0 opacity-100"
+                    x-transition:leave-end="-translate-y-2 opacity-0"
+                >
+                    <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
+                </div>
+            @endunless
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
                 <section id="submitted-files" aria-labelledby="submitted-files-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">

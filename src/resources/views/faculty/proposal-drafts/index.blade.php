@@ -1,15 +1,72 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+            x-data="{
+                activeWorkspaceTab: window.location.hash === '#submitted-proposals'
+                    ? 'submitted'
+                    : (window.location.hash === '#drafts'
+                        ? 'drafts'
+                        : (new URLSearchParams(window.location.search).has('submitted-page') ? 'submitted' : 'drafts')),
+                selectWorkspaceTab(tab) {
+                    this.activeWorkspaceTab = tab;
+                    window.history.replaceState(
+                        {},
+                        '',
+                        window.location.pathname + window.location.search + (tab === 'submitted' ? '#submitted-proposals' : '#drafts')
+                    );
+                    window.dispatchEvent(new CustomEvent('proposal-workspace-tab-selected', { detail: { tab } }));
+                },
+            }"
+            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        >
             <div>
                 <h2 class="text-2xl font-black tracking-tight text-gray-900">Proposal Package Workspace</h2>
                 <p class="mt-1 text-xs text-gray-500">Create proposal packages and track every submitted proposal in one place.</p>
             </div>
-            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
+            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New Proposal
-                    </a>
+                </a>
+
+                <div class="inline-flex w-full rounded-xl border border-gray-200 bg-gray-100 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950 sm:w-auto" role="tablist" aria-label="Proposal workspace" data-proposal-workspace-toggle>
+                    <button
+                        id="proposal-workspace-drafts-tab"
+                        type="button"
+                        role="tab"
+                        aria-controls="proposal-workspace-drafts-panel"
+                        :aria-selected="activeWorkspaceTab === 'drafts'"
+                        :tabindex="activeWorkspaceTab === 'drafts' ? 0 : -1"
+                        x-on:click="selectWorkspaceTab('drafts')"
+                        x-on:keydown.right.prevent="$refs.submittedTab.focus(); selectWorkspaceTab('submitted')"
+                        class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:flex-none dark:focus-visible:ring-offset-slate-950"
+                        :class="activeWorkspaceTab === 'drafts'
+                            ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
+                            : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
+                    >
+                        Drafts
+                        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums" :class="activeWorkspaceTab === 'drafts' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'">{{ $proposalDrafts->total() }}</span>
+                    </button>
+
+                    <button
+                        x-ref="submittedTab"
+                        id="proposal-workspace-submitted-tab"
+                        type="button"
+                        role="tab"
+                        aria-controls="proposal-workspace-submitted-panel"
+                        :aria-selected="activeWorkspaceTab === 'submitted'"
+                        :tabindex="activeWorkspaceTab === 'submitted' ? 0 : -1"
+                        x-on:click="selectWorkspaceTab('submitted')"
+                        x-on:keydown.left.prevent="document.getElementById('proposal-workspace-drafts-tab').focus(); selectWorkspaceTab('drafts')"
+                        class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:flex-none dark:focus-visible:ring-offset-slate-950"
+                        :class="activeWorkspaceTab === 'submitted'
+                            ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
+                            : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
+                    >
+                        Submitted
+                        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums" :class="activeWorkspaceTab === 'submitted' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'">{{ $submittedProposals->total() }}</span>
+                    </button>
+                </div>
             </div>
         </div>
     </x-slot>
@@ -21,15 +78,8 @@
                 : (window.location.hash === '#drafts'
                     ? 'drafts'
                     : (new URLSearchParams(window.location.search).has('submitted-page') ? 'submitted' : 'drafts')),
-            selectWorkspaceTab(tab) {
-                this.activeWorkspaceTab = tab;
-                window.history.replaceState(
-                    {},
-                    '',
-                    window.location.pathname + window.location.search + (tab === 'submitted' ? '#submitted-proposals' : '#drafts')
-                );
-            },
         }"
+        x-on:proposal-workspace-tab-selected.window="activeWorkspaceTab = $event.detail.tab"
         class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
         data-proposal-workspace-tabs
     >
@@ -43,73 +93,6 @@
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </x-proposal-alert>
         @endif
-
-        <div class="rounded-2xl border border-gray-200 bg-gray-100 p-1.5 shadow-sm dark:border-slate-800 dark:bg-slate-950" role="tablist" aria-label="Proposal workspace">
-            <div class="grid grid-cols-2 gap-1.5">
-                <button
-                    id="proposal-workspace-drafts-tab"
-                    type="button"
-                    role="tab"
-                    aria-controls="proposal-workspace-drafts-panel"
-                    :aria-selected="activeWorkspaceTab === 'drafts'"
-                    :tabindex="activeWorkspaceTab === 'drafts' ? 0 : -1"
-                    x-on:click="selectWorkspaceTab('drafts')"
-                    x-on:keydown.right.prevent="$refs.submittedTab.focus(); selectWorkspaceTab('submitted')"
-                    class="group relative flex min-w-0 items-center justify-center gap-2.5 rounded-xl px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:justify-start sm:px-5"
-                    :class="activeWorkspaceTab === 'drafts'
-                        ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
-                        : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
-                >
-                    <span
-                        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg transition"
-                        :class="activeWorkspaceTab === 'drafts' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' : 'bg-gray-200/70 text-gray-500 dark:bg-slate-800 dark:text-slate-400'"
-                    >
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25 18 7.5m-8.25 8.25 7.72-7.72a1.59 1.59 0 0 0-2.25-2.25L7.5 13.5 6.75 17.25l3.75-.75Z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 12.75v5.25A2.25 2.25 0 0 1 16.5 20.25h-10.5A2.25 2.25 0 0 1 3.75 18V7.5A2.25 2.25 0 0 1 6 5.25h5.25" />
-                        </svg>
-                    </span>
-                    <span class="truncate text-sm font-black sm:text-base">Drafts</span>
-                    <span
-                        class="ml-0.5 rounded-full px-2.5 py-1 text-[11px] font-black tabular-nums transition sm:ml-auto"
-                        :class="activeWorkspaceTab === 'drafts' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'"
-                    >{{ $proposalDrafts->total() }}</span>
-                    <span x-show="activeWorkspaceTab === 'drafts'" class="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-red-600" aria-hidden="true"></span>
-                </button>
-
-                <button
-                    x-ref="submittedTab"
-                    id="proposal-workspace-submitted-tab"
-                    type="button"
-                    role="tab"
-                    aria-controls="proposal-workspace-submitted-panel"
-                    :aria-selected="activeWorkspaceTab === 'submitted'"
-                    :tabindex="activeWorkspaceTab === 'submitted' ? 0 : -1"
-                    x-on:click="selectWorkspaceTab('submitted')"
-                    x-on:keydown.left.prevent="document.getElementById('proposal-workspace-drafts-tab').focus(); selectWorkspaceTab('drafts')"
-                    class="group relative flex min-w-0 items-center justify-center gap-2.5 rounded-xl px-3 py-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:justify-start sm:px-5"
-                    :class="activeWorkspaceTab === 'submitted'
-                        ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
-                        : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
-                >
-                    <span
-                        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg transition"
-                        :class="activeWorkspaceTab === 'submitted' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' : 'bg-gray-200/70 text-gray-500 dark:bg-slate-800 dark:text-slate-400'"
-                    >
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5A2.25 2.25 0 0 1 19.5 6v12A2.25 2.25 0 0 1 17.25 20.25H6.75A2.25 2.25 0 0 1 4.5 18V6a2.25 2.25 0 0 1 2.25-2.25Z" />
-                        </svg>
-                    </span>
-                    <span class="truncate text-sm font-black sm:text-base">Submitted</span>
-                    <span
-                        class="ml-0.5 rounded-full px-2.5 py-1 text-[11px] font-black tabular-nums transition sm:ml-auto"
-                        :class="activeWorkspaceTab === 'submitted' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'"
-                    >{{ $submittedProposals->total() }}</span>
-                    <span x-show="activeWorkspaceTab === 'submitted'" class="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-red-600" aria-hidden="true"></span>
-                </button>
-            </div>
-        </div>
 
         <section
             id="proposal-workspace-drafts-panel"

@@ -6,30 +6,21 @@
     @endphp
 
     <x-slot name="header">
-        <div data-faculty-researcher-dashboard class="mx-auto max-w-7xl">
-            <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div class="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:px-8">
-                    <div class="min-w-0">
-                        <div class="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#7A0019]">
-                            <span class="h-2 w-2 rounded-full bg-[#7A0019]" aria-hidden="true"></span>
-                            Faculty Researcher Dashboard
-                        </div>
-                        <h1 class="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Your research at a glance</h1>
-                        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                            Start with work that needs attention, check portfolio progress, and review upcoming research dates.
-                        </p>
-                    </div>
-
-                    <a href="{{ route('research.index') }}" class="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#7A0019] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#650015] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2">
+        <x-workspace-header-banner
+            data-faculty-researcher-dashboard
+            eyebrow="Faculty Researcher Dashboard"
+            title="Your research at a glance"
+            description="Start with work that needs attention, check portfolio progress, and review upcoming research dates."
+        >
+            <x-slot:actions>
+                <a href="{{ route('research.index') }}" class="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[#7A0019] px-5 text-sm font-black text-white shadow-sm transition hover:bg-[#650015] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2">
                         Open My Projects
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                         </svg>
-                    </a>
-                </div>
-                <div class="h-1 bg-gradient-to-r from-[#7A0019] via-rose-500 to-amber-400"></div>
-            </div>
-        </div>
+                </a>
+            </x-slot:actions>
+        </x-workspace-header-banner>
     </x-slot>
 
     <div class="-mx-4 -my-6 min-h-[calc(100vh-12rem)] bg-[#F8FAFC] px-4 py-8 text-slate-900 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" data-dashboard-layout="research-overview">

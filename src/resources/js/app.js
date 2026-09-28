@@ -5688,7 +5688,28 @@ Alpine.data('workPlanWizard', (config = {}) => ({
     },
 }));
 
+Alpine.data('proposalStaticDocumentPreview', () => ({
+    ...proposalPreviewWorkspace(),
+    previewHtml: true,
+    previewLoading: false,
+    previewReady: false,
+    previewError: '',
+    validationMessage: '',
+
+    generatePreview() {
+        this.previewPaneOpen = true;
+    },
+
+    printPreview() {
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
+    },
+}));
+
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     nextEntryId: 0,
     entries: [],
     expandedEntryId: null,
@@ -6399,6 +6420,7 @@ Alpine.data('proposalDraftMembers', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     nextId: 0,
     staff: [],
     budgetCeiling: Number(config.budgetCeiling || 0),
@@ -6869,6 +6891,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     nextId: 0,
     items: [],
     expandedItemId: null,
@@ -7394,6 +7417,7 @@ Alpine.data('proposalDraftExpenseBreakdown', (config = {}) => ({
 }));
 
 Alpine.data('proposalDraftCurriculumVitae', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     nextId: 0,
     people: [],
     workspacePeople: Array.isArray(config.workspacePeople) ? config.workspacePeople : [],

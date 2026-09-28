@@ -35,7 +35,7 @@
         @endauth
         @if (Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher'])) data-literature-search-url="{{ route('research-support.literature-search') }}" @endif
         @if (Auth::user()?->isUsingWorkspace('faculty_researcher')) data-conference-search-url="{{ route('research-support.conference-search') }}" @endif
-        class="bg-white font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+        class="bg-[#F5F7FA] font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
     >
         @auth
             <script>
@@ -59,7 +59,7 @@
 
         <div
             :class="{ 'sm:pl-[280px]': sidebarOpen }"
-            class="flex min-h-screen flex-col bg-white pl-[76px] transition-[padding,background-color] duration-300 ease-out dark:bg-slate-950"
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] transition-[padding,background-color] duration-300 ease-out dark:bg-slate-950"
         >
             
             <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">

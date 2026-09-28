@@ -11,7 +11,7 @@
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div x-data="proposalStaticDocumentPreview()" class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-black">Complete Project Details first</p>
@@ -26,6 +26,11 @@
                 && isset($sampleDefinition['path'])
                 && \Illuminate\Support\Facades\Storage::disk('local')->exists($sampleDefinition['path']);
         @endphp
+
+        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="gad-checklist-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
+            <span class="text-xs text-slate-500 dark:text-slate-400">The preview can be moved, resized, or opened full screen.</span>
+        </div>
 
         <section class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -45,18 +50,14 @@
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader / Prepared by</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_leader ?: 'Not provided' }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Checked and verified by</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ config('gad_checklist.verifier.name') }}</dd><dd class="text-xs text-gray-600">{{ config('gad_checklist.verifier.role') }}</dd></div>
             </dl>
-            <div class="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
-                <a href="{{ route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-900 px-4 py-2.5 text-xs font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Open full preview</a>
-                <a href="{{ route('faculty.proposal-drafts.gad-checklist.download', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Download Word file</a>
-            </div>
         </section>
 
-        <section aria-labelledby="gad-preview-heading" class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-            <div class="mb-4">
-                <h3 id="gad-preview-heading" class="text-base font-black text-gray-900">GAD Generic Checklist preview</h3>
-                <p class="mt-1 text-xs text-gray-500">The seven pages below follow the supplied Box 7a document.</p>
-            </div>
-            <iframe src="{{ route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft) }}" title="GAD Generic Checklist preview" class="h-[85vh] w-full rounded-xl border border-gray-200 bg-gray-100"></iframe>
-        </section>
+        <x-proposal-document-preview
+            panel-id="gad-checklist-preview-panel"
+            title="GAD Generic Checklist preview"
+            description="The seven-page preview follows the supplied Box 7a document."
+            frame-title="GAD Generic Checklist preview"
+            :src="route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft)"
+        />
     </div>
 </x-app-layout>

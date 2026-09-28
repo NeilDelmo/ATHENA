@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header"><x-back-link fixed href="{{ $returnUrl }}">Back to proposal paper</x-back-link><h2 class="mt-3 text-xl font-bold dark:text-white">Choose proposal signatories</h2><p class="mt-1 text-sm text-gray-500">{{ $proposalDraft->project_title }}</p></x-slot>
-    <div class="mx-auto max-w-4xl space-y-4 py-6 sm:px-6">
+    <div class="mx-auto w-full max-w-7xl space-y-6 py-6 sm:px-6 lg:px-8" data-proposal-signatories-workspace>
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
@@ -18,9 +18,9 @@
                 <input type="hidden" name="return_paper" value="{{ $returnPaper }}">
             @endif
             @foreach($groups as $paper => $fields)
-                <fieldset class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
+                <fieldset class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-900 sm:p-6">
                     <legend class="px-2 text-sm font-bold dark:text-white">{{ str($paper)->replace('_', ' ')->title() }}</legend>
-                    <div class="grid gap-4 sm:grid-cols-2">
+                    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     @foreach($fields as $key => $label)
                         @php
                             $saved = $proposalDraft->signatory_selections[$key] ?? null;

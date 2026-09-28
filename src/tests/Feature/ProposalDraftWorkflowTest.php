@@ -281,7 +281,14 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
         ->assertSee('data-proposal-workspace-tabs', false)
+        ->assertSee('data-proposal-workspace-toggle', false)
         ->assertSee('role="tablist"', false)
+        ->assertSeeInOrder([
+            'New Proposal',
+            'data-proposal-workspace-toggle',
+            'proposal-workspace-drafts-tab',
+            'proposal-workspace-submitted-tab',
+        ], false)
         ->assertSee('Drafts')
         ->assertSee('Submitted')
         ->assertSee('x-show="activeWorkspaceTab === \'drafts\'"', false)
@@ -693,6 +700,10 @@ test('the GAD checklist is automatic and preserves every page of the supplied Bo
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('There are no answers to enter')
+        ->assertSee('gad-checklist-preview-panel')
+        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('Open full preview')
+        ->assertDontSee('Download Word file')
         ->assertDontSee('Mark paper ready')
         ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
@@ -813,6 +824,10 @@ test('the Initial Screening Form is automatic and preserves every evaluator-owne
         ->assertSee('Coastal Habitat Restoration')
         ->assertSee('Faculty Owner')
         ->assertSee('The Research Head handles any evaluation outside the system')
+        ->assertSee('initial-screening-preview-panel')
+        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('Open full preview')
+        ->assertDontSee('Download Word file')
         ->assertDontSee('data-paper-shortcuts-trigger', false)
         ->assertDontSee('data-paper-editor', false)
         ->assertDontSee('data-paper-save', false)
@@ -1661,6 +1676,9 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk()
         ->assertSee('Submitted draft record')
+        ->assertSee('data-submitted-record-preservation', false)
+        ->assertSee('max-w-7xl space-y-6', false)
+        ->assertSee('lg:grid-cols-[14rem_minmax(0,1fr)]', false)
         ->assertSee('Ready for Turn in.');
     $this->actingAs($this->head)
         ->get(route('topics.draft-history.index', $topic))

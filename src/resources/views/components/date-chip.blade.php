@@ -17,6 +17,8 @@
     ])->filter()->implode(' · ');
     $tones = [
         'rose' => 'border-rose-100 bg-rose-50/90 text-[#7A0019] dark:border-red-900/50 dark:bg-red-950/50 dark:text-red-300',
+        'amber' => 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/45 dark:text-amber-200',
+        'blue' => 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/45 dark:text-sky-200',
         'stone' => 'border-stone-200 bg-stone-50 text-stone-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400',
     ];
 @endphp

@@ -1,16 +1,17 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 border-l-4 border-[#800000] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#800000]">Research Office Control Center</p>
-                <h2 class="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Research Operations Dashboard</h2>
-                <p class="mt-1 max-w-3xl text-sm text-slate-500">Review proposals, track active projects, and manage official research deadlines.</p>
-            </div>
-            <span data-research-operations-status class="inline-flex self-end items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 sm:self-auto">
+        <x-workspace-header-banner
+            eyebrow="Research Office Control Center"
+            title="Research Operations Dashboard"
+            description="Review proposals, track active projects, and manage official research deadlines."
+        >
+            <x-slot:actions>
+                <span data-research-operations-status class="inline-flex self-end items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 sm:self-auto">
                 <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
                 Research operations active
-            </span>
-        </div>
+                </span>
+            </x-slot:actions>
+        </x-workspace-header-banner>
     </x-slot>
 
     <div class="-mx-4 -my-6 min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" data-dashboard-palette="maroon-slate-white" data-research-head-dashboard>

@@ -80,7 +80,8 @@ test('personal reminders can be added edited and deleted only by their owner', f
 
 test('calendar navigation handles year boundaries and validates reminder input', function () {
     $this->actingAs($this->head);
-    Livewire::test(DashboardCalendar::class)->set('month', '2026-12')->call('moveMonth', 1)->assertSet('month', '2027-01')
+    Livewire::test(DashboardCalendar::class)->assertSee('data-calendar-legend', false)->assertSee('Official schedule')->assertSee('Personal reminder')
+        ->set('month', '2026-12')->call('moveMonth', 1)->assertSet('month', '2027-01')
         ->call('moveMonth', -1)->assertSet('month', '2026-12')->call('today')->assertSet('month', '2026-09')
         ->call('selectDate', '2026-09-21')->assertSee('Paper revision deadline')
         ->set('title', '  ')->set('startsAt', 'invalid')->call('saveReminder')->assertHasErrors(['title', 'startsAt']);

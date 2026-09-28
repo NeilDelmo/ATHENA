@@ -45,6 +45,7 @@ test('research coordinators still see their dashboard when their college has no 
     $this->actingAs($this->coordinator)
         ->get(route('research_coordinator.dashboard'))
         ->assertOk()
+        ->assertSee('data-workspace-header-banner', false)
         ->assertSee('Research Coordinator Dashboard')
         ->assertSee('View faculty members assigned to '.User::COLLEGES['CICS'].'.')
         ->assertSee('College members')

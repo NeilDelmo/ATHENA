@@ -1,10 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Financial monitoring</p>
-            <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Research Secretary Workspace</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete budget utilization only for projects assigned to you.</p>
-        </div>
+        <x-workspace-header-banner
+            eyebrow="Financial monitoring"
+            title="Research Secretary Workspace"
+            description="Complete budget utilization only for projects assigned to you."
+        />
     </x-slot>
 
     @php

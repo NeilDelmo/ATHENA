@@ -70,21 +70,21 @@
     };
 @endphp
 
-<section class="proposal-docket mt-5 overflow-hidden border border-slate-300 bg-white shadow-[0_22px_55px_-42px_rgba(15,23,42,0.8)] dark:border-slate-700 dark:bg-slate-950" aria-labelledby="proposal-routing-heading">
-    <header class="relative grid gap-4 border-b border-slate-300 bg-slate-950 px-5 py-5 text-white dark:border-slate-700 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-6">
-        <span class="absolute inset-y-0 left-0 w-1.5 bg-red-700" aria-hidden="true"></span>
+<section id="proposal-routing-docket" data-proposal-routing-docket class="proposal-docket mt-4 overflow-hidden rounded-2xl border border-red-100 bg-white shadow-sm dark:border-red-950/70 dark:bg-slate-950" aria-labelledby="proposal-routing-heading">
+    <header class="grid gap-3 border-b border-red-100 bg-red-50 px-4 py-3 text-[#7A0019] dark:border-red-950 dark:bg-red-950/25 dark:text-red-100 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end sm:px-5">
         <div>
-            <p class="text-[0.68rem] font-bold tracking-[0.18em] text-red-300">PROPOSAL ROUTING DOCKET</p>
-            <h3 id="proposal-routing-heading" class="mt-1 text-xl font-bold tracking-tight sm:text-2xl">Required review sequence</h3>
+            <p class="text-[0.65rem] font-black tracking-[0.18em] text-[#7A0019]/75 dark:text-red-300">PROPOSAL ROUTING DOCKET</p>
+            <h3 id="proposal-routing-heading" class="mt-1 text-base font-black tracking-tight sm:text-lg">Required review sequence</h3>
         </div>
-        <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:text-right">
-            <div><dt class="text-slate-400">Proposal</dt><dd class="font-bold tabular-nums">#{{ $topic->id }}</dd></div>
-            <div><dt class="text-slate-400">Version</dt><dd class="font-bold tabular-nums">{{ $version?->version_number ?? '—' }}</dd></div>
+        <dl class="grid grid-cols-2 gap-x-4 text-[11px] sm:text-right">
+            <div><dt class="text-[#7A0019]/65 dark:text-red-200/70">Proposal</dt><dd class="font-black tabular-nums">#{{ $topic->id }}</dd></div>
+            <div><dt class="text-[#7A0019]/65 dark:text-red-200/70">Version</dt><dd class="font-black tabular-nums">{{ $version?->version_number ?? '—' }}</dd></div>
         </dl>
     </header>
 
-    <ol class="grid list-none divide-y divide-slate-200 p-0 dark:divide-slate-800 md:grid-cols-2 md:divide-y-0 xl:grid-cols-3" aria-label="Proposal review route">
-        @foreach ($stages as $number => $stage)
+    <div class="overflow-x-auto">
+        <ol class="grid min-w-[66rem] grid-cols-6 list-none divide-x divide-red-100 dark:divide-red-950" aria-label="Proposal review route">
+            @foreach ($stages as $number => $stage)
             @php
                 $isCurrent = $number === $currentStep && ! $released;
                 $isComplete = $number < $currentStep || ($number === 6 && $released);
@@ -92,20 +92,19 @@
                 $state = $isComplete ? 'Cleared' : ($isClosed ? 'Closed' : ($isCurrent ? 'In progress' : 'Locked'));
             @endphp
             <li @if ($isCurrent) aria-current="step" @endif @class([
-                'relative min-h-36 border-slate-200 px-5 py-5 dark:border-slate-800 sm:px-6',
-                'md:border-r md:[&:nth-child(2n)]:border-r-0 xl:[&:nth-child(2n)]:border-r xl:[&:nth-child(3n)]:border-r-0',
-                'bg-white/90 dark:bg-slate-950/90' => ! $isCurrent,
-                'bg-red-50/90 dark:bg-red-950/20' => $isCurrent,
+                'relative min-w-0 px-4 py-4 sm:px-5',
+                'bg-white dark:bg-slate-950' => ! $isCurrent,
+                'bg-red-50/70 dark:bg-red-950/20' => $isCurrent,
             ])>
                 @if ($isCurrent)
-                    <span class="absolute inset-y-0 left-0 w-1 bg-red-700" aria-hidden="true"></span>
+                    <span class="absolute inset-x-0 top-0 h-0.5 bg-[#7A0019] dark:bg-red-400" aria-hidden="true"></span>
                 @endif
-                <div class="flex items-start gap-4">
+                <div class="flex items-start gap-2.5">
                     <span @class([
-                        'flex h-9 w-9 shrink-0 items-center justify-center border text-sm font-black tabular-nums',
-                        'border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950' => $isComplete,
-                        'border-red-700 bg-red-700 text-white shadow-[3px_3px_0_0_rgb(15_23_42)] dark:shadow-[3px_3px_0_0_rgb(248_250_252)]' => $isCurrent,
-                        'border-slate-300 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-500' => ! $isComplete && ! $isCurrent,
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black tabular-nums',
+                        'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' => $isComplete,
+                        'bg-[#7A0019] text-white shadow-sm dark:bg-red-700' => $isCurrent,
+                        'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' => ! $isComplete && ! $isCurrent,
                     ])>
                         @if ($isComplete)
                             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>
@@ -114,25 +113,25 @@
                         @endif
                     </span>
                     <div class="min-w-0">
-                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <h4 class="text-base font-bold leading-5 text-slate-950 dark:text-white">{{ $stage['label'] }}</h4>
+                        <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                            <h4 class="text-sm font-black leading-5 text-slate-950 dark:text-white">{{ $stage['label'] }}</h4>
                             <span @class([
-                                'text-[0.65rem] font-bold tracking-wider',
+                                'text-[0.625rem] font-black tracking-wider',
                                 'text-emerald-700 dark:text-emerald-400' => $isComplete,
-                                'text-red-800 dark:text-red-300' => $isCurrent,
+                                'text-[#7A0019] dark:text-red-300' => $isCurrent,
                                 'text-slate-400 dark:text-slate-500' => ! $isComplete && ! $isCurrent,
                             ])>{{ strtoupper($state) }}</span>
                         </div>
-                        <p class="mt-2 text-sm font-bold text-slate-700 dark:text-slate-200">{{ $stage['owner'] }}</p>
-                        <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $stage['detail'] }}</p>
+                        <p class="mt-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">{{ $stage['owner'] }}</p>
                     </div>
                 </div>
             </li>
-        @endforeach
-    </ol>
+            @endforeach
+        </ol>
+    </div>
 
-    <footer class="grid gap-2 border-t border-slate-300 bg-stone-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-start sm:px-6">
-        <p class="text-xs font-black tracking-[0.12em] text-slate-500 dark:text-slate-400">NEXT ROUTING</p>
-        <p class="text-sm font-semibold leading-6 text-slate-800 dark:text-slate-100">{{ $nextAction }}</p>
+    <footer class="grid gap-1 border-t border-red-100 bg-red-50/60 px-4 py-3 dark:border-red-950 dark:bg-red-950/15 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:items-start sm:px-5">
+        <p class="text-[10px] font-black tracking-[0.12em] text-[#7A0019]/70 dark:text-red-300">NEXT ROUTING</p>
+        <p class="text-xs font-semibold leading-5 text-slate-700 dark:text-slate-200">{{ $nextAction }}</p>
     </footer>
 </section>

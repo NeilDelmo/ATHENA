@@ -1,9 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Research Coordinator Dashboard</h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400"> {{ $coordinator->college ?: 'your college' }}.</p>
-        </div>
+        <x-workspace-header-banner
+            eyebrow="Research coordination"
+            title="Research Coordinator Dashboard"
+            :description="'Coordinate faculty research activity for '.($coordinator->college ?: 'your college').'.'"
+        />
     </x-slot>
 
     <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="College summary">

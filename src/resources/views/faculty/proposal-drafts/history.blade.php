@@ -19,7 +19,7 @@
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
@@ -35,7 +35,7 @@
             </x-proposal-alert>
         @endif
 
-        <section aria-labelledby="history-explanation-heading" class="rounded-2xl border-l-4 border-red-600 bg-gray-50 p-5 dark:bg-slate-800/70 sm:p-6">
+        <section data-submitted-record-preservation aria-labelledby="history-explanation-heading" class="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm dark:border-red-900 dark:bg-red-950/30 sm:p-6">
             <h3 id="history-explanation-heading" class="text-base font-black text-gray-950 dark:text-white">{{ $archived ? 'This submitted record is preserved' : 'Recovery is automatic' }}</h3>
             <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-300">
                 @if ($archived)
@@ -46,20 +46,22 @@
             </p>
         </section>
 
-        <nav aria-label="Filter recovery history by paper" class="flex flex-wrap gap-2">
-            <a href="{{ route($indexRoute, $historySubject) }}" class="rounded-full border px-3 py-2 text-xs font-bold {{ $selectedPaper === null ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">All papers</a>
+        <div class="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start">
+            <nav aria-label="Filter recovery history by paper" class="flex flex-col items-start gap-2">
+                <a href="{{ route($indexRoute, $historySubject) }}" class="inline-flex w-full items-center rounded-xl border px-3 py-2 text-xs font-bold {{ $selectedPaper === null ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">All papers</a>
             @foreach ($papers as $paper)
-                <a href="{{ route($indexRoute, [$historySubject, 'paper' => $paper['slug']]) }}" class="rounded-full border px-3 py-2 text-xs font-bold {{ ($selectedPaper['slug'] ?? null) === $paper['slug'] ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">{{ $paper['label'] }}</a>
+                    <a href="{{ route($indexRoute, [$historySubject, 'paper' => $paper['slug']]) }}" class="inline-flex w-full items-center rounded-xl border px-3 py-2 text-xs font-bold {{ ($selectedPaper['slug'] ?? null) === $paper['slug'] ? 'border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800' }}">{{ $paper['label'] }}</a>
             @endforeach
-        </nav>
+            </nav>
 
-        @if ($versions->isEmpty())
-            <section class="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <h3 class="text-base font-black text-gray-900 dark:text-white">No recovery points yet</h3>
-                <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">Your working draft still saves automatically. A recovery point appears after meaningful active editing or when a paper is uploaded.</p>
-            </section>
-        @else
-            <section aria-label="Proposal paper recovery points" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <div class="min-w-0 space-y-6">
+                @if ($versions->isEmpty())
+                    <section class="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                        <h3 class="text-base font-black text-gray-900 dark:text-white">No recovery points yet</h3>
+                        <p class="mt-2 text-sm text-gray-500 dark:text-slate-400">Your working draft still saves automatically. A recovery point appears after meaningful active editing or when a paper is uploaded.</p>
+                    </section>
+                @else
+                    <section aria-label="Proposal paper recovery points" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">
                     @foreach ($versions as $version)
                         @php
@@ -164,9 +166,11 @@
                         </article>
                     @endforeach
                 </div>
-            </section>
+                    </section>
 
-            {{ $versions->links() }}
-        @endif
+                    {{ $versions->links() }}
+                @endif
+            </div>
+        </div>
     </div>
 </x-app-layout>

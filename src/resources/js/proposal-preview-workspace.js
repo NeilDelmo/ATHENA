@@ -1,8 +1,16 @@
+export function clampProposalPreviewPosition({ left, top, width, height, viewportWidth, viewportHeight, margin = 8 }) {
+    return {
+        left: Math.min(Math.max(margin, left), Math.max(margin, viewportWidth - width - margin)),
+        top: Math.min(Math.max(margin, top), Math.max(margin, viewportHeight - height - margin)),
+    };
+}
+
 export function proposalPreviewWorkspace() {
     return {
         previewPaneOpen: false,
         previewTab: 'edit',
         previewFullscreen: false,
+        previewDragging: false,
         previewZoom: 100,
         previewStale: false,
         previewRevision: 0,
@@ -15,9 +23,92 @@ export function proposalPreviewWorkspace() {
         },
 
         closeProposalPreview() {
+            this.stopProposalPreviewDrag();
             this.previewPaneOpen = false;
             this.previewFullscreen = false;
             this.previewTab = 'edit';
+        },
+
+        startProposalPreviewDrag(event) {
+            if (
+                this.previewFullscreen
+                || window.innerWidth < 640
+                || event.button !== 0
+                || event.target?.closest?.('button, a, input, select, textarea, label')
+            ) return;
+
+            const panel = this.$refs.previewPanel;
+
+            if (!panel) return;
+
+            this.stopProposalPreviewDrag();
+
+            const panelRect = panel.getBoundingClientRect();
+            const startPointerX = event.clientX;
+            const startPointerY = event.clientY;
+            const startLeft = panelRect.left;
+            const startTop = panelRect.top;
+
+            Object.assign(panel.style, {
+                bottom: 'auto',
+                height: `${panelRect.height}px`,
+                left: `${startLeft}px`,
+                right: 'auto',
+                top: `${startTop}px`,
+                width: `${panelRect.width}px`,
+            });
+
+            const movePanel = (pointerEvent) => {
+                const position = clampProposalPreviewPosition({
+                    left: startLeft + pointerEvent.clientX - startPointerX,
+                    top: startTop + pointerEvent.clientY - startPointerY,
+                    width: panelRect.width,
+                    height: panelRect.height,
+                    viewportWidth: window.innerWidth,
+                    viewportHeight: window.innerHeight,
+                });
+
+                panel.style.left = `${position.left}px`;
+                panel.style.top = `${position.top}px`;
+            };
+            const finishDragging = () => this.stopProposalPreviewDrag();
+
+            this.previewDragging = true;
+            this.proposalPreviewDragCleanup = () => {
+                window.removeEventListener('pointermove', movePanel);
+                window.removeEventListener('pointerup', finishDragging);
+                window.removeEventListener('pointercancel', finishDragging);
+                this.previewDragging = false;
+                this.proposalPreviewDragCleanup = null;
+            };
+
+            window.addEventListener('pointermove', movePanel);
+            window.addEventListener('pointerup', finishDragging);
+            window.addEventListener('pointercancel', finishDragging);
+            event.preventDefault();
+        },
+
+        stopProposalPreviewDrag() {
+            this.proposalPreviewDragCleanup?.();
+        },
+
+        constrainProposalPreviewToViewport() {
+            const panel = this.$refs.previewPanel;
+
+            if (!panel || this.previewFullscreen || window.innerWidth < 640 || !panel.style.left) return;
+
+            const panelRect = panel.getBoundingClientRect();
+            const position = clampProposalPreviewPosition({
+                left: panelRect.left,
+                top: panelRect.top,
+                width: panelRect.width,
+                height: panelRect.height,
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+            });
+
+            panel.style.left = `${position.left}px`;
+            panel.style.top = `${position.top}px`;
         },
 
         markProposalPreviewStale() {
@@ -26,8 +117,16 @@ export function proposalPreviewWorkspace() {
         },
 
         setProposalPreviewZoom(value) {
-            this.previewZoom = Math.max(50, Math.min(100, Number(value) || 100));
+            this.previewZoom = Math.max(50, Math.min(150, Number(value) || 100));
             this.applyProposalPreviewZoom();
+        },
+
+        decreaseProposalPreviewZoom() {
+            this.setProposalPreviewZoom(this.previewZoom - 10);
+        },
+
+        increaseProposalPreviewZoom() {
+            this.setProposalPreviewZoom(this.previewZoom + 10);
         },
 
         applyProposalPreviewZoom() {
@@ -39,8 +138,8 @@ export function proposalPreviewWorkspace() {
             if (!body || !documentElement) return;
 
             body.style.zoom = '1';
-            body.style.overflowX = 'hidden';
-            documentElement.style.overflowX = 'hidden';
+            body.style.overflowX = 'auto';
+            documentElement.style.overflowX = 'auto';
 
             const viewportWidth = Number(documentElement.clientWidth || frame.clientWidth || 0);
             const paperWidth = Number(body.scrollWidth || body.offsetWidth || 0);
@@ -49,7 +148,7 @@ export function proposalPreviewWorkspace() {
                 ? Math.min(1, viewportWidth / paperWidth)
                 : 1;
 
-            body.style.zoom = String(Math.min(requestedScale, fitScale));
+            body.style.zoom = String(requestedScale * fitScale);
         },
 
         proposalPreviewLoaded() {
@@ -58,6 +157,7 @@ export function proposalPreviewWorkspace() {
         },
 
         toggleProposalPreviewFullscreen() {
+            this.stopProposalPreviewDrag();
             this.previewFullscreen = !this.previewFullscreen;
             if (this.previewFullscreen) {
                 this.previewPaneOpen = true;

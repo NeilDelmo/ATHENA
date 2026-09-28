@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
+import { clampProposalPreviewPosition, proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
 
 test('preview starts closed so the official form keeps the full workspace width', () => {
     const state = proposalPreviewWorkspace();
@@ -48,13 +48,33 @@ test('zoom is bounded and is reapplied when the preview frame loads', () => {
     state.setProposalPreviewZoom(75);
     assert.equal(body.style.zoom, '0.75');
     state.setProposalPreviewZoom(500);
-    assert.equal(state.previewZoom, 100);
+    assert.equal(state.previewZoom, 150);
     state.proposalPreviewLoaded();
-    assert.equal(body.style.zoom, '1');
+    assert.equal(body.style.zoom, '1.5');
     assert.equal(state.previewReady, true);
 });
 
-test('legal-size preview paper automatically fits the drawer without horizontal scrolling', () => {
+test('zoom buttons adjust the preview in ten-percent steps and stop at the limits', () => {
+    const body = { style: {}, scrollWidth: 800 };
+    const documentElement = { style: {}, clientWidth: 800 };
+    const state = { ...proposalPreviewWorkspace(), $refs: { previewFrame: { contentDocument: { body, documentElement } } } };
+
+    state.previewZoom = 70;
+    state.decreaseProposalPreviewZoom();
+    assert.equal(state.previewZoom, 60);
+    state.increaseProposalPreviewZoom();
+    assert.equal(state.previewZoom, 70);
+
+    state.previewZoom = 50;
+    state.decreaseProposalPreviewZoom();
+    assert.equal(state.previewZoom, 50);
+
+    state.previewZoom = 150;
+    state.increaseProposalPreviewZoom();
+    assert.equal(state.previewZoom, 150);
+});
+
+test('legal-size preview paper fits the drawer and enables horizontal scrolling when needed', () => {
     const body = { style: {}, scrollWidth: 864 };
     const documentElement = { style: {}, clientWidth: 704 };
     const state = { ...proposalPreviewWorkspace(), previewHtml: '<p>Preview</p>', $refs: { previewFrame: { contentDocument: { body, documentElement } } } };
@@ -62,8 +82,8 @@ test('legal-size preview paper automatically fits the drawer without horizontal 
     state.proposalPreviewLoaded();
 
     assert.equal(body.style.zoom, String(704 / 864));
-    assert.equal(body.style.overflowX, 'hidden');
-    assert.equal(documentElement.style.overflowX, 'hidden');
+    assert.equal(body.style.overflowX, 'auto');
+    assert.equal(documentElement.style.overflowX, 'auto');
 });
 
 test('full-screen preview opens the pane and can return to editing layout', () => {
@@ -81,4 +101,18 @@ test('closing preview restores the editing state and exits full screen', () => {
     assert.equal(state.previewPaneOpen, false);
     assert.equal(state.previewTab, 'edit');
     assert.equal(state.previewFullscreen, false);
+});
+
+test('dragging is clamped so the resizable preview stays inside the viewport', () => {
+    assert.deepEqual(clampProposalPreviewPosition({
+        left: -120,
+        top: 900,
+        width: 440,
+        height: 500,
+        viewportWidth: 1200,
+        viewportHeight: 800,
+    }), {
+        left: 8,
+        top: 292,
+    });
 });

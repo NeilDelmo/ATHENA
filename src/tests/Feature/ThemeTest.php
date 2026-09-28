@@ -19,6 +19,8 @@ test('the authentication page and main application share one persistent theme pr
         ->get('/faculty/dashboard')
         ->assertOk()
         ->assertSee('data-app-shell', false)
+        ->assertSee('bg-[#F5F7FA]', false)
+        ->assertSee('family=plus-jakarta-sans:400,500,600,700,800', false)
         ->assertSee('app-theme-toggle', false)
         ->assertSee('athena-theme', false);
 });

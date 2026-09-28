@@ -116,6 +116,9 @@ test('the line item budget saves optional structured inputs and resumes them', f
         ->assertSee('Changes save automatically.')
         ->assertSee('data-line-item-budget-autosave="true"', false)
         ->assertSee('data-line-item-budget-autosave-form', false)
+        ->assertSee('line-item-budget-preview-panel')
+        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('Download PDF')
         ->assertDontSee('data-paper-save-exit', false)
         ->assertDontSee('Save and stay');
 

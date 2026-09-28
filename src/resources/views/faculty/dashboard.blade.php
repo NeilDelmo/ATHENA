@@ -15,28 +15,20 @@
     @endphp
 
     <x-slot name="header">
-        <div class="relative overflow-hidden rounded-3xl border border-rose-100 bg-gradient-to-br from-white via-rose-50/80 to-white px-5 py-6 shadow-bubble sm:px-7 dark:border-red-950/70 dark:from-slate-900 dark:via-red-950/25 dark:to-slate-900">
-            <div class="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-gradient-to-br from-rose-200/70 to-red-300/40 blur-2xl dark:from-red-900/50 dark:to-red-950/40" aria-hidden="true"></div>
-            <div class="pointer-events-none absolute -bottom-20 right-40 h-40 w-40 rounded-full border-[14px] border-rose-100/80 dark:border-red-950/60" aria-hidden="true"></div>
-            <div class="pointer-events-none absolute -left-8 top-8 h-16 w-16 rounded-full border-[6px] border-rose-100 dark:border-red-950/60" aria-hidden="true"></div>
-            <div class="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="max-w-2xl">
-                    <p class="text-[11px] font-black uppercase tracking-[0.22em] text-[#7A0019] dark:text-red-300">Faculty workspace</p>
-                    <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Faculty research</h2>
-                    <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                        Welcome back, <span class="font-bold text-gray-950 dark:text-white">{{ Auth::user()->name }}</span>.
-                        Manage your drafts, review feedback, and submitted proposals.
-                    </p>
-                </div>
-
+        <x-workspace-header-banner
+            eyebrow="Faculty workspace"
+            title="Faculty research"
+            :description="'Welcome back, '.Auth::user()->name.'. Manage your drafts, review feedback, and submitted proposals.'"
+        >
+            <x-slot:actions>
                 <div class="flex w-full sm:w-auto">
                     <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#7A0019] px-5 py-2.5 text-xs font-black text-white shadow-bubble-sm transition hover:-translate-y-0.5 hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950 sm:w-auto">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New proposal
                     </a>
                 </div>
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-workspace-header-banner>
     </x-slot>
 
     <div class="space-y-5" data-dashboard-palette="red-black-white">
@@ -57,6 +49,8 @@
                 </ul>
             </div>
         @endif
+
+        @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
 
         @if ($revisionRequestedTopics->isNotEmpty())
             <section aria-labelledby="action-required-heading" class="overflow-hidden rounded-2xl border border-red-200 bg-red-50/70 shadow-sm dark:border-red-950 dark:bg-red-950/20">
@@ -400,8 +394,6 @@
                 </div>
             @endforelse
         </section>
-
-        @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
 
     </div>
 </x-app-layout>

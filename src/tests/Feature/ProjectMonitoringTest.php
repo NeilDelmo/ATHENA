@@ -249,6 +249,7 @@ test('the project secretary has budget priority while other project members may 
         ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY])
         ->get(route('research_secretary.dashboard'))
         ->assertOk()
+        ->assertSee('data-workspace-header-banner', false)
         ->assertSee($this->topic->title)
         ->assertSee('Complete budget');
 
@@ -562,6 +563,13 @@ test('the proposal review sequence remains visible before project monitoring beg
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Required review sequence')
+        ->assertSee('data-proposal-routing-docket', false)
+        ->assertSee('routingDocketOpen: false', false)
+        ->assertSee('aria-controls="proposal-routing-docket"', false)
+        ->assertSee('Review steps')
+        ->assertSee('mb-2 inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50', false)
+        ->assertSee('grid-cols-6', false)
+        ->assertSee('text-sm font-black leading-5', false)
         ->assertDontSee('data-monitoring-schedule-table', false);
 });
 

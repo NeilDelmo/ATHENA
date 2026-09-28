@@ -1,22 +1,12 @@
 @if ($researchCallCarouselItems->isNotEmpty())
-    <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl bg-gray-950 text-white shadow-xl shadow-gray-950/10" aria-label="Research Office announcements" aria-roledescription="carousel">
-        <img src="{{ asset('images/front.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-40" aria-hidden="true">
-        <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-gray-950/85 via-gray-950/75 to-red-950/80" aria-hidden="true"></div>
-        <div class="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full border-[44px] border-white/[0.04]" aria-hidden="true"></div>
+    <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Research Office announcements" aria-roledescription="carousel">
+        <img src="{{ asset('images/cteb_building.png') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.45] grayscale dark:opacity-[0.22]" aria-hidden="true">
+        <div class="pointer-events-none absolute inset-0 bg-white/60 dark:bg-slate-950/70" aria-hidden="true"></div>
 
-        <div class="relative flex items-end justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-6">
-            <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-300">Research Office Bulletin</p>
-                <h3 class="mt-1 text-lg font-black tracking-tight">Calls and announcements</h3>
-            </div>
-        </div>
-
-        <div data-research-call-viewport data-research-call-single-slide class="relative h-[17rem] overflow-hidden sm:h-[22rem]">
+        <div data-research-call-viewport data-research-call-single-slide class="relative h-[18rem] overflow-hidden sm:h-[22rem]">
             @foreach ($researchCallCarouselItems as $carouselItem)
-                <article data-research-call-slide class="group absolute left-1/2 top-1/2 flex h-[86%] w-[calc(100%-2rem)] max-w-3xl cursor-zoom-in flex-col overflow-hidden rounded-2xl border border-white/10 bg-white p-2 text-gray-950 shadow-2xl transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[calc(100%-6rem)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
-                    <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-slate-800">
-                        <img src="{{ asset('images/front.jpg') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full scale-105 object-cover opacity-45 blur-[1px]" aria-hidden="true">
-                        <div class="pointer-events-none absolute inset-0 bg-slate-950/35" aria-hidden="true"></div>
+                <article data-research-call-slide class="group absolute left-1/2 top-1/2 h-full w-[calc(100%-6rem)] max-w-md cursor-zoom-in overflow-hidden bg-transparent p-0 text-gray-950 transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[calc(100%-10rem)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
+                    <div class="relative h-full overflow-hidden bg-transparent">
                         <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="relative z-[1] h-full w-full cursor-zoom-in object-contain transition-transform duration-500 ease-out" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
 
                         @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
@@ -25,30 +15,16 @@
                             </div>
                         @endif
                     </div>
-
-                    <div class="flex items-center justify-between gap-4 px-2 pb-1 pt-3">
-                        <div class="min-w-0">
-                            <p class="text-[9px] font-black uppercase tracking-[0.18em] text-red-700">{{ $carouselItem['isResearchCall'] ? 'Open research call' : 'General announcement' }}</p>
-                            <p class="mt-0.5 truncate text-xs font-black text-gray-950">{{ $carouselItem['alt'] }}</p>
-                        </div>
-                        <span class="shrink-0 text-[10px] font-bold text-gray-400">Click to enlarge</span>
-                    </div>
                 </article>
             @endforeach
 
             @if ($researchCallCarouselItems->count() > 1)
-                <button type="button" data-research-call-previous class="group absolute left-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/80 text-white shadow-lg backdrop-blur transition duration-300 hover:scale-110 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950 sm:left-5" aria-label="Show previous announcement">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
+                <button type="button" data-research-call-previous class="group absolute left-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-110 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900 sm:left-5" aria-label="Show previous announcement">
+                    <svg class="h-5 w-5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
                 </button>
-                <button type="button" data-research-call-next class="group absolute right-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-gray-950/80 text-white shadow-lg backdrop-blur transition duration-300 hover:scale-110 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950 sm:right-5" aria-label="Show next announcement">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
+                <button type="button" data-research-call-next class="group absolute right-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-110 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900 sm:right-5" aria-label="Show next announcement">
+                    <svg class="h-5 w-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
                 </button>
-
-                <div class="absolute bottom-2 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2" role="group" aria-label="Choose an announcement">
-                    @foreach ($researchCallCarouselItems as $carouselItem)
-                        <button type="button" data-research-call-indicator class="{{ $loop->first ? 'w-5 bg-red-600' : 'w-2 bg-white/80' }} h-2 rounded-full shadow-sm transition-all duration-300 hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950" aria-label="Show announcement {{ $loop->iteration }}" aria-current="{{ $loop->first ? 'true' : 'false' }}"></button>
-                    @endforeach
-                </div>
             @endif
         </div>
 

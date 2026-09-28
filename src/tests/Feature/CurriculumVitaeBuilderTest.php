@@ -138,6 +138,10 @@ test('the first CV draft is seeded from the project leader and Attachment B proj
         ->assertSee('Exit editor')
         ->assertSee('data-curriculum-vitae-autosave="true"', false)
         ->assertSee('data-curriculum-vitae-autosave-form', false)
+        ->assertSee('curriculum-vitae-preview-panel')
+        ->assertSee('data-proposal-preview-drag-handle', false)
+        ->assertDontSee('Preview package')
+        ->assertDontSee('Download Word file')
         ->assertDontSee('data-paper-save-exit', false)
         ->assertSee('data-paper-form', false);
 });

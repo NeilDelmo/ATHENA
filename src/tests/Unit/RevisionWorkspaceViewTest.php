@@ -156,7 +156,7 @@ test('revision workspace follows the compact mockup card hierarchy', function ()
     $page = file_get_contents(resource_path('views/faculty/topics/revision.blade.php'));
     $form = file_get_contents(resource_path('views/components/proposal-revision-form.blade.php'));
 
-    expect($page)->toContain('Research proposal', 'Revision required', 'data-revision-step-panel')
+    expect($page)->toContain('Research proposal', 'Revision required', 'data-revision-step-panel', 'max-w-7xl')
         ->and($form)->toContain('1. Reviewer feedback', '2. Requested papers', '3. Proposal details', '4. Final review and submission', 'data-revision-feedback-item')
         ->and($form)->not->toContain('Revised page and paragraph', '[remarks]');
 });

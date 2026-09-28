@@ -11,7 +11,7 @@
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div x-data="proposalStaticDocumentPreview()" class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
         @unless ($projectDetailsComplete)
             <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-black">Complete Project Details first</p>
@@ -19,6 +19,11 @@
                 <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="mt-3 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-900 focus:ring-offset-2">Complete Project Details</a>
             </div>
         @endunless
+
+        <div class="proposal-preview-toolbar flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+            <button type="button" @click="previewPaneOpen ? closeProposalPreview() : showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="initial-screening-preview-panel" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold dark:text-white" x-text="previewPaneOpen ? 'Hide preview' : 'Show preview'"></button>
+            <span class="text-xs text-slate-500 dark:text-slate-400">The preview can be moved, resized, or opened full screen.</span>
+        </div>
 
         <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -28,8 +33,6 @@
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row">
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Edit shared details</a>
-                    <a href="{{ route('faculty.proposal-drafts.initial-screening-form.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl border border-gray-900 px-4 py-2.5 text-xs font-bold text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Open full preview</a>
-                    <a href="{{ route('faculty.proposal-drafts.initial-screening-form.download', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Download Word file</a>
                 </div>
             </div>
 
@@ -39,12 +42,12 @@
             </dl>
         </section>
 
-        <section aria-labelledby="initial-screening-preview-heading" class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
-            <div class="mb-4">
-                <h3 id="initial-screening-preview-heading" class="text-base font-black text-gray-900">Initial Screening Form preview</h3>
-                <p class="mt-1 text-xs text-gray-500">The one-page preview reproduces BatStateU-FO-RES-03, Revision 02. Only the two shared values are overlaid.</p>
-            </div>
-            <iframe src="{{ route('faculty.proposal-drafts.initial-screening-form.preview', $proposalDraft) }}" title="Initial Screening Form preview" class="h-[85vh] w-full rounded-xl border border-gray-200 bg-gray-100"></iframe>
-        </section>
+        <x-proposal-document-preview
+            panel-id="initial-screening-preview-panel"
+            title="Initial Screening Form preview"
+            description="The one-page preview reproduces BatStateU-FO-RES-03, Revision 02."
+            frame-title="Initial Screening Form preview"
+            :src="route('faculty.proposal-drafts.initial-screening-form.preview', $proposalDraft)"
+        />
     </div>
 </x-app-layout>

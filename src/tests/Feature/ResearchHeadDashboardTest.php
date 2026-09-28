@@ -68,6 +68,7 @@ test('proposal dashboard presents a focused research head workspace', function (
     $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))
         ->assertOk()
+        ->assertSee('data-workspace-header-banner', false)
         ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
         ->assertSee('Research Operations Dashboard')
         ->assertSee('data-research-operations-status', false)

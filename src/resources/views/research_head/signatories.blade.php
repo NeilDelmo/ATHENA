@@ -1,6 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="mx-auto max-w-6xl">
+        <div class="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
             <a href="{{ route('research_head.dashboard') }}" data-back-to-dashboard class="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-gray-500 transition hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:text-slate-400 dark:hover:text-red-300 dark:focus:ring-offset-slate-900">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
                 Back to dashboard
@@ -8,16 +9,65 @@
 
             <h2 class="text-[26px] font-bold tracking-tight text-[#201A15] dark:text-white">Proposal signatory directory</h2>
             <p class="mt-1 max-w-2xl text-sm leading-6 text-[#6B6258] dark:text-slate-400">Add the names and positions faculty can choose from when building signature blocks, so titles stay spelled the same way every time.</p>
-
-            <div class="mt-4 flex flex-wrap gap-2.5" aria-label="Directory summary">
-                <span class="rounded-lg border border-[#E7E2D8] bg-white px-3.5 py-2 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="mr-1 text-[15px] text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>
-                <span class="rounded-lg border border-[#E7E2D8] bg-white px-3.5 py-2 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="mr-1 text-[15px] text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['active']) }}</strong>active</span>
-                <span class="rounded-lg border border-[#E7E2D8] bg-white px-3.5 py-2 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="mr-1 text-[15px] text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['roles']) }}</strong>signature roles</span>
             </div>
+            <button type="button" x-data x-on:click="$dispatch('open-add-signatory-form')" class="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 sm:mt-10 sm:w-auto dark:focus-visible:ring-offset-slate-900">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                Add a signatory
+            </button>
         </div>
     </x-slot>
 
-    <div class="mx-auto max-w-6xl space-y-4" data-signatory-directory>
+    <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
+        <section
+            data-add-signatory-panel
+            x-cloak
+            x-show="addSignatoryOpen"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="-translate-y-3 opacity-0"
+            x-transition:enter-end="translate-y-0 opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="translate-y-0 opacity-100"
+            x-transition:leave-end="-translate-y-3 opacity-0"
+            class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900 dark:bg-slate-900"
+            aria-labelledby="add-signatory-heading"
+        >
+            <div class="flex items-start justify-between gap-4 border-b border-red-100 bg-red-50 px-5 py-4 dark:border-red-950 dark:bg-red-950/30 sm:px-6">
+                <div>
+                    <h3 id="add-signatory-heading" class="text-base font-black text-[#7A0019] dark:text-red-200">Add a signatory</h3>
+                    <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">Add an approved name for faculty to use across proposal signature blocks.</p>
+                </div>
+                <button type="button" x-on:click="addSignatoryOpen = false" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white hover:text-[#7A0019] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-red-200" aria-label="Close add signatory form">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+
+            <form action="{{ route('signatories.store') }}" method="POST" class="grid gap-3 p-5 sm:p-6 md:grid-cols-[14rem_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
+                @csrf
+                <input type="hidden" name="active" value="1">
+
+                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-role">
+                    Signature role
+                    <select id="new-signatory-role" name="role_key" required class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] shadow-none focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                        @foreach ($roles as $key => $label)
+                            <option value="{{ $key }}" @selected(old('role_key') === $key)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </label>
+
+                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-name">
+                    Full name
+                    <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="e.g. Dr. Ana M. Reyes" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
+                </label>
+
+                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-position">
+                    Position / designation
+                    <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="e.g. Dean, College of Engineering" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
+                </label>
+
+                <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#C1272D] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9C1E23] focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Add name</button>
+            </form>
+        </section>
+
         @if (session('success'))
             <div role="status" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">{{ session('success') }}</div>
         @endif
@@ -30,37 +80,12 @@
             </div>
         @endif
 
-        <div class="grid items-start gap-6 min-[860px]:grid-cols-[320px_minmax(0,1fr)]">
-            <section class="rounded-xl border border-[#E7E2D8] bg-white p-[22px] shadow-[0_1px_2px_rgba(32,26,21,0.04),0_8px_20px_-12px_rgba(32,26,21,0.10)] dark:border-slate-700 dark:bg-slate-900 min-[860px]:sticky min-[860px]:top-5" aria-labelledby="add-signatory-heading">
-                <h3 id="add-signatory-heading" class="text-[15px] font-semibold text-[#201A15] dark:text-white">Add a signatory</h3>
-
-                <form action="{{ route('signatories.store') }}" method="POST" class="mt-4 space-y-3.5">
-                    @csrf
-                    <input type="hidden" name="active" value="1">
-
-                    <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-role">
-                        Signature role
-                        <select id="new-signatory-role" name="role_key" required class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] shadow-none focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                            @foreach ($roles as $key => $label)
-                                <option value="{{ $key }}" @selected(old('role_key') === $key)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-
-                    <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-name">
-                        Full name
-                        <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="e.g. Dr. Ana M. Reyes" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
-                    </label>
-
-                    <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-position">
-                        Position / designation
-                        <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="e.g. Dean, College of Engineering" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
-                    </label>
-
-                    <button type="submit" class="inline-flex w-full items-center justify-center rounded-lg bg-[#C1272D] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9C1E23] focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Add name</button>
-                    <p class="text-xs leading-5 text-[#6B6258] dark:text-slate-400">Faculty will pick from this list instead of typing names, so titles stay consistent across proposals.</p>
-                </form>
-            </section>
+        <div class="grid items-start gap-6 min-[860px]:grid-cols-[15rem_minmax(0,1fr)]">
+            <aside class="space-y-2.5 min-[860px]:sticky min-[860px]:top-5" aria-label="Directory summary">
+                <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>
+                <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['active']) }}</strong>active</span>
+                <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['roles']) }}</strong>signature roles</span>
+            </aside>
 
             <div class="min-w-0">
                 <form

@@ -63,9 +63,9 @@
         <div class="absolute inset-y-0 left-0 w-1.5 bg-red-700" aria-hidden="true"></div>
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div class="max-w-3xl">
-                <p class="text-sm font-bold text-red-700 dark:text-red-300">Research Head workspace</p>
-                <h3 class="mt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review faculty files</h3>
-                <p class="mt-3 text-base leading-7 text-gray-700 dark:text-gray-200">Open each faculty original and use PDF highlights to record exact revision comments. Download a file only when you need an offline copy. Corrections and signatures are verified manually.</p>
+                <p class="text-xs font-black uppercase tracking-[0.14em] text-red-700 dark:text-red-300">Research Head workspace</p>
+                <h3 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review faculty files</h3>
+                <p class="mt-3 text-sm leading-6 text-gray-700 dark:text-gray-200">Open each faculty original and use PDF highlights to record exact revision comments. Download a file only when you need an offline copy. Corrections and signatures are verified manually.</p>
             </div>
             <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-950 px-3.5 py-2 text-sm font-bold text-white dark:border-gray-700 dark:bg-white dark:text-gray-950">
                 {{ $latestVersion ? 'Version '.$latestVersion->version_number : 'No submitted version' }}
@@ -87,8 +87,8 @@
                 <span class="absolute inset-y-0 left-0 w-1 bg-red-800" aria-hidden="true"></span>
                 <div class="max-w-3xl">
                     <p class="text-xs font-bold tracking-[0.16em] text-red-800 dark:text-red-300">REVIEW ROUTING / VERSION {{ $latestVersion->version_number }}</p>
-                    <h3 id="initial-review-workflow-heading" class="mt-2 text-2xl font-bold tracking-tight text-gray-950 dark:text-white">Clear each office in order</h3>
-                    <p class="mt-2 text-base leading-7 text-gray-600 dark:text-gray-300">The GAD Office reviews first. Only a passing GAD result opens central evaluation; only both clearances open LREC routing.</p>
+                    <h3 id="initial-review-workflow-heading" class="mt-2 text-xl font-black tracking-tight text-gray-950 dark:text-white">Clear each office in order</h3>
+                    <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">The GAD Office reviews first. Only a passing GAD result opens central evaluation; only both clearances open LREC routing.</p>
                 </div>
                 <button type="button" x-data x-on:click="$dispatch('open-modal', '{{ $supplementalModalName }}')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 sm:w-auto">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5.25v13.5M5.25 12h13.5" /></svg>
@@ -109,10 +109,10 @@
                     <div class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
                         <div>
                             <div class="flex flex-wrap items-center gap-2">
-                                <h4 class="text-xl font-bold text-gray-950 dark:text-white">Review proposal papers</h4>
-                                <span class="rounded-full {{ $gadAssessment ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-sm font-bold">{{ $gadAssessment ? 'Reviewed' : 'Start here' }}</span>
+                                <h4 class="text-base font-black text-gray-950 dark:text-white">Review proposal papers</h4>
+                                <span class="rounded-full {{ $gadAssessment ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }} px-2.5 py-1 text-xs font-bold">{{ $gadAssessment ? 'Reviewed' : 'Start here' }}</span>
                             </div>
-                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">Read the faculty originals and save PDF highlights wherever a revision is needed.</p>
+                            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Read the faculty originals and save PDF highlights wherever a revision is needed.</p>
                         </div>
                         <div class="flex flex-col gap-2 sm:flex-row">
                             <a href="{{ $showFacultyFiles ? '#head-upload-files-heading' : route('topics.head-uploads.index', $topic) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800">Review files</a>
@@ -134,10 +134,10 @@
                     </span>
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h4 class="text-xl font-bold text-gray-950 dark:text-white">GAD Office assessment</h4>
-                            <span class="rounded-full {{ $gadPassed ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : ($gadNeedsRevision ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200') }} px-2.5 py-1 text-sm font-bold">{{ $gadPassed ? 'Cleared' : ($gadNeedsRevision ? 'Return for revision' : ($gadNeedsSignatureConfirmation ? 'Signature check required' : 'Required next')) }}</span>
+                            <h4 class="text-base font-black text-gray-950 dark:text-white">GAD Office assessment</h4>
+                            <span class="rounded-full {{ $gadPassed ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : ($gadNeedsRevision ? 'bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200') }} px-2.5 py-1 text-xs font-bold">{{ $gadPassed ? 'Cleared' : ($gadNeedsRevision ? 'Return for revision' : ($gadNeedsSignatureConfirmation ? 'Signature check required' : 'Required next')) }}</span>
                         </div>
-                        <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">Upload a searchable PDF or DOCX. ATHENA reads the final total GAD score and applies the form’s official interpretation.</p>
+                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload a searchable PDF or DOCX. ATHENA reads the final total GAD score and applies the form’s official interpretation.</p>
 
                         @if ($gadChecklistFile)
                             <div x-data="{ replacing: @js(! $gadAssessment) }" class="mt-4">
@@ -252,13 +252,13 @@
                     </span>
                     <div class="min-w-0">
                         <div class="flex flex-wrap items-center gap-2">
-                            <h4 class="text-xl font-bold text-gray-950 dark:text-white">Central evaluator review</h4>
-                            <span class="rounded-full {{ $coEvaluatorEvaluation && $gadPassed ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : ($gadPassed ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300') }} px-2.5 py-1 text-sm font-bold">{{ $coEvaluatorEvaluation && $gadPassed ? 'Completed' : ($gadPassed ? 'Ready' : 'Waiting for GAD clearance') }}</span>
+                            <h4 class="text-base font-black text-gray-950 dark:text-white">Central evaluator review</h4>
+                            <span class="rounded-full {{ $coEvaluatorEvaluation && $gadPassed ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200' : ($gadPassed ? 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-900 dark:text-gray-300') }} px-2.5 py-1 text-xs font-bold">{{ $coEvaluatorEvaluation && $gadPassed ? 'Completed' : ($gadPassed ? 'Ready' : 'Waiting for GAD clearance') }}</span>
                         </div>
-                        <p class="mt-1 text-base leading-7 text-gray-600 dark:text-gray-300">After GAD clearance, record the central evaluator and upload the completed Initial Screening Form. ATHENA uses its Narrative Evaluation as the evaluator’s formal feedback.</p>
+                        <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">After GAD clearance, record the central evaluator and upload the completed Initial Screening Form. ATHENA uses its Narrative Evaluation as the evaluator’s formal feedback.</p>
 
                         @if (! $gadPassed)
-                            <div data-co-evaluator-step-locked class="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base font-semibold text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
+                            <div data-co-evaluator-step-locked class="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
                                 <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.75" y="10.25" width="10.5" height="8.5" rx="1.5" /><path stroke-linecap="round" d="M9 10.25V7.5a3 3 0 0 1 6 0v2.75" /></svg>
                                 {{ $gadNeedsRevision ? 'The GAD result requires a faculty revision before central evaluation.' : ($gadNeedsSignatureConfirmation ? 'Confirm the GAD verifier’s signature before central evaluation.' : 'Upload a passing, signed GAD assessment to unlock central evaluation.') }}
                             </div>
@@ -469,10 +469,10 @@
     <section aria-labelledby="head-upload-files-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-950 sm:p-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <h3 id="head-upload-files-heading" class="text-2xl font-bold tracking-tight text-gray-950 dark:text-white">Faculty-submitted files</h3>
-                <p class="mt-2 text-base leading-7 text-gray-700 dark:text-gray-200">These are the unchanged faculty originals for the active proposal version.</p>
+                <h3 id="head-upload-files-heading" class="text-xl font-black tracking-tight text-gray-950 dark:text-white">Faculty-submitted files</h3>
+                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-200">These are the unchanged faculty originals for the active proposal version.</p>
             </div>
-            <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+            <span class="inline-flex w-fit rounded-full border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
                 {{ $facultySubmittedFiles->count() }} {{ \Illuminate\Support\Str::plural('file', $facultySubmittedFiles->count()) }}
             </span>
         </div>
@@ -501,12 +501,12 @@
                             </span>
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <h4 class="text-lg font-bold text-gray-950 dark:text-white">{{ $facultyFile->label() }}</h4>
-                                    <span class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Faculty original</span>
-                                    @unless ($facultyFileAvailable)<span class="rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-sm font-bold text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Unavailable</span>@endunless
+                                    <h4 class="text-base font-black text-gray-950 dark:text-white">{{ $facultyFile->label() }}</h4>
+                                    <span class="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">Faculty original</span>
+                                    @unless ($facultyFileAvailable)<span class="rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Unavailable</span>@endunless
                                 </div>
                                 <p class="mt-2 break-words text-sm font-semibold text-gray-700 dark:text-gray-300">{{ $facultyFile->original_filename }}</p>
-                                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $facultyFile->file_size ? \Illuminate\Support\Number::fileSize($facultyFile->file_size) : 'Size unavailable' }} · Submitted {{ $latestVersion->created_at->diffForHumans() }}</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $facultyFile->file_size ? \Illuminate\Support\Number::fileSize($facultyFile->file_size) : 'Size unavailable' }} · Submitted {{ $latestVersion->created_at->diffForHumans() }}</p>
                             </div>
                         </div>
                         <div class="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-3">
