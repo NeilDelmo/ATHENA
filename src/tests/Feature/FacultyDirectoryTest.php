@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\UpdateResearchCoordinatorAction;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 
@@ -36,7 +37,8 @@ test('research heads can view every user in the faculty directory', function () 
         ->assertSee('data-faculty-directory', false)
         ->assertSee('data-college-tab="CICS"', false)
         ->assertSee('x-on:click="setCollege', false)
-        ->assertSee('Assign Research Coordinator?')
+        ->assertSee('Assign to Research Office?')
+        ->assertSee('Research Office assignment')
         ->assertDontSee('Coordinator rules:')
         ->assertSeeInOrder(['All', 'CICS', 'CTE', 'CABEIHM', 'CCJE', 'CAS', 'CHS'])
         ->assertSee($cicsMember->name)
@@ -100,19 +102,19 @@ test('research heads can assign and remove the research coordinator role', funct
     $this->actingAs($this->researchHead)
         ->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'assign'])
         ->assertRedirect()
-        ->assertSessionHas('status', 'Coordinator Candidate is now a Research Coordinator.');
+        ->assertSessionHas('status', 'Coordinator Candidate is now part of the Research Office.');
 
     expect($member->refresh()->hasRole('research_coordinator'))->toBeTrue();
 
     $this->actingAs($this->researchHead)
         ->get(route('research_head.faculty-directory.index'))
         ->assertOk()
-        ->assertSee('Research Coordinator');
+        ->assertSee('Research Office');
 
     $this->actingAs($this->researchHead)
         ->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'remove'])
         ->assertRedirect()
-        ->assertSessionHas('status', 'Coordinator Candidate is no longer a Research Coordinator.');
+        ->assertSessionHas('status', 'Coordinator Candidate is no longer part of the Research Office.');
 
     expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse();
 });
@@ -145,6 +147,48 @@ test('a member needs a college before becoming a research coordinator', function
     expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse();
 });
 
+test('research heads cannot be assigned to the research office', function () {
+    $member = User::factory()->create([
+        'name' => 'CICS Research Head',
+        'college' => User::COLLEGES['CICS'],
+    ]);
+    $member->assignRole('research_head');
+
+    $existingOfficeMember = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $existingOfficeMember->assignRole('research_coordinator');
+
+    $this->actingAs($this->researchHead)
+        ->get(route('research_head.faculty-directory.index'))
+        ->assertOk()
+        ->assertSee('CICS Research Head')
+        ->assertSee('Already Research Head')
+        ->assertSee('title="Research Heads cannot be assigned to the Research Office."', false);
+
+    $this->actingAs($this->researchHead)
+        ->from(route('research_head.faculty-directory.index'))
+        ->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'assign'])
+        ->assertRedirect(route('research_head.faculty-directory.index'))
+        ->assertSessionHasErrors(['action' => 'Research Heads cannot be assigned to the Research Office.']);
+
+    expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse()
+        ->and($existingOfficeMember->refresh()->hasRole('research_coordinator'))->toBeTrue();
+
+    expect(fn () => app(UpdateResearchCoordinatorAction::class)->handle($member, 'assign'))
+        ->toThrow(InvalidArgumentException::class, 'Research Heads cannot be assigned to the Research Office.');
+});
+
+test('an existing research office assignment can be removed from a research head', function () {
+    $member = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $member->assignRole(['research_head', 'research_coordinator']);
+
+    $this->actingAs($this->researchHead)
+        ->patch(route('research_head.faculty-directory.coordinator', $member), ['action' => 'remove'])
+        ->assertRedirect();
+
+    expect($member->refresh()->hasRole('research_coordinator'))->toBeFalse()
+        ->and($member->hasRole('research_head'))->toBeTrue();
+});
+
 test('members without a college have a disabled coordinator control', function () {
     User::factory()->create([
         'name' => 'Unassigned Faculty',
@@ -156,7 +200,7 @@ test('members without a college have a disabled coordinator control', function (
         ->assertOk()
         ->assertSee('Unassigned Faculty')
         ->assertSee('data-coordinator-ineligible', false)
-        ->assertSee('Set this member\'s college before assigning the Research Coordinator role.', false);
+        ->assertSee('Set this member\'s college before assigning the Research Office role.');
 });
 
 test('faculty cannot change research coordinator assignments', function () {

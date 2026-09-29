@@ -163,10 +163,7 @@ test('a research head can request a revision with highlighted comments', functio
         ->count())->toBe(0);
 
     $notification = $faculty->notifications()->sole();
-    expect($notification->data['workspace'])->toBe([
-        User::WORKSPACE_FACULTY_RESEARCHER,
-        User::WORKSPACE_FACULTY,
-    ]);
+    expect($notification->data['workspace'])->toBe(User::WORKSPACE_FACULTY);
 
     $this->withSession([
         User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
@@ -190,9 +187,8 @@ test('a research head can request a revision with highlighted comments', functio
     ])->actingAs($faculty)
         ->getJson(route('notifications.index'))
         ->assertOk()
-        ->assertJsonCount(1, 'notifications')
-        ->assertJsonPath('notifications.0.data.title', 'Revision requested')
-        ->assertJsonPath('unread_count', 1);
+        ->assertJsonCount(0, 'notifications')
+        ->assertJsonPath('unread_count', 0);
 
     $this->assertDatabaseHas('topic_reviews', [
         'topic_id' => $topic->id,

@@ -54,7 +54,7 @@
                             <span class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700 transition group-hover:bg-red-600 group-hover:text-white dark:bg-red-950/50 dark:text-red-300">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
                             </span>
-                            <span class="mt-4 break-words text-lg font-black leading-tight text-slate-900 dark:text-white">Continue as Research Coordinator</span>
+                            <span class="mt-4 break-words text-lg font-black leading-tight text-slate-900 dark:text-white">Continue as Research Office</span>
                             <span class="mt-2 grow text-xs leading-5 text-slate-500 dark:text-slate-400">View and coordinate faculty members from your college.</span>
                             <span class="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-red-700 dark:text-red-300">Open workspace <span aria-hidden="true" class="transition group-hover:translate-x-1">&rarr;</span></span>
                         </button>

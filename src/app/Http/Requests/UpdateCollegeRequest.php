@@ -42,7 +42,7 @@ class UpdateCollegeRequest extends FormRequest
                 }
 
                 if ($this->string('college')->toString() !== $user->college) {
-                    $validator->errors()->add('college', 'Remove your Research Coordinator assignment before changing your college.');
+                    $validator->errors()->add('college', 'Remove your Research Office assignment before changing your college.');
                 }
             },
         ];

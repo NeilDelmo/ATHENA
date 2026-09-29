@@ -61,7 +61,7 @@ class ProposalSignatoryController extends Controller
             'roles' => $roles,
             'search' => $search,
             'selectedRole' => $selectedRole,
-            'signatoryGroups' => $signatories->groupBy('role_key'),
+            'signatories' => $signatories,
             'summary' => [
                 'active' => $allSignatories->where('active', true)->count(),
                 'roles' => $allSignatories->pluck('role_key')->unique()->count(),

@@ -11,8 +11,12 @@ class UpdateResearchCoordinatorAction
 {
     public function handle(User $member, string $action): void
     {
+        if ($action === 'assign' && $member->hasRole('research_head')) {
+            throw new InvalidArgumentException('Research Heads cannot be assigned to the Research Office.');
+        }
+
         if ($action === 'assign' && blank($member->college)) {
-            throw new InvalidArgumentException('A college is required before assigning a Research Coordinator.');
+            throw new InvalidArgumentException('A college is required before assigning a Research Office member.');
         }
 
         $coordinatorRole = Role::findOrCreate('research_coordinator');

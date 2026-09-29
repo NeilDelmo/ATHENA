@@ -99,7 +99,6 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->assertSee('data-horizontal-stepper', false)
         ->assertSee('data-route-step', false)
         ->assertDontSee('PROPOSAL ROUTING DOCKET')
-        ->assertSee('Review PDF')
         ->assertSee('data-current-review-controls="gad"', false)
         ->assertSee('Drop completed GAD checklist here')
         ->assertSee('Upload &amp; read score', false)
@@ -137,6 +136,31 @@ test('research head workspace presents the GAD gate before co-evaluator review',
 
     expect($this->version->files()->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)->count())->toBe(0)
         ->and($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(0);
+});
+
+test('queued LREC review uses the floating project folder without the old file review list', function () {
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_QUEUED,
+        'review_stage' => 'lrec',
+    ]);
+    $workPlan = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('data-project-documents-floating-trigger', false)
+        ->assertSee('data-project-document-drawer', false)
+        ->assertSee('data-project-document-key="proposal-version-file-'.$workPlan->id.'"', false)
+        ->assertSee('data-lrec-waiting-workspace', false)
+        ->assertSee('LREC review progress')
+        ->assertSee('Committee outcome')
+        ->assertSee('Presentation complete — record outcome')
+        ->assertSee('Open project folder')
+        ->assertDontSee('data-research-head-file-workspace', false)
+        ->assertDontSee('Faculty-submitted files')
+        ->assertDontSee('No further decision is available.')
+        ->assertDontSee('Review PDF')
+        ->assertDontSee('View PDF');
 });
 
 test('the review page reveals controls only for the active stage', function (string $status, string $reviewStage, bool $passingGad, ?string $coEvaluatorAction, int $currentStep, ?string $activeControls, bool $canSendToLrec) {
@@ -214,10 +238,18 @@ test('the review page reveals controls only for the active stage', function (str
         if ($activeControls === 'co-evaluator') {
             expect($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-gad-review-card]')->length)->toBe(1)
                 ->and($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-co-evaluator-review-card]')->length)->toBe(1)
-                ->and($xpath->query($reviewTab.'//*[@data-gad-review-card]//*[@x-show]//*[@data-gad-score-summary]')->length)->toBe(0)
-                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]/div[@data-co-evaluator-details]/label')->length)->toBe(2)
+                ->and($xpath->query($reviewTab.'//*[@data-gad-review-card][@data-initially-expanded="false"]')->length)->toBe(1)
+                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-review-card][@data-initially-expanded="'.($coEvaluatorAction === null ? 'true' : 'false').'"]')->length)->toBe(1)
+                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]//*[@data-co-evaluator-details]/fieldset/div/label')->length)->toBe(3)
+                ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]//input[@name="recommended_action"][@type="radio"]')->length)->toBe(3)
                 ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]/div[@data-co-evaluator-dropzone]')->length)->toBe(1);
+        } else {
+            expect($xpath->query($reviewTab.'//*[@data-gad-review-card][@data-initially-expanded="true"]')->length)->toBe(1);
         }
+    }
+
+    if ($status === TopicProposal::STATUS_GAD_REVIEW) {
+        expect($xpath->query($reviewTab.'//*[@data-review-decision-disclosure]')->length)->toBe($coEvaluatorAction === null ? 0 : 1);
     }
 
     if (in_array($status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_REVIEW], true)) {
@@ -489,6 +521,35 @@ test('a passing GAD score without signature confirmation keeps co-evaluator revi
         ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
 });
 
+test('Research Head cannot record an outcome before the co-evaluator review is complete', function (string $decision) {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+
+    $this->version->files()->create([
+        'source_version_file_id' => $gadChecklist->id,
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 90,
+        'file_path' => 'head-uploads/completed-gad.pdf',
+        'original_filename' => 'completed-gad.pdf',
+        'mime_type' => 'application/pdf',
+        'source_data' => [
+            'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+            'gad_score' => 12,
+            'gad_outcome' => 'passed',
+            'gad_signature_confirmed' => true,
+        ],
+    ]);
+
+    $this->actingAs($this->head)->patch(route('research_head.topics.updateStatus', $this->topic), [
+        'status' => $decision,
+        'rejection_reason' => 'The proposal does not meet the program requirements.',
+        'rejection_confirmed' => '1',
+    ])->assertSessionHasErrors('status');
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_GAD_REVIEW);
+})->with(['revision_requested', 'rejected']);
+
 test('a non-passing GAD result returns the proposal to revision and keeps co-evaluator review locked', function () {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
@@ -545,6 +606,13 @@ test('a non-passing GAD result returns the proposal to revision and keeps co-eva
         ->assertSee('This result cannot proceed to co-evaluator review.')
         ->assertSee('This result cannot proceed to co-evaluator review.')
         ->assertDontSee('data-co-evaluator-screening-panel="true"', false);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('value="revision_requested"', false)
+        ->assertDontSee('value="rejected"', false)
+        ->assertDontSee('value="lrec_queued"', false);
 
     $this->actingAs($this->head)
         ->post(route('topics.head-uploads.store', $this->topic), [

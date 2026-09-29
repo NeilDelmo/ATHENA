@@ -146,7 +146,7 @@ test('research coordinators must be removed before changing their college', func
         ->patch(route('profile.college.update'), ['college' => User::COLLEGES['CTE']])
         ->assertRedirect(route('profile.edit'))
         ->assertSessionHasErrors([
-            'college' => 'Remove your Research Coordinator assignment before changing your college.',
+            'college' => 'Remove your Research Office assignment before changing your college.',
         ]);
 
     expect($user->refresh()->college)->toBe(User::COLLEGES['CICS']);
@@ -175,8 +175,8 @@ test('research coordinators see that their college is locked', function () {
         ->get(route('profile.edit'))
         ->assertOk()
         ->assertSee('data-college-locked', false)
-        ->assertSee('College is locked while you are a Research Coordinator.')
-        ->assertSee('Ask the Research Head to remove the coordinator assignment before changing it.')
+        ->assertSee('College is locked while you are part of the Research Office.')
+        ->assertSee('Ask the Research Head to remove your Research Office assignment before changing it.')
         ->assertDontSee('action="'.route('profile.college.update').'"', false);
 });
 

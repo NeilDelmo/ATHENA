@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Notifications\ProposalActivityNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -228,6 +229,10 @@ class User extends Authenticatable
 
     private function notificationWorkspace(array $data): string|array|null
     {
+        if (($data['sidebar_area'] ?? null) === ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE) {
+            return self::WORKSPACE_FACULTY;
+        }
+
         $targetWorkspace = $data['workspace'] ?? null;
 
         if ($targetWorkspace !== null) {

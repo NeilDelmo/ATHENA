@@ -49,12 +49,16 @@ test('the floating folder lists generated review papers with their source versio
     [$version, $paper] = ($this->makeResponseVersion)();
     $head = User::factory()->create();
     $head->assignRole('research_head');
+    Storage::disk('local')->put('proposal-packages/screening.pdf', '%PDF-1.7 screening');
+    Storage::disk('local')->put('proposal-packages/evaluation.pdf', '%PDF-1.7 evaluation');
     $screening = $version->files()->create([
         ...$paper->only(['file_path', 'original_filename', 'mime_type', 'file_size', 'checksum']),
+        'file_path' => 'proposal-packages/screening.pdf',
         'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM, 'position' => 0,
     ]);
     $version->files()->create([
         ...$paper->only(['file_path', 'original_filename', 'mime_type', 'file_size', 'checksum']),
+        'file_path' => 'proposal-packages/evaluation.pdf',
         'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD, 'position' => 0, 'source_version_file_id' => $screening->id,
         'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION, 'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM, 'co_evaluator_name' => 'Dr. Santos', 'narrative_evaluation' => 'Clarify the methodology.'],
     ]);
@@ -81,19 +85,25 @@ test('the floating folder lists generated review papers with their source versio
         $dom = new DOMDocument;
         @$dom->loadHTML($response->getContent());
         $xpath = new DOMXPath($dom);
-        expect($xpath->query('//*[@data-project-document-drawer]//button[@data-project-comment-response-preview-button]')->length)->toBe(2)
+        expect($xpath->query('//*[@data-project-document-drawer]//button[@data-project-document-preview-button]')->length)->toBe(5)
+            ->and($xpath->query('//*[@data-project-document-drawer]//*[@data-project-document-review]')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-project-document-drawer]//article[@data-project-document-key="proposal-version-file-'.$paper->id.'"]//button[@data-project-document-preview-button]')->length)->toBe(1)
             ->and($xpath->query('//article[contains(@data-project-document-key, "comment-response-")]//a[@target="_blank"]')->length)->toBe(0)
             ->and($xpath->query('//article[contains(@data-project-document-key, "comment-response-")]//a[@download]')->length)->toBe(2)
-            ->and($xpath->query('//*[@data-project-comment-response-preview-modal]//template[@x-if="show"]//*[@data-pdf-annotation-config]')->length)->toBe(2);
-        foreach ($xpath->query('//*[@data-project-comment-response-preview-modal]//*[@data-pdf-annotation-config]') as $viewerElement) {
+            ->and($xpath->query('//*[@data-project-document-preview-modal]//template[@x-if="show"]//*[@data-pdf-annotation-config]')->length)->toBe(5);
+        $previewUrls = collect();
+        foreach ($xpath->query('//*[@data-project-document-preview-modal]//*[@data-pdf-annotation-config]') as $viewerElement) {
             $configuration = json_decode($viewerElement->getAttribute('data-pdf-annotation-config'), true);
-            expect($configuration['canAnnotate'])->toBeFalse()->and($configuration['pdfUrl'])->toContain('review='.$review->id);
+            expect($configuration['canAnnotate'])->toBeFalse();
+            $previewUrls->push($configuration['pdfUrl']);
         }
+        expect($previewUrls)->toContain(route('topics.versions.files.view', [$this->topic, $version, $paper]))
+            ->and($previewUrls->filter(fn (string $url): bool => str_contains($url, 'review='.$review->id)))->toHaveCount(2);
     }
     expect($this->topic->projectDocuments()->count())->toBe(0)->and($version->files()->count())->toBe(3)->and($this->topic->reviews()->count())->toBe(1);
 });
 
-test('project folder offers review access only for current faculty papers in the Research Head workspace', function () {
+test('project folder keeps PDF viewing separate from Research Head annotation actions', function () {
     [$oldVersion, $oldPaper] = ($this->makeResponseVersion)();
     [$currentVersion, $currentPaper] = ($this->makeResponseVersion)(2);
     $head = User::factory()->create();
@@ -109,14 +119,14 @@ test('project folder offers review access only for current faculty papers in the
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->actingAs($head);
     $documents = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $head)['documents'];
-    expect($documents->firstWhere('key', 'proposal-version-file-'.$currentPaper->id)['review_url'])
-        ->toBe(route('topics.versions.files.annotations.index', [$this->topic, $currentVersion, $currentPaper]))
-        ->and($documents->firstWhere('key', 'proposal-version-file-'.$oldPaper->id)['review_url'])->toBeNull()
-        ->and($documents->firstWhere('key', 'proposal-version-file-'.$assessment->id)['review_url'])->toBeNull();
+    expect($documents->firstWhere('key', 'proposal-version-file-'.$currentPaper->id)['view_url'])
+        ->toBe(route('topics.versions.files.view', [$this->topic, $currentVersion, $currentPaper]))
+        ->and($documents->firstWhere('key', 'proposal-version-file-'.$oldPaper->id))->not->toHaveKey('review_url')
+        ->and($documents->firstWhere('key', 'proposal-version-file-'.$assessment->id))->not->toHaveKey('review_url');
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])->actingAs($this->faculty);
     $facultyDocuments = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $this->faculty)['documents'];
-    expect($facultyDocuments->whereNotNull('review_url'))->toHaveCount(0);
+    expect($facultyDocuments->firstWhere('key', 'proposal-version-file-'.$currentPaper->id))->not->toHaveKey('review_url');
 });
 
 test('legacy review comments remain accessible even when no proposal version was recorded', function () {

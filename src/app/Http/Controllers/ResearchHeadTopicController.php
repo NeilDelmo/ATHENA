@@ -61,6 +61,17 @@ class ResearchHeadTopicController extends Controller
         $gadChecklist = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
         $initialScreeningForm = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
         $hasPassingGadAssessment = $latestVersion->hasPassingGadAssessment();
+        $gadAssessment = $latestVersion->files
+            ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
+                && $file->source_version_file_id === $gadChecklist?->id
+                && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT
+                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_GAD_CHECKLIST
+                && is_numeric($file->source_data['gad_score'] ?? null))
+            ->sortByDesc('id')
+            ->first();
+        $gadOutcome = $gadAssessment?->source_data['gad_outcome'] ?? null;
+        $gadNeedsRevision = $gadAssessment !== null && (in_array($gadOutcome, ['returned', 'conditional_pass'], true)
+            || ($gadOutcome === null && (float) $gadAssessment->source_data['gad_score'] < 8));
         $coEvaluatorEvaluation = $latestVersion->files
             ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
                 && $file->source_version_file_id === $initialScreeningForm?->id
@@ -75,13 +86,29 @@ class ResearchHeadTopicController extends Controller
             InitialScreeningSubmissionOrder::MINOR_REVISION,
             InitialScreeningSubmissionOrder::MAJOR_REVISION,
         ], true);
+        $coEvaluatorReviewComplete = $hasCoEvaluatorNarrative && in_array($coEvaluatorRecommendedAction, [
+            InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
+            InitialScreeningSubmissionOrder::MINOR_REVISION,
+            InitialScreeningSubmissionOrder::MAJOR_REVISION,
+        ], true);
         $selectedRevisionFiles = collect();
         $selectedSignatureFiles = collect();
         $returningFromSigning = $topic->status === TopicProposal::STATUS_READY_FOR_SIGNATURE
             && $validated['status'] === 'revision_requested';
 
+        if ($topic->status === TopicProposal::STATUS_GAD_REVIEW
+            && ($gadNeedsRevision
+                ? $validated['status'] !== 'revision_requested'
+                : (! $hasPassingGadAssessment || ! $coEvaluatorReviewComplete))) {
+            throw ValidationException::withMessages([
+                'status' => $gadNeedsRevision
+                    ? 'The GAD result requires revisions. Request revisions before continuing to co-evaluator review.'
+                    : 'Complete the signed GAD assessment and record the co-evaluator’s completed form and recommendation before choosing a review outcome.',
+            ]);
+        }
+
         if ($validated['status'] === TopicProposal::STATUS_LREC_QUEUED
-            && (! $hasPassingGadAssessment || ! $hasCoEvaluatorNarrative || $coEvaluationRequiresRevision)) {
+            && (! $hasPassingGadAssessment || ! $hasCoEvaluatorNarrative || $coEvaluatorRecommendedAction !== InitialScreeningSubmissionOrder::FOR_ENDORSEMENT)) {
             $missingSteps = collect();
 
             if (! $hasPassingGadAssessment) {
@@ -92,6 +119,8 @@ class ResearchHeadTopicController extends Controller
                 $missingSteps->push('record the co-evaluator’s Narrative Evaluation');
             } elseif ($coEvaluationRequiresRevision) {
                 $missingSteps->push('complete the co-evaluator’s '.str($coEvaluatorRecommendedAction)->replace('_', ' ')->toString().' and upload a new endorsed evaluation');
+            } elseif ($coEvaluatorRecommendedAction !== InitialScreeningSubmissionOrder::FOR_ENDORSEMENT) {
+                $missingSteps->push('record a For Endorsement recommendation');
             }
 
             throw ValidationException::withMessages([
@@ -321,10 +350,7 @@ class ResearchHeadTopicController extends Controller
             $this->revisionDeepLinkUrl($topic, $latestVersion, $validated['status']),
             $notificationDetails[2],
             $topic->id,
-            workspace: [
-                User::WORKSPACE_FACULTY_RESEARCHER,
-                User::WORKSPACE_FACULTY,
-            ],
+            workspace: User::WORKSPACE_FACULTY,
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
         ));
 

@@ -429,22 +429,66 @@
                 </div>
             @endif
 
-            @if ($isResearchHead && ! $canViewNoticeToProceed && $headUploadWorkspace && ! in_array($topic->status, ['revision_requested', \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE], true))
-                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="! $canDecide" :return-to-review="true" />
+            @if ($isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW && $headUploadWorkspace)
+                <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :return-to-review="true" />
             @endif
 
             @if ($isResearchHead && $topic->status === 'lrec_queued')
-                <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="space-y-3 rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-                    @csrf @method('PATCH')
-                    <input type="hidden" name="status" value="lrec_review">
-                    <input type="hidden" name="redirect_to" value="topic">
-                    <h3 class="font-semibold text-gray-950 dark:text-white">Awaiting LREC presentation</h3>
-                    <p class="text-sm text-gray-600 dark:text-slate-300">After the presentation, record the committee comments or its clearance for signing.</p>
-                    <button type="submit" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800">Presentation complete — record outcome</button>
-                </form>
+                <section data-lrec-waiting-workspace aria-labelledby="lrec-waiting-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                    <div class="grid lg:grid-cols-[minmax(0,1fr)_21rem]">
+                        <div class="p-5 sm:p-7">
+                            <div class="flex items-start gap-4">
+                                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2" /><path stroke-linecap="round" d="M8 3v4m8-4v4M4 10h16m-11 5h6" /></svg>
+                                </span>
+                                <div class="min-w-0">
+                                    <h3 id="lrec-waiting-heading" class="text-xl font-bold tracking-tight text-gray-950 dark:text-white">Awaiting LREC presentation</h3>
+                                    <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">Initial review is complete and this proposal has been sent to LREC. The next decision can be recorded after the presentation.</p>
+                                    @if ($latestVersion)
+                                        <p class="mt-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Proposal package · Version {{ $latestVersion->version_number }} · {{ $submittedFiles->count() }} {{ \Illuminate\Support\Str::plural('paper', $submittedFiles->count()) }}</p>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <ol aria-label="LREC review progress" class="mt-6 grid gap-3 border-t border-gray-100 pt-5 dark:border-gray-800 sm:grid-cols-3 sm:gap-4">
+                                <li class="flex items-center gap-3 text-sm">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" aria-hidden="true"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg></span>
+                                    <span><span class="block font-semibold text-gray-900 dark:text-white">Initial review</span><span class="block text-xs text-gray-500 dark:text-gray-400">Complete</span></span>
+                                </li>
+                                <li class="flex items-center gap-3 text-sm" aria-current="step">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-red-700 bg-red-50 text-red-700 dark:border-red-400 dark:bg-red-950/40 dark:text-red-300" aria-hidden="true"><span class="h-2 w-2 rounded-full bg-current"></span></span>
+                                    <span><span class="block font-semibold text-gray-900 dark:text-white">Presentation</span><span class="block text-xs font-semibold text-red-700 dark:text-red-300">Awaiting LREC</span></span>
+                                </li>
+                                <li class="flex items-center gap-3 text-sm">
+                                    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-300 text-xs font-bold text-gray-500 dark:border-gray-700 dark:text-gray-400" aria-hidden="true">3</span>
+                                    <span><span class="block font-semibold text-gray-900 dark:text-white">Committee outcome</span><span class="block text-xs text-gray-500 dark:text-gray-400">Next</span></span>
+                                </li>
+                            </ol>
+                        </div>
+
+                        <div class="flex flex-col justify-between gap-5 border-t border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900 lg:border-l lg:border-t-0 sm:p-7">
+                            <div>
+                                <h4 class="text-base font-bold text-gray-950 dark:text-white">After the presentation</h4>
+                                <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Continue here to record the committee’s comments or its clearance for signing.</p>
+                            </div>
+                            <div class="grid gap-2">
+                                <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST">
+                                    @csrf @method('PATCH')
+                                    <input type="hidden" name="status" value="lrec_review">
+                                    <input type="hidden" name="redirect_to" value="topic">
+                                    <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900">Presentation complete — record outcome</button>
+                                </form>
+                                <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-900">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
+                                    Open project folder
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             @endif
 
-            @if ($canDecide)
+            @if ($canDecide && $researchHeadDecisionOptions !== [])
                 <section x-data="{ open: true }" data-review-decision-disclosure data-initially-open="true" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950" data-latest-review-version="{{ $latestVersion?->version_number }}" data-latest-review-version-id="{{ $latestVersion?->id }}">
                     <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="review-decision-content" class="flex min-h-12 w-full items-center justify-between gap-4 px-5 py-3 text-left hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:hover:bg-gray-900 sm:px-6">
                         <span class="text-base font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Record the LREC outcome' : ($topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW ? 'Record the review outcome' : 'Record the Research Head decision') }}</span>
@@ -608,7 +652,7 @@
                         <p class="font-bold">Waiting for the faculty revision</p>
                         <p class="mt-1 leading-6">This revision request is locked while the faculty member works. Review the resubmitted version before requesting another round of changes.</p>
                     </div>
-                @else
+                @elseif ($topic->status !== 'lrec_queued')
                     <div class="rounded-2xl bg-gray-100 p-5 text-center text-sm font-bold text-gray-600">This proposal is already {{ $statusLabel }}. No further decision is available.</div>
                 @endif
             @endif
@@ -623,7 +667,7 @@
                     <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
                 </div>
                 @if ($isResearchHead && $headUploadWorkspace)
-                    <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" :show-faculty-files="false" />
+                    <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
                 @endif
                 @include('topics.partials.notice-to-proceed')
             </section>

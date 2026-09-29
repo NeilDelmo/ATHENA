@@ -46,7 +46,7 @@
 
                     <div class="mt-4 flex flex-wrap gap-2">
                         @forelse ($user->getRoleNames() as $role)
-                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-700">{{ str_replace('_', ' ', $role) }}</span>
+                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-700">{{ $role === 'research_coordinator' ? 'Research Office' : str_replace('_', ' ', $role) }}</span>
                         @empty
                             <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-500">No role assigned</span>
                         @endforelse
@@ -68,7 +68,7 @@
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 0 0-9 0v3.75m-.75 0h10.5A2.25 2.25 0 0 1 19.5 12.75v6A2.25 2.25 0 0 1 17.25 21H6.75A2.25 2.25 0 0 1 4.25 18.75v-6A2.25 2.25 0 0 1 6.75 12.75ZM12 15.75h.007v.008H12v-.008Z" /></svg>
                                 </span>
                             </div>
-                            <p class="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">College is locked while you are a Research Coordinator. Ask the Research Head to remove the coordinator assignment before changing it.</p>
+                            <p class="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">College is locked while you are part of the Research Office. Ask the Research Head to remove your Research Office assignment before changing it.</p>
                             @error('college')
                                 <p class="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">{{ $message }}</p>
                             @enderror
@@ -163,7 +163,7 @@
                             <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                             </div>
-                            <div><p class="text-sm font-black capitalize text-gray-800">{{ str_replace('_', ' ', $role) }}</p><p class="mt-1 text-xs leading-5 text-gray-500">{{ $roleDescriptions[$role] ?? 'Role-specific ATHENA access.' }}</p></div>
+                            <div><p class="text-sm font-black capitalize text-gray-800">{{ $role === 'research_coordinator' ? 'Research Office' : str_replace('_', ' ', $role) }}</p><p class="mt-1 text-xs leading-5 text-gray-500">{{ $roleDescriptions[$role] ?? 'Role-specific ATHENA access.' }}</p></div>
                         </div>
                     @empty
                         <div class="p-6 text-center text-xs text-gray-500">No role has been assigned. Contact the Research Office for access.</div>

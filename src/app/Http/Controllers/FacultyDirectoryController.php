@@ -62,9 +62,9 @@ class FacultyDirectoryController extends Controller
         $updateCoordinator->handle($member, $action);
 
         if ($action === 'assign') {
-            $message = "{$member->name} is now a Research Coordinator.";
+            $message = "{$member->name} is now part of the Research Office.";
         } else {
-            $message = "{$member->name} is no longer a Research Coordinator.";
+            $message = "{$member->name} is no longer part of the Research Office.";
         }
 
         return back()->with('status', $message);

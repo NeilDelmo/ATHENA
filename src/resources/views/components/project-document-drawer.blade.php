@@ -11,7 +11,7 @@
 <div
     x-data="projectDocumentDrawer({ initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()) })"
     @open-project-documents.window="openDrawer()"
-    @keydown.escape.window="if (open && !document.querySelector('[data-project-comment-response-preview-content]')) closeDrawer()"
+    @keydown.escape.window="if (open && !document.querySelector('[data-project-document-preview-content]')) closeDrawer()"
 >
     <button
         x-ref="trigger"
@@ -202,15 +202,8 @@
                                                     </div>
                                                 </div>
                                                 <div class="mt-3 flex justify-end gap-2">
-                                                    @if ($document['review_url'] ?? null)
-                                                        <a href="{{ $document['review_url'] }}" data-project-document-review class="inline-flex min-h-10 items-center justify-center rounded-xl bg-red-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">Review PDF</a>
-                                                    @endif
                                                     @if ($document['view_url'])
-                                                        @if ($document['generated_comment_response'] ?? false)
-                                                            <button type="button" data-project-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-red-950 dark:text-red-200 dark:hover:bg-red-900 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
-                                                        @else
-                                                            <a href="{{ $document['view_url'] }}" target="_blank" rel="noopener" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">View</a>
-                                                        @endif
+                                                        <button type="button" data-project-document-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">View</button>
                                                     @endif
                                                     <a href="{{ $document['download_url'] }}" @if ($document['generated_comment_response'] ?? false) download="{{ $document['filename'] }}" @endif class="inline-flex min-h-10 items-center justify-center rounded-xl bg-gray-950 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download</a>
                                                 </div>
@@ -225,18 +218,18 @@
             </div>
         </aside>
     </div>
-    @foreach ($documents->where('generated_comment_response', true) as $document)
-        <x-modal name="project-{{ $topic->id }}-{{ $document['key'] }}" maxWidth="6xl" focusable class="!z-[140]" data-project-comment-response-preview-modal>
+    @foreach ($documents->whereNotNull('view_url') as $document)
+        <x-modal name="project-{{ $topic->id }}-{{ $document['key'] }}" maxWidth="6xl" focusable class="!z-[140]" data-project-document-preview-modal>
             <template x-if="show">
-                <section data-project-comment-response-preview-content role="dialog" aria-modal="true" aria-labelledby="project-{{ $topic->id }}-{{ $document['key'] }}-heading">
+                <section data-project-document-preview-content role="dialog" aria-modal="true" aria-labelledby="project-{{ $topic->id }}-{{ $document['key'] }}-heading">
                     <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                         <div>
                             <h3 id="project-{{ $topic->id }}-{{ $document['key'] }}-heading" class="text-base font-bold text-gray-950 dark:text-white">{{ $document['title'] }}</h3>
                             <p class="mt-1 text-xs text-gray-600 dark:text-gray-300">{{ $document['source'] }}</p>
                         </div>
-                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                        <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close</button>
                     </header>
-                    <x-proposal-revision-pdf :configuration="['pdfUrl' => $document['view_url'], 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                    <x-proposal-revision-pdf :configuration="['pdfUrl' => $document['view_url'], 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading PDF…" :viewer-label="$document['title']" class="!h-[75dvh]" />
                 </section>
             </template>
         </x-modal>

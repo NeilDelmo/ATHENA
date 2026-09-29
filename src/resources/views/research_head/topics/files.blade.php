@@ -35,6 +35,6 @@
             <x-project-document-drawer :topic="$topic" :library="$projectDocumentLibrary" :floating="false" />
         </section>
 
-        <x-research-head-file-workspace :topic="$topic" :workspace="$workspace" :show-faculty-files="false" />
+        <x-research-head-file-workspace :topic="$topic" :workspace="$workspace" />
     </div>
 </x-app-layout>

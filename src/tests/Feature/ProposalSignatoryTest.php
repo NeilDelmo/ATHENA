@@ -36,6 +36,9 @@ test('head manages signatories and faculty selections are private role checked a
     $this->get(route('signatories.index'))
         ->assertOk()
         ->assertSee('Original Name')
+        ->assertSee('<table', false)
+        ->assertSee('All roles')
+        ->assertSee('Signature role')
         ->assertSee('Back to dashboard')
         ->assertSee('Edit')
         ->assertSee('Delete')
@@ -94,6 +97,7 @@ test('research head can search edit and remove directory entries while faculty c
         ->get(route('signatories.index', ['search' => 'Elena', 'role' => 'verified_by', 'edit' => $signatory]))
         ->assertOk()
         ->assertSee('Dr. Elena Santos')
+        ->assertSee('name="role" value="verified_by"', false)
         ->assertSee('Save changes')
         ->assertDontSee('Marco Villanueva');
 

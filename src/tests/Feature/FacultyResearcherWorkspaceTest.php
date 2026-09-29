@@ -39,6 +39,13 @@ test('faculty researcher workspace cannot access faculty proposal or research ca
         'title' => 'Pending faculty proposal',
         'status' => 'pending',
     ]);
+    $queuedForLrec = TopicProposal::create([
+        'user_id' => $this->researcher->id,
+        'research_call_id' => $this->call->id,
+        'title' => 'Faculty proposal awaiting LREC',
+        'status' => TopicProposal::STATUS_LREC_QUEUED,
+        'review_stage' => 'lrec',
+    ]);
     $researcherSession = [User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER];
 
     $this->withSession($researcherSession)->actingAs($this->researcher)
@@ -62,6 +69,9 @@ test('faculty researcher workspace cannot access faculty proposal or research ca
     $this->withSession($researcherSession)->actingAs($this->researcher)
         ->get(route('topics.show', $pending))
         ->assertForbidden();
+    $this->withSession($researcherSession)->actingAs($this->researcher)
+        ->get(route('topics.show', $queuedForLrec))
+        ->assertForbidden();
 
     $facultySession = [User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY];
     $this->withSession($facultySession)->actingAs($this->researcher)
@@ -70,6 +80,10 @@ test('faculty researcher workspace cannot access faculty proposal or research ca
     $this->withSession($facultySession)->actingAs($this->researcher)
         ->get(route('research-calls.index'))
         ->assertOk();
+    $this->withSession($facultySession)->actingAs($this->researcher)
+        ->get(route('topics.show', $queuedForLrec))
+        ->assertOk()
+        ->assertSee('Awaiting LREC presentation');
 });
 
 test('faculty researcher workspace separates active awaiting NTP and completed projects', function () {

@@ -34,8 +34,16 @@ class UpdateResearchCoordinatorRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if ($this->string('action')->toString() === 'assign' && ! $this->route('member')?->college) {
-                    $validator->errors()->add('action', 'Set the member\'s college before assigning the Research Coordinator role.');
+                if ($this->string('action')->toString() !== 'assign') {
+                    return;
+                }
+
+                $member = $this->route('member');
+
+                if ($member?->hasRole('research_head')) {
+                    $validator->errors()->add('action', 'Research Heads cannot be assigned to the Research Office.');
+                } elseif (! $member?->college) {
+                    $validator->errors()->add('action', 'Set the member\'s college before assigning the Research Office role.');
                 }
             },
         ];

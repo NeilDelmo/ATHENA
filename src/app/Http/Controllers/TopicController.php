@@ -278,18 +278,28 @@ class TopicController extends Controller
             default => [TopicProposal::STATUS_GAD_REVIEW, 'Clear for GAD assessment'],
         };
         $coEvaluatorEvaluation = $headUploadWorkspace['coEvaluatorEvaluation'] ?? null;
+        $gadAssessment = $headUploadWorkspace['gadAssessment'] ?? null;
+        $gadOutcome = $gadAssessment?->source_data['gad_outcome'] ?? null;
+        $gadScore = $gadAssessment?->source_data['gad_score'] ?? null;
+        $gadNeedsRevision = $gadAssessment !== null && (in_array($gadOutcome, ['returned', 'conditional_pass'], true)
+            || ($gadOutcome === null && is_numeric($gadScore) && (float) $gadScore < 8));
+        $coEvaluatorRecommendedAction = $coEvaluatorEvaluation?->source_data['recommended_action'] ?? null;
+        $coEvaluatorReviewComplete = $coEvaluatorEvaluation !== null && in_array($coEvaluatorRecommendedAction, [
+            InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
+            InitialScreeningSubmissionOrder::MINOR_REVISION,
+            InitialScreeningSubmissionOrder::MAJOR_REVISION,
+        ], true);
         $canSendToLrec = ($headUploadWorkspace['gadPassed'] ?? false)
-            && $coEvaluatorEvaluation !== null
-            && ! in_array($coEvaluatorEvaluation->source_data['recommended_action'] ?? null, [
-                InitialScreeningSubmissionOrder::MINOR_REVISION,
-                InitialScreeningSubmissionOrder::MAJOR_REVISION,
-            ], true);
+            && $coEvaluatorRecommendedAction === InitialScreeningSubmissionOrder::FOR_ENDORSEMENT;
         $researchHeadDecisionOptions = $request->user()->isUsingWorkspace('research_head')
             ? collect([
                 $nextClearanceDecision[0] => $nextClearanceDecision[1],
                 'revision_requested' => 'Request revisions',
                 'rejected' => 'Reject proposal',
             ])->filter(fn (string $label, string $decision): bool => $topic->canRecordDecision($decision)
+                && ($topic->status !== TopicProposal::STATUS_GAD_REVIEW || ($gadNeedsRevision
+                    ? $decision === 'revision_requested'
+                    : (($headUploadWorkspace['gadPassed'] ?? false) && $coEvaluatorReviewComplete)))
                 && ($decision !== TopicProposal::STATUS_LREC_QUEUED || $canSendToLrec))->all()
             : [];
 

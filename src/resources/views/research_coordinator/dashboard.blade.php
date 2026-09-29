@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-workspace-header-banner
             eyebrow="Research coordination"
-            title="Research Coordinator Dashboard"
+            title="Research Office Dashboard"
             :description="'Coordinate faculty research activity for '.($coordinator->college ?: 'your college').'.'"
         />
     </x-slot>

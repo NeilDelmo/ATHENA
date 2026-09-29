@@ -120,6 +120,33 @@ test('workspace-targeted notifications only appear in the matching workspace', f
         ->assertJsonFragment(['workspace' => User::WORKSPACE_RESEARCH_HEAD]);
 });
 
+test('older proposal-workspace notifications stay in Faculty even when they were tagged for both workspaces', function () {
+    Role::firstOrCreate(['name' => 'faculty_researcher']);
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole(['faculty', 'faculty_researcher']);
+    $faculty->notify(new ProposalActivityNotification(
+        title: 'Queued for LREC',
+        message: 'Await the LREC presentation.',
+        url: route('faculty.dashboard'),
+        workspace: [User::WORKSPACE_FACULTY_RESEARCHER, User::WORKSPACE_FACULTY],
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+    ));
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->actingAs($faculty)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(0, 'notifications');
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($faculty)
+        ->getJson(route('notifications.index'))
+        ->assertOk()
+        ->assertJsonCount(1, 'notifications')
+        ->assertJsonPath('notifications.0.data.title', 'Queued for LREC');
+});
+
 test('accepting an invitation keeps the notification but removes its review action', function () {
     $owner = User::factory()->create();
     $owner->assignRole('faculty');

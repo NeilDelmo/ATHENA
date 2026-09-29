@@ -7,6 +7,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\ProposalSignatureWorkflow;
+use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
@@ -144,16 +145,16 @@ test('research heads can view every initial proposal submission and revision', f
             'Review submitted papers',
             'Papers returned for review',
             'Updated the schedule as requested.',
-            'Other submitted papers',
-            'Review decision',
+            'Show other submitted papers',
+            'Record the Research Head decision',
         ])
         ->assertSee('form="research-head-decision-form"', false);
     $document = new DOMDocument;
     @$document->loadHTML($page->getContent());
     $xpath = new DOMXPath($document);
-    $otherPapers = $xpath->query('//details[summary[contains(., "Other submitted papers")]]');
-    expect($otherPapers->length)->toBe(1)
-        ->and($otherPapers->item(0)->hasAttribute('open'))->toBeFalse();
+    $otherPapers = $xpath->query('//*[@id="proposal-review-tab"]//*[@data-other-submitted-papers]');
+    expect($otherPapers->length)->toBeGreaterThanOrEqual(1)
+        ->and($xpath->query('./div[@x-cloak]', $otherPapers->item(0))->length)->toBe(1);
 
     $this->get(route('research_head.proposal-submissions.index'))
         ->assertOk()
@@ -595,6 +596,7 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
             'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
             'narrative_evaluation' => 'The proposal is ready for LREC presentation.',
+            'recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT,
         ],
     ]);
 
@@ -616,6 +618,8 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
     ])->assertSessionHasNoErrors()->assertRedirect();
     expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_QUEUED)
         ->and($topic->fresh()->review_stage)->toBe('lrec');
+    Notification::assertSentTo($this->faculty, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Queued for LREC'
+        && $notification->workspace === User::WORKSPACE_FACULTY);
 });
 
 test('revision requests remain attached to the review stage that issued them', function () {

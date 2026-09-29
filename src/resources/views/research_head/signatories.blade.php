@@ -85,6 +85,21 @@
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['total']) }}</strong>total signatories</span>
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['active']) }}</strong>active</span>
                 <span class="block rounded-xl border border-[#E7E2D8] bg-white px-4 py-3 text-[13px] text-[#6B6258] shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"><strong class="block text-xl font-black text-[#201A15] dark:text-white">{{ \Illuminate\Support\Number::format($summary['roles']) }}</strong>signature roles</span>
+
+                <nav aria-label="Filter signatories by signature role" class="flex flex-col items-start gap-2 pt-1">
+                    <a href="{{ route('signatories.index', array_filter(['search' => $search])) }}" @class([
+                        'inline-flex w-full items-center rounded-xl border px-3 py-2 text-xs font-bold transition',
+                        'border-[#201A15] bg-[#201A15] text-white dark:border-white dark:bg-white dark:text-[#201A15]' => $selectedRole === '',
+                        'border-[#E7E2D8] bg-white text-[#6B6258] hover:bg-[#F4F1EB] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800' => $selectedRole !== '',
+                    ])>All roles</a>
+                    @foreach ($roles as $roleKey => $roleLabel)
+                        <a href="{{ route('signatories.index', array_filter(['search' => $search, 'role' => $roleKey])) }}" @class([
+                            'inline-flex w-full items-center rounded-xl border px-3 py-2 text-left text-xs font-bold transition',
+                            'border-[#201A15] bg-[#201A15] text-white dark:border-white dark:bg-white dark:text-[#201A15]' => $selectedRole === $roleKey,
+                            'border-[#E7E2D8] bg-white text-[#6B6258] hover:bg-[#F4F1EB] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800' => $selectedRole !== $roleKey,
+                        ])>{{ $roleLabel }}</a>
+                    @endforeach
+                </nav>
             </aside>
 
             <div class="min-w-0">
@@ -95,49 +110,43 @@
                     x-on:input.debounce.350ms="$el.requestSubmit()"
                     class="mb-4 flex flex-col gap-2.5 sm:flex-row"
                 >
+                    @if ($selectedRole !== '')
+                        <input type="hidden" name="role" value="{{ $selectedRole }}">
+                    @endif
                     <label class="relative min-w-0 flex-1" for="signatory-search">
                         <span class="sr-only">Search by name or position</span>
                         <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8A8178]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
                         <input id="signatory-search" name="search" type="search" value="{{ $search }}" placeholder="Search by name or position" class="block w-full rounded-lg border-[#E7E2D8] bg-white py-2.5 pl-9 pr-3 text-sm text-[#201A15] shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500">
                     </label>
 
-                    <label class="sm:w-[210px]" for="signatory-role-filter">
-                        <span class="sr-only">Filter by signature role</span>
-                        <select id="signatory-role-filter" name="role" class="block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
-                            <option value="">All roles</option>
-                            @foreach ($roles as $key => $label)
-                                <option value="{{ $key }}" @selected($selectedRole === $key)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-
-                    <button type="submit" class="sr-only">Apply filters</button>
-                    @if ($search !== '' || $selectedRole !== '')
+                    <button type="submit" class="sr-only">Search directory</button>
+                    @if ($search !== '')
                         <a href="{{ route('signatories.index') }}" class="inline-flex items-center justify-center rounded-lg border border-[#E7E2D8] bg-white px-3 py-2.5 text-sm font-medium text-[#6B6258] transition hover:bg-[#F4F1EB] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>
                     @endif
                 </form>
 
-                <div class="space-y-4">
-                    @forelse ($roles as $roleKey => $roleLabel)
-                        @php($roleSignatories = $signatoryGroups->get($roleKey, collect()))
-                        @continue($roleSignatories->isEmpty())
-
-                        <section class="overflow-hidden rounded-xl border border-[#E7E2D8] bg-white shadow-[0_1px_2px_rgba(32,26,21,0.04),0_8px_20px_-12px_rgba(32,26,21,0.10)] dark:border-slate-700 dark:bg-slate-900" aria-labelledby="role-{{ $roleKey }}-heading">
-                            <div class="flex items-center gap-2.5 px-[18px] py-3.5">
-                                <span class="h-2 w-2 shrink-0 rounded-full bg-[#C1272D]" aria-hidden="true"></span>
-                                <h3 id="role-{{ $roleKey }}-heading" class="min-w-0 flex-1 text-[14.5px] font-semibold text-[#201A15] dark:text-white">{{ $roleLabel }}</h3>
-                                <span class="rounded-full bg-[#F4F1EB] px-2.5 py-0.5 text-[12.5px] text-[#6B6258] dark:bg-slate-800 dark:text-slate-300">{{ $roleSignatories->count() }}</span>
-                            </div>
-
-                            <div class="divide-y divide-[#E7E2D8] border-t border-[#E7E2D8] dark:divide-slate-700 dark:border-slate-700">
-                                @foreach ($roleSignatories as $signatory)
-                                    <article id="signatory-{{ $signatory->id }}" class="scroll-mt-40">
-                                        @if ($editingSignatoryId === $signatory->id)
-                                            <form action="{{ route('signatories.update', $signatory) }}" method="POST" class="bg-[#FBEAEA]/50 px-[18px] py-4 dark:bg-red-950/20">
+                <section class="overflow-hidden rounded-xl border border-[#E7E2D8] bg-white shadow-[0_1px_2px_rgba(32,26,21,0.04),0_8px_20px_-12px_rgba(32,26,21,0.10)] dark:border-slate-700 dark:bg-slate-900" aria-label="Signatory directory">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-[#E7E2D8] text-left dark:divide-slate-700">
+                            <thead class="bg-[#F9F7F3] text-[11px] font-bold uppercase tracking-wide text-[#6B6258] dark:bg-slate-800/70 dark:text-slate-400">
+                                <tr>
+                                    <th scope="col" class="px-[18px] py-3">Name</th>
+                                    <th scope="col" class="px-[18px] py-3">Position / designation</th>
+                                    <th scope="col" class="px-[18px] py-3">Signature role</th>
+                                    <th scope="col" class="px-[18px] py-3">Availability</th>
+                                    <th scope="col" class="px-[18px] py-3"><span class="sr-only">Actions</span></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#E7E2D8] dark:divide-slate-700">
+                                @forelse ($signatories as $signatory)
+                                    @if ($editingSignatoryId === $signatory->id)
+                                        <tr id="signatory-{{ $signatory->id }}" class="scroll-mt-40 bg-[#FBEAEA]/50 dark:bg-red-950/20">
+                                            <td colspan="5" class="px-[18px] py-4">
+                                                <form action="{{ route('signatories.update', $signatory) }}" method="POST">
                                                 @csrf
                                                 @method('PATCH')
 
-                                                <div class="grid gap-2.5 sm:grid-cols-2">
+                                                <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                                                     <label class="text-[11.5px] font-medium text-[#6B6258] dark:text-slate-300" for="name-{{ $signatory->id }}">
                                                         Full name
                                                         <input id="name-{{ $signatory->id }}" name="name" value="{{ old('name', $signatory->name) }}" required maxlength="120" class="mt-1 block w-full rounded-md border-[#C1272D] bg-white px-2.5 py-2 text-[13.5px] text-[#201A15] focus:border-red-700 focus:ring-red-700 dark:bg-slate-950 dark:text-white">
@@ -168,18 +177,16 @@
                                                     <button type="submit" class="rounded-md bg-[#C1272D] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#9C1E23] focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Save changes</button>
                                                 </div>
                                             </form>
-                                        @else
-                                            <div class="flex flex-col gap-3 px-[18px] py-[13px] sm:flex-row sm:items-center">
-                                                <div class="flex min-w-0 flex-1 items-center gap-3">
-                                                    <span class="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#FBEAEA] text-[12.5px] font-bold uppercase text-[#C1272D]" aria-hidden="true">{{ \Illuminate\Support\Str::substr($signatory->name, 0, 1) }}</span>
-                                                    <div class="min-w-0">
-                                                        <h4 class="truncate text-[14.5px] font-semibold text-[#201A15] dark:text-white">{{ $signatory->name }}</h4>
-                                                        <p class="mt-0.5 truncate text-[13px] text-[#6B6258] dark:text-slate-400">{{ $signatory->position }}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div class="flex items-center gap-1.5 pl-[46px] sm:pl-0">
-                                                    <span class="mr-1 rounded-full px-3 py-1 text-[12px] font-semibold {{ $signatory->active ? 'bg-[#E8F3EC] text-[#3F7D5C] dark:bg-green-950/40 dark:text-green-300' : 'bg-[#F4F1EB] text-[#6B6258] dark:bg-slate-800 dark:text-slate-400' }}">{{ $signatory->active ? 'Active' : 'Inactive' }}</span>
+                                            </td>
+                                        </tr>
+                                    @else
+                                        <tr id="signatory-{{ $signatory->id }}" class="scroll-mt-40">
+                                            <td class="whitespace-nowrap px-[18px] py-[13px] text-[14.5px] font-semibold text-[#201A15] dark:text-white">{{ $signatory->name }}</td>
+                                            <td class="px-[18px] py-[13px] text-[13px] text-[#6B6258] dark:text-slate-400">{{ $signatory->position }}</td>
+                                            <td class="px-[18px] py-[13px] text-[13px] text-[#6B6258] dark:text-slate-400">{{ $roles[$signatory->role_key] }}</td>
+                                            <td class="whitespace-nowrap px-[18px] py-[13px]"><span class="rounded-full px-3 py-1 text-[12px] font-semibold {{ $signatory->active ? 'bg-[#E8F3EC] text-[#3F7D5C] dark:bg-green-950/40 dark:text-green-300' : 'bg-[#F4F1EB] text-[#6B6258] dark:bg-slate-800 dark:text-slate-400' }}">{{ $signatory->active ? 'Active' : 'Inactive' }}</span></td>
+                                            <td class="whitespace-nowrap px-[18px] py-[13px]">
+                                                <div class="flex items-center justify-end gap-1.5">
                                                     <a href="{{ route('signatories.index', array_filter(['search' => $search, 'role' => $selectedRole, 'edit' => $signatory->id])) }}#signatory-{{ $signatory->id }}" title="Edit {{ $signatory->name }}" class="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-[#6B6258] transition hover:bg-[#F4F1EB] hover:text-[#201A15] focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
                                                         <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931ZM19.5 7.125 16.875 4.5" /></svg>
                                                         Edit
@@ -201,22 +208,21 @@
                                                         </button>
                                                     </form>
                                                 </div>
-                                            </div>
-                                        @endif
-                                    </article>
-                                @endforeach
-                            </div>
-                        </section>
-                    @empty
-                    @endforelse
-
-                    @if ($signatoryGroups->isEmpty())
-                        <div class="rounded-xl border border-dashed border-[#D7D0C6] bg-white px-6 py-12 text-center dark:border-slate-700 dark:bg-slate-900">
-                            <h3 class="text-sm font-semibold text-[#201A15] dark:text-white">{{ $search !== '' || $selectedRole !== '' ? 'No matching signatories' : 'No signatories yet' }}</h3>
-                            <p class="mt-1 text-[13px] text-[#6B6258] dark:text-slate-400">{{ $search !== '' || $selectedRole !== '' ? 'Try another search or clear the filters.' : 'Add the first approved name using the form.' }}</p>
-                        </div>
-                    @endif
-                </div>
+                                            </td>
+                                        </tr>
+                                    @endif
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="px-6 py-12 text-center">
+                                            <h3 class="text-sm font-semibold text-[#201A15] dark:text-white">{{ $search !== '' || $selectedRole !== '' ? 'No matching signatories' : 'No signatories yet' }}</h3>
+                                            <p class="mt-1 text-[13px] text-[#6B6258] dark:text-slate-400">{{ $search !== '' || $selectedRole !== '' ? 'Try another search or clear the filters.' : 'Add the first approved name using the form.' }}</p>
+                                        </td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
