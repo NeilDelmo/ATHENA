@@ -1,12 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">Project Details</h2>
-                <p class="mt-1 text-xs text-gray-500">Enter shared information once; Attachment A will use it automatically.</p>
-            </div>
-            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Exit editor</x-back-link>
-        </div>
+        <x-page-header title="Project Details" subtitle="Enter shared information once; Attachment A will use it automatically.">
+            <x-slot name="actions">
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Exit editor</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php

@@ -1,13 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-700 dark:text-red-300">Research Office</p>
-                <h2 class="mt-1 text-2xl font-black tracking-tight text-gray-950 dark:text-white">Faculty Announcements</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Publish visual notices and control exactly when research-call posters appear.</p>
-            </div>
-            <x-back-link href="{{ route('research-calls.index') }}">Back to research calls</x-back-link>
-        </div>
+        <x-page-header title="Faculty Announcements" subtitle="Publish visual notices and control exactly when research-call posters appear.">
+            <x-slot name="actions">
+                <x-back-link href="{{ route('research-calls.index') }}">Back to research calls</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="space-y-6" data-announcement-palette="red-black-white">

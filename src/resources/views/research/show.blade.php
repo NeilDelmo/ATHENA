@@ -22,16 +22,12 @@
     @endphp
 
     <x-slot name="header">
-        <div class="space-y-3">
-            <x-back-link fixed href="{{ route('research.index') }}">Back to research list</x-back-link>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div class="min-w-0">
-                    <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $topic->title }}</h2>
-                    <p class="mt-1 text-xs text-gray-500">Submitted by {{ $topic->user->name }}</p>
-                </div>
+        <x-page-header :title="$topic->title" :subtitle="'Submitted by '.$topic->user->name">
+            <x-slot name="actions">
+                <x-back-link fixed href="{{ route('research.index') }}">Back to research list</x-back-link>
                 <span class="self-start rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-wider {{ $statusClass }}">{{ str_replace('_', ' ', $topic->status) }}</span>
-            </div>
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">

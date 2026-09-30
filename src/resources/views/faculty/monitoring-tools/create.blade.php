@@ -1,15 +1,12 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Project monitoring</p>
-                <h2 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Quarterly monitoring report</h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $topic->title }}</p>
-            </div>
+        <x-page-header title="Quarterly monitoring report" :subtitle="$topic->title">
+            <x-slot name="actions">
             @unless ($selectedReportingDate || $preparedReport)
                 <x-back-link fixed href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
             @endunless
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="mx-auto max-w-4xl space-y-5 py-6 sm:px-6 lg:px-8">

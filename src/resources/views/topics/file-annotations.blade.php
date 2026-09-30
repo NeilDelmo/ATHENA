@@ -12,17 +12,11 @@
         <x-proposal-revision-pdf :configuration="$annotationConfiguration" />
     @else
         <x-slot name="header">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-                <div class="max-w-3xl">
-                    <h2 class="font-serif text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">Review document</h2>
-                    <p class="mt-2 text-base font-semibold text-gray-700 dark:text-gray-200">{{ $file->label() }} <span class="font-normal text-gray-400" aria-hidden="true">·</span> Version {{ $version->version_number }}</p>
-                    <p data-file-details class="mt-2 flex max-w-2xl items-start gap-2 break-words text-sm leading-6 text-gray-500 dark:text-gray-400">
-                        <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h7.5l3 3v13.5H6.75V3.75Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14.25 3.75v3h3" /></svg>
-                        <span>{{ $file->original_filename }}</span>
-                    </p>
-                </div>
-                <x-back-link fixed href="{{ $proposalWorkspaceUrl }}">Back to review</x-back-link>
-            </div>
+            <x-page-header title="Review document" :subtitle="$file->label().' · Version '.$version->version_number.' · '.$file->original_filename">
+                <x-slot name="actions">
+                    <x-back-link fixed href="{{ $proposalWorkspaceUrl }}">Back to review</x-back-link>
+                </x-slot>
+            </x-page-header>
         </x-slot>
 
         <div x-data="pdfAnnotationWorkspace" data-pdf-annotation-config='@json($annotationConfiguration)' @resize.window="positionCommentComposer()" @scroll.window.capture="positionCommentComposer()" class="mx-auto max-w-[1600px] space-y-4">

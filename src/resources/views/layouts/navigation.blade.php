@@ -1,7 +1,14 @@
+@php
+    $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold text-slate-600 transition-all duration-200 ease-out hover:translate-x-0.5 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
+    $sidebarCurrentClasses = '!bg-white !text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:!bg-slate-900 dark:!text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]';
+    $researchHelpPath = parse_url(route('research-support.index'), PHP_URL_PATH);
+@endphp
+
 <aside
+    x-data
     id="app-sidebar"
-    :class="sidebarOpen ? 'w-[280px] shadow-2xl sm:shadow-xl' : 'w-[76px] shadow-lg'"
-    class="fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden rounded-r-[28px] border-r border-slate-200/80 bg-white/95 shadow-slate-900/10 backdrop-blur-xl transition-[width,background-color] duration-300 ease-out dark:border-slate-800/80 dark:bg-slate-950/95"
+    :class="$store.sidebar.open ? '!w-[280px] shadow-2xl sm:shadow-xl' : '!w-[76px] shadow-lg'"
+    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden rounded-r-[28px] border-r border-slate-200/80 bg-white/95 shadow-slate-900/10 backdrop-blur-xl transition-colors duration-300 dark:border-slate-800/80 dark:bg-slate-950/95 sm:w-[280px]"
 >
     <svg
         class="pointer-events-none absolute inset-0 z-0 h-full w-full text-[#7A0019]/[0.035] dark:text-white/[0.025]"
@@ -57,12 +64,13 @@
     ></div>
 
     <div
-        :class="sidebarOpen ? 'px-5 pb-5 pt-5' : 'px-3 pb-4 pt-4'"
+        :class="$store.sidebar.open ? 'px-5 pb-5 pt-5' : 'px-3 pb-4 pt-4'"
         class="relative z-10 flex shrink-0 flex-col border-b border-slate-200/70 dark:border-slate-800/80"
     >
         <a
             wire:navigate
-            x-show="sidebarOpen"
+            x-show="$store.sidebar.open"
+            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
             href="{{ route('dashboard') }}"
             class="flex min-w-0 items-center gap-3 rounded-2xl px-1"
             title="ATHENA dashboard"
@@ -87,10 +95,10 @@
         </a>
 
         <button
-            x-show="sidebarOpen"
+            x-show="$store.sidebar.open"
             type="button"
-            @click="sidebarOpen = false"
-            :aria-expanded="sidebarOpen"
+            @click="$store.sidebar.setOpen(false)"
+            :aria-expanded="$store.sidebar.open"
             aria-controls="app-sidebar-navigation"
             class="absolute right-3 top-6 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
                    text-slate-400 transition hover:bg-slate-100 hover:text-[#7A0019]
@@ -106,10 +114,10 @@
         </button>
 
         <button
-            x-show="!sidebarOpen"
+            x-show="!$store.sidebar.open"
             type="button"
-            @click="sidebarOpen = true"
-            :aria-expanded="sidebarOpen"
+            @click="$store.sidebar.setOpen(true)"
+            :aria-expanded="$store.sidebar.open"
             aria-controls="app-sidebar-navigation"
             class="group inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl
                    bg-[#7A0019]/8 ring-1 ring-[#7A0019]/10 transition
@@ -140,9 +148,10 @@
 
     <div
         id="app-sidebar-navigation"
-        :class="sidebarOpen
+        :class="$store.sidebar.open
             ? 'px-4'
-            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>form>button]:justify-center [&>form>button]:gap-0 [&>form>button]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
+            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
+        wire:navigate:scroll
         class="relative z-10 grow space-y-1 overflow-x-hidden overflow-y-auto py-4
                scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300
                dark:scrollbar-thumb-slate-700"
@@ -150,110 +159,96 @@
         @if (Auth::user()->isUsingWorkspace('research_head'))
             <a
                 wire:navigate
+                wire:current.exact="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research_head.dashboard') }}"
                 aria-label="Research Head Dashboard"
                 title="Research Head Dashboard"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.dashboard')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Research Head Dashboard</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Research Head Dashboard</span>
             </a>
-
-            <form method="POST" action="{{ route('sidebar-attention.open', 'proposal_submissions') }}">
-                @csrf
-                <button
-                    type="submit"
-                    aria-label="Proposal Submissions"
-                    title="Proposal Submissions"
-                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('research_head.proposal-submissions.*')
-                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-                >
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4.5 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                    </svg>
-                    <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Submissions</span>
-                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_submissions'] ?? 0" />
-                </button>
-            </form>
-
-            <form method="POST" action="{{ route('sidebar-attention.open', 'project_monitoring') }}">
-                @csrf
-                <button
-                    type="submit"
-                    aria-label="Project Monitoring"
-                    title="Project Monitoring"
-                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('research_head.projects.*')
-                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-                >
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
-                    </svg>
-                    <span x-show="sidebarOpen" class="whitespace-nowrap">Project Monitoring</span>
-                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['project_monitoring'] ?? 0" />
-                </button>
-            </form>
 
             <a
                 wire:navigate
+                href="{{ route('research_head.proposal-submissions.index') }}"
+                data-sidebar-attention-url="{{ route('sidebar-attention.open', 'proposal_submissions') }}"
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                aria-label="Proposal Submissions"
+                title="Proposal Submissions"
+                class="{{ $sidebarLinkClasses }}"
+            >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4.5 2.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Proposal Submissions</span>
+                <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_submissions'] ?? 0" />
+            </a>
+
+            <a
+                wire:navigate
+                href="{{ route('research_head.projects.index') }}"
+                data-sidebar-attention-url="{{ route('sidebar-attention.open', 'project_monitoring') }}"
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                aria-label="Project Monitoring"
+                title="Project Monitoring"
+                class="{{ $sidebarLinkClasses }}"
+            >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
+                    </svg>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Project Monitoring</span>
+                <x-sidebar-attention-badge :count="$sidebarAttentionCounts['project_monitoring'] ?? 0" />
+            </a>
+
+            <a
+                wire:navigate
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research_head.faculty-directory.index') }}"
                 aria-label="Faculty Directory"
                 title="Faculty Directory"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_head.faculty-directory.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0A17.9 17.9 0 0 1 12 21.75c-2.68 0-5.22-.59-7.5-1.65Z" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Directory</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Directory</span>
             </a>
 
             <a
                 wire:navigate
+                wire:current.exact="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('signatories.index') }}"
                 aria-label="Signatory Directory"
                 title="Signatory Directory"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('signatories.index')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a7.5 7.5 0 0 1 15 0M18 9.75v6m3-3h-6" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Signatory Directory</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signatory Directory</span>
             </a>
 
             <a
                 wire:navigate
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research-calls.index') }}"
                 aria-label="Research Calls"
                 title="Research Calls"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research-calls.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Research Calls</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Research Calls</span>
             </a>
 
         @endif
@@ -262,16 +257,15 @@
         @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_SECRETARY))
             <a
                 wire:navigate
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('research_secretary.dashboard') }}"
                 aria-label="Research Secretary Dashboard"
                 title="Research Secretary Dashboard"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('research_secretary.*')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">Budget Monitoring</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Budget Monitoring</span>
             </a>
         @endif
 
@@ -279,36 +273,32 @@
             @if (session('active_role') !== 'faculty')
                 <a
                     wire:navigate
+                    wire:current.exact="{{ $sidebarCurrentClasses }}"
+                    @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                     href="{{ route('research_coordinator.dashboard') }}"
                     aria-label="Dashboard"
                     title="Dashboard"
-                    class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('research_coordinator.dashboard')
-                                ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                    class="{{ $sidebarLinkClasses }}"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
                     </svg>
-                    <span x-show="sidebarOpen" class="whitespace-nowrap">Dashboard</span>
+                    <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
                 </a>
 
                 <a
                     wire:navigate
+                    wire:current="{{ $sidebarCurrentClasses }}"
+                    @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                     href="{{ route('research_coordinator.members.index') }}"
                     aria-label="Faculty Members"
                     title="Faculty Members"
-                    class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('research_coordinator.members.*')
-                                ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                    class="{{ $sidebarLinkClasses }}"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
                     </svg>
-                    <span x-show="sidebarOpen" class="whitespace-nowrap">Faculty Members</span>
+                    <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
                 </a>
             @endif
         @endrole
@@ -319,63 +309,55 @@
             @endphp
             <a
                 wire:navigate
+                wire:current.exact="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
                 href="{{ route('faculty.dashboard') }}"
                 aria-label="{{ $usingResearchWorkspace ? 'Faculty Researcher Dashboard' : 'Faculty Dashboard' }}"
                 title="{{ $usingResearchWorkspace ? 'Faculty Researcher Dashboard' : 'Faculty Dashboard' }}"
-                class="flex items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                       transition-all duration-200 ease-out hover:translate-x-0.5
-                       {{ request()->routeIs('faculty.dashboard')
-                            ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                            : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
                 </svg>
-                <span x-show="sidebarOpen" class="whitespace-nowrap">{{ $usingResearchWorkspace ? 'Faculty Researcher Dashboard' : 'Faculty Dashboard' }}</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">{{ $usingResearchWorkspace ? 'Faculty Researcher Dashboard' : 'Faculty Dashboard' }}</span>
             </a>
 
             @if (! $usingResearchWorkspace)
-            <form method="POST" action="{{ route('sidebar-attention.open', 'proposal_workspace') }}">
-                @csrf
-                <button
-                    type="submit"
-                    aria-label="Proposal Workspace"
-                    title="Proposal Workspace"
-                    class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('faculty.proposal-drafts.*', 'faculty.topics.create')
-                                ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-                >
+            <a
+                wire:navigate
+                href="{{ route('faculty.proposal-drafts.index') }}"
+                data-sidebar-attention-url="{{ route('sidebar-attention.open', 'proposal_workspace') }}"
+                wire:current="{{ $sidebarCurrentClasses }}"
+                @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                aria-label="Proposal Workspace"
+                title="Proposal Workspace"
+                class="{{ $sidebarLinkClasses }}"
+            >
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5h10.5A2.25 2.25 0 0019.5 17.25V6.75A2.25 2.25 0 0017.25 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
                     </svg>
-                    <span x-show="sidebarOpen" class="whitespace-nowrap">Proposal Workspace</span>
-                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_workspace'] ?? 0" />
-                </button>
-            </form>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Proposal Workspace</span>
+                <x-sidebar-attention-badge :count="$sidebarAttentionCounts['proposal_workspace'] ?? 0" />
+            </a>
             @endif
 
             @if (Auth::user()->canUseWorkspace(\App\Models\User::WORKSPACE_FACULTY_RESEARCHER))
-                <form method="POST" action="{{ route('sidebar-attention.open', 'my_projects') }}">
-                    @csrf
-                    <button
-                        type="submit"
-                        aria-label="My Projects"
-                        title="My Projects"
-                        class="relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold
-                               transition-all duration-200 ease-out hover:translate-x-0.5
-                               {{ request()->routeIs('research.index', 'research.show')
-                                    ? 'bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                    : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
-                    >
+                <a
+                    wire:navigate
+                    href="{{ route('research.index') }}"
+                    data-sidebar-attention-url="{{ route('sidebar-attention.open', 'my_projects') }}"
+                    wire:current="{{ $sidebarCurrentClasses }}"
+                    @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                    aria-label="My Projects"
+                    title="My Projects"
+                    class="{{ $sidebarLinkClasses }}"
+                >
                         <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" />
                         </svg>
-                        <span x-show="sidebarOpen" class="whitespace-nowrap">My Projects</span>
-                        <x-sidebar-attention-badge :count="$sidebarAttentionCounts['my_projects'] ?? 0" />
-                    </button>
-                </form>
+                    <span x-show="$store.sidebar.open" class="whitespace-nowrap">My Projects</span>
+                    <x-sidebar-attention-badge :count="$sidebarAttentionCounts['my_projects'] ?? 0" />
+                </a>
             @endif
 
             <div
@@ -384,13 +366,17 @@
                     activeResearchHelpSection: window.location.hash || '#rrl-finder',
                 }"
                 @hashchange.window="activeResearchHelpSection = window.location.hash || '#rrl-finder'"
+                x-on:livewire:navigated.window="
+                    activeResearchHelpSection = window.location.hash || '#rrl-finder';
+                    if ($store.sidebar.currentPath.startsWith(@js($researchHelpPath))) researchHelpOpen = true;
+                "
                 data-research-help-menu
             >
                 <button
                     type="button"
                     @click="
-                        if (!sidebarOpen) {
-                            sidebarOpen = true;
+                        if (!$store.sidebar.open) {
+                            $store.sidebar.setOpen(true);
                             researchHelpOpen = true;
                         } else {
                             researchHelpOpen = !researchHelpOpen;
@@ -400,26 +386,25 @@
                     aria-controls="research-help-feature-links"
                     aria-label="Research Help Facility"
                     title="Research Help Facility"
-                    :class="sidebarOpen ? 'px-4' : 'justify-center gap-0 px-0'"
-                    class="flex w-full items-center gap-3 rounded-2xl py-3 text-[13px] font-semibold
-                           transition-all duration-200 ease-out hover:translate-x-0.5
-                           {{ request()->routeIs('research-support.*')
-                                ? 'relative bg-white text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:bg-slate-900 dark:text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]'
-                                : 'text-slate-600 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white' }}"
+                    :class="[
+                        $store.sidebar.open ? 'px-4' : 'justify-center gap-0 !px-0',
+                        $store.sidebar.currentPath.startsWith(@js($researchHelpPath)) ? @js($sidebarCurrentClasses) : '',
+                    ]"
+                    class="{{ $sidebarLinkClasses }} py-3"
                 >
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
                     </svg>
 
                     <span
-                        x-show="sidebarOpen"
+                        x-show="$store.sidebar.open"
                         class="min-w-0 flex-1 whitespace-nowrap text-left"
                     >
                         Research Help Facility
                     </span>
 
                     <svg
-                        x-show="sidebarOpen"
+                        x-show="$store.sidebar.open"
                         :class="researchHelpOpen ? 'rotate-180' : ''"
                         class="h-4 w-4 shrink-0 transition-transform duration-200"
                         fill="none"
@@ -435,7 +420,7 @@
                 <div
                     id="research-help-feature-links"
                     x-cloak
-                    x-show="sidebarOpen && researchHelpOpen"
+                    x-show="$store.sidebar.open && researchHelpOpen"
                     x-transition:enter="transition ease-out duration-150"
                     x-transition:enter-start="-translate-y-1 opacity-0"
                     x-transition:enter-end="translate-y-0 opacity-100"
@@ -446,10 +431,11 @@
                            before:top-2 before:w-px before:bg-slate-200 dark:before:bg-slate-800"
                 >
                     <a
+                        wire:navigate
                         href="{{ route('research-support.index') }}#rrl-finder"
                         @click="
                             activeResearchHelpSection = '#rrl-finder';
-                            if (window.innerWidth < 640) sidebarOpen = false;
+                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
                         "
                         :class="activeResearchHelpSection === '#rrl-finder'
                             ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
@@ -461,10 +447,11 @@
                     </a>
 
                     <a
+                        wire:navigate
                         href="{{ route('research-support.index') }}#turnitin"
                         @click="
                             activeResearchHelpSection = '#turnitin';
-                            if (window.innerWidth < 640) sidebarOpen = false;
+                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
                         "
                         :class="activeResearchHelpSection === '#turnitin'
                             ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
@@ -477,10 +464,11 @@
 
                     @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
                     <a
+                        wire:navigate
                         href="{{ route('research-support.index') }}#journal-finder"
                         @click="
                             activeResearchHelpSection = '#journal-finder';
-                            if (window.innerWidth < 640) sidebarOpen = false;
+                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
                         "
                         :class="activeResearchHelpSection === '#journal-finder'
                             ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'

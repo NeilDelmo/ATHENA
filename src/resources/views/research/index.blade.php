@@ -28,11 +28,7 @@
     @endphp
 
     <x-slot name="header">
-        <div data-faculty-researcher-dashboard class="mx-auto max-w-4xl">
-            <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#7A0019]">Faculty Researcher</p>
-            <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Approved Research Projects</h2>
-            <p class="mt-1.5 text-sm text-slate-500">Track deliverables, monitor progress, and complete pending work.</p>
-        </div>
+        <x-page-header data-faculty-researcher-dashboard title="Approved Research Projects" subtitle="Track deliverables, monitor progress, and complete pending work." />
     </x-slot>
 
     <div

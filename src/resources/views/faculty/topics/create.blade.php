@@ -10,14 +10,7 @@
     @endphp
 
     <x-slot name="header">
-        <div class="grid gap-3">
-            <x-back-link fixed href="{{ route('faculty.dashboard') }}">Back to dashboard</x-back-link>
-            <div>
-                <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-600">Guided proposal workflow</p>
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">Submit a Research Proposal</h2>
-                <p class="mt-1 text-xs text-gray-500">Enter the project information once. ATHENA will generate Attachment A and include it in your proposal package.</p>
-            </div>
-        </div>
+        <x-page-header title="Submit a Research Proposal" subtitle="Enter the project information once. ATHENA will generate Attachment A and include it in your proposal package." />
     </x-slot>
 
     <div

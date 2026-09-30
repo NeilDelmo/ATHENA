@@ -55,6 +55,42 @@ import {
 } from './proposal-paper-autosave';
 
 window.Alpine = Alpine;
+
+const sidebarStorageKey = 'athena-sidebar-open';
+
+function storedSidebarPreference() {
+    try {
+        const value = sessionStorage.getItem(sidebarStorageKey);
+
+        return value === null ? null : value === 'true';
+    } catch {
+        return null;
+    }
+}
+
+function storeSidebarPreference(isOpen) {
+    try {
+        sessionStorage.setItem(sidebarStorageKey, String(isOpen));
+    } catch {
+        // The sidebar remains usable when session storage is unavailable.
+    }
+}
+
+Alpine.store('sidebar', {
+    open: window.innerWidth >= 640 ? (storedSidebarPreference() ?? true) : false,
+    currentPath: window.location.pathname,
+
+    setOpen(isOpen) {
+        this.open = Boolean(isOpen);
+        document.documentElement.dataset.sidebarCollapsed = String(window.innerWidth >= 640 && !this.open);
+        storeSidebarPreference(this.open);
+    },
+
+    syncLocation() {
+        this.currentPath = window.location.pathname;
+    },
+});
+
 Alpine.data('journalFinder', journalFinder);
 Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
@@ -882,49 +918,103 @@ async function navigateFromPaperEditor(editor, destination, message) {
     window.location.assign(destination);
 }
 
-document.addEventListener('livewire:navigate', (event) => {
+async function finishPendingNavigationChanges() {
     const editor = currentPaperEditor();
     const hasPaperChanges = paperEditorHasUnsavedChanges(editor);
     const hasBackgroundChanges = backgroundAutoSaveHasPendingChanges();
 
-    if (!hasPaperChanges && !hasBackgroundChanges) return;
+    if (hasPaperChanges) {
+        const saved = autoSaveMethodForPaperEditor(editor)
+            ? await finishPaperEditorAutoSave(editor)
+            : false;
+
+        if (!saved) {
+            const leaveWithoutSaving = await showProposalConfirmation({
+                title: 'Changes were not saved',
+                text: 'ATHENA could not finish saving your latest changes. Stay on this page to resolve the issue, or leave without saving them.',
+                confirmButtonText: 'Leave without saving',
+                cancelButtonText: 'Stay here',
+            });
+
+            if (!leaveWithoutSaving) return false;
+
+            suppressPaperEditorAutoSaveWarnings(editor);
+        }
+    }
+
+    if (hasBackgroundChanges && !await finishBackgroundAutoSaves()) {
+        const leaveWithoutSaving = await showProposalConfirmation({
+            title: 'Latest changes were not saved',
+            text: 'ATHENA could not finish saving your latest changes. Stay on this page to try again, or leave without saving them.',
+            confirmButtonText: 'Leave without saving',
+            cancelButtonText: 'Stay here',
+            icon: 'warning',
+        });
+
+        if (!leaveWithoutSaving) return false;
+
+        suppressBackgroundAutoSaveWarnings();
+    }
+
+    return true;
+}
+
+async function acknowledgeSidebarAttention(link) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    try {
+        const response = await fetch(link.dataset.sidebarAttentionUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-TOKEN': csrf || '',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (!response.ok) return;
+
+        const payload = await response.json();
+
+        if (payload.clear_attention) {
+            link.querySelectorAll('[data-sidebar-attention-badge]').forEach((badge) => badge.remove());
+        }
+    } catch {
+        // Attention tracking must never interrupt Livewire navigation.
+    }
+}
+
+function initializeSidebarAttentionLinks() {
+    document.querySelectorAll('[data-sidebar-attention-url]').forEach((link) => {
+        if (!(link instanceof HTMLAnchorElement) || link.dataset.sidebarAttentionReady === 'true') return;
+
+        link.dataset.sidebarAttentionReady = 'true';
+        link.addEventListener('click', (event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+            void acknowledgeSidebarAttention(link);
+        });
+    });
+}
+
+initializeSidebarAttentionLinks();
+document.addEventListener('livewire:navigated', () => {
+    Alpine.store('sidebar').syncLocation();
+    initializeSidebarAttentionLinks();
+});
+
+document.addEventListener('livewire:navigate', (event) => {
+    const hasPendingChanges = paperEditorHasUnsavedChanges(currentPaperEditor())
+        || backgroundAutoSaveHasPendingChanges();
+
+    if (!hasPendingChanges) return;
 
     event.preventDefault();
 
     void (async () => {
-        if (hasPaperChanges) {
-            const saved = autoSaveMethodForPaperEditor(editor)
-                ? await finishPaperEditorAutoSave(editor)
-                : false;
-
-            if (!saved) {
-                const leaveWithoutSaving = await showProposalConfirmation({
-                    title: 'Changes were not saved',
-                    text: 'ATHENA could not finish saving your latest changes. Stay on this page to resolve the issue, or leave without saving them.',
-                    confirmButtonText: 'Leave without saving',
-                    cancelButtonText: 'Stay here',
-                });
-
-                if (!leaveWithoutSaving) return;
-
-                suppressPaperEditorAutoSaveWarnings(editor);
-            }
-        }
-
-        if (hasBackgroundChanges && !await finishBackgroundAutoSaves()) {
-            const leaveWithoutSaving = await showProposalConfirmation({
-                title: 'Latest changes were not saved',
-                text: 'ATHENA could not finish saving your latest changes. Stay on this page to try again, or leave without saving them.',
-                confirmButtonText: 'Leave without saving',
-                cancelButtonText: 'Stay here',
-                icon: 'warning',
-            });
-
-            if (!leaveWithoutSaving) return;
-
-            suppressBackgroundAutoSaveWarnings();
-        }
-
+        if (!await finishPendingNavigationChanges()) return;
         Livewire.navigate(event.detail.url.toString());
     })();
 });
@@ -10206,6 +10296,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 }));
 
 registerPdfAnnotationWorkspace(Alpine);
+Livewire.start();
 initializeAnnouncementImageUploads();
 initializeResearchCallCarousels();
 initializeResearchCallImageExtractors();
@@ -10221,7 +10312,4 @@ document.addEventListener('livewire:navigated', () => initializeRevisionWorkspac
 document.addEventListener('livewire:navigated', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeSemanticEditors);
 document.addEventListener('alpine:initialized', initializeRevisionTargetFocus);
-if (typeof window.livewireScriptConfig !== 'undefined') {
-    Livewire.start();
-}
 window.requestAnimationFrame(initializeSemanticEditors);

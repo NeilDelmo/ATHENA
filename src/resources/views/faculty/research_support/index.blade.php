@@ -2,11 +2,7 @@
     @php($canUseResearcherTools = Auth::user()->isUsingWorkspace('faculty_researcher'))
 
     <x-slot name="header">
-        <div class="athena-readable">
-            <p class="text-sm font-bold uppercase tracking-wider text-red-700">Research support</p>
-            <h2 class="mt-2 text-3xl font-black tracking-tight text-gray-950">Research Support</h2>
-            <p class="mt-2 text-base leading-7 text-gray-600">{{ $canUseResearcherTools ? 'Find literature, review similarity, and discover suitable journals for your research.' : 'Find and save literature while preparing your research proposal.' }}</p>
-        </div>
+        <x-page-header class="athena-readable" title="Research Support" :subtitle="$canUseResearcherTools ? 'Find literature, review similarity, and discover suitable journals for your research.' : 'Find and save literature while preparing your research proposal.'" />
     </x-slot>
 
     @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))

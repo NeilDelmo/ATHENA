@@ -1,20 +1,6 @@
 <x-app-layout>
-    @php
-        $collegeDotClasses = [
-            'CICS' => 'bg-green-500',
-            'CTE' => 'bg-blue-500',
-            'CABEIHM' => 'bg-yellow-400',
-            'CCJE' => 'bg-black dark:bg-slate-950',
-            'CAS' => 'bg-red-500',
-            'CHS' => 'border border-gray-300 bg-white dark:border-slate-500',
-        ];
-    @endphp
-
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Faculty Directory</h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Browse ATHENA members and assign one Research Office member per college.</p>
-        </div>
+        <x-page-header title="Faculty Directory" subtitle="Browse ATHENA members and assign one Research Office member per college." />
     </x-slot>
 
     <div
@@ -85,7 +71,7 @@
                     role="tab"
                     x-on:click="setCollege('all')"
                     x-bind:aria-selected="selectedCollege === 'all'"
-                    x-bind:class="selectedCollege === 'all' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
+                    x-bind:class="selectedCollege === 'all' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
                     class="rounded-xl px-4 py-2.5 text-xs font-black transition"
                     data-college-tab="all"
                 >
@@ -97,12 +83,12 @@
                         role="tab"
                         x-on:click="setCollege(@js($acronym))"
                         x-bind:aria-selected="selectedCollege === @js($acronym)"
-                        x-bind:class="selectedCollege === @js($acronym) ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
+                        x-bind:class="selectedCollege === @js($acronym) ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'"
                         class="rounded-xl px-4 py-2.5 text-xs font-black transition"
                         title="{{ $college }}"
                         data-college-tab="{{ $acronym }}"
                     >
-                        <span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full {{ $collegeDotClasses[$acronym] }}" aria-hidden="true"></span>{{ $acronym }}</span>
+                        {{ $acronym }}
                     </button>
                 @endforeach
             </div>

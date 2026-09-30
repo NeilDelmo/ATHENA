@@ -12,11 +12,7 @@
 
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-700 dark:text-red-300">Research Office</p>
-            <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">Research-call schedule</h2>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Official submission and review milestones for this announcement.</p>
-        </div>
+        <x-page-header title="Research-call schedule" subtitle="Official submission and review milestones for this announcement." />
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-5">

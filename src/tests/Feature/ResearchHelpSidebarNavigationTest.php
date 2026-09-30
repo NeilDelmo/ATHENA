@@ -13,10 +13,17 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
     $this->actingAs($faculty)
         ->get($researchHelpUrl)
         ->assertOk()
-        ->assertSee("sidebarOpen ? 'w-[280px]", false)
-        ->assertSee("'sm:pl-[280px]': sidebarOpen", false)
-        ->assertSee('pl-[76px]', false)
+        ->assertSee("\$store.sidebar.open ? '!w-[280px]", false)
+        ->assertSee("\$store.sidebar.open ? 'sm:!pl-[280px]'", false)
+        ->assertSee('pl-[76px] sm:pl-[280px]', false)
         ->assertSee('wire:navigate', false)
+        ->assertSee('wire:navigate:scroll', false)
+        ->assertSee('wire:current', false)
+        ->assertSee('<aside', false)
+        ->assertSee('x-data', false)
+        ->assertSee('data-app-content-shell', false)
+        ->assertDontSee('transition-[padding,background-color]', false)
+        ->assertSee('x-on:livewire:navigated.window', false)
         ->assertSee('window.livewireScriptConfig', false)
         ->assertSee('data-research-help-menu', false)
         ->assertSee('aria-controls="research-help-feature-links"', false)
@@ -33,6 +40,13 @@ test('faculty sidebar exposes the rrl finder without conference discovery', func
         ->assertDontSee('Request a similarity check')
         ->assertSee('Read your report')
         ->assertDontSee('id="journal-finder"', false);
+
+    expect(file_get_contents(resource_path('js/app.js')))
+        ->toContain("Alpine.store('sidebar'")
+        ->toContain('initializeSidebarAttentionLinks()')
+        ->toContain('Livewire.start();')
+        ->not->toContain("typeof window.livewireScriptConfig !== 'undefined'")
+        ->toContain("document.addEventListener('livewire:navigated'");
 });
 
 test('faculty researcher sidebar includes turnitin and journal discovery', function () {
