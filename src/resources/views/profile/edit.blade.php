@@ -1,12 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">Account Profile</h2>
-                <p class="mt-1 text-xs text-gray-500">Your institutional identity, ATHENA access, and account activity.</p>
-            </div>
-            <x-back-link href="{{ route('dashboard') }}" class="self-start">Back to workspace</x-back-link>
-        </div>
+        <x-page-header title="Account Profile" subtitle="Your institutional identity, ATHENA access, and account activity.">
+            <x-slot name="actions">
+                <x-back-link href="{{ route('dashboard') }}">Back to workspace</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php

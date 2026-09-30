@@ -1,12 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <p class="text-sm font-bold uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Project monitoring</p>
-                <h2 class="mt-1 text-3xl font-black tracking-tight text-gray-950 dark:text-white">{{ $preparedReport?->report_label ?? (request('report_type') === 'terminal' ? 'Terminal report' : 'Progress report') }}</h2>
-                <p class="mt-2 text-base text-gray-600 dark:text-slate-300">{{ $topic->title }}</p>
-            </div>
-        </div>
+        <x-page-header :title="$preparedReport?->report_label ?? (request('report_type') === 'terminal' ? 'Terminal report' : 'Progress report')" :subtitle="$topic->title" />
     </x-slot>
 
     <div class="mx-auto max-w-[90rem] space-y-5 py-6 sm:px-6 lg:px-8">

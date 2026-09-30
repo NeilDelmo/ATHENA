@@ -10,14 +10,24 @@
 
         @include('partials.theme-script')
 
+        <script>
+            try {
+                document.documentElement.dataset.sidebarCollapsed = String(
+                    window.innerWidth >= 640 && sessionStorage.getItem('athena-sidebar-open') === 'false'
+                );
+            } catch {
+                document.documentElement.dataset.sidebarCollapsed = 'false';
+            }
+        </script>
+
         <x-app-fonts />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
     <body
-        x-data="{ sidebarOpen: window.innerWidth >= 640 }"
-        @keydown.escape.window="sidebarOpen = false"
+        x-data
+        @keydown.escape.window="$store.sidebar.setOpen(false)"
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
         data-auth-user-id="{{ Auth::id() }}"
@@ -46,20 +56,24 @@
             </script>
         @endauth
 
-        @include('layouts.navigation')
+        @php($sidebarPersistenceKey = 'app-sidebar-'.(Auth::user()?->activeWorkspace() ?? 'guest'))
+        @persist($sidebarPersistenceKey)
+            @include('layouts.navigation')
+        @endpersist
 
         <div
             x-cloak
-            x-show="sidebarOpen"
+            x-show="$store.sidebar.open"
             x-transition.opacity
-            @click="sidebarOpen = false"
+            @click="$store.sidebar.setOpen(false)"
             class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
             aria-hidden="true"
         ></div>
 
         <div
-            :class="{ 'sm:pl-[280px]': sidebarOpen }"
-            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] transition-[padding,background-color] duration-300 ease-out dark:bg-slate-950"
+            :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'"
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] sm:pl-[280px] transition-colors duration-300 dark:bg-slate-950"
+            data-app-content-shell
         >
             
             <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">

@@ -1,13 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-600">{{ $report->quarter_label }} financial entry</p>
-                <h2 class="mt-1 text-xl font-black text-gray-950 dark:text-white">Budget utilization</h2>
-                <p class="mt-1 max-w-2xl text-sm text-gray-500 dark:text-slate-400">{{ $topic->title }}</p>
-            </div>
-            <x-back-link href="{{ request()->routeIs('project-budget.edit') ? route('research.show', $topic).'#project-monitoring' : route('research_secretary.dashboard') }}">Back to project monitoring</x-back-link>
-        </div>
+        <x-page-header title="Budget utilization" :subtitle="$topic->title">
+            <x-slot name="actions">
+                <x-back-link href="{{ request()->routeIs('project-budget.edit') ? route('research.show', $topic).'#project-monitoring' : route('research_secretary.dashboard') }}">Back to project monitoring</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php

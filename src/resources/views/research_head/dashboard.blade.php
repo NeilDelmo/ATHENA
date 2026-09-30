@@ -1,6 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <x-workspace-header-banner
+            class="!pt-0"
             eyebrow="Research Office Control Center"
             title="Research Operations Dashboard"
             description="Review proposals, track active projects, and manage official research deadlines."

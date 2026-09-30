@@ -238,8 +238,32 @@ test('monitoring page shows approved projects only with latest progress and coun
         ->assertDontSee('Projects with a Notice to Proceed')
         ->assertSee('Approved Monitoring Project')
         ->assertSee('45%')
+        ->assertSee('Monitor')
+        ->assertDontSee('Open monitoring')
         ->assertSee('1 awaiting review')
         ->assertDontSee('text-sm font-black text-gray-900">Unapproved Proposal', false);
+});
+
+test('monitoring KPI cards use the brand border and reserve red for delayed projects', function () {
+    $response = $this->actingAs($this->head)
+        ->get(route('research_head.projects.index'))
+        ->assertOk()
+        ->assertSee('border-t-[3px] border-t-brand', false)
+        ->assertSee('dark:border-t-brand-soft dark:bg-slate-900', false)
+        ->assertSee('text-2xl font-black bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200">0</p>', false);
+
+    expect(substr_count($response->getContent(), 'border-t-[3px] border-t-brand'))->toBe(5);
+
+    createDashboardTopic($this->researcher, $this->call, [
+        'title' => 'Delayed KPI Project',
+        'status' => 'approved',
+        'project_status' => 'delayed',
+    ]);
+
+    $this->actingAs($this->head)
+        ->get(route('research_head.projects.index'))
+        ->assertOk()
+        ->assertSee('text-2xl font-black bg-red-50 text-red-700">1</p>', false);
 });
 
 test('monitoring page presents active projects at 100 percent as completion pending', function () {

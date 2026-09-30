@@ -1,24 +1,17 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div class="min-w-0">
+        <x-page-header :title="$proposalDraft->project_title" :subtitle="'Last saved '.$proposalDraft->updated_at->diffForHumans()">
+            <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.index') }}">Back to saved drafts</x-back-link>
-                <p class="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-red-600">Proposal workspace</p>
-                <h2 class="mt-1 break-words text-2xl font-black tracking-tight text-gray-950 dark:text-white">{{ $proposalDraft->project_title }}</h2>
-                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                    <span>Last saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
-                    <span class="inline-flex items-center gap-1.5 font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</span>
-                </div>
-            </div>
-            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-                <a href="{{ route('signatories.edit', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300">Choose signatories</a>
+                <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-slate-200"><span class="h-1.5 w-1.5 rounded-full bg-red-600" aria-hidden="true"></span>{{ $proposalDraft->user_id === auth()->id() ? 'You own this workspace' : 'Shared with you by '.$proposalDraft->owner->name }}</span>
+                <a href="{{ route('signatories.edit', $proposalDraft) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Choose signatories</a>
                 <a href="{{ route('faculty.proposal-drafts.history.index', $proposalDraft) }}" class="inline-flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-800 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 sm:w-11" aria-label="Open recovery history{{ $historyCount > 0 ? ' ('.$historyCount.' points)' : '' }}" title="Recovery history">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     <span class="sr-only">Recovery history</span>
                 </a>
-                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-gray-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:bg-white dark:text-gray-950 dark:hover:bg-red-600 dark:hover:text-white sm:w-auto">Review &amp; turn in</button>
-            </div>
-        </div>
+                <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:hover:bg-red-500 sm:w-auto">Review &amp; turn in</button>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php

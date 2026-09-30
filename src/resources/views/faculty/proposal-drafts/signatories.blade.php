@@ -1,5 +1,11 @@
 <x-app-layout>
-    <x-slot name="header"><x-back-link fixed href="{{ $returnUrl }}">Back to proposal paper</x-back-link><h2 class="mt-3 text-xl font-bold dark:text-white">Choose proposal signatories</h2><p class="mt-1 text-sm text-gray-500">{{ $proposalDraft->project_title }}</p></x-slot>
+    <x-slot name="header">
+        <x-page-header title="Choose proposal signatories" :subtitle="$proposalDraft->project_title">
+            <x-slot name="actions">
+                <x-back-link fixed href="{{ $returnUrl }}">Back to proposal paper</x-back-link>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
     <div class="mx-auto w-full max-w-7xl space-y-6 py-6 sm:px-6 lg:px-8" data-proposal-signatories-workspace>
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>

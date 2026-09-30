@@ -46,8 +46,11 @@ test('Research Head review notifications stay unread on sidebar navigation but c
         ->assertOk()
         ->assertSee(route('sidebar-attention.open', 'proposal_submissions'), false)
         ->assertSee(route('sidebar-attention.open', 'project_monitoring'), false)
+        ->assertSee('data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_submissions').'"', false)
+        ->assertSee('wire:navigate', false)
+        ->assertDontSee('<form method="POST" action="'.route('sidebar-attention.open', 'proposal_submissions').'"', false)
         ->assertSee('1 unread update')
-        ->assertSee('x-show="!sidebarOpen"', false)
+        ->assertSee('x-show="!$store.sidebar.open"', false)
         ->assertSee('dark:ring-slate-950');
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
@@ -110,7 +113,8 @@ test('faculty navigation preserves the selected workspace even when researcher a
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertSee('Faculty Dashboard')
-        ->assertSee(route('sidebar-attention.open', 'proposal_workspace'), false)
+        ->assertSee('data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_workspace').'"', false)
+        ->assertDontSee('<form method="POST" action="'.route('sidebar-attention.open', 'proposal_workspace').'"', false)
         ->assertDontSee(route('sidebar-attention.open', 'my_projects'), false)
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
 
@@ -161,7 +165,8 @@ test('My Projects opens after explicitly selecting the faculty researcher worksp
     $this->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertSee('Faculty Researcher Dashboard')
-        ->assertSee(route('sidebar-attention.open', 'my_projects'), false)
+        ->assertSee('data-sidebar-attention-url="'.route('sidebar-attention.open', 'my_projects').'"', false)
+        ->assertDontSee('<form method="POST" action="'.route('sidebar-attention.open', 'my_projects').'"', false)
         ->assertDontSee(route('sidebar-attention.open', 'proposal_workspace'), false);
 
     $this->post(route('sidebar-attention.open', 'my_projects'))
@@ -203,4 +208,29 @@ test('a user cannot open a sidebar destination outside their workspace access', 
         ->actingAs($faculty)
         ->post(route('sidebar-attention.open', 'my_projects'))
         ->assertNotFound();
+});
+
+test('sidebar attention navigation returns a Livewire destination without a browser redirect', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $faculty->notify(new ProposalActivityNotification(
+        title: 'Revision requested',
+        message: 'A proposal revision is needed.',
+        url: route('faculty.proposal-drafts.index'),
+        workspace: User::WORKSPACE_FACULTY,
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+    ));
+
+    $notification = $faculty->notifications()->sole();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($faculty)
+        ->postJson(route('sidebar-attention.open', 'proposal_workspace'))
+        ->assertOk()
+        ->assertJson([
+            'url' => route('faculty.proposal-drafts.index'),
+            'clear_attention' => true,
+        ]);
+
+    expect($notification->fresh()->read_at)->not->toBeNull();
 });

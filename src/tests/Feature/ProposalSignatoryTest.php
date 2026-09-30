@@ -39,7 +39,7 @@ test('head manages signatories and faculty selections are private role checked a
         ->assertSee('<table', false)
         ->assertSee('All roles')
         ->assertSee('Signature role')
-        ->assertSee('Back to dashboard')
+        ->assertDontSee('Back to dashboard')
         ->assertSee('Edit')
         ->assertSee('Delete')
         ->assertSee('max-w-7xl', false)

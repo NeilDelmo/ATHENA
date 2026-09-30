@@ -1,15 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-                <div class="flex flex-wrap items-center gap-3">
-                    <h2 class="text-2xl font-black tracking-tight text-gray-900">{{ $paper['label'] }}</h2>
-                    <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($expenseBreakdownDocument?->completed_at ? 'bg-green-100 text-green-800' : ($expenseBreakdownDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')) }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($expenseBreakdownDocument?->completed_at ? 'Complete' : ($expenseBreakdownDocument ? 'In progress' : 'Not started')) }}</span>
-                </div>
-                <p class="mt-1 text-xs text-gray-500">Complete the official expense table through structured inputs. Totals and subtotals are calculated automatically.</p>
-            </div>
-            <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
-        </div>
+        <x-page-header :title="$paper['label']" subtitle="Complete the official expense table through structured inputs. Totals and subtotals are calculated automatically.">
+            <x-slot name="actions">
+                <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'bg-red-100 text-red-800' : ($expenseBreakdownDocument?->completed_at ? 'bg-green-100 text-green-800' : ($expenseBreakdownDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600')) }}">{{ ($budgetConsistency['available'] ?? false) && ! ($budgetConsistency['consistent'] ?? true) ? 'Needs attention' : ($expenseBreakdownDocument?->completed_at ? 'Complete' : ($expenseBreakdownDocument ? 'In progress' : 'Not started')) }}</span>
+                <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php

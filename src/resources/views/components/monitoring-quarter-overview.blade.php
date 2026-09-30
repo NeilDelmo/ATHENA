@@ -17,7 +17,10 @@
                     <th scope="col" class="min-w-[13rem] px-5 py-3 text-right sm:px-6">Actions</th>
                 </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody
+                x-data="{ openReportId: window.location.hash.startsWith('#monitoring-tool-') ? Number(window.location.hash.replace('#monitoring-tool-', '')) : null }"
+                class="divide-y divide-slate-100 dark:divide-slate-800"
+            >
                 @forelse ($quarterRows as $row)
                     @php
                         $report = $row['report'];
@@ -33,7 +36,7 @@
                     @endphp
                     <tr class="align-middle transition hover:bg-slate-50/70 dark:hover:bg-slate-950/30">
                         <th scope="row" class="px-5 py-4 sm:px-6">
-                            <span class="inline-flex h-9 min-w-9 items-center justify-center rounded-lg bg-slate-100 px-2 text-xs font-black text-slate-700 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">{{ $row['label'] }}</span>
+                            <span class="inline-flex h-11 min-w-11 items-center justify-center rounded-xl bg-red-700 px-3 text-sm font-black text-white shadow-sm ring-1 ring-inset ring-red-800 dark:bg-red-700 dark:ring-red-600">{{ $row['label'] }}</span>
                         </th>
                         <td class="px-5 py-4">
                             <p class="whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">{{ $row['period'] }}</p>
@@ -47,7 +50,17 @@
                         <td class="px-5 py-4 sm:px-6">
                             <div class="flex min-w-max flex-wrap items-center justify-end gap-2">
                                 @if ($report)
-                                    <a data-monitoring-action href="#monitoring-tool-{{ $report->id }}" class="inline-flex min-h-9 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300 dark:focus-visible:ring-offset-slate-900">View report</a>
+                                    <button
+                                        type="button"
+                                        x-on:click="openReportId = openReportId === {{ $report->id }} ? null : {{ $report->id }}; if (openReportId === {{ $report->id }}) { $nextTick(() => document.getElementById('monitoring-tool-{{ $report->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })) }"
+                                        data-monitoring-action
+                                        aria-controls="monitoring-tool-{{ $report->id }}"
+                                        x-bind:aria-expanded="openReportId === {{ $report->id }}"
+                                        class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30 dark:hover:text-red-300 dark:focus-visible:ring-offset-slate-900"
+                                    >
+                                        View report
+                                        <svg class="h-3.5 w-3.5 transition-transform" x-bind:class="openReportId === {{ $report->id }} && 'rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </button>
                                     @if ($canSubmit && $report->isPrepared() && $report->submitted_by === auth()->id())
                                         <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $report->reporting_date->toDateString(), 'revise_monitoring_report' => $report->supersedes_report_id]) }}" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Review and submit</a>
                                     @elseif ($canSubmit && $report->review_status === 'revision_requested' && ! $report->nextVersion)
@@ -63,6 +76,26 @@
                             </div>
                         </td>
                     </tr>
+                    @if ($report)
+                        <tr
+                            id="monitoring-tool-{{ $report->id }}"
+                            x-cloak
+                            x-show="openReportId === {{ $report->id }}"
+                            x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+                            x-transition:enter-start="-translate-y-2 opacity-0"
+                            x-transition:enter-end="translate-y-0 opacity-100"
+                            x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+                            x-transition:leave-start="translate-y-0 opacity-100"
+                            x-transition:leave-end="-translate-y-2 opacity-0"
+                            class="bg-slate-50/70 dark:bg-slate-950/30"
+                        >
+                            <td colspan="4" class="p-0">
+                                <div class="border-y border-slate-200 p-5 dark:border-slate-800 sm:px-6">
+                                    <x-monitoring-tool-report-details :topic="$topic" :report="$report" />
+                                </div>
+                            </td>
+                        </tr>
+                    @endif
                 @empty
                     <tr>
                         <td colspan="4" class="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">No reporting periods are scheduled. Check the approved project dates.</td>

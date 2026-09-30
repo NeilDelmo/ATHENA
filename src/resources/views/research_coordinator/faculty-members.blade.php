@@ -1,9 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Faculty Members</h2>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Faculty members assigned to {{ $coordinator->college ?: 'your college' }}.</p>
-        </div>
+        <x-page-header title="Faculty Members" :subtitle="'Faculty members assigned to '.($coordinator->college ?: 'your college').'.'" />
     </x-slot>
 
     <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">

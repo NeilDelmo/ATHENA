@@ -1,20 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-            <a href="{{ route('research_head.dashboard') }}" data-back-to-dashboard class="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-gray-500 transition hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:text-slate-400 dark:hover:text-red-300 dark:focus:ring-offset-slate-900">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
-                Back to dashboard
-            </a>
-
-            <h2 class="text-[26px] font-bold tracking-tight text-[#201A15] dark:text-white">Proposal signatory directory</h2>
-            <p class="mt-1 max-w-2xl text-sm leading-6 text-[#6B6258] dark:text-slate-400">Add the names and positions faculty can choose from when building signature blocks, so titles stay spelled the same way every time.</p>
-            </div>
-            <button type="button" x-data x-on:click="$dispatch('open-add-signatory-form')" class="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 sm:mt-10 sm:w-auto dark:focus-visible:ring-offset-slate-900">
+        <x-page-header title="Proposal signatory directory" subtitle="Add the names and positions faculty can choose from when building signature blocks, so titles stay spelled the same way every time.">
+            <x-slot name="actions">
+            <button type="button" x-data x-on:click="$dispatch('open-add-signatory-form')" class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 sm:w-auto dark:focus-visible:ring-offset-slate-900">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                 Add a signatory
             </button>
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>

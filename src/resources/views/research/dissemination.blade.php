@@ -1,13 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="space-y-3">
-            <x-back-link href="{{ route('topics.show', $topic) }}">Back to project</x-back-link>
-            <div>
-                <p class="text-sm font-bold uppercase tracking-wider text-red-700 dark:text-red-300">{{ $topic->project_status }} project</p>
-                <h2 class="mt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white">Journal Finder &amp; Publication</h2>
-                <p class="mt-2 text-base text-gray-600 dark:text-slate-300">{{ $topic->title }}</p>
-            </div>
-        </div>
+        <x-page-header title="Journal Finder &amp; Publication" :subtitle="$topic->title">
+            <x-slot name="actions">
+                <span class="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ $topic->project_status }} project</span>
+                <x-back-link href="{{ route('topics.show', $topic) }}">Back to project</x-back-link>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-6">

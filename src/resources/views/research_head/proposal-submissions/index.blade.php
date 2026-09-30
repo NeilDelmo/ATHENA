@@ -1,10 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900 dark:text-white">Proposal Submissions</h2>
-            <a href="{{ route('signatories.index') }}" class="mt-2 mr-4 inline-flex text-sm font-semibold text-red-700 dark:text-red-300">Manage signatory names</a>
-            <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Review current proposal packages and find earlier submitted versions.</p>
-        </div>
+        <x-page-header title="Proposal Submissions" subtitle="Review current proposal packages and find earlier submitted versions.">
+            <x-slot name="actions">
+                <a href="{{ route('signatories.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900">Manage signatory names</a>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="space-y-5" data-proposal-submissions>

@@ -259,6 +259,7 @@ test('the faculty project leader can drag multiple PDFs into a categorized proje
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('data-project-documents-floating-trigger', false)
+        ->assertSee('sm:top-[7.625rem]', false)
         ->assertSee('Reviews &amp; responses', false)
         ->assertSee('corrected-checklist.pdf')
         ->assertSee('comment-response.pdf')

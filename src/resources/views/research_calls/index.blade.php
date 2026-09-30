@@ -23,22 +23,24 @@
 
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <p class="text-[10px] font-black uppercase tracking-[0.22em] text-red-700 dark:text-red-300">Research Office</p>
-                <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-white">Research Calls</h2>
-                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage calls, submission windows, funding limits, and published schedules.</p>
-            </div>
-            <a href="{{ route('announcement-images.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 shadow-sm transition hover:border-red-200 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:text-red-300 dark:focus:ring-offset-slate-950">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84 9.1 20.2a1.5 1.5 0 0 1-2.86-.9l1.13-3.75M5.5 14.5h-1A2.5 2.5 0 0 1 2 12v-1a2.5 2.5 0 0 1 2.5-2.5h1l9-4v14l-9-4Zm9-6a3 3 0 0 1 0 6" /></svg>
-                Announcement studio
-            </a>
-        </div>
+        <x-page-header title="Research Calls" subtitle="Manage calls, submission windows, funding limits, and published schedules.">
+            <x-slot name="actions">
+                <button type="button" x-on:click="window.dispatchEvent(new CustomEvent('research-call-create'))" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                    Create new call
+                </button>
+                <a href="{{ route('announcement-images.index') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 shadow-sm transition hover:border-red-200 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-900 dark:hover:text-red-300 dark:focus:ring-offset-slate-950">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84 9.1 20.2a1.5 1.5 0 0 1-2.86-.9l1.13-3.75M5.5 14.5h-1A2.5 2.5 0 0 1 2 12v-1a2.5 2.5 0 0 1 2.5-2.5h1l9-4v14l-9-4Zm9-6a3 3 0 0 1 0 6" /></svg>
+                    Announcement studio
+                </a>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div
         x-data="{ activeTab: '{{ $initialTab }}', panel: @js($initialPanel), search: '' }"
         x-on:keydown.escape.window="panel = null"
+        x-on:research-call-create.window="panel = 'create'"
         class="mx-auto max-w-[1600px] space-y-5"
         data-research-call-palette="red-black-white"
     >
@@ -49,52 +51,35 @@
             </div>
         @endif
 
-        <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="research-call-workspace-title">
-            <div class="relative overflow-hidden border-b border-rose-100 bg-gradient-to-br from-white via-rose-50/80 to-white px-5 py-6 text-slate-950 dark:border-slate-800 dark:from-slate-900 dark:via-red-950/25 dark:to-slate-900 dark:text-white sm:px-7">
-                <div class="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-[radial-gradient(circle_at_center,rgba(185,28,28,0.28),transparent_68%)]" aria-hidden="true"></div>
-                <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                    <div class="max-w-2xl">
-                        <div class="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-[#7A0019] dark:text-red-300"><span class="h-px w-7 bg-red-600"></span>Management workspace</div>
-                        <h3 id="research-call-workspace-title" class="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Research call directory</h3>
-                        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 dark:text-slate-300">Publish a call once, then track its schedule, proposal volume, and status from one organized workspace.</p>
-                    </div>
-                    <button type="button" x-on:click="panel = 'create'" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-red-950/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
-                        Create new call
-                    </button>
-                </div>
-            </div>
-
-            <dl class="grid divide-y divide-slate-200 bg-slate-50/80 dark:divide-slate-800 dark:bg-slate-950/35 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+        <dl class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 @foreach ([
-                    ['Open now', $activeCalls->count(), 'Currently accepting proposals', 'text-emerald-700 dark:text-emerald-300'],
-                    ['Upcoming', $upcomingCalls->count(), 'Draft or scheduled calls', 'text-blue-700 dark:text-blue-300'],
-                    ['Previous', $previousCalls->count(), 'Closed and ended calls', 'text-slate-700 dark:text-slate-200'],
-                    ['Budget ceiling', 'PHP '.number_format($institutionalBudgetCeiling, 2), 'Fixed per proposal', 'text-red-700 dark:text-red-300'],
+                    ['Open now', $activeCalls->count(), 'Currently accepting proposals', 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'],
+                    ['Upcoming', $upcomingCalls->count(), 'Draft or scheduled calls', 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'],
+                    ['Previous', $previousCalls->count(), 'Closed and ended calls', 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'],
+                    ['Budget ceiling', 'PHP '.number_format($institutionalBudgetCeiling, 2), 'Fixed per proposal', 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'],
                 ] as [$label, $value, $description, $valueClass])
-                    <div class="px-5 py-4 sm:px-6">
-                        <dt class="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{{ $label }}</dt>
-                        <dd class="mt-1 text-xl font-black tracking-tight {{ $valueClass }}">{{ $value }}</dd>
-                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ $description }}</p>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                        <dt class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ $label }}</dt>
+                        <dd class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $valueClass }}">{{ $value }}</dd>
+                        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ $description }}</p>
                     </div>
                 @endforeach
-            </dl>
-        </section>
+        </dl>
 
         <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Research call records">
             <div class="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-                <div class="flex min-w-0 flex-1 gap-1 overflow-x-auto" role="tablist" aria-label="Research call status">
+                <div class="inline-flex min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950" role="tablist" aria-label="Research call status">
                     @foreach ($callTabs as $tabKey => $tab)
                         <button
                             type="button"
                             role="tab"
                             x-on:click="activeTab = '{{ $tabKey }}'"
                             x-bind:aria-selected="activeTab === '{{ $tabKey }}'"
-                            x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-[#7A0019] text-white shadow-sm dark:bg-red-600 dark:text-white' : 'text-slate-500 hover:bg-rose-50 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white'"
-                            class="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                            x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-gray-900 text-white shadow-sm dark:bg-white dark:text-gray-950' : 'text-slate-500 hover:bg-white/60 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
+                            class="inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-slate-950"
                         >
                             {{ $tab['label'] }}
-                            <span x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-white/15 dark:bg-slate-950/10' : 'bg-slate-100 dark:bg-slate-800'" class="rounded-full px-2 py-0.5 text-[10px]">{{ $tab['calls']->count() }}</span>
+                            <span x-bind:class="activeTab === '{{ $tabKey }}' ? 'bg-white/15 text-white dark:bg-gray-900/10 dark:text-gray-950' : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-400'" class="rounded-full px-2 py-0.5 text-[10px]">{{ $tab['calls']->count() }}</span>
                         </button>
                     @endforeach
                 </div>

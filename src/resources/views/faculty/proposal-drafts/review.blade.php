@@ -1,13 +1,11 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
+        <x-page-header title="Review and Turn In" subtitle="Review the five proposal papers and project team. Two assessment forms are included automatically in the seven-PDF package.">
+            <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Back to proposal package</x-back-link>
-                <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900">Review and Turn In</h2>
-                <p class="mt-1 text-xs text-gray-500">Review the five proposal papers and project team. Two assessment forms are included automatically in the seven-PDF package.</p>
-            </div>
-            <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $readyToSubmit ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $readyToSubmit ? 'Ready to turn in' : 'Incomplete package' }}</span>
-        </div>
+                <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $readyToSubmit ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $readyToSubmit ? 'Ready to turn in' : 'Incomplete package' }}</span>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">

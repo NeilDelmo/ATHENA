@@ -9,14 +9,12 @@
     @endphp
 
     <x-slot name="header">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div class="min-w-0">
+        <x-page-header :title="$archived ? 'Submitted draft record' : 'Recovery history'" :subtitle="$subjectTitle">
+            <x-slot name="actions">
                 <x-back-link fixed href="{{ $backRoute }}">Back to {{ $archived ? 'submitted proposal' : 'proposal package' }}</x-back-link>
-                <h2 class="mt-2 text-2xl font-black tracking-tight text-gray-900 dark:text-white">{{ $archived ? 'Submitted draft record' : 'Recovery history' }}</h2>
-                <p class="mt-1 break-words text-xs text-gray-500 dark:text-slate-400">{{ $subjectTitle }}</p>
-            </div>
-            <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $versions->total() }} {{ Str::plural('recovery point', $versions->total()) }}</span>
-        </div>
+                <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $versions->total() }} {{ Str::plural('recovery point', $versions->total()) }}</span>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">

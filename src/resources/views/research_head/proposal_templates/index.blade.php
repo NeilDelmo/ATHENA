@@ -1,9 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <h2 class="text-2xl font-black tracking-tight text-gray-900">Proposal Template Administration</h2>
-            <p class="mt-1 text-xs text-gray-500">Maintain official forms and assign each one to its correct workflow stage.</p>
-        </div>
+        <x-page-header title="Proposal Template Administration" subtitle="Maintain official forms and assign each one to its correct workflow stage." />
     </x-slot>
 
     <div class="space-y-6">

@@ -1,10 +1,12 @@
 <x-app-layout>
-    <x-slot name="header"><div><h2 class="text-2xl font-black tracking-tight text-gray-900">Project Monitoring</h2><p class="mt-1 text-xs text-gray-500">Track approved projects and review submitted progress updates.</p></div></x-slot>
+    <x-slot name="header">
+        <x-page-header title="Project Monitoring" subtitle="Track approved projects and review submitted progress updates." />
+    </x-slot>
 
     <div class="space-y-6">
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            @foreach ([['Ongoing', $summary['ongoing'], 'bg-blue-50 text-blue-700'], ['Delayed', $summary['delayed'], 'bg-red-50 text-red-700'], ['Completion pending', $summary['completion_pending'], 'bg-violet-50 text-violet-700'], ['Completed', $summary['completed'], 'bg-green-50 text-green-700'], ['Reports awaiting review', $summary['pending_reports'], 'bg-amber-50 text-amber-700']] as [$label, $count, $style])
-                <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"><p class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p></div>
+            @foreach ([['Ongoing', $summary['ongoing'], 'bg-blue-50 text-blue-700'], ['Delayed', $summary['delayed'], $summary['delayed'] > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200'], ['Completion pending', $summary['completion_pending'], 'bg-violet-50 text-violet-700'], ['Completed', $summary['completed'], 'bg-green-50 text-green-700'], ['Reports awaiting review', $summary['pending_reports'], 'bg-amber-50 text-amber-700']] as [$label, $count, $style])
+                <div class="rounded-2xl border border-gray-200 border-t-[3px] border-t-brand bg-white p-5 shadow-sm dark:border-slate-800 dark:border-t-brand-soft dark:bg-slate-900"><p class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p></div>
             @endforeach
         </div>
 
@@ -49,7 +51,7 @@
                                     @endif
                                 </td>
                                 <td class="px-5 py-4"><p class="text-xs font-bold text-gray-700">{{ $project->progress_reports_count + $project->narrative_reports_count }} total</p><p class="mt-1 text-[11px] {{ $pendingReportCount ? 'font-bold text-amber-700' : 'text-gray-400' }}">{{ $pendingReportCount }} awaiting review</p></td>
-                                <td class="px-5 py-4 text-right"><a href="{{ route('topics.show', $project) }}#project-monitoring" class="inline-flex rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white">Open monitoring</a></td>
+                                <td class="px-5 py-4 text-right"><a href="{{ route('topics.show', $project) }}#project-monitoring" class="inline-flex items-center gap-1 rounded-xl bg-gray-900 px-3 py-2 text-xs font-bold text-white">Monitor <span class="text-[10px] leading-none" aria-hidden="true">&gt;</span></a></td>
                             </tr>
                         @empty
                             <tr><td colspan="6" class="px-5 py-14 text-center"><p class="text-sm font-bold text-gray-700">No projects found</p><p class="mt-1 text-xs text-gray-400">Projects appear here after the final papers are completed and the Notice to Proceed is issued.</p></td></tr>

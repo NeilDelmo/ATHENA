@@ -1,6 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
-        <div
+        <x-page-header
+            title="Proposal Package Workspace"
+            subtitle="Create proposal packages and track every submitted proposal in one place."
             x-data="{
                 activeWorkspaceTab: window.location.hash === '#submitted-proposals'
                     ? 'submitted'
@@ -17,13 +19,8 @@
                     window.dispatchEvent(new CustomEvent('proposal-workspace-tab-selected', { detail: { tab } }));
                 },
             }"
-            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
         >
-            <div>
-                <h2 class="text-2xl font-black tracking-tight text-gray-900">Proposal Package Workspace</h2>
-                <p class="mt-1 text-xs text-gray-500">Create proposal packages and track every submitted proposal in one place.</p>
-            </div>
-            <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <x-slot name="actions">
                 <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         New Proposal
@@ -67,8 +64,8 @@
                         <span class="rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums" :class="activeWorkspaceTab === 'submitted' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'">{{ $submittedProposals->total() }}</span>
                     </button>
                 </div>
-            </div>
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div

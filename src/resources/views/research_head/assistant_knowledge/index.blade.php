@@ -1,13 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
-        <div>
-            <div class="flex flex-wrap items-center gap-2">
+        <x-page-header title="Athena Knowledge Base" subtitle="Feed approved institutional guidance to Athena as reviewable text. Built-in proposal paper field guidance is maintained by the application, while relevant institutional excerpts are retrieved automatically when faculty ask questions.">
+            <x-slot name="actions">
+                <div class="flex flex-wrap items-center gap-2">
                 <span class="rounded-full bg-purple-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-purple-700 dark:bg-purple-950/50 dark:text-purple-200">Grounded AI</span>
                 <span class="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700 dark:bg-green-950/50 dark:text-green-200">Research Head controlled</span>
-            </div>
-            <h2 class="mt-3 text-2xl font-black tracking-tight text-gray-900">Athena Knowledge Base</h2>
-            <p class="mt-1 text-xs text-gray-500">Feed approved institutional guidance to Athena as reviewable text. Built-in proposal paper field guidance is maintained by the application, while relevant institutional excerpts are retrieved automatically when faculty ask questions.</p>
-        </div>
+                </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="space-y-6">
