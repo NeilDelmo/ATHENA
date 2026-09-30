@@ -40,6 +40,8 @@ class User extends Authenticatable
 
     public const WORKSPACE_RESEARCH_HEAD = 'research_head';
 
+    public const WORKSPACE_RESEARCH_OFFICE = 'research_office';
+
     public const WORKSPACE_RESEARCH_SECRETARY = 'research_secretary';
 
     /** @use HasFactory<UserFactory> */
@@ -90,6 +92,11 @@ class User extends Authenticatable
                 'description' => 'Manage research calls, evaluate proposals, and oversee institutional research.',
                 'route' => 'research_head.dashboard',
             ],
+            self::WORKSPACE_RESEARCH_OFFICE => [
+                'label' => 'Research Office',
+                'description' => 'Record LREC committee comments for proposals from your college.',
+                'route' => 'research_coordinator.dashboard',
+            ],
             self::WORKSPACE_RESEARCH_SECRETARY => [
                 'label' => 'Research Secretary',
                 'description' => 'Complete budget utilization for assigned research projects.',
@@ -131,6 +138,10 @@ class User extends Authenticatable
                 self::WORKSPACE_RESEARCH_HEAD,
                 self::WORKSPACE_FACULTY,
             ];
+        }
+
+        if ($assignedRoles->contains('research_coordinator')) {
+            $available[] = self::WORKSPACE_RESEARCH_OFFICE;
         }
 
         if ($assignedRoles->contains(self::WORKSPACE_FACULTY_RESEARCHER)) {
@@ -175,6 +186,18 @@ class User extends Authenticatable
 
         if (is_string($selected) && $this->canUseWorkspace($selected)) {
             return $selected;
+        }
+
+        if ($this->hasRole('research_coordinator') && $this->hasAnyRole(['faculty', 'faculty_researcher'])) {
+            $legacyRole = session('active_role');
+
+            if ($legacyRole === 'research_coordinator') {
+                return self::WORKSPACE_RESEARCH_OFFICE;
+            }
+
+            if ($legacyRole === 'faculty') {
+                return self::WORKSPACE_FACULTY;
+            }
         }
 
         return $this->availableWorkspaceKeys()[0] ?? null;

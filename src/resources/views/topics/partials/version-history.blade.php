@@ -2,85 +2,95 @@
     $expanded = $expanded ?? false;
 @endphp
 
-<section class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+<section class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950" data-submitted-version-history>
     <details @if ($expanded) open @endif>
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4">
-            <div>
-                <h3 class="text-sm font-black text-gray-900">Submitted proposal versions</h3>
-                <p class="mt-0.5 text-xs text-gray-500">Only packages sent for review appear here. Working edits are excluded until submission.</p>
+        <summary class="flex min-h-16 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 sm:px-6">
+            <div class="min-w-0">
+                <h3 class="text-lg font-bold text-gray-950 dark:text-white">Submitted proposal versions</h3>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Packages sent for review. Working edits appear after submission.</p>
             </div>
-            <span class="whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-gray-600">
-                {{ $topic->versions->count() }} submitted {{ Str::plural('version', $topic->versions->count()) }}
+            <span class="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                {{ $topic->versions->count() }} {{ Str::plural('version', $topic->versions->count()) }}
             </span>
         </summary>
 
-        <div class="border-t border-gray-100">
+        <div class="divide-y divide-gray-100 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
             @forelse ($topic->versions->sortByDesc('version_number') as $version)
-                <article class="border-b border-gray-100 p-5 last:border-b-0">
-                    <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <span class="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-red-700">Version {{ $version->version_number }}</span>
-                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">{{ $version->submission_type === 'initial' ? 'Initial submission' : 'Revision submission' }}</span>
-                                @if ($loop->first)
-                                    <span class="rounded-full bg-green-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">Latest submitted</span>
-                                @endif
-                            </div>
-                            <h4 class="mt-3 text-sm font-black text-gray-900">{{ $version->title }}</h4>
-                            <p class="mt-1 text-xs text-gray-500">
-                                Submitted by {{ $version->submitter?->name ?? 'Former user' }} on {{ $version->created_at->format('M d, Y h:i A') }}
-                            </p>
-                            <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-gray-500">
-                                <span>Total cost: PHP {{ number_format((float) $version->estimated_budget, 2) }}</span>
-                                <span>Duration: {{ $version->estimated_duration_months }} months</span>
+                @php
+                    $versionFiles = $version->files->whereNotIn('document_type', [
+                        \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                        \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                    ]);
+                    $proposalPapers = $versionFiles->reject(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm());
+                    $assessmentForms = $versionFiles->filter(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm());
+                @endphp
+                <article data-submitted-version="{{ $version->version_number }}">
+                    <details class="group">
+                        <summary class="flex cursor-pointer list-none items-center gap-4 px-5 py-4 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 dark:hover:bg-gray-900 sm:px-6">
+                            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-sm font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300" aria-hidden="true">{{ $version->version_number }}</span>
+                            <span class="min-w-0 flex-1">
+                                <span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span class="truncate text-sm font-bold text-gray-950 dark:text-white">Version {{ $version->version_number }} · {{ $version->title }}</span>
+                                    @if ($loop->first)
+                                        <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">Latest</span>
+                                    @endif
+                                </span>
+                                <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                    {{ $version->submission_type === 'initial' ? 'Initial submission' : 'Revision submission' }} · {{ $version->created_at->format('M j, Y · g:i A') }} · {{ max(1, $versionFiles->count()) }} {{ Str::plural('file', max(1, $versionFiles->count())) }}
+                                </span>
+                            </span>
+                            <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-180 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                        </summary>
+
+                        <div class="border-t border-gray-100 bg-gray-50/50 px-5 py-4 dark:border-gray-800 dark:bg-gray-900/40 sm:px-6">
+                            <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 dark:text-gray-300">
+                                <span>Submitted by <strong class="font-semibold text-gray-900 dark:text-white">{{ $version->submitter?->name ?? 'Former user' }}</strong></span>
+                                <span>PHP {{ number_format((float) $version->estimated_budget, 2) }}</span>
+                                <span>{{ $version->estimated_duration_months }} months</span>
                             </div>
 
                             @if ($version->change_summary)
-                                <div class="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
-                                    <span class="font-black">Revision summary:</span> {{ $version->change_summary }}
-                                </div>
+                                <p class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"><span class="font-semibold">Revision summary:</span> {{ $version->change_summary }}</p>
                             @endif
 
-                            @php
-                                $proposalFiles = $version->files->whereNotIn('document_type', [
-                                    \App\Models\ProposalVersionFile::TYPE_COMMENT_RESPONSE,
-                                    \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD,
-                                ]);
-                            @endphp
-                            @if ($proposalFiles->isNotEmpty())
-                                <div class="mt-4 overflow-hidden rounded-xl border border-gray-200">
-                                    @foreach ($proposalFiles as $file)
-                                        <div class="flex flex-col gap-2 border-b border-gray-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
-                                            <div class="min-w-0">
-                                                <div class="flex flex-wrap items-center gap-2">
-                                                    <p class="text-xs font-black text-gray-800">{{ $file->label() }}</p>
-                                                    <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $file->is_carried_forward ? 'bg-gray-100 text-gray-500' : ($version->version_number > 1 ? 'bg-amber-50 text-amber-700' : 'bg-green-50 text-green-700') }}">
-                                                        {{ $file->is_carried_forward ? 'Unchanged' : ($version->version_number > 1 ? 'Changed' : 'Submitted') }}
-                                                    </span>
-                                                </div>
-                                                <p class="mt-1 truncate text-[11px] text-gray-500" title="{{ $file->original_filename }}">{{ $file->original_filename }} @if ($file->file_size) - {{ number_format($file->file_size / 1024, 1) }} KB @endif</p>
-                                                @if ($file->checksum)
-                                                    <p class="mt-1 font-mono text-[9px] text-gray-400" title="SHA-256: {{ $file->checksum }}">ID {{ substr($file->checksum, 0, 12) }}</p>
-                                                @endif
-                                            </div>
-                                            <a href="{{ route('topics.versions.files.download', [$topic, $version, $file]) }}" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-50">Download</a>
+                            @if ($versionFiles->isNotEmpty())
+                                @foreach (['Proposal papers' => $proposalPapers, 'Assessment forms' => $assessmentForms] as $groupLabel => $groupFiles)
+                                    @if ($groupFiles->isNotEmpty())
+                                        <div class="mt-4" data-version-file-group="{{ $groupLabel }}">
+                                            <h5 class="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{{ $groupLabel }}</h5>
+                                            <ul class="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+                                                @foreach ($groupFiles as $file)
+                                                    <li class="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                                                        <div class="min-w-0">
+                                                            <p class="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                                                <span>{{ $file->label() }}</span>
+                                                                <span class="text-xs font-medium {{ $file->is_carried_forward ? 'text-gray-500 dark:text-gray-400' : ($version->version_number > 1 ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300') }}">{{ $file->is_carried_forward ? 'Unchanged' : ($version->version_number > 1 ? 'Changed' : 'Submitted') }}</span>
+                                                            </p>
+                                                            <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400" title="{{ $file->original_filename }}">{{ $file->original_filename }} @if ($file->file_size) · {{ number_format($file->file_size / 1024, 1) }} KB @endif</p>
+                                                        </div>
+                                                        <a href="{{ route('topics.versions.files.download', [$topic, $version, $file]) }}" class="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" aria-label="Download {{ $file->label() }} from version {{ $version->version_number }}">Download</a>
+                                                    </li>
+                                                @endforeach
+                                            </ul>
                                         </div>
-                                    @endforeach
-                                </div>
+                                    @endif
+                                @endforeach
                             @else
-                                <div class="mt-4 flex flex-col gap-2 rounded-xl border border-gray-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div class="mt-4 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 dark:border-gray-800 dark:bg-gray-950 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                                     <div class="min-w-0">
-                                        <p class="text-xs font-black text-gray-800">Detailed Proposal</p>
-                                        <p class="mt-1 truncate text-[11px] text-gray-500">{{ $version->original_filename }} @if ($version->file_size) - {{ number_format($version->file_size / 1024, 1) }} KB @endif</p>
+                                        <p class="text-sm font-semibold text-gray-900 dark:text-white">Detailed Proposal</p>
+                                        <p class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{{ $version->original_filename }} @if ($version->file_size) · {{ number_format($version->file_size / 1024, 1) }} KB @endif</p>
                                     </div>
-                                    <a href="{{ route('topics.versions.download', [$topic, $version]) }}" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-50">Download</a>
+                                    <a href="{{ route('topics.versions.download', [$topic, $version]) }}" class="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Download</a>
                                 </div>
                             @endif
-                    </div>
+                        </div>
+                    </details>
                 </article>
             @empty
-                <div class="p-6 text-center">
-                    <p class="text-sm font-bold text-gray-700">No version records available</p>
-                    <p class="mt-1 text-xs text-gray-500">Legacy proposals will begin version tracking on their next upload.</p>
+                <div class="px-6 py-8 text-center">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white">No submitted versions yet</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Version history begins with the first submission.</p>
                 </div>
             @endforelse
         </div>

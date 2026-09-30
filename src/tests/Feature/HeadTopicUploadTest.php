@@ -163,6 +163,98 @@ test('queued LREC review uses the floating project folder without the old file r
         ->assertDontSee('View PDF');
 });
 
+test('submitted proposal summary distinguishes reviewable papers from automatic assessment forms', function () {
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('5 proposal papers and 2 automatically generated assessment forms')
+        ->assertSee('Proposal papers for review')
+        ->assertSee('The generated GAD and screening forms are in the project folder');
+});
+
+test('LREC review does not treat an earlier stage revision as a current returned paper', function () {
+    $originalDetailedProposal = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $revisedVersion = $this->topic->versions()->create([
+        'submitted_by' => $this->faculty->id,
+        'version_number' => 2,
+        'submission_type' => 'revision',
+        'file_path' => 'packages/revised-proposal.pdf',
+        'original_filename' => 'revised-proposal.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+        'title' => $this->topic->title,
+    ]);
+    $revisedDetailedProposal = $revisedVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $originalDetailedProposal->file_path,
+        'original_filename' => $originalDetailedProposal->original_filename,
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+    ]);
+    $revisedWorkPlan = $revisedVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'position' => 1,
+        'file_path' => 'packages/work_plan.pdf',
+        'original_filename' => 'work_plan.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => 1024,
+    ]);
+    $initialReview = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+        'review_stage' => 'initial',
+    ]);
+    $initialReview->fileRevisions()->create([
+        'proposal_version_file_id' => $originalDetailedProposal->id,
+        'resolved_by_version_file_id' => $revisedDetailedProposal->id,
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'original_filename' => $originalDetailedProposal->original_filename,
+        'resolution_type' => 'no_file_change',
+        'faculty_response' => 'The earlier methodology note was addressed.',
+        'resolved_at' => now(),
+    ]);
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+
+    $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Proposal papers for review')
+        ->assertSee('Version 2')
+        ->assertDontSee('Papers returned for review')
+        ->assertDontSee('Faculty responded without replacing this paper')
+        ->assertDontSee('Show other submitted papers');
+
+    $lrecReview = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'decision' => 'revision_requested',
+        'review_stage' => 'lrec',
+    ]);
+    $lrecReview->fileRevisions()->create([
+        'proposal_version_file_id' => $revisedWorkPlan->id,
+        'resolved_by_version_file_id' => $revisedWorkPlan->id,
+        'document_type' => ProposalVersionFile::TYPE_WORK_PLAN,
+        'original_filename' => $revisedWorkPlan->original_filename,
+        'resolution_type' => 'no_file_change',
+        'faculty_response' => 'The LREC schedule question was answered.',
+        'resolved_at' => now(),
+    ]);
+
+    $response = $this->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Papers returned for review (1)')
+        ->assertSee('The LREC schedule question was answered.')
+        ->assertSee('The earlier methodology note was addressed.');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $fileList = (new DOMXPath($document))->query('//*[@data-revision-file-list]')->item(0);
+
+    expect($fileList)->not->toBeNull()
+        ->and($fileList->textContent)->toContain('The LREC schedule question was answered.')
+        ->not->toContain('The earlier methodology note was addressed.');
+});
+
 test('the review page reveals controls only for the active stage', function (string $status, string $reviewStage, bool $passingGad, ?string $coEvaluatorAction, int $currentStep, ?string $activeControls, bool $canSendToLrec) {
     $this->topic->update(['status' => $status, 'review_stage' => $reviewStage]);
 
@@ -315,7 +407,7 @@ test('other submitted paper groups use buttons without native triangle disclosur
 
     expect($xpath->query('//*[@id="proposal-review-tab"]//summary')->length)->toBe(0)
         ->and($xpath->query($otherPapers.'/button[@type="button"][@aria-controls="other-submitted-papers-'.$this->version->id.'"]')->length)->toBe(1)
-        ->and($xpath->query($otherPapers.'/*[@x-show="otherPapersOpen"]/ul/li')->length)->toBe(6)
+        ->and($xpath->query($otherPapers.'/*[@x-show="otherPapersOpen"]/ul/li')->length)->toBe(4)
         ->and($xpath->query($otherPapers.'/*[@x-show="otherPapersOpen"]')->item(0)->hasAttribute('x-cloak'))->toBe(! $hasSavedComment);
 })->with([false, true]);
 
@@ -862,16 +954,45 @@ test('a cleared proposal moves to final signing without a manual approval step',
         'review_stage' => 'lrec',
     ]);
 
-    $this->actingAs($this->head)
+    $reviewPage = $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Record the LREC outcome')
         ->assertSee('Clear for signing')
         ->assertSee('Request revisions')
         ->assertSee('@submit.prevent="submitDecision"', false)
-        ->assertSee('Required signed papers')
-        ->assertSee('All five listed papers require signed PDFs before final release.')
+        ->assertSee('Required signed proposal papers')
+        ->assertSee('Required signed assessment forms')
+        ->assertSee('All five listed documents require signed PDFs before final release.')
         ->assertDontSee('Approve proposal');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($reviewPage->getContent());
+    $xpath = new DOMXPath($document);
+    $proposalPapers = $xpath->query('//*[text()="Required signed proposal papers"]/following-sibling::ul')->item(0);
+    $assessmentForms = $xpath->query('//*[text()="Required signed assessment forms"]/following-sibling::ul')->item(0);
+    $signatureFiles = $this->version->files()->get()->keyBy('document_type');
+
+    expect($proposalPapers)->not->toBeNull()
+        ->and($proposalPapers->textContent)->toContain(
+            $signatureFiles[ProposalVersionFile::TYPE_DETAILED_PROPOSAL]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_WORK_PLAN]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_LINE_ITEM_BUDGET]->label(),
+        )
+        ->not->toContain(
+            $signatureFiles[ProposalVersionFile::TYPE_GAD_CHECKLIST]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM]->label(),
+        )
+        ->and($assessmentForms)->not->toBeNull()
+        ->and($assessmentForms->textContent)->toContain(
+            $signatureFiles[ProposalVersionFile::TYPE_GAD_CHECKLIST]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM]->label(),
+        )
+        ->not->toContain(
+            $signatureFiles[ProposalVersionFile::TYPE_DETAILED_PROPOSAL]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_WORK_PLAN]->label(),
+            $signatureFiles[ProposalVersionFile::TYPE_LINE_ITEM_BUDGET]->label(),
+        );
 
     $this->actingAs($this->head)
         ->from(route('topics.show', $this->topic))
@@ -890,19 +1011,23 @@ test('a cleared proposal moves to final signing without a manual approval step',
             'lrec_clearance_confirmed' => '1',
             'evaluation_document' => UploadedFile::fake()->create('completed-evaluation.pdf', 100, 'application/pdf'),
         ])
-        ->assertRedirect(route('topics.show', $this->topic).'#proposal-review')
+        ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
+        ->assertSessionHas('topic_tab', 'notice')
         ->assertSessionHas('success', 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 
-    $this->actingAs($this->head)
+    $signingPage = $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('0/5 uploaded')
         ->assertSee('Signed final PDF')
         ->assertSee('Signing &amp; release', false)
+        ->assertSee('Need to change a submitted proposal paper?')
+        ->assertSee('If only a signature or scanned signed PDF is wrong, replace that signed file above.')
+        ->assertDontSee('Papers that must be corrected')
         ->assertDontSee('One clear review process')
         ->assertDontSee('Research Head workspace')
         ->assertDontSee('Review faculty files')
@@ -911,6 +1036,59 @@ test('a cleared proposal moves to final signing without a manual approval step',
         ->assertDontSee('<details class="group overflow-hidden rounded-2xl border-2 border-amber-300 shadow-lg" open>', false)
         ->assertDontSee('Upload reviewed copy')
         ->assertDontSee('Record note (optional)');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($signingPage->getContent());
+    $xpath = new DOMXPath($document);
+    $correction = $xpath->query('//*[@id="notice-to-proceed-tab"]//*[@data-signing-correction-disclosure]')->item(0);
+
+    expect($correction)->not->toBeNull()
+        ->and($xpath->query('./details', $correction)->item(0)->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('//*[@id="proposal-review-tab"]//*[@data-signing-correction-disclosure]')->length)->toBe(0);
+});
+
+test('review decision buttons require their matching clearance checkbox', function () {
+    $this->topic->update([
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
+    ]);
+
+    $response = $this->actingAs($this->head)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk();
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $button = $xpath->query('//*[@id="research-head-decision-form"]//button[@type="submit"]')->item(0);
+
+    expect($button)->not->toBeNull();
+    $disabledWhen = $button->getAttribute(':disabled');
+    expect($disabledWhen)->toContain(
+        "decision === 'gad_review' && !researchHeadClearanceConfirmed",
+        "decision === 'lrec_queued' && !initialClearanceConfirmed",
+        "decision === 'ready_for_signature' && !lrecClearanceConfirmed",
+        "decision === 'rejected' && !rejectionConfirmed",
+    );
+
+    foreach ([
+        'research_head_clearance_confirmed' => 'researchHeadClearanceConfirmed',
+        'initial_clearance_confirmed' => 'initialClearanceConfirmed',
+        'lrec_clearance_confirmed' => 'lrecClearanceConfirmed',
+        'rejection_confirmed' => 'rejectionConfirmed',
+    ] as $name => $model) {
+        $checkbox = $xpath->query('//*[@id="research-head-decision-form"]//input[@name="'.$name.'"]')->item(0);
+        expect($checkbox)->not->toBeNull()
+            ->and($checkbox->getAttribute('x-model'))->toBe($model);
+    }
+
+    $this->from(route('topics.show', $this->topic))
+        ->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
+        ])
+        ->assertSessionHasErrors(['lrec_clearance_confirmed']);
+
+    expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_REVIEW);
 });
 
 test('final signing always requires the fixed five-paper signing package', function () {

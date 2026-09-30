@@ -71,7 +71,7 @@ class ProposalDraftSubmissionController extends Controller
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)
             ->with('proposal_tab', 'attachments')
-            ->with('success', 'Seven PDF attachments prepared. Review or replace them before turning in.');
+            ->with('success', 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.');
     }
 
     public function download(
@@ -112,7 +112,7 @@ class ProposalDraftSubmissionController extends Controller
         Gate::authorize('update', $proposalDraft);
 
         $paper = $catalog->find($paper);
-        abort_unless(is_array($paper) && $paper['mode'] !== 'upload', 404);
+        abort_unless(is_array($paper) && $paper['mode'] === 'generated', 404);
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:pdf', 'mimetypes:application/pdf', 'max:25600'],
             'document_version' => ['required', 'integer', 'min:1'],

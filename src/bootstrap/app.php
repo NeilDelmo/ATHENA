@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 || $request->routeIs(
                     'research-support.literature-*',
                     'research-support.conference-search',
+                    'research-support.journal-search',
                     'faculty.proposal-drafts.literature-sources.*',
                     'faculty.proposal-drafts.literature-drafts.*',
                 )

@@ -384,6 +384,11 @@ class TopicProposal extends Model
         return $this->hasMany(ProjectConference::class, 'topic_id');
     }
 
+    public function journalSubmissions(): HasMany
+    {
+        return $this->hasMany(ProjectJournalSubmission::class, 'topic_id');
+    }
+
     public function publications(): BelongsToMany
     {
         return $this->belongsToMany(ResearchPublication::class, 'research_publication_topic', 'topic_id', 'research_publication_id')->withTimestamps();

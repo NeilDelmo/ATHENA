@@ -71,7 +71,7 @@ test('completed projects retain dissemination access and preserve archived monit
     $this->get(route('research.dissemination.show', $this->topic))
         ->assertOk()
         ->assertSee('Journal Finder')
-        ->assertSee('It does not create a publication record')
+        ->assertSee('Journal submission tracker')
         ->assertDontSee('Add a missing publication manually')
         ->assertDontSee('Add to project shortlist')
         ->assertSee('Research reporting is complete');
@@ -127,6 +127,7 @@ test('journal finder ranks venues from related articles without creating publica
 
     Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://api.openalex.org/works')
         && str_contains((string) $request['filter'], 'type:article')
+        && isset($request['search'])
         && str_contains((string) $request['search'], 'community coastal monitoring'));
 });
 

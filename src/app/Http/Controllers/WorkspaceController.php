@@ -30,6 +30,11 @@ class WorkspaceController extends Controller
     {
         $workspace = $request->validated('workspace');
         $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, $workspace);
+        if ($request->user()->hasRole('research_coordinator')
+            && $request->user()->hasAnyRole(['faculty', 'faculty_researcher'])
+            && in_array($workspace, [User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER], true)) {
+            $request->session()->put('active_role', $workspace === User::WORKSPACE_RESEARCH_OFFICE ? 'research_coordinator' : 'faculty');
+        }
         $request->session()->forget('url.intended');
 
         return redirect()

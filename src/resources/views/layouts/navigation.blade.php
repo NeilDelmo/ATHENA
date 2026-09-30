@@ -276,7 +276,7 @@
         @endif
 
         @role('research_coordinator')
-            @if (session('active_role') !== 'faculty')
+            @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE))
                 <a
                     wire:navigate
                     href="{{ route('research_coordinator.dashboard') }}"
@@ -313,7 +313,7 @@
             @endif
         @endrole
 
-        @if (session('active_role') !== 'research_coordinator' && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
+        @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
             @php
                 $usingResearchWorkspace = Auth::user()->isUsingWorkspace('faculty_researcher');
             @endphp
@@ -356,7 +356,7 @@
             </form>
             @endif
 
-            @if (Auth::user()->canUseWorkspace(\App\Models\User::WORKSPACE_FACULTY_RESEARCHER))
+            @if ($usingResearchWorkspace)
                 <form method="POST" action="{{ route('sidebar-attention.open', 'my_projects') }}">
                     @csrf
                     <button

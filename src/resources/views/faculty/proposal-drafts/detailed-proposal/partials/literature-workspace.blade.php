@@ -28,7 +28,7 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <label class="block min-w-0 flex-1 text-xs font-black text-slate-700 dark:text-slate-200" for="proposal-literature-query">
                         Search literature
-                        <input id="proposal-literature-query" type="search" maxlength="180" x-model="literatureSearchQuery" x-on:input="literatureSearchError = ''" x-on:keydown.enter.prevent="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading" placeholder="Enter your own terms or refine the suggested query" class="mt-1.5 block h-11 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 disabled:cursor-wait disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:disabled:bg-slate-800">
+                        <input id="proposal-literature-query" type="search" maxlength="500" x-model="literatureSearchQuery" x-on:input="literatureSearchError = ''" x-on:keydown.enter.prevent="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading" placeholder="Topic, research question, or specific paper title" class="mt-1.5 block h-11 w-full rounded-xl border-slate-300 bg-white text-sm text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 disabled:cursor-wait disabled:bg-slate-100 disabled:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500 dark:disabled:bg-slate-800">
                     </label>
                     <button type="button" x-on:click="searchSuggestedLiterature()" x-bind:disabled="literatureSearchLoading || literatureSearchQuery.trim().length < 3" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-red-700 px-4 text-xs font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
                         <svg x-show="literatureSearchLoading" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -38,14 +38,35 @@
                         <span x-text="literatureSearchLoading ? 'Searching indexes' : 'Search literature'"></span>
                     </button>
                 </div>
+                <p class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">Searches focused keywords and related concepts across academic indexes. Selected proposal details help find studies for your RRL.</p>
 
                 <details class="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 dark:border-slate-700 dark:bg-slate-900/60">
-                    <summary class="cursor-pointer text-xs font-black text-slate-700 marker:hidden focus:outline-none dark:text-slate-200">Search settings <span class="ml-1 font-semibold text-slate-500">Choose which proposal details inform the suggestion</span></summary>
+                    <summary class="cursor-pointer text-xs font-black text-slate-700 marker:hidden focus:outline-none dark:text-slate-200">Search settings <span class="ml-1 font-semibold text-slate-500">Proposal context, years, and access</span></summary>
                     <div class="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-3 dark:border-slate-700">
+                        <label class="flex items-start gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            <input type="checkbox" x-model="literatureSearchUseContext" class="mt-0.5 rounded border-slate-300 text-red-700 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950">
+                            Use selected proposal details for a search by meaning. Turn off to search only your entered terms.
+                        </label>
                         <div class="flex flex-wrap gap-2">
                             <template x-for="context in literatureSearchContextOptions()" :key="context.key">
                                 <button type="button" x-show="context.available" x-on:click="toggleLiteratureSearchContext(context.key)" x-bind:aria-pressed="literatureSearchContext[context.key] ? 'true' : 'false'" x-bind:class="literatureSearchContext[context.key] ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-red-300 hover:bg-red-50 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-200 dark:hover:border-red-900 dark:hover:bg-red-950/30'" class="rounded-lg border px-2.5 py-1.5 text-[10px] font-black transition focus:outline-none focus:ring-2 focus:ring-red-600" x-text="context.label"></button>
                             </template>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">From year
+                                <input type="number" min="1900" max="{{ now()->year }}" placeholder="Any year" x-model="literatureSearchFilters.year_from" class="mt-1 block h-10 w-full rounded-lg border-slate-300 bg-white text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            </label>
+                            <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">To year
+                                <input type="number" min="1900" max="{{ now()->year }}" placeholder="Any year" x-model="literatureSearchFilters.year_to" class="mt-1 block h-10 w-full rounded-lg border-slate-300 bg-white text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            </label>
+                            <label class="text-xs font-semibold text-slate-600 dark:text-slate-300">Minimum citations
+                                <input type="number" min="0" max="1000000" placeholder="Any count" x-model="literatureSearchFilters.min_citations" class="mt-1 block h-10 w-full rounded-lg border-slate-300 bg-white text-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                            </label>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200"><input type="checkbox" x-model="literatureSearchFilters.open_access" class="rounded border-slate-300 text-red-700 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950"> Open access only</label>
+                            <button type="button" x-on:click="literatureSearchFilters.year_from = '{{ now()->year - 4 }}'; literatureSearchFilters.year_to = '{{ now()->year }}'" class="rounded-lg px-2 py-1 text-xs font-semibold text-red-800 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200 dark:hover:bg-red-950/30">Last 5 years</button>
+                            <button type="button" x-on:click="literatureSearchFilters = { year_from: '', year_to: '', min_citations: '', open_access: false }" class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-slate-400 dark:hover:bg-slate-800">Clear filters</button>
                         </div>
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <p class="text-[11px] leading-5 text-slate-500 dark:text-slate-400">The query is editable. ATHENA only contacts indexes when you search.</p>
@@ -61,8 +82,8 @@
                             <span class="relative h-7 w-7 animate-spin rounded-full border-[3px] border-red-200 border-t-red-700 bg-white dark:border-red-950 dark:border-t-red-400 dark:bg-slate-950"></span>
                         </span>
                         <div>
-                            <p class="text-sm font-black text-slate-950 dark:text-white">Searching verified literature</p>
-                            <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">ATHENA is checking academic indexes and ranking possible matches.</p>
+                            <p class="text-sm font-black text-slate-950 dark:text-white">Searching academic literature</p>
+                            <p class="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">Comparing keywords and proposal context, then merging and ranking the results.</p>
                         </div>
                     </div>
 
@@ -90,13 +111,15 @@
                         <h4 id="literature-search-heading" class="text-sm font-black text-slate-950 dark:text-white"><span x-text="literatureSearchResults.length"></span> matching papers</h4>
                         <p class="text-[11px] text-slate-500 dark:text-slate-400">Review evidence before writing or citing.</p>
                     </div>
+                    <p x-show="literatureSearchKeywords.length" class="mt-2 text-[11px] leading-5 text-slate-500 dark:text-slate-400">Search terms: <span x-text="literatureSearchKeywords.join(' · ')"></span></p>
                     <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1" aria-live="polite">
                         <template x-for="result in literatureSearchResults" :key="literatureResultKey(result)">
-                            <article class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
+                            <article x-data="{ abstractOpen: false }" class="rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-slate-900">
                                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div class="min-w-0">
                                         <h5 class="text-sm font-black leading-5 text-slate-950 dark:text-white" x-text="result.title"></h5>
                                         <p class="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400"><span x-text="result.authors || 'Authors not listed'"></span><span x-show="result.year"> · <span x-text="result.year"></span></span></p>
+                                        <p class="mt-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400"><span x-text="result.venue || result.source"></span><span x-show="result.citation_count !== null && result.citation_count !== undefined"> · <span x-text="result.citation_count"></span> citations</span></p>
                                         <p x-show="result.match_reason" class="mt-2 text-[11px] leading-4 text-slate-600 dark:text-slate-300" x-text="result.match_reason"></p>
                                     </div>
                                     <div class="flex shrink-0 flex-wrap items-center gap-1.5 text-[9px] font-black">
@@ -105,6 +128,10 @@
                                         <span x-show="result._linked" class="rounded bg-slate-900 px-2 py-1 text-white dark:bg-white dark:text-slate-900">Saved</span>
                                         <span x-show="result._linkedSource && literatureSourceUsage(result._linkedSource).usedInProposal" class="rounded bg-red-100 px-2 py-1 text-red-800 dark:bg-red-950/50 dark:text-red-200" x-text="`Cited [${literatureSourceUsage(result._linkedSource).referenceNumber}]`"></span>
                                     </div>
+                                </div>
+                                <div x-show="result.description && result.description !== 'No description available from source.'" class="mt-3">
+                                    <p class="text-xs leading-5 text-slate-600 dark:text-slate-300" x-bind:class="abstractOpen ? '' : 'line-clamp-3'" x-text="result.description"></p>
+                                    <button type="button" x-show="result.description.length > 240" x-on:click="abstractOpen = !abstractOpen" x-bind:aria-expanded="abstractOpen" class="mt-1 rounded text-[11px] font-semibold text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-200" x-text="abstractOpen ? 'Collapse abstract' : 'Read full abstract'"></button>
                                 </div>
                                 <div class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                                     <button type="button" x-on:click="prepareSuggestedLiteratureReview(result)" x-bind:disabled="isSavingSuggestedLiterature(result) || !hasUsableSuggestedAbstract(result)" class="inline-flex min-h-9 items-center justify-center rounded-lg bg-red-700 px-3 text-[10px] font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40" x-text="isSavingSuggestedLiterature(result) ? 'Opening…' : 'Review evidence'"></button>

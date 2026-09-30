@@ -159,6 +159,47 @@ test('research head can annotate an exact turned-in PDF while draft comments sta
         ->assertNotFound();
 });
 
+test('generated assessment templates stay viewable but cannot be highlighted or selected for paper revision', function () {
+    $this->actingAs($this->head);
+
+    foreach ([ProposalVersionFile::TYPE_GAD_CHECKLIST, ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM] as $type) {
+        $path = 'proposal-packages/'.$type.'.pdf';
+        Storage::disk('local')->put($path, '%PDF-1.4 generated template');
+        $form = $this->version->files()->create([
+            'document_type' => $type,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $type.'.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 1024,
+            'checksum' => str_repeat('c', 64),
+        ]);
+
+        $this->get(route('topics.show', $this->topic))
+            ->assertOk()
+            ->assertDontSee('data-file-review-card="'.$form->id.'"', false);
+
+        $this->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $form]))
+            ->assertOk()
+            ->assertSee('"canAnnotate":false', false);
+
+        $this->postJson(route('topics.versions.files.annotations.store', [$this->topic, $this->version, $form]), [
+            'annotation_type' => ProposalFileAnnotation::TYPE_AREA,
+            'page_number' => 1,
+            'rectangles' => [['x' => .1, 'y' => .2, 'width' => .3, 'height' => .1]],
+            'comment' => 'Do not annotate generated forms.',
+        ])->assertForbidden();
+
+        $this->patch(route('research_head.topics.updateStatus', $this->topic), [
+            'status' => 'revision_requested',
+            'revision_file_ids' => [$form->id],
+        ])->assertSessionHasErrors('revision_file_ids.0');
+    }
+
+    expect($this->topic->fresh()->status)->toBe('pending')
+        ->and(ProposalFileAnnotation::count())->toBe(0);
+});
+
 test('the existing Comment Response generator previews saved drafts and reflects edits without creating records', function () {
     $pdfConverter = Mockery::mock(DocumentPdfConverter::class);
     $pdfConverter->shouldReceive('convertDocx')->andReturn('%PDF-1.7 preview');

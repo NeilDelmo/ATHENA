@@ -28,6 +28,11 @@ class ProposalVersionFile extends Model
 
     public const TYPE_HEAD_UPLOAD = 'head_upload';
 
+    public const GENERATED_ASSESSMENT_FORM_TYPES = [
+        self::TYPE_GAD_CHECKLIST,
+        self::TYPE_INITIAL_SCREENING_FORM,
+    ];
+
     public const HEAD_UPLOAD_PURPOSE_REVISION = 'revision';
 
     public const HEAD_UPLOAD_PURPOSE_SIGNED = 'signed';
@@ -178,6 +183,11 @@ class ProposalVersionFile extends Model
     public function isSuperseded(): bool
     {
         return $this->superseded_at !== null;
+    }
+
+    public function isGeneratedAssessmentForm(): bool
+    {
+        return in_array($this->document_type, self::GENERATED_ASSESSMENT_FORM_TYPES, true);
     }
 
     public function isPdf(): bool

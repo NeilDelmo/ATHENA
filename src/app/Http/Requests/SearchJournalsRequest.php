@@ -35,8 +35,9 @@ class SearchJournalsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'query' => ['required', 'string', 'min:3', 'max:500'],
-            'context' => ['nullable', 'string', 'max:3000'],
+            'query' => ['nullable', 'required_without:context', 'string', 'min:3', 'max:500'],
+            'context' => ['nullable', 'required_without:query', 'string', 'min:3', 'max:6000'],
+            'indexing' => ['nullable', Rule::in(['prefer_scopus', 'scopus_only', 'any'])],
             'open_access' => ['nullable', 'boolean'],
             'recent_years' => ['nullable', 'integer', Rule::in([0, 5, 10])],
         ];

@@ -85,7 +85,7 @@ test('research heads can view every initial proposal submission and revision', f
         sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
     ));
 
-    $this->actingAs($this->researchHead)
+    $response = $this->actingAs($this->researchHead)
         ->get(route('research_head.proposal-submissions.index'))
         ->assertOk()
         ->assertSee('Proposal Submissions')
@@ -96,10 +96,9 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertDontSee('value="rejected"', false)
         ->assertSee('data-proposal-status-label="New revision"', false)
         ->assertSee('data-proposal-history-status-label="New revision"', false)
-        ->assertSee('A red accent marks a newly received package you have not opened.')
+        ->assertSee('New packages are marked in red.')
         ->assertSee('data-proposal-state="new"', false)
-        ->assertSee('Revised package received')
-        ->assertSee('Version 2 · Faculty revision')
+        ->assertSee('Revised package · Version 2')
         ->assertSee('Open for review')
         ->assertSee('Submission history')
         ->assertSee('Initial submission')
@@ -123,6 +122,16 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertDontSee('Similarity Checks')
         ->assertDontSee('aria-label="Proposal Templates"', false)
         ->assertDontSee('aria-label="Athena Knowledge"', false);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//dl[@data-submission-summary]/div')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-proposal-queue-layout="rows"]//article')->length)->toBe(1)
+        ->and($xpath->query('//details[@data-submission-history and not(@open)]')->length)->toBe(1)
+        ->and($xpath->query('//table[@data-submission-history-layout="compact"]//th[@scope="col"]')->length)->toBe(5)
+        ->and($xpath->query('//table[@data-submission-history-layout="compact"]/tbody/tr')->length)->toBe(2)
+        ->and($xpath->query('//table[@data-submission-history-layout="compact"]//details[not(@open)]')->length)->toBe(2);
 
     $review = $topic->reviews()->create([
         'reviewer_id' => $this->researchHead->id,
@@ -164,6 +173,110 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('data-proposal-state="opened"', false)
         ->assertDontSee('data-proposal-status-label="New revision"', false);
 });
+
+test('one shared workflow reference explains queue labels while review keeps proposal progress', function (string $status, string $reviewStage, bool $gadPassed, string $label, string $routeStage) {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Queue Workflow Reference',
+        'status' => $status,
+        'review_stage' => $reviewStage,
+    ]);
+    $version = createProposalSubmission($topic, $this->faculty, [
+        'submission_type' => $status === 'resubmitted' ? 'revision' : 'initial',
+    ]);
+
+    if ($gadPassed) {
+        $gadChecklist = $version->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            'position' => 1,
+            'file_path' => 'packages/workflow-gad-checklist.pdf',
+            'original_filename' => 'workflow-gad-checklist.pdf',
+            'file_size' => 100,
+            'is_carried_forward' => false,
+        ]);
+        $version->files()->create([
+            'source_version_file_id' => $gadChecklist->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 90,
+            'file_path' => 'head-uploads/workflow-gad-assessment.pdf',
+            'original_filename' => 'workflow-gad-assessment.pdf',
+            'file_size' => 100,
+            'is_carried_forward' => false,
+            'source_data' => [
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                'gad_outcome' => 'passed',
+                'gad_signature_confirmed' => true,
+            ],
+        ]);
+    }
+
+    $response = $this->actingAs($this->researchHead)
+        ->get(route('research_head.proposal-submissions.index'))
+        ->assertOk()
+        ->assertSee('The named reviewer requested corrections.')
+        ->assertSee('The faculty must revise and resubmit to that same stage.');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $workflow = $xpath->query('//*[@data-workflow-reference]');
+    $toggle = $xpath->query('//button[@data-submission-workflow-toggle and @aria-controls="submission-workflow-guide" and @aria-expanded="false"]');
+
+    expect($toggle->length)->toBe(1)
+        ->and($workflow->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-route-step]', $workflow->item(0))->length)->toBe(5)
+        ->and($xpath->query('.//*[@aria-current="step"]', $workflow->item(0))->length)->toBe(0)
+        ->and($xpath->query('.//*[@data-workflow-label-key]/div', $workflow->item(0))->length)->toBe(6)
+        ->and($workflow->item(0)->parentNode->hasAttribute('x-cloak'))->toBeTrue()
+        ->and($xpath->query('//article//*[@data-proposal-route]')->length)->toBe(0)
+        ->and($xpath->query('//span[@data-proposal-status-label="'.$label.'"]')->length)->toBe(1)
+        ->and($xpath->query('//button[@data-proposal-status-label]')->length)->toBe(0)
+        ->and($topic->fresh()->research_head_viewed_version_id)->toBeNull();
+
+    $reviewDocument = new DOMDocument;
+    @$reviewDocument->loadHTML(view('components.proposal-workflow', ['topic' => $topic->fresh(), 'version' => $version->fresh(), 'id' => 'review-test-workflow'])->render());
+    $reviewXpath = new DOMXPath($reviewDocument);
+
+    expect($reviewXpath->query('//*[@data-current-route-stage="'.$routeStage.'"]')->length)->toBe(1)
+        ->and($reviewXpath->query('//*[@aria-current="step"]')->length)->toBe(1);
+
+    if ($status === 'revision_requested') {
+        expect($reviewXpath->query('//*[@aria-current="step" and @data-route-state="revision-requested"]')->length)->toBe(1);
+    }
+})->with([
+    'unopened initial package' => ['pending', 'initial', false, 'New submission', 'research-head-review'],
+    'unopened faculty revision' => ['resubmitted', 'initial', false, 'New revision', 'research-head-review'],
+    'review decision pending' => ['expert_review', 'initial', false, 'Needs review', 'research-head-review'],
+    'GAD assessment' => ['gad_review', 'gad', false, 'GAD assessment', 'gad-office-review'],
+    'co-evaluator review after GAD passes' => ['gad_review', 'gad', true, 'Co-evaluator review', 'co-evaluator-review'],
+    'awaiting presentation' => ['lrec_queued', 'lrec', true, 'Awaiting LREC presentation', 'lrec-review'],
+    'LREC committee review' => ['lrec_review', 'lrec', true, 'LREC review', 'lrec-review'],
+    'Research Head corrections' => ['revision_requested', 'initial', false, 'Research Head revision requested', 'research-head-review'],
+    'GAD corrections' => ['revision_requested', 'gad', false, 'GAD revision requested', 'gad-office-review'],
+    'co-evaluator corrections' => ['revision_requested', 'gad', true, 'Co-evaluator revision requested', 'co-evaluator-review'],
+    'LREC corrections' => ['revision_requested', 'lrec', true, 'LREC revision requested', 'lrec-review'],
+    'final signing' => ['ready_for_signature', 'lrec', true, 'Final signing', 'signing-and-release'],
+]);
+
+test('submission history stays expanded when filtering or navigating history pages', function (array $query) {
+    $response = $this->actingAs($this->researchHead)
+        ->get(route('research_head.proposal-submissions.index', $query))
+        ->assertOk();
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+
+    expect($xpath->query('//details[@data-submission-history and @open]')->length)->toBe(1);
+})->with([
+    'search' => [['search' => 'Mangrove']],
+    'package type' => [['type' => 'revision']],
+    'review stage' => [['status' => 'pending']],
+    'next history page' => [['page' => 2]],
+    'return to first history page' => [['page' => 1]],
+]);
 
 test('an unopened initial package becomes needs review after the Research Head opens it', function () {
     $topic = TopicProposal::create([
@@ -297,7 +410,7 @@ test('the queue separates GAD assessment from co-evaluator review', function () 
         ->get(route('research_head.proposal-submissions.index', ['status' => 'gad_assessment']))
         ->assertOk()
         ->assertSee('GAD assessment')
-        ->assertSee('Record the completed GAD assessment before continuing.')
+        ->assertSee('data-proposal-status-label="GAD assessment"', false)
         ->assertDontSee('Gender-sensitive')
         ->assertDontSee('/ 20')
         ->assertDontSee('GAD and central evaluation');
@@ -324,7 +437,7 @@ test('the queue separates GAD assessment from co-evaluator review', function () 
     $this->get(route('research_head.proposal-submissions.index', ['status' => 'co_evaluator_review']))
         ->assertOk()
         ->assertSee('Co-evaluator review')
-        ->assertSee('The GAD assessment is cleared. Record the co-evaluator review.')
+        ->assertSee('data-proposal-status-label="Co-evaluator review"', false)
         ->assertDontSee('Gender-sensitive')
         ->assertDontSee('/ 20')
         ->assertDontSee('GAD and central evaluation');

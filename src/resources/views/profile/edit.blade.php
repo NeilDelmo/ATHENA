@@ -14,7 +14,7 @@
             'faculty' => 'Submit proposals, review feedback, and browse research calls.',
             'faculty_researcher' => 'Access the research catalog and Research Support workspace.',
             'research_head' => 'Manage research calls, evaluate proposals, and issue final decisions.',
-            'research_coordinator' => 'Coordinate faculty research activity for the assigned college.',
+            'research_coordinator' => 'Record LREC committee comments for proposals from the assigned college.',
         ];
 
         $statusClass = fn (string $status) => match ($status) {

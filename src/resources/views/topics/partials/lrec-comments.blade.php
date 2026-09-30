@@ -1,4 +1,4 @@
-<section x-show="decision === 'revision_requested'" x-cloak class="space-y-3" x-data="{ comments: @js(old('committee_comments', [])) }">
+<section x-show="decision === 'revision_requested'" x-cloak class="space-y-3" x-data="{ comments: @js(old('committee_comments', $initialCommitteeComments ?? [])) }">
     <div class="flex flex-wrap items-center justify-between gap-2">
         <h4 class="text-sm font-semibold text-gray-950 dark:text-white">LREC comments</h4>
         <button type="button" @click="comments.push({ reviewer: comments.length ? comments[comments.length - 1].reviewer : '', location: '', comment: '' })" class="text-sm font-semibold text-red-700 dark:text-red-300">+ Add comment</button>

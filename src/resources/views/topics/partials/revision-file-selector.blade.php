@@ -1,12 +1,19 @@
 @php
-    $revisionFiles = $files->where('document_type', '!=', \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD);
+    $revisionFiles = $files->whereNotIn('document_type', [
+        \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        ...\App\Models\ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+    ]);
     $oldRevisionFileIds = old('revision_file_ids');
     $disableUnlessRevision = $disableUnlessRevision ?? false;
     $decisionFormId = $decisionFormId ?? null;
     $showReviewChecks = $showReviewChecks ?? false;
     $readOnlyReview = $readOnlyReview ?? false;
     $latestRevisionRequest = (($prioritizeRevisedFiles ?? false) || $readOnlyReview)
-        ? $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first()
+        ? $topic->reviews
+            ->where('decision', 'revision_requested')
+            ->where('review_stage', $topic->review_stage)
+            ->sortByDesc('id')
+            ->first()
         : null;
     $sentRevisionFiles = $readOnlyReview
         ? ($latestRevisionRequest?->fileRevisions ?? collect())->keyBy('proposal_version_file_id')

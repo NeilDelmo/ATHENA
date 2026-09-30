@@ -112,14 +112,7 @@
                 <div x-ref="notificationList" class="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
                     @forelse ($notificationItems as $item)
                         @php
-                            $categoryDot = match ($item['category']) {
-                                'invitations' => 'bg-red-600',
-                                'collaboration' => 'bg-gray-950 dark:bg-white',
-                                'reviews' => 'bg-amber-500',
-                                'research_calls' => 'bg-blue-500',
-                                'projects' => 'bg-emerald-500',
-                                default => 'bg-gray-400',
-                            };
+                            $readStateDot = $item['read_at'] ? 'bg-slate-300 dark:bg-slate-600' : 'bg-red-600 dark:bg-red-400';
                         @endphp
                         <form
                             method="POST"
@@ -135,18 +128,15 @@
                             @csrf
                             <button
                                 type="submit"
-                                class="group flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left transition last:border-0 sm:gap-4 sm:px-5 {{ $item['read_at'] ? 'bg-gray-100/90 hover:bg-gray-200/90 dark:border-slate-800 dark:bg-slate-950/70 dark:hover:bg-slate-800/80' : 'bg-white shadow-[inset_4px_0_0_0_#dc2626] hover:bg-red-50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-[inset_4px_0_0_0_#ef4444] dark:hover:bg-red-950/20' }}"
+                                class="group flex w-full items-start gap-3 border-b border-slate-100 px-4 py-4 text-left transition-colors last:border-0 dark:border-slate-800 sm:gap-4 sm:px-5 {{ $item['read_at'] ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/70' : 'bg-red-50/40 hover:bg-red-50 dark:bg-red-950/10 dark:hover:bg-red-950/20' }}"
                             >
-                                <span class="mt-1.5 h-3 w-3 shrink-0 rounded-full {{ $item['read_at'] ? 'bg-gray-300 dark:bg-slate-600' : $categoryDot }}"></span>
+                                <span class="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full {{ $readStateDot }}"></span>
                                 <span class="min-w-0 flex-1">
                                     <span class="flex flex-wrap items-center gap-2">
-                                        <span class="text-sm {{ $item['read_at'] ? 'font-bold text-gray-500 dark:text-slate-400' : 'font-black text-gray-950 dark:text-white' }}">{{ $item['data']['title'] ?? 'ATHENA notification' }}</span>
-                                        <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $item['read_at'] ? 'bg-gray-200 text-gray-500 dark:bg-slate-800 dark:text-slate-400' : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300' }}">{{ $item['category_label'] }}</span>
-                                        @if (! $item['read_at'])
-                                            <span class="rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">New</span>
-                                        @endif
+                                        <span class="text-sm {{ $item['read_at'] ? 'font-semibold text-slate-600 dark:text-slate-300' : 'font-bold text-slate-900 dark:text-white' }}">{{ $item['data']['title'] ?? 'ATHENA notification' }}</span>
+                                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ $item['category_label'] }}</span>
                                     </span>
-                                    <span class="mt-1.5 block text-sm leading-6 {{ $item['read_at'] ? 'text-gray-400 dark:text-slate-500' : 'text-gray-600 dark:text-slate-300' }}">{{ $item['data']['message'] ?? '' }}</span>
+                                    <span class="mt-1.5 block text-sm leading-6 {{ $item['read_at'] ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300' }}">{{ $item['data']['message'] ?? '' }}</span>
                                     <span class="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                                         <time datetime="{{ $item['created_at_iso'] }}">{{ $item['created_at'] }}</time>
                                         @if (($item['data']['action_url'] ?? null) && ! ($item['data']['action_completed'] ?? false))

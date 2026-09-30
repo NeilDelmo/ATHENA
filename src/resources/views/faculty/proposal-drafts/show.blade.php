@@ -22,10 +22,12 @@
     </x-slot>
 
     @php
-        $completedPaperCount = $checklist
+        $editableChecklist = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
+        $automaticChecklist = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
+        $completedPaperCount = $editableChecklist
             ->filter(fn (array $item): bool => $item['complete'] && ! $item['needs_attention'])
             ->count();
-        $paperCount = $checklist->count();
+        $paperCount = $editableChecklist->count();
         $initialProposalTab = in_array(session('proposal_tab'), ['details', 'attachments', 'collaborators'], true)
             ? session('proposal_tab')
             : null;
@@ -167,7 +169,7 @@
                         <div class="flex items-start justify-between gap-3">
                             <div>
                                 <h4 id="package-progress-heading" class="text-sm font-black text-gray-950 dark:text-white">Proposal package progress</h4>
-                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">{{ $completedPaperCount }} of {{ $paperCount }} required PDF attachments ready</p>
+                                <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">{{ $completedPaperCount }} of {{ $paperCount }} proposal papers ready</p>
                             </div>
                             <span class="shrink-0 rounded-full border px-2 py-1 text-[9px] font-black {{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }}">{{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'Ready' : 'In progress' }}</span>
                         </div>
@@ -201,11 +203,11 @@
             <div class="mb-4">
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Proposal package</p>
                 <h3 id="required-papers-heading" class="mt-1 text-lg font-black text-gray-950 dark:text-white">Required PDF attachments</h3>
-                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete each paper here. ATHENA prepares generated forms as PDFs when the owner turns in the package.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete the five proposal papers here. The GAD Checklist and Initial Screening Form are added automatically from Project Details.</p>
             </div>
 
             <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                @foreach ($checklist as $item)
+                @foreach ($editableChecklist as $item)
                     @php
                         $paper = $item['paper'];
                         $template = filled($paper['template_slug']) ? $templates->get($paper['template_slug']) : null;
@@ -265,8 +267,31 @@
                 @endforeach
             </div>
 
+            <section data-automatic-assessment-forms class="mt-5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-labelledby="automatic-assessment-forms-heading">
+                <div class="border-b border-gray-100 px-5 py-4 dark:border-slate-800 sm:px-6">
+                    <h4 id="automatic-assessment-forms-heading" class="text-sm font-black text-gray-950 dark:text-white">Assessment forms added automatically</h4>
+                    <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">No faculty answers or file uploads are needed. These two blank forms are generated from Project Details and included when the package is turned in.</p>
+                </div>
+                <div class="divide-y divide-gray-100 dark:divide-slate-800">
+                    @foreach ($automaticChecklist as $item)
+                        @php
+                            $previewRoute = $item['paper']['slug'] === 'gad-checklist'
+                                ? route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft)
+                                : route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft);
+                        @endphp
+                        <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6">
+                            <div class="min-w-0">
+                                <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $item['paper']['label'] }}</p>
+                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $item['complete'] ? 'Ready to include with the seven-PDF package' : 'Available once Project Details are complete' }}</p>
+                            </div>
+                            <a href="{{ $previewRoute }}" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Optional preview</a>
+                        </div>
+                    @endforeach
+                </div>
+            </section>
+
             <div class="mt-5 flex flex-col gap-3 rounded-xl border-l-4 border-red-600 bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div><p class="font-black text-white">Ready to prepare the proposal package?</p><p class="mt-1 text-xs text-gray-300">Generate and review all seven PDFs before sending the immutable package.</p></div>
+                <div><p class="font-black text-white">Ready to prepare the proposal package?</p><p class="mt-1 text-xs text-gray-300">Review the five proposal papers. ATHENA includes the two assessment forms automatically in the seven-PDF package.</p></div>
                 <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-bold text-gray-950 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
             </div>
         </section>
@@ -503,7 +528,7 @@
             <div class="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
                 <div>
                     <h2 class="text-lg font-black text-gray-900">Review and Turn In</h2>
-                    <p class="mt-1 text-xs text-gray-500">Review the proposal package from top to bottom before submitting.</p>
+                    <p class="mt-1 text-xs text-gray-500">Review your proposal papers before submitting. The assessment forms are included automatically.</p>
                 </div>
                 <button type="button" x-on:click="$dispatch('close-modal', 'proposal-review')" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-600" aria-label="Close review and turn in" title="Close review and turn in">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>

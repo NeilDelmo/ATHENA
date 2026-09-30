@@ -665,3 +665,50 @@ test('an earlier PDF can be restored as a new version without overwriting histor
         ])
         ->assertForbidden();
 });
+
+test('legacy automatic assessment forms remain viewable in history but cannot be restored', function (string $type, string $slug) {
+    $currentPath = $this->draft->storageDirectory().'/prepared/'.$slug.'/current.pdf';
+    $oldPath = $this->draft->storageDirectory().'/prepared/manual/'.$slug.'/old.pdf';
+    Storage::disk('local')->put($currentPath, '%PDF-1.7 current form');
+    Storage::disk('local')->put($oldPath, '%PDF-1.7 old form');
+
+    $document = $this->draft->documents()->create([
+        'document_type' => $type,
+        'position' => 0,
+        'lock_version' => 2,
+        'file_path' => $currentPath,
+        'original_filename' => 'current.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => strlen('%PDF-1.7 current form'),
+        'completed_at' => now(),
+    ]);
+    $oldVersion = $this->draft->documentVersions()->create([
+        'proposal_draft_document_id' => $document->id,
+        'created_by' => $this->owner->id,
+        'document_type' => $type,
+        'position' => 0,
+        'version_number' => 1,
+        'is_current' => false,
+        'action' => ProposalDraftDocumentVersion::ACTION_SAVED,
+        'file_path' => $oldPath,
+        'original_filename' => 'old.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => strlen('%PDF-1.7 old form'),
+    ]);
+
+    $this->actingAs($this->owner)
+        ->get(route('faculty.proposal-drafts.history.index', [$this->draft, 'paper' => $slug]))
+        ->assertOk()
+        ->assertSee('old.pdf')
+        ->assertDontSee('Restore this recovery point');
+    $this->get(route('faculty.proposal-drafts.history.download', [$this->draft, $oldVersion]))
+        ->assertDownload('old.pdf');
+    $this->post(route('faculty.proposal-drafts.history.restore', [$this->draft, $oldVersion]), [
+        'document_version' => 2,
+    ])->assertNotFound();
+
+    expect($document->fresh()->file_path)->toBe($currentPath);
+})->with([
+    'GAD checklist' => ['gad_checklist', 'gad-checklist'],
+    'Initial Screening Form' => ['initial_screening_form', 'initial-screening-form'],
+]);

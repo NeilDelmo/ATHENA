@@ -32,7 +32,7 @@ class ProposalFileAnnotationController extends Controller
         $this->ensureFileCanBeViewed($request, $topic, $version, $file);
 
         $isResearchHead = $request->user()->isUsingWorkspace('research_head');
-        $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version);
+        $canAnnotate = $isResearchHead && $this->canAnnotate($topic, $version, $file);
         if ($canAnnotate) {
             $file->markReviewedBy($request->user());
         }
@@ -54,7 +54,10 @@ class ProposalFileAnnotationController extends Controller
                 ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                 ->whereHas('file', fn ($query) => $query
                     ->where('proposal_version_id', $latestVersion->id)
-                    ->where('document_type', '!=', ProposalVersionFile::TYPE_HEAD_UPLOAD))
+                    ->whereNotIn('document_type', [
+                        ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                        ...ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+                    ]))
                 ->with('file')
                 ->oldest()
                 ->get()
@@ -127,7 +130,7 @@ class ProposalFileAnnotationController extends Controller
     ): JsonResponse {
         $this->ensureFileScope($topic, $version, $file);
         abort_unless($file->canPreviewAsPdf() && Storage::disk('local')->exists($file->file_path), 404);
-        abort_unless($this->canAnnotate($topic, $version), 403);
+        abort_unless($this->canAnnotate($topic, $version, $file), 403);
 
         $validated = $request->validated();
         $sections = $this->sectionMap->forFile($file);
@@ -182,7 +185,7 @@ class ProposalFileAnnotationController extends Controller
     ): void {
         $this->ensureFileScope($topic, $version, $file);
         abort_unless($request->user()->isUsingWorkspace('research_head'), 403);
-        abort_unless($this->canAnnotate($topic, $version), 403);
+        abort_unless($this->canAnnotate($topic, $version, $file), 403);
         abort_unless($annotation->proposal_version_file_id === $file->id, 404);
         abort_unless($annotation->reviewer_id === $request->user()->id, 403);
         abort_unless($annotation->feedback_source === ProposalFileAnnotation::SOURCE_HEAD, 403);
@@ -226,9 +229,10 @@ class ProposalFileAnnotationController extends Controller
         abort_if($file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD, 404);
     }
 
-    private function canAnnotate(TopicProposal $topic, ProposalVersion $version): bool
+    private function canAnnotate(TopicProposal $topic, ProposalVersion $version, ProposalVersionFile $file): bool
     {
-        return in_array($topic->status, self::ANNOTATABLE_STATUSES, true)
+        return ! $file->isGeneratedAssessmentForm()
+            && in_array($topic->status, self::ANNOTATABLE_STATUSES, true)
             && $topic->latestVersion()->whereKey($version->id)->exists();
     }
 
@@ -242,7 +246,9 @@ class ProposalFileAnnotationController extends Controller
             'selectedText' => $annotation->selected_text,
             'rectangles' => $annotation->rectangles,
             'comment' => $annotation->comment,
-            'canEdit' => $annotation->reviewer_id === auth()->id() && $annotation->topic_review_file_revision_id === null,
+            'canEdit' => ! $file->isGeneratedAssessmentForm()
+                && $annotation->reviewer_id === auth()->id()
+                && $annotation->topic_review_file_revision_id === null,
             'editorTarget' => $annotation->editor_target,
             'editorTargetLabel' => $this->revisionTargets->labelFor($file, $annotation->editor_target),
             'reviewer' => $annotation->reviewer?->name ?? 'Research Head',

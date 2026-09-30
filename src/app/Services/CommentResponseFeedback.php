@@ -143,7 +143,11 @@ class CommentResponseFeedback
             ->whereNull('topic_review_file_revision_id')
             ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
             ->whereHas('file', fn ($query) => $query->where('proposal_version_id', $version->id)
-                ->whereNotIn('document_type', [ProposalVersionFile::TYPE_HEAD_UPLOAD, ProposalVersionFile::TYPE_COMMENT_RESPONSE]))
+                ->whereNotIn('document_type', [
+                    ProposalVersionFile::TYPE_HEAD_UPLOAD,
+                    ProposalVersionFile::TYPE_COMMENT_RESPONSE,
+                    ...ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+                ]))
             ->with(['file', 'reviewer'])
             ->oldest('id')
             ->get()

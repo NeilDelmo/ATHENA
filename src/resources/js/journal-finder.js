@@ -9,6 +9,11 @@ export function journalFinder(config = {}) {
         context: config.context || '',
         openAccessOnly: false,
         recentYears: 10,
+        indexing: 'prefer_scopus',
+        warnings: [],
+        keywords: [],
+        copyMessage: '',
+        searchVersion: 0,
         results: [],
         relatedArticles: 0,
         methodology: '',
@@ -22,9 +27,9 @@ export function journalFinder(config = {}) {
             this.error = '';
             this.hasSearched = true;
 
-            if (query.length < 3) {
+            if (query.length < 3 && this.context.trim().length < 3) {
                 this.results = [];
-                this.error = 'Enter at least 3 characters describing the paper or research topic.';
+                this.error = 'Paste an abstract or enter a paper title or specific subject terms.';
                 return;
             }
 
@@ -32,6 +37,9 @@ export function journalFinder(config = {}) {
 
             this.isLoading = true;
             this.results = [];
+            this.warnings = [];
+            this.keywords = [];
+            const version = ++this.searchVersion;
 
             try {
                 const response = await fetch(this.endpoint, {
@@ -43,13 +51,17 @@ export function journalFinder(config = {}) {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     },
                     body: JSON.stringify({
-                        query,
+                        query: query || null,
                         context: this.context.trim() || null,
                         open_access: this.openAccessOnly,
                         recent_years: Number(this.recentYears),
+                        indexing: this.indexing,
                     }),
                 });
-                const payload = await response.json().catch(() => ({}));
+                const payload = await response.json().catch(() => {
+                    throw new Error('The search returned an unexpected response. Refresh this page and try again.');
+                });
+                if (version !== this.searchVersion) return;
 
                 if (!response.ok) {
                     if (response.status === 419) {
@@ -61,14 +73,17 @@ export function journalFinder(config = {}) {
                 }
 
                 this.results = Array.isArray(payload.results) ? payload.results : [];
+                this.warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+                this.keywords = Array.isArray(payload.keywords) ? payload.keywords : [];
                 this.relatedArticles = Number(payload.related_articles || 0);
                 this.methodology = payload.methodology || '';
                 this.checkedAt = payload.checked_at || '';
             } catch (error) {
+                if (version !== this.searchVersion) return;
                 this.results = [];
                 this.error = error.message || 'A network error interrupted the journal search.';
             } finally {
-                this.isLoading = false;
+                if (version === this.searchVersion) this.isLoading = false;
             }
         },
 
@@ -94,9 +109,10 @@ export function journalFinder(config = {}) {
                     .join('\n');
 
                 return [
-                    `${index + 1}. ${compactJournalText(journal.name, 180)} — ${journal.fit_score}% ${journal.fit_label}`,
+                    `${index + 1}. ${compactJournalText(journal.name, 180)} — ${journal.fit_score}/100 ${journal.fit_label}`,
                     `Publisher: ${compactJournalText(journal.publisher || 'not listed', 120)}; ISSN: ${journal.issn || 'not listed'}; open access: ${journal.is_open_access ? 'yes' : 'not confirmed'}`,
                     `Why recommended: ${compactJournalText((journal.reasons || []).join(' '), 500)}`,
+                    `Scopus: ${compactJournalText(journal.scopus?.label || 'unverified', 180)}; coverage: ${compactJournalText(journal.scopus?.coverage || 'check current source profile', 100)}`,
                     evidence ? `Related evidence:\n${evidence}` : '',
                 ].filter(Boolean).join('\n');
             }).join('\n\n');
@@ -114,16 +130,32 @@ export function journalFinder(config = {}) {
         },
 
         clear() {
+            this.searchVersion++;
+            this.isLoading = false;
+            this.warnings = [];
+            this.keywords = [];
+            this.copyMessage = '';
             this.query = '';
             this.context = '';
             this.openAccessOnly = false;
             this.recentYears = 10;
+            this.indexing = 'prefer_scopus';
             this.results = [];
             this.relatedArticles = 0;
             this.methodology = '';
             this.checkedAt = '';
             this.hasSearched = false;
             this.error = '';
+        },
+
+        async copyManuscript() {
+            this.copyMessage = '';
+            try {
+                await navigator.clipboard.writeText([this.query.trim(), this.context.trim()].filter(Boolean).join('\n\n'));
+                this.copyMessage = 'Title and abstract copied. Paste them into the official matcher.';
+            } catch {
+                this.copyMessage = 'Copy the title and abstract from the fields above, then paste them into the matcher.';
+            }
         },
     };
 }

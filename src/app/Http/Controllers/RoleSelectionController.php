@@ -25,6 +25,7 @@ class RoleSelectionController extends Controller
         $activeRole = $request->validated('role');
 
         $request->session()->put('active_role', $activeRole);
+        $request->session()->put('active_workspace', $activeRole === 'research_coordinator' ? 'research_office' : 'faculty');
 
         return redirect()->route($activeRole === 'faculty' ? 'faculty.dashboard' : 'research_coordinator.dashboard');
     }

@@ -84,7 +84,7 @@ test('Research Head review notifications stay unread on sidebar navigation but c
         ->and($generalNotification->fresh()->read_at)->not->toBeNull();
 });
 
-test('a Faculty user can open My Projects and is switched into the researcher workspace', function () {
+test('faculty navigation preserves the selected workspace even when researcher access is available', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole(['faculty', 'faculty_researcher']);
     $faculty->notify(new ProposalActivityNotification(
@@ -109,24 +109,70 @@ test('a Faculty user can open My Projects and is switched into the researcher wo
         ->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('My Projects')
-        ->assertSee(route('sidebar-attention.open', 'my_projects'), false);
+        ->assertSee('Faculty Dashboard')
+        ->assertSee(route('sidebar-attention.open', 'proposal_workspace'), false)
+        ->assertDontSee(route('sidebar-attention.open', 'my_projects'), false)
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
         ->actingAs($faculty)
         ->post(route('sidebar-attention.open', 'my_projects'))
-        ->assertRedirect(route('research.index'))
+        ->assertNotFound()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
+
+    expect($projectNotification->fresh()->read_at)->toBeNull()
+        ->and($proposalNotification->fresh()->read_at)->toBeNull();
+
+    $this->post(route('sidebar-attention.open', 'proposal_workspace'))
+        ->assertRedirect(route('faculty.proposal-drafts.index'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
+
+    $this->get(route('faculty.proposal-drafts.index'))
+        ->assertOk()
+        ->assertSee('Faculty Dashboard')
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
+
+    $this->get(route('research.index'))
+        ->assertForbidden()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY);
+
+    expect($projectNotification->fresh()->read_at)->toBeNull()
+        ->and($proposalNotification->fresh()->read_at)->not->toBeNull();
+});
+
+test('My Projects opens after explicitly selecting the faculty researcher workspace', function () {
+    $faculty = User::factory()->create();
+    $faculty->assignRole(['faculty', 'faculty_researcher']);
+    $faculty->notify(new ProposalActivityNotification(
+        title: 'Signed Notice to Proceed issued',
+        message: 'Project monitoring is now open.',
+        url: route('faculty.dashboard'),
+        workspace: [User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER],
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
+    ));
+    $projectNotification = $faculty->notifications()->sole();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($faculty)
+        ->post(route('workspace.store'), ['workspace' => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->assertRedirect(route('faculty.dashboard'))
         ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
 
-    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
-        ->actingAs($faculty)
-        ->get(route('research.index'))
+    $this->get(route('faculty.dashboard'))
         ->assertOk()
+        ->assertSee('Faculty Researcher Dashboard')
         ->assertSee(route('sidebar-attention.open', 'my_projects'), false)
         ->assertDontSee(route('sidebar-attention.open', 'proposal_workspace'), false);
 
-    expect($projectNotification->fresh()->read_at)->not->toBeNull()
-        ->and($proposalNotification->fresh()->read_at)->toBeNull();
+    $this->post(route('sidebar-attention.open', 'my_projects'))
+        ->assertRedirect(route('research.index'))
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
+
+    $this->get(route('research.index'))
+        ->assertOk()
+        ->assertSessionHas(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
+
+    expect($projectNotification->fresh()->read_at)->not->toBeNull();
 });
 
 test('legacy Research Head review notifications also stay unread when their sidebar area is opened', function () {

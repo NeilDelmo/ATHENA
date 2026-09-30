@@ -11,10 +11,11 @@ class JournalSearchController extends Controller
     public function __invoke(SearchJournalsRequest $request, JournalRecommendationService $recommendations): JsonResponse
     {
         return response()->json($recommendations->recommend(
-            query: $request->validated('query'),
+            query: $request->validated('query') ?? '',
             context: $request->validated('context'),
             openAccessOnly: $request->boolean('open_access'),
             recentYears: (int) ($request->validated('recent_years') ?? 10),
+            indexing: $request->validated('indexing') ?? 'prefer_scopus',
         ));
     }
 }
