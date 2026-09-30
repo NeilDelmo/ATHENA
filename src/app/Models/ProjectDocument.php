@@ -11,6 +11,8 @@ class ProjectDocument extends Model
 {
     public const CATEGORY_PROPOSAL_PAPERS = 'proposal_papers';
 
+    public const CATEGORY_ASSESSMENT_FORMS = 'assessment_forms';
+
     public const CATEGORY_SIGNED_PAPERS = 'signed_papers';
 
     public const CATEGORY_REVIEWS_RESPONSES = 'reviews_responses';
@@ -51,6 +53,7 @@ class ProjectDocument extends Model
     {
         return [
             self::CATEGORY_PROPOSAL_PAPERS => 'Proposal papers',
+            self::CATEGORY_ASSESSMENT_FORMS => 'Assessment forms',
             self::CATEGORY_SIGNED_PAPERS => 'Signed papers',
             self::CATEGORY_REVIEWS_RESPONSES => 'Reviews & responses',
             self::CATEGORY_NOTICE_TO_PROCEED => 'Notice to Proceed',
@@ -64,7 +67,7 @@ class ProjectDocument extends Model
     public static function uploadCategoryOptions(): array
     {
         return collect(self::categoryOptions())
-            ->except(self::CATEGORY_NOTICE_TO_PROCEED)
+            ->except([self::CATEGORY_ASSESSMENT_FORMS, self::CATEGORY_NOTICE_TO_PROCEED])
             ->all();
     }
 

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Services\SidebarAttentionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,9 +19,6 @@ class SidebarAttentionController extends Controller
 
         if ($clearAttention) {
             $this->sidebarAttention->markAsRead($user, $area);
-        }
-        if ($this->sidebarAttention->switchesToResearcherWorkspace($area)) {
-            $request->session()->put(User::ACTIVE_WORKSPACE_SESSION_KEY, User::WORKSPACE_FACULTY_RESEARCHER);
         }
 
         $url = route($this->sidebarAttention->routeNameFor($area));

@@ -4,11 +4,12 @@ namespace App\Services;
 
 use App\Models\LiteratureSource;
 use App\Support\LiteratureFullTextToken;
+use GuzzleHttp\Psr7\Response as PsrResponse;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -25,6 +26,12 @@ class LiteratureSearchService
     private const QUERY_STOP_WORDS = [
         'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from', 'how', 'in',
         'is', 'of', 'on', 'or', 'that', 'the', 'this', 'to', 'using', 'what', 'with',
+        'based', 'design', 'develop', 'developed', 'deploy', 'deployment', 'ensure',
+        'create', 'creating', 'implement', 'implementation', 'provide', 'provided',
+        'project', 'study', 'research', 'aim', 'aims', 'objective', 'objectives',
+        'we', 'our', 'they', 'these', 'those', 'their', 'its', 'will', 'would',
+        'can', 'could', 'should', 'has', 'have', 'had', 'been', 'do', 'does', 'did',
+        'which', 'through', 'across', 'into', 'use', 'used',
     ];
 
     /**
@@ -48,16 +55,22 @@ class LiteratureSearchService
     /** @var array<string, string> */
     private array $failureReasons = [];
 
+    /** @var list<string> */
+    private array $searchWarnings = [];
+
     public function __construct(private LiteratureWebSearchService $webSearch) {}
 
     /**
      * @param  array{year_from?: int|null, year_to?: int|null, min_citations?: int|null, open_access?: bool|null}  $filters
-     * @return array{results: list<array<string, mixed>>, failed_sources: list<string>, sources: list<string>, query_guidance: array{is_broad: bool, term_count: int, message: ?string, suggestion: ?string}, provider_notice: ?string}
+     * @return array{results: list<array<string, mixed>>, failed_sources: list<string>, sources: list<string>, query_guidance: array{is_broad: bool, term_count: int, message: ?string, suggestion: ?string}, provider_notice: ?string, search_notice: ?string, search_keywords: list<string>}
      */
-    public function search(string $query, array $filters = []): array
+    public function search(string $query, array $filters = [], string $context = ''): array
     {
         $this->failedSources = [];
         $this->failureReasons = [];
+        $this->searchWarnings = [];
+        $query = Str::substr($this->cleanText($query), 0, 500);
+        $context = Str::substr($this->cleanText($context), 0, 6000);
         unset($this->providers['web_repositories']);
         $filters = $this->normalizeFilters($filters);
         $queryTerms = $this->queryTerms($query);
@@ -70,27 +83,23 @@ class LiteratureSearchService
                 'sources' => array_values($this->providers),
                 'query_guidance' => $queryGuidance,
                 'provider_notice' => null,
+                'search_notice' => null,
+                'search_keywords' => $queryTerms,
             ];
         }
 
-        $responses = $this->providerResponses($query, $filters);
+        $responses = $this->providerResponses($query, $filters, $context);
 
         $results = $this->deduplicateResults(collect([
-            ...$this->semanticScholarResults($this->successfulResponse($responses['semantic_scholar'] ?? null, 'semantic_scholar')),
-            ...$this->crossrefResults($this->successfulResponse($responses['crossref'] ?? null, 'crossref')),
-            ...$this->openAlexResults($this->successfulResponse($responses['openalex'] ?? null, 'openalex')),
-            ...$this->europePmcResults($this->successfulResponse($responses['europe_pmc'] ?? null, 'europe_pmc')),
-            ...$this->ericResults($this->successfulResponse($responses['eric'] ?? null, 'eric')),
-            ...$this->doajResults($this->successfulResponse($responses['doaj'] ?? null, 'doaj')),
-            ...$this->arxivResults($this->successfulResponse($responses['arxiv'] ?? null, 'arxiv')),
+            ...$this->resultsFromProviderResponses($responses),
             ...$this->webRepositoryResults($query),
         ])
-            ->filter(fn (array $result) => filled($result['title'] ?? null))
-            ->filter(fn (array $result) => $this->passesFilters($result, $filters)))
-            ->map(function (array $result) use ($query, $queryTerms): array {
+            ->filter(fn (array $result) => filled($result['title'] ?? null)))
+            ->filter(fn (array $result) => $this->passesFilters($result, $filters))
+            ->map(function (array $result) use ($query, $queryTerms, $context): array {
                 return [
                     ...$result,
-                    ...$this->relevanceSignals($query, $queryTerms, $result),
+                    ...$this->relevanceSignals($query, $queryTerms, $result, $context),
                 ];
             })
             ->filter(fn (array $result): bool => $this->passesRelevanceGate($result, count($queryTerms)))
@@ -114,6 +123,8 @@ class LiteratureSearchService
                     $result['_term_coverage'],
                     $result['_has_evidence_metadata'],
                     $result['_trusted_provider_match'],
+                    $result['_semantic_match'],
+                    $result['_semantic_rank'],
                 );
 
                 $result['access_status'] = $this->normalizeAccessStatus($result);
@@ -145,6 +156,8 @@ class LiteratureSearchService
             'sources' => array_values($this->providers),
             'query_guidance' => $queryGuidance,
             'provider_notice' => $this->providerNotice(count($results)),
+            'search_notice' => $this->searchWarnings === [] ? null : implode(' ', $this->searchWarnings),
+            'search_keywords' => $queryTerms,
         ];
     }
 
@@ -170,8 +183,11 @@ class LiteratureSearchService
      * @param  array{year_from: int|null, year_to: int|null, min_citations: int|null, open_access: bool}  $filters
      * @return array<string, Response|\Throwable>
      */
-    private function providerResponses(string $query, array $filters): array
+    private function providerResponses(string $query, array $filters, string $context): array
     {
+        $terms = $this->queryTerms($query);
+        $focusedQuery = implode(' ', array_slice($terms, 0, 4));
+        $expandedQuery = $this->expandedQuery($terms);
         $crossrefParameters = [
             'query.bibliographic' => $query,
             'rows' => self::PROVIDER_RESULT_LIMIT,
@@ -185,7 +201,7 @@ class LiteratureSearchService
         }
 
         $openAlexParameters = [
-            'search' => $query,
+            'search' => $focusedQuery,
             'per_page' => self::PROVIDER_RESULT_LIMIT,
             'select' => 'display_name,abstract_inverted_index,authorships,publication_year,publication_date,primary_location,best_oa_location,doi,id,cited_by_count,open_access,type',
         ];
@@ -201,7 +217,7 @@ class LiteratureSearchService
         }
 
         $semanticScholarParameters = [
-            'query' => str_replace('-', ' ', $query),
+            'query' => $focusedQuery,
             'limit' => self::PROVIDER_RESULT_LIMIT,
             'fields' => 'paperId,title,abstract,authors,year,venue,url,externalIds,citationCount,openAccessPdf,publicationTypes,publicationDate,journal',
         ];
@@ -218,90 +234,179 @@ class LiteratureSearchService
 
         $semanticScholarApiKey = (string) config('services.semantic_scholar.key');
 
-        return Http::pool(function (Pool $pool) use ($query, $crossrefParameters, $openAlexParameters, $semanticScholarApiKey, $semanticScholarParameters): array {
-            $semanticScholarRequest = $pool->as('semantic_scholar')
-                ->acceptJson()
-                ->connectTimeout(6)
-                ->timeout(12);
+        $requests = [
+            'semantic_scholar' => ['url' => 'https://api.semanticscholar.org/graph/v1/paper/search', 'parameters' => $semanticScholarParameters],
+            'crossref' => ['url' => 'https://api.crossref.org/works', 'parameters' => $crossrefParameters],
+            'openalex' => ['url' => 'https://api.openalex.org/works', 'parameters' => $openAlexParameters],
+            'europe_pmc' => ['url' => 'https://www.ebi.ac.uk/europepmc/webservices/rest/search', 'parameters' => [
+                'query' => $expandedQuery, 'format' => 'json', 'resultType' => 'core', 'pageSize' => self::PROVIDER_RESULT_LIMIT,
+            ]],
+            'eric' => ['url' => 'https://api.ies.ed.gov/eric/', 'parameters' => [
+                'search' => $expandedQuery, 'format' => 'json', 'rows' => self::PROVIDER_RESULT_LIMIT,
+            ]],
+            'doaj' => ['url' => 'https://doaj.org/api/search/articles/'.rawurlencode($expandedQuery), 'parameters' => [
+                'pageSize' => self::PROVIDER_RESULT_LIMIT,
+            ]],
+            'arxiv' => ['url' => 'https://export.arxiv.org/api/query', 'parameters' => [
+                'search_query' => $this->expandedQuery($terms, 'all:'),
+                'start' => 0, 'max_results' => self::PROVIDER_RESULT_LIMIT, 'sortBy' => 'relevance', 'sortOrder' => 'descending',
+            ]],
+        ];
 
-            if ($semanticScholarApiKey !== '') {
-                $semanticScholarRequest->withHeaders(['x-api-key' => $semanticScholarApiKey]);
+        if (count($terms) > 4) {
+            $requests['openalex:expanded'] = [
+                'url' => 'https://api.openalex.org/works',
+                'parameters' => [...$openAlexParameters, 'search' => $expandedQuery],
+            ];
+        }
+
+        $semanticQuery = Str::substr(trim($query.' '.$context), 0, 2000);
+
+        if (config('services.openalex.semantic_search', true) && (filled($context) || count($terms) >= 7)) {
+            $semanticParameters = $openAlexParameters;
+            unset($semanticParameters['search'], $semanticParameters['filter']);
+            $semanticParameters['search.semantic'] = $semanticQuery;
+            $semanticParameters['per_page'] = 50;
+            // Citation filtering is unsupported by semantic search; apply it after merging metadata.
+            $semanticFilters = $this->openAlexFilters([...$filters, 'min_citations' => null]);
+
+            if ($semanticFilters !== []) {
+                $semanticParameters['filter'] = implode(',', $semanticFilters);
             }
 
-            return [
-                $semanticScholarRequest->get('https://api.semanticscholar.org/graph/v1/paper/search', $semanticScholarParameters),
-                $pool->as('crossref')
-                    ->acceptJson()
-                    ->withHeaders([
-                        'User-Agent' => 'Athena Research Support (mailto:'.config('mail.from.address', 'hello@example.com').')',
-                    ])
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://api.crossref.org/works', $crossrefParameters),
-                $pool->as('openalex')
-                    ->acceptJson()
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://api.openalex.org/works', $openAlexParameters),
-                $pool->as('europe_pmc')
-                    ->acceptJson()
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://www.ebi.ac.uk/europepmc/webservices/rest/search', [
-                        'query' => $query,
-                        'format' => 'json',
-                        'resultType' => 'core',
-                        'pageSize' => self::PROVIDER_RESULT_LIMIT,
-                    ]),
-                $pool->as('eric')
-                    ->acceptJson()
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://api.ies.ed.gov/eric/', [
-                        'search' => $query,
-                        'format' => 'json',
-                        'rows' => self::PROVIDER_RESULT_LIMIT,
-                    ]),
-                $pool->as('doaj')
-                    ->acceptJson()
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://doaj.org/api/search/articles/'.rawurlencode($query), [
-                        'pageSize' => self::PROVIDER_RESULT_LIMIT,
-                    ]),
-                $pool->as('arxiv')
-                    ->withHeaders(['User-Agent' => 'Athena Research Support ('.config('mail.from.address', 'hello@example.com').')'])
-                    ->connectTimeout(6)
-                    ->timeout(12)
-                    ->get('https://export.arxiv.org/api/query', [
-                        'search_query' => 'all:"'.$query.'"',
-                        'start' => 0,
-                        'max_results' => self::PROVIDER_RESULT_LIMIT,
-                        'sortBy' => 'relevance',
-                        'sortOrder' => 'descending',
-                    ]),
-            ];
-        });
+            $requests['openalex:semantic'] = ['url' => 'https://api.openalex.org/works', 'parameters' => $semanticParameters];
+        }
+
+        $responses = [];
+        $pending = [];
+
+        foreach ($requests as $name => $request) {
+            $publicParameters = $request['parameters'];
+            unset($publicParameters['api_key']);
+            $cacheKey = 'literature-search:v2:'.hash('sha256', $request['url'].json_encode($publicParameters));
+            $cached = Cache::get($cacheKey);
+
+            if (is_array($cached)) {
+                $responses[$name] = new Response(new PsrResponse(200, ['Content-Type' => $cached['content_type']], $cached['body']));
+            } else {
+                $pending[$name] = [...$request, 'cache_key' => $cacheKey];
+            }
+        }
+
+        if ($pending !== []) {
+            $fresh = Http::pool(function (Pool $pool) use ($pending, $semanticScholarApiKey): array {
+                $requests = [];
+
+                foreach ($pending as $name => $request) {
+                    $client = $pool->as($name)->acceptJson()->connectTimeout(4)->timeout(12)
+                        ->withHeaders(['User-Agent' => 'Athena Research Support (mailto:'.config('mail.from.address', 'hello@example.com').')']);
+
+                    if ($name === 'semantic_scholar' && $semanticScholarApiKey !== '') {
+                        $client->withHeaders(['x-api-key' => $semanticScholarApiKey]);
+                    }
+
+                    $requests[] = $client->get($request['url'], $request['parameters']);
+                }
+
+                return $requests;
+            });
+
+            foreach ($pending as $name => $request) {
+                $response = $fresh[$name] ?? null;
+                $responses[$name] = $response;
+
+                if ($response instanceof Response && $response->successful()
+                    && $this->validProviderResponse($response, explode(':', $name)[0])) {
+                    Cache::put($request['cache_key'], [
+                        'body' => $response->body(), 'content_type' => $response->header('Content-Type'),
+                    ], now()->addHour());
+                }
+            }
+        }
+
+        return $responses;
     }
 
-    private function successfulResponse(mixed $response, string $provider): ?Response
+    /** @param list<string> $terms */
+    private function expandedQuery(array $terms, string $prefix = ''): string
     {
-        if (! $response instanceof Response) {
-            $reason = $response instanceof ConnectionException || $response instanceof \Throwable
-                ? $response::class
-                : 'Missing response';
-            $this->recordFailure($provider, $reason);
+        $terms = array_map(fn (string $term): string => $prefix.$term, array_slice($terms, 0, 12));
 
-            return null;
+        if (count($terms) <= 4) {
+            return implode(' AND ', $terms);
         }
 
-        if ($response->failed()) {
-            $this->recordFailure($provider, 'HTTP '.$response->status());
+        return '('.implode(' AND ', array_slice($terms, 0, 2)).') AND ('.implode(' OR ', array_slice($terms, 2)).')';
+    }
 
-            return null;
+    /** @return list<array<string, mixed>> */
+    private function resultsFromProviderResponses(array $responses): array
+    {
+        $results = [];
+
+        foreach ($this->providers as $provider => $label) {
+            $providerResponses = collect($responses)->filter(fn (mixed $response, string $name): bool => explode(':', $name)[0] === $provider);
+            $available = 0;
+            $reason = 'Missing response';
+
+            foreach ($providerResponses as $name => $response) {
+                if (! $response instanceof Response || ! $response->successful() || ! $this->validProviderResponse($response, $provider)) {
+                    $reason = $response instanceof Response
+                        ? ($response->failed() ? 'HTTP '.$response->status() : 'Invalid response')
+                        : ($response instanceof \Throwable ? $response::class : 'Missing response');
+
+                    continue;
+                }
+
+                $available++;
+                $papers = match ($provider) {
+                    'semantic_scholar' => $this->semanticScholarResults($response),
+                    'crossref' => $this->crossrefResults($response),
+                    'openalex' => $this->openAlexResults($response),
+                    'europe_pmc' => $this->europePmcResults($response),
+                    'eric' => $this->ericResults($response),
+                    'doaj' => $this->doajResults($response),
+                    'arxiv' => $this->arxivResults($response),
+                };
+
+                foreach ($papers as $paper) {
+                    $results[] = [
+                        ...$paper,
+                        '_semantic_match' => $name === 'openalex:semantic',
+                        '_semantic_rank' => $name === 'openalex:semantic' ? $paper['_provider_rank'] : 999,
+                    ];
+                }
+            }
+
+            if ($available === 0) {
+                $this->recordFailure($provider, $reason);
+            } elseif ($available < $providerResponses->count()) {
+                $this->searchWarnings[] = "Some {$label} searches were unavailable; results include the searches that completed.";
+            }
         }
 
-        return $response;
+        return $results;
+    }
+
+    private function validProviderResponse(Response $response, string $provider): bool
+    {
+        if ($provider === 'arxiv') {
+            $previous = libxml_use_internal_errors(true);
+            $xml = simplexml_load_string($response->body(), \SimpleXMLElement::class, LIBXML_NONET);
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+
+            return $xml !== false && $xml->getName() === 'feed';
+        }
+
+        $path = match ($provider) {
+            'semantic_scholar' => 'data', 'crossref' => 'message.items', 'openalex' => 'results',
+            'europe_pmc' => 'resultList.result', 'eric' => 'response.docs', 'doaj' => 'results',
+        };
+
+        $records = $response->json($path);
+
+        return is_array($records) && collect($records)->every(fn (mixed $record): bool => is_array($record));
     }
 
     /** @return list<array<string, mixed>> */
@@ -608,10 +713,38 @@ class LiteratureSearchService
      */
     private function deduplicateResults(Collection $results): Collection
     {
-        return $results
-            ->groupBy(fn (array $result): string => $this->resultFingerprint($result))
-            ->map(fn (Collection $duplicates): array => $this->mergeDuplicateResults($duplicates))
-            ->values();
+        $groups = [];
+        $doiGroups = [];
+        $titleGroups = [];
+
+        foreach ($results as $result) {
+            $doi = Str::lower((string) ($result['doi'] ?? ''));
+            $title = $this->normalizeSearchText((string) $result['title']);
+            $group = $doi !== '' ? ($doiGroups[$doi] ?? null) : null;
+
+            if ($group === null) {
+                foreach ($titleGroups[$title] ?? [] as $candidate) {
+                    $knownDoi = collect($groups[$candidate])->pluck('doi')->filter()->first();
+                    $knownYear = collect($groups[$candidate])->pluck('year')->filter()->first();
+
+                    if (($doi === '' || blank($knownDoi) || $doi === Str::lower($knownDoi))
+                        && (blank($knownYear) || blank($result['year'] ?? null) || (int) $knownYear === (int) $result['year'])) {
+                        $group = $candidate;
+                        break;
+                    }
+                }
+            }
+
+            $group ??= count($groups);
+            $groups[$group][] = $result;
+            $titleGroups[$title] = array_unique([...($titleGroups[$title] ?? []), $group]);
+
+            if ($doi !== '') {
+                $doiGroups[$doi] = $group;
+            }
+        }
+
+        return collect($groups)->map(fn (array $duplicates): array => $this->mergeDuplicateResults(collect($duplicates)))->values();
     }
 
     /**
@@ -633,6 +766,8 @@ class LiteratureSearchService
         $merged = $ordered->first();
 
         foreach ($ordered->slice(1) as $duplicate) {
+            $merged['_semantic_match'] = (bool) ($merged['_semantic_match'] ?? false) || (bool) ($duplicate['_semantic_match'] ?? false);
+            $merged['_semantic_rank'] = min((int) ($merged['_semantic_rank'] ?? 999), (int) ($duplicate['_semantic_rank'] ?? 999));
             $merged['provenance'] = array_values(array_unique([
                 ...($merged['provenance'] ?? []),
                 ...($duplicate['provenance'] ?? []),
@@ -667,18 +802,6 @@ class LiteratureSearchService
         }
 
         return $merged;
-    }
-
-    /** @param array<string, mixed> $result */
-    private function resultFingerprint(array $result): string
-    {
-        $doi = Str::lower((string) ($result['doi'] ?? ''));
-
-        if ($doi !== '') {
-            return 'doi:'.$doi;
-        }
-
-        return 'title:'.$this->normalizeSearchText((string) ($result['title'] ?? ''));
     }
 
     private function missingResultValue(string $field, mixed $value): bool
@@ -793,11 +916,12 @@ class LiteratureSearchService
      * @param  array<string, mixed>  $result
      * @return array{relevance_score: int, relevance_label: string, match_reason: string, matched_terms: list<string>, _metadata_score: int, _content_match_count: int, _term_coverage: float, _has_evidence_metadata: bool, _trusted_provider_match: bool}
      */
-    private function relevanceSignals(string $query, array $terms, array $result): array
+    private function relevanceSignals(string $query, array $terms, array $result, string $context): array
     {
         $normalizedQuery = $this->normalizeSearchText($query);
         $title = $this->normalizeSearchText((string) ($result['title'] ?? ''));
-        $description = $this->normalizeSearchText((string) ($result['description'] ?? ''));
+        $description = $this->missingResultValue('description', $result['description'] ?? null)
+            ? '' : $this->normalizeSearchText((string) $result['description']);
         $venue = $this->normalizeSearchText((string) ($result['venue'] ?? ''));
         $titleTerms = $this->matchedTerms($terms, $title);
         $descriptionTerms = $this->matchedTerms($terms, $description);
@@ -805,23 +929,28 @@ class LiteratureSearchService
         $contentTerms = collect([...$titleTerms, ...$descriptionTerms])->unique()->values()->all();
         $allMatchedTerms = collect([...$contentTerms, ...$venueTerms])->unique()->values()->all();
         $termCount = count($terms);
-        $titleCoverage = count($titleTerms) / $termCount;
-        $descriptionCoverage = count($descriptionTerms) / $termCount;
+        // Long proposal queries contain several subtopics. A useful paper need not cover all of them.
+        $titleCoverage = min(1, count($titleTerms) / min(4, $termCount));
+        $descriptionCoverage = min(1, count($descriptionTerms) / min(4, $termCount));
         $venueCoverage = count($venueTerms) / $termCount;
-        $termCoverage = count($allMatchedTerms) / $termCount;
+        $termCoverage = min(1, count($contentTerms) / min(6, $termCount));
         $exactTitlePhrase = $termCount > 1
             && $normalizedQuery !== ''
             && str_contains($title, $normalizedQuery);
         $metadataScore = $this->metadataScore($result);
         $providerRank = (int) ($result['_provider_rank'] ?? 999);
         $providerRankBonus = max(0, 8 - $providerRank);
-        $trustedProviderMatch = $providerRank <= 5 && $metadataScore >= 3;
+        $conceptualMatch = (bool) ($result['_semantic_match'] ?? false) && (int) ($result['_semantic_rank'] ?? 999) <= 10
+            && Str::length($description) >= 80 && $metadataScore >= 3;
+        $contextTerms = $this->matchedTerms($this->queryTerms($context), $title.' '.$description);
+        $contextBonus = $contentTerms !== [] ? min(8, count($contextTerms) * 2) : 0;
         $score = ($titleCoverage * 46)
             + ($descriptionCoverage * 30)
             + ($venueCoverage * 4)
             + ($exactTitlePhrase ? 10 : 0)
             + (($metadataScore / 6) * 5)
-            + $providerRankBonus;
+            + $providerRankBonus
+            + $contextBonus;
 
         if ($termCount === 1) {
             $score = min(64, $score);
@@ -829,7 +958,7 @@ class LiteratureSearchService
             $score *= 0.72;
         }
 
-        if ($trustedProviderMatch && $contentTerms === []) {
+        if ($conceptualMatch && count($contentTerms) < 2) {
             $score = max(28, $score);
         }
 
@@ -842,17 +971,18 @@ class LiteratureSearchService
 
         return [
             'relevance_score' => $score,
-            'relevance_label' => $this->relevanceLabel($score, $termCount === 1),
-            'match_reason' => $matchedLocations === []
-                ? 'Highly ranked by the academic index for the full query; verify the abstract before using it.'
-                : 'Matched in '.collect($matchedLocations)->join(', ', ' and ').'.',
+            'relevance_label' => $conceptualMatch && count($contentTerms) < 2
+                ? 'Conceptual match' : $this->relevanceLabel($score, $termCount === 1),
+            'match_reason' => $conceptualMatch && count($contentTerms) < 2
+                ? 'Related by meaning in OpenAlex; review the abstract to confirm its connection to your proposal.'
+                : 'Matched '.implode(', ', array_slice($contentTerms, 0, 6)).' in '.collect($matchedLocations)->join(', ', ' and ').'.',
             'matched_terms' => $allMatchedTerms,
             '_metadata_score' => $metadataScore,
             '_content_match_count' => count($contentTerms),
             '_term_coverage' => $termCoverage,
-            '_has_evidence_metadata' => ($result['description'] ?? null) !== self::DESCRIPTION_FALLBACK
+            '_has_evidence_metadata' => ! $this->missingResultValue('description', $result['description'] ?? null)
                 || (filled($result['authors'] ?? null) && $result['authors'] !== 'Authors not listed'),
-            '_trusted_provider_match' => $trustedProviderMatch,
+            '_trusted_provider_match' => $conceptualMatch,
         ];
     }
 
@@ -860,7 +990,7 @@ class LiteratureSearchService
     private function metadataScore(array $result): int
     {
         return collect([
-            ($result['description'] ?? null) !== self::DESCRIPTION_FALLBACK,
+            ! $this->missingResultValue('description', $result['description'] ?? null),
             filled($result['authors'] ?? null) && $result['authors'] !== 'Authors not listed',
             filled($result['doi'] ?? null),
             filled($result['year'] ?? null),
@@ -880,11 +1010,11 @@ class LiteratureSearchService
             return true;
         }
 
-        if ((int) ($result['_content_match_count'] ?? 0) === 0) {
+        if ((int) ($result['_content_match_count'] ?? 0) < min(2, $termCount)) {
             return false;
         }
 
-        if ($termCount >= 4 && (float) ($result['_term_coverage'] ?? 0) < 0.4) {
+        if ($termCount >= 4 && (float) ($result['_term_coverage'] ?? 0) < 0.3) {
             return false;
         }
 
@@ -932,6 +1062,7 @@ class LiteratureSearchService
             ->filter(fn (string $term): bool => Str::length($term) >= 2)
             ->reject(fn (string $term): bool => in_array($term, self::QUERY_STOP_WORDS, true))
             ->unique()
+            ->take(16)
             ->values()
             ->all();
     }
@@ -976,11 +1107,14 @@ class LiteratureSearchService
             $commonPrefixLength++;
         }
 
-        return $commonPrefixLength >= max(6, (int) floor($shorterLength * 0.65));
+        return $commonPrefixLength >= max(6, $shorterLength - 1);
     }
 
     private function canonicalTerm(string $term): string
     {
+        if (Str::length($term) > 9 && Str::endsWith($term, ['ation', 'atory'])) {
+            return Str::substr($term, 0, -5);
+        }
         if (Str::length($term) > 4 && Str::endsWith($term, 'ies')) {
             return Str::substr($term, 0, -3).'y';
         }
@@ -1023,7 +1157,7 @@ class LiteratureSearchService
 
     private function providerNotice(int $resultCount): ?string
     {
-        if ($this->failedSources === [] || $resultCount === 0) {
+        if ($this->failedSources === []) {
             return null;
         }
 
@@ -1036,6 +1170,10 @@ class LiteratureSearchService
             ->keys()
             ->join(', ', ' and ');
         $resultLabel = $resultCount === 1 ? 'result' : 'results';
+
+        if ($resultCount === 0) {
+            return 'Some indexes were unavailable ('.implode(', ', $this->failedSources).'). No matches were found in the indexes that responded; retry or broaden the query.';
+        }
 
         if ($rateLimitedSources !== '') {
             return "Showing {$resultCount} {$resultLabel} from {$availableSources}. {$rateLimitedSources} temporarily rate-limited this search.";

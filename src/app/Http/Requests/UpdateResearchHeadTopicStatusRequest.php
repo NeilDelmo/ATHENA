@@ -43,11 +43,10 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
                 'integer',
                 'distinct',
                 Rule::exists('proposal_version_files', 'id')
-                    ->where(fn ($query) => $query->where(
-                        'document_type',
-                        '!=',
+                    ->where(fn ($query) => $query->whereNotIn('document_type', [
                         ProposalVersionFile::TYPE_HEAD_UPLOAD,
-                    )),
+                        ...ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES,
+                    ])),
             ],
             'revision_file_notes' => ['nullable', 'array'],
             'revision_file_notes.*' => ['nullable', 'string', 'max:2000'],

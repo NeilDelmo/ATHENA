@@ -139,7 +139,7 @@
                                 </details>
                             @endif
 
-                            @if (! $archived && ! $matchesWorkingDraft)
+                            @if (! $archived && ! $matchesWorkingDraft && ! in_array($version->document_type, \App\Models\ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES, true))
                                 @can('update', $proposalDraft)
                                     <details class="mt-4 rounded-xl border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30">
                                         <summary class="cursor-pointer px-4 py-3 text-xs font-black text-red-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-600 dark:text-red-200">Restore this recovery point</summary>

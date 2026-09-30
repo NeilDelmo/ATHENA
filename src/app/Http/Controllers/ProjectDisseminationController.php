@@ -24,7 +24,9 @@ class ProjectDisseminationController extends Controller
 
         return view('research.dissemination', [
             'topic' => $topic,
-            'projectAbstract' => Str::limit(strip_tags((string) $abstract), 1500),
+            'projectAbstract' => Str::limit(strip_tags((string) $abstract), 6000, ''),
+            'journalSubmissions' => $topic->journalSubmissions()->with('addedBy:id,name')->latest('updated_at')->get(),
+            'canTrackJournals' => $request->user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo($request->user()),
         ]);
     }
 

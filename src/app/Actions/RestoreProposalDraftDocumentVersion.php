@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftDocumentVersion;
+use App\Models\ProposalVersionFile;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -26,6 +27,10 @@ class RestoreProposalDraftDocumentVersion
         ?string $changeNote,
     ): array {
         if ($version->proposal_draft_id !== $draft->getKey() || $version->topic_id !== null) {
+            abort(404);
+        }
+
+        if (in_array($version->document_type, ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES, true)) {
             abort(404);
         }
 

@@ -9,6 +9,8 @@
     $expenseBreakdownSource = $expenseBreakdownDocument?->source_data;
     $curriculumVitaeDocument = $checklist->get('curriculum-vitae')['documents']->first();
     $curriculumVitaeSource = $curriculumVitaeDocument?->source_data;
+    $reviewPapers = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
+    $assessmentForms = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
 @endphp
 
 <section aria-labelledby="review-details-heading" class="rounded-2xl border {{ $projectDetailsComplete ? 'border-green-200' : 'border-amber-200' }} bg-white p-5 shadow-sm sm:p-6">
@@ -32,10 +34,10 @@
 <x-budget-consistency-warning :comparison="$budgetConsistency" :proposal-draft="$proposalDraft" />
 
 <section aria-labelledby="review-papers-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Required package attachments</h3><p class="mt-1 text-xs text-gray-500">Prepare seven PDFs first, review the exact files below, and optionally replace a generated PDF before Turn in.</p></div>
+    <div><h3 id="review-papers-heading" class="text-lg font-black text-gray-900">Proposal papers to review</h3><p class="mt-1 text-xs text-gray-500">Review the five faculty papers below. You can replace a prepared PDF if needed before Turn in.</p></div>
 
     <div class="mt-5 divide-y divide-gray-100 rounded-xl border border-gray-200">
-        @foreach ($checklist as $item)
+        @foreach ($reviewPapers as $item)
             @php
                 $paper = $item['paper'];
                 $submissionExtension = Str::upper(pathinfo($item['submission_filename'], PATHINFO_EXTENSION));
@@ -56,8 +58,6 @@
                                 @if ($preparedDocument)
                                     <p class="font-semibold text-green-700">Prepared PDF ready: {{ $preparedDocument->original_filename }}</p>
                                     <p class="mt-1">This exact file will be sent to the Research Head.</p>
-                                @elseif ($paper['mode'] === 'automatic')
-                                    <p>ATHENA will prepare this PDF from the shared Project Title and Project Leader. Evaluator fields remain blank.</p>
                                 @elseif ($item['documents']->isEmpty())
                                     <p>No {{ $submissionFormat }} attachment is ready.</p>
                                 @elseif ($paper['mode'] === 'generated')
@@ -68,7 +68,7 @@
                             </div>
                         </div>
                     </div>
-                    <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), 'gad-checklist' => route('faculty.proposal-drafts.gad-checklist.show', $proposalDraft), 'initial-screening-form' => route('faculty.proposal-drafts.initial-screening-form.show', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $paper['mode'] === 'automatic' ? 'Preview' : ($item['complete'] ? 'Edit' : 'Complete paper') }}</a>
+                    <a href="{{ match ($paper['slug']) { 'detailed-proposal' => route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft), 'work-plan' => route('faculty.proposal-drafts.work-plan.edit', $proposalDraft), 'line-item-budget' => route('faculty.proposal-drafts.line-item-budget.edit', $proposalDraft), 'expense-breakdown' => route('faculty.proposal-drafts.expense-breakdown.edit', $proposalDraft), 'curriculum-vitae' => route('faculty.proposal-drafts.curriculum-vitae.edit', $proposalDraft), default => route('faculty.proposal-drafts.papers.edit', [$proposalDraft, $paper['slug']]) } }}" class="inline-flex w-full shrink-0 items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">{{ $item['complete'] ? 'Edit' : 'Complete paper' }}</a>
                 </div>
 
                 @if ($paper['slug'] === 'detailed-proposal' && is_array($detailedProposalSource))
@@ -112,20 +112,12 @@
                             <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview CV Package</button>
                         </form>
                     </div>
-                @elseif ($paper['slug'] === 'initial-screening-form')
-                    <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <a href="{{ route('faculty.proposal-drafts.initial-screening-form.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview Initial Screening Form</a>
-                    </div>
-                @elseif ($paper['slug'] === 'gad-checklist')
-                    <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row">
-                        <a href="{{ route('faculty.proposal-drafts.gad-checklist.preview', $proposalDraft) }}" target="_blank" rel="noopener" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Preview GAD Checklist</a>
-                    </div>
                 @endif
 
                 @if ($preparedDocument)
                     <div class="mt-4 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
                         <a href="{{ route('faculty.proposal-drafts.submission-files.download', [$proposalDraft, $paper['slug']]) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Download prepared PDF</a>
-                        @if ($paper['mode'] !== 'upload')
+                        @if ($paper['mode'] === 'generated')
                             <form action="{{ route('faculty.proposal-drafts.submission-files.replace', [$proposalDraft, $paper['slug']]) }}" method="POST" enctype="multipart/form-data" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                                 @csrf
                                 @method('PUT')
@@ -141,6 +133,24 @@
             </article>
         @endforeach
     </div>
+</section>
+
+<section data-review-assessment-forms aria-labelledby="review-assessment-forms-heading" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+            <h3 id="review-assessment-forms-heading" class="text-base font-black text-gray-900">Assessment forms included automatically</h3>
+            <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-500">ATHENA creates these two blank forms from Project Details. Faculty do not need to fill, review, or replace them; completed assessments are recorded later in the review workflow.</p>
+        </div>
+        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">2 forms</span>
+    </div>
+    <ul class="mt-4 divide-y divide-gray-100 rounded-xl border border-gray-200">
+        @foreach ($assessmentForms as $item)
+            <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span class="font-semibold text-gray-800">{{ $item['paper']['label'] }}</span>
+                <span class="text-xs font-bold {{ $item['complete'] ? 'text-green-700' : 'text-amber-700' }}">{{ $item['complete'] ? 'Included automatically' : 'Waiting for Project Details' }}</span>
+            </li>
+        @endforeach
+    </ul>
 </section>
 
 <section aria-labelledby="review-collaborators-heading" class="rounded-2xl border border-blue-200 bg-white p-5 shadow-sm sm:p-6">
@@ -177,11 +187,11 @@
     <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <h3 class="text-base font-black {{ $readyToSubmit ? 'text-green-900' : 'text-gray-900' }}">{{ $submissionFilesPrepared ? 'Turn in proposal' : 'Prepare submission PDFs' }}</h3>
-            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'The seven reviewed PDFs are ready. Turn in now only finalizes and sends these staged files.' : ($readyToPrepare ? 'Generate the seven final PDFs now. You can download and replace generated PDFs before Turn in.' : 'Complete Project Details and every required paper before preparing the submission files.') }}</p>
+            <p class="mt-1 max-w-2xl text-sm leading-6 {{ $readyToSubmit ? 'text-green-800' : 'text-gray-600' }}">{{ $readyToSubmit ? 'Five proposal papers and two automatic assessment forms are ready. Turn in sends all seven PDFs to the Research Head.' : ($readyToPrepare ? 'Prepare seven PDFs, then review the five proposal papers before Turn in.' : 'Complete Project Details and the five proposal papers before preparing the submission files.') }}</p>
         </div>
         @can('submit', $proposalDraft)
             @if ($submissionFilesPrepared)
-                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in proposal package?" data-confirm-text="This sends the seven PDFs shown above to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in proposal package?" data-confirm-text="This sends five proposal papers and two auto-generated assessment forms to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
                     @csrf
                     <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
                     <x-proposal-submission-loading-screen livewire-target="turnIn" />

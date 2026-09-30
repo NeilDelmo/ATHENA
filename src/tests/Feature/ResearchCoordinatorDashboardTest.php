@@ -47,7 +47,7 @@ test('research coordinators still see their dashboard when their college has no 
         ->assertOk()
         ->assertSee('data-workspace-header-banner', false)
         ->assertSee('Research Office Dashboard')
-        ->assertSee('Coordinate faculty research activity for '.User::COLLEGES['CICS'].'.')
+        ->assertSee('Record LREC committee feedback for proposals from '.User::COLLEGES['CICS'].'.')
         ->assertSee('College members')
         ->assertSee('>0</span>', false)
         ->assertSee('Dashboard')

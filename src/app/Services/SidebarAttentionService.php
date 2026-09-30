@@ -80,11 +80,6 @@ class SidebarAttentionService
         };
     }
 
-    public function switchesToResearcherWorkspace(string $area): bool
-    {
-        return $area === ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS;
-    }
-
     /**
      * @return list<string>
      */
@@ -95,12 +90,9 @@ class SidebarAttentionService
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
                 ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
             ],
-            User::WORKSPACE_FACULTY => array_values(array_filter([
+            User::WORKSPACE_FACULTY => [
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
-                $user->canUseWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)
-                    ? ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS
-                    : null,
-            ])),
+            ],
             User::WORKSPACE_FACULTY_RESEARCHER => [
                 ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
             ],

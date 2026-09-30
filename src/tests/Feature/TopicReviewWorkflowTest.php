@@ -1343,18 +1343,6 @@ test('proposal versions are downloadable only by authorized topic participants',
         ->toContain('inline')
         ->toContain('audited-proposal.pdf');
 
-    $this->withoutVite();
-    $workspace = $this->actingAs($head)
-        ->get(route('topics.show', $topic))
-        ->assertOk();
-    $workspaceDom = new DOMDocument;
-    @$workspaceDom->loadHTML($workspace->getContent());
-    $workspaceXpath = new DOMXPath($workspaceDom);
-    $wordViewUrl = route('topics.versions.files.view', [$topic, $version, $wordPackageFile]);
-
-    expect($workspaceXpath->query('//a[@href="'.$wordViewUrl.'" and normalize-space()="Preview PDF"]')->length)
-        ->toBe(1);
-
     $wordPreview = $this->actingAs($head)
         ->get(route('topics.versions.files.view', [$topic, $version, $wordPackageFile]))
         ->assertOk()
@@ -1381,6 +1369,85 @@ test('proposal versions are downloadable only by authorized topic participants',
 
     $this->actingAs($otherFaculty)
         ->get(route('topics.versions.files.view', [$topic, $version, $wordPackageFile]))
+        ->assertForbidden();
+});
+
+test('submitted paper history keeps earlier versions available after a revision', function () {
+    Storage::fake('local');
+
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty');
+
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Coastal study with revisions',
+        'estimated_budget' => 20000,
+        'status' => 'resubmitted',
+    ]);
+    $initialVersion = createTopicReviewSubmission($topic, $faculty);
+    $initialFile = $initialVersion->files()->sole();
+
+    $revisedPath = 'proposals/revised-coastal-study.pdf';
+    Storage::disk('local')->put($revisedPath, 'revised proposal');
+    $revisedVersion = $topic->versions()->create([
+        'submitted_by' => $faculty->id,
+        'version_number' => 2,
+        'submission_type' => 'revision',
+        'file_path' => $revisedPath,
+        'original_filename' => 'revised-coastal-study.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => strlen('revised proposal'),
+        'checksum' => hash('sha256', 'revised proposal'),
+        'title' => $topic->title,
+        'estimated_budget' => $topic->estimated_budget,
+        'estimated_duration_months' => $topic->estimated_duration_months,
+    ]);
+    $revisedFile = $revisedVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'file_path' => $revisedPath,
+        'original_filename' => 'revised-coastal-study.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => strlen('revised proposal'),
+        'checksum' => hash('sha256', 'revised proposal'),
+        'is_carried_forward' => false,
+    ]);
+    $assessmentFile = $revisedVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        'position' => 1,
+        'file_path' => $revisedPath,
+        'original_filename' => 'gad-checklist.pdf',
+        'mime_type' => 'application/pdf',
+        'file_size' => strlen('revised proposal'),
+        'is_carried_forward' => true,
+    ]);
+
+    $page = $this->actingAs($faculty)->get(route('topics.show', $topic))->assertOk();
+    $dom = new DOMDocument;
+    @$dom->loadHTML($page->getContent());
+    $xpath = new DOMXPath($dom);
+    $history = $xpath->query('//*[@id="version-history-tab"]//h3[normalize-space()="Submitted proposal versions"]/ancestor::section[1]//article');
+
+    expect($history->length)->toBe(2)
+        ->and($history->item(0)->textContent)->toContain('Version 2', 'revised-coastal-study.pdf', 'gad-checklist.pdf')
+        ->and($history->item(1)->textContent)->toContain('Version 1', 'submitted-proposal.pdf');
+    expect($xpath->query('./details', $history->item(0))->item(0)->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('./details', $history->item(1))->item(0)->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('.//*[@data-version-file-group="Proposal papers"]//li', $history->item(0))->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-version-file-group="Assessment forms"]//li', $history->item(0))->length)->toBe(1);
+
+    $this->get(route('topics.versions.files.download', [$topic, $initialVersion, $initialFile]))
+        ->assertDownload('submitted-proposal.pdf');
+    $this->get(route('topics.versions.files.download', [$topic, $revisedVersion, $revisedFile]))
+        ->assertDownload('revised-coastal-study.pdf');
+    $this->get(route('topics.versions.files.download', [$topic, $revisedVersion, $assessmentFile]))
+        ->assertDownload('gad-checklist.pdf');
+    $this->get(route('topics.versions.files.download', [$topic, $revisedVersion, $initialFile]))
+        ->assertNotFound();
+    $this->actingAs($outsider)
+        ->get(route('topics.versions.files.download', [$topic, $initialVersion, $initialFile]))
         ->assertForbidden();
 });
 

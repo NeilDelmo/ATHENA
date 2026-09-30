@@ -54,7 +54,7 @@ class ProposalDraftReviewPackage extends Component
         }
 
         $this->proposalDraft->refresh();
-        $this->statusMessage = 'Seven PDF attachments prepared. Review or replace them before turning in.';
+        $this->statusMessage = 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.';
     }
 
     public function turnIn(SubmitProposalDraft $submitProposalDraft): void

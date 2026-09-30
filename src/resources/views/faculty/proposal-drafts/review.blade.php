@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Review and Turn In" subtitle="Prepare and review all seven PDF attachments and the project team before turning in.">
+        <x-page-header title="Review and Turn In" subtitle="Review the five proposal papers and project team. Two assessment forms are included automatically in the seven-PDF package.">
             <x-slot name="actions">
                 <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}">Back to proposal package</x-back-link>
                 <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black {{ $readyToSubmit ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $readyToSubmit ? 'Ready to turn in' : 'Incomplete package' }}</span>

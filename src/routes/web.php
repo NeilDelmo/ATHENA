@@ -16,6 +16,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectBudgetUtilizationController;
 use App\Http\Controllers\ProjectDisseminationController;
 use App\Http\Controllers\ProjectDocumentController;
+use App\Http\Controllers\ProjectJournalSubmissionController;
 use App\Http\Controllers\ProjectMonitoringController;
 use App\Http\Controllers\ProjectNarrativeReportController;
 use App\Http\Controllers\ProposalDraftController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
+use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\SidebarAttentionController;
@@ -61,6 +63,10 @@ Route::get('/', function () {
 Route::get('/dashboard', function () {
     $user = Auth::user();
     $dashboardRoute = $user->dashboardRouteName();
+
+    if ($user->isUsingWorkspace(['research_head', 'research_secretary'])) {
+        return redirect()->route($dashboardRoute);
+    }
 
     if ($user->hasRole('research_coordinator') && $user->hasAnyRole(['faculty', 'faculty_researcher'])) {
         return match (session('active_role')) {
@@ -395,6 +401,8 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
 // RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'workspace:faculty_researcher|research_head'])->prefix('research/{topic}/dissemination')->name('research.dissemination.')->group(function () {
     Route::get('/', [ProjectDisseminationController::class, 'show'])->name('show');
+    Route::post('/journal-submissions', [ProjectJournalSubmissionController::class, 'store'])->name('journal-submissions.store');
+    Route::patch('/journal-submissions/{journalSubmission}', [ProjectJournalSubmissionController::class, 'update'])->name('journal-submissions.update');
     Route::middleware('throttle:12,1')->group(function () {
         Route::post('/journals/search', JournalSearchController::class)->name('journals.search');
         Route::post('/authors', [ProjectDisseminationController::class, 'authors'])->name('authors');
@@ -442,12 +450,13 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::patch('/research-head/assistant-knowledge/{researchKnowledgeEntry}/status', [ResearchKnowledgeController::class, 'updateStatus'])->name('research_head.assistant-knowledge.status');
 });
 
-Route::get('/research-coordinator/dashboard', [ResearchCoordinatorController::class, 'index'])
-    ->middleware(['auth', 'role:research_coordinator'])
-    ->name('research_coordinator.dashboard');
-Route::get('/research-coordinator/faculty-members', [ResearchCoordinatorController::class, 'members'])
-    ->middleware(['auth', 'role:research_coordinator'])
-    ->name('research_coordinator.members.index');
+Route::middleware(['auth', 'workspace:research_office'])->prefix('research-coordinator')->name('research_coordinator.')->group(function () {
+    Route::get('/dashboard', [ResearchCoordinatorController::class, 'index'])->name('dashboard');
+    Route::get('/faculty-members', [ResearchCoordinatorController::class, 'members'])->name('members.index');
+    Route::post('/topics/{topic}/lrec-review', [ResearchOfficeLrecFeedbackController::class, 'start'])->name('topics.lrec-review.start');
+    Route::post('/topics/{topic}/lrec-feedback', [ResearchOfficeLrecFeedbackController::class, 'store'])->name('topics.lrec-feedback.store');
+    Route::get('/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('topics.comment-response-form.pdf');
+});
 
 // PROFILE ROUTES
 Route::middleware('auth')->group(function () {

@@ -57,6 +57,8 @@ class ResearchHeadTopicController extends Controller
                 ProposalVersionFile::TYPE_COMMENT_RESPONSE,
                 ProposalVersionFile::TYPE_HEAD_UPLOAD,
             ]);
+        $revisionCandidateFiles = $latestFacultyFiles
+            ->reject(fn (ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm());
         $committeeComments = $topic->review_stage === 'lrec' ? ($validated['committee_comments'] ?? []) : [];
         $gadChecklist = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST);
         $initialScreeningForm = $latestFacultyFiles->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
@@ -130,7 +132,7 @@ class ResearchHeadTopicController extends Controller
 
         if ($validated['status'] === 'revision_requested') {
             $savedHighlightFileIds = ProposalFileAnnotation::query()
-                ->whereIn('proposal_version_file_id', $latestFacultyFiles->pluck('id'))
+                ->whereIn('proposal_version_file_id', $revisionCandidateFiles->pluck('id'))
                 ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                 ->whereNull('topic_review_file_revision_id')
                 ->distinct()
@@ -140,9 +142,9 @@ class ResearchHeadTopicController extends Controller
                 ->merge($savedHighlightFileIds)
                 ->unique()
                 ->values();
-            $selectedRevisionFiles = $latestFacultyFiles->whereIn('id', $selectedIds)->values();
+            $selectedRevisionFiles = $revisionCandidateFiles->whereIn('id', $selectedIds)->values();
 
-            if ($latestFacultyFiles->isEmpty()) {
+            if ($revisionCandidateFiles->isEmpty()) {
                 throw ValidationException::withMessages([
                     'revision_file_ids' => 'A submitted proposal file is required before a highlighted revision can be requested.',
                 ]);
@@ -369,17 +371,21 @@ class ResearchHeadTopicController extends Controller
             ? route('topics.show', $topic)
             : route('research_head.dashboard');
 
-        $returnToReview = ($validated['redirect_to'] ?? null) === 'topic'
-            && in_array($validated['status'], ['revision_requested', TopicProposal::STATUS_READY_FOR_SIGNATURE], true);
+        $destinationTab = match (true) {
+            ($validated['redirect_to'] ?? null) !== 'topic' => null,
+            $validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE => 'notice',
+            $validated['status'] === 'revision_requested' => 'review',
+            default => null,
+        };
 
-        if ($returnToReview) {
-            $redirectUrl .= '#proposal-review';
+        if ($destinationTab !== null) {
+            $redirectUrl .= $destinationTab === 'notice' ? '#notice-to-proceed' : '#proposal-review';
         }
 
         $response = redirect()->to($redirectUrl)->with('success', $message);
 
-        if ($returnToReview) {
-            $response->with('topic_tab', 'review');
+        if ($destinationTab !== null) {
+            $response->with('topic_tab', $destinationTab);
         }
 
         return $response;

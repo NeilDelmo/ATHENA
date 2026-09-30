@@ -306,7 +306,7 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
         ->assertSee('Research Head feedback is waiting for your response.')
         ->assertSee(route('faculty.topics.revision', $revisionProposal), false)
         ->assertSee('Approved Mangrove Study')
-        ->assertSee('Approved project')
+        ->assertSee('Final signing')
         ->assertSee(route('topics.show', $approvedProposal), false)
         ->assertDontSee('Another Faculty Proposal');
 
@@ -452,7 +452,7 @@ test('every draft paper and submission endpoint is protected from another owner'
     Storage::disk('local')->assertExists($document->file_path);
 });
 
-test('the proposal hub presents project details and the seven code-owned required papers', function () {
+test('the proposal hub separates editable papers from automatically included assessment forms', function () {
     $draft = ($this->createDraft)();
 
     $response = $this->actingAs($this->faculty)
@@ -487,8 +487,11 @@ test('the proposal hub presents project details and the seven code-owned require
         ->assertSee('>Open Line-Item Budget</a>', false)
         ->assertSee('>Open Expense Breakdown</a>', false)
         ->assertSee('>Open Curriculum Vitae</a>', false)
-        ->assertSee('>Open GAD Checklist</a>', false)
-        ->assertSee('>Open Initial Screening Form</a>', false)
+        ->assertSee('data-automatic-assessment-forms', false)
+        ->assertSee('Assessment forms added automatically')
+        ->assertSee('No faculty answers or file uploads are needed.')
+        ->assertDontSee('>Open GAD Checklist</a>', false)
+        ->assertDontSee('>Open Initial Screening Form</a>', false)
         ->assertDontSee('>Open paper</a>', false)
         ->assertDontSee('>Edit paper</a>', false)
         ->assertDontSee('>Preview paper</a>', false)
@@ -504,6 +507,14 @@ test('the proposal hub presents project details and the seven code-owned require
         ]);
 
     expect(substr_count($response->getContent(), 'Not started'))->toBeGreaterThanOrEqual(5);
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    expect($xpath->query('//*[@id="required-pdf-attachments-tab"]//article')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-automatic-assessment-forms]//a')->length)->toBe(2)
+        ->and($xpath->query('//*[@id="review-papers-heading"]/ancestor::section[1]//article')->length)->toBe(5)
+        ->and($xpath->query('//*[@data-review-assessment-forms]//li')->length)->toBe(2);
 
     $workspaceView = file_get_contents(resource_path('views/faculty/proposal-drafts/show.blade.php'));
 
@@ -583,7 +594,7 @@ test('paper and review pages render saved files and final readiness actions', fu
         ->assertSee('Preview Work Plan')
         ->assertSee('Preview CV Package')
         ->assertSee('Project team')
-        ->assertSee('seven reviewed PDFs are ready')
+        ->assertSee('Five proposal papers and two automatic assessment forms are ready')
         ->assertSee('Turn in proposal');
 
     expect($reviewResponse->getContent())
@@ -1266,7 +1277,7 @@ test('budget mismatches are identified in the interface and prevent final submis
         ->assertOk()
         ->assertSee('Budget totals do not match')
         ->assertSee('Submission blocked')
-        ->assertSee('5 of 7 required PDF attachments ready')
+        ->assertSee('3 of 5 proposal papers ready')
         ->assertSeeTextInOrder([
             'Attachment B: Line-Item Budget',
             'Needs attention',
@@ -1432,7 +1443,7 @@ test('Livewire prepares the PDF package without leaving the review modal', funct
         ->call('prepare')
         ->assertHasNoErrors()
         ->assertNoRedirect()
-        ->assertSet('statusMessage', 'Seven PDF attachments prepared. Review or replace them before turning in.')
+        ->assertSet('statusMessage', 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.')
         ->assertSee('PDF package prepared')
         ->assertSee('Turn in proposal');
 
@@ -1473,7 +1484,7 @@ test('Turn in is blocked until the complete proposal has a prepared PDF package'
         ->and(TopicProposal::query()->count())->toBe(0);
 });
 
-test('faculty prepares reviews replaces and refreshes the seven submission PDFs before Turn in', function () {
+test('faculty reviews five proposal papers while two generated assessment forms remain read only', function () {
     $draft = ($this->completeDraft)(($this->createDraft)());
 
     expect($draft->documents)->toHaveCount(7)
@@ -1487,12 +1498,28 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
         ->assertSee('Prepared PDF ready')
         ->assertSee('Download prepared PDF')
         ->assertSee('Choose replacement PDF')
-        ->assertSee('The seven reviewed PDFs are ready');
+        ->assertSee('Five proposal papers and two automatic assessment forms are ready')
+        ->assertSee('data-review-assessment-forms', false)
+        ->assertSee('Faculty do not need to fill, review, or replace them');
 
     $workspace = $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.show', $draft));
 
-    expect(substr_count($workspace->getContent(), 'Choose replacement PDF'))->toBe(7);
+    expect(substr_count($workspace->getContent(), 'Choose replacement PDF'))->toBe(5);
+
+    foreach (['gad-checklist', 'initial-screening-form'] as $automaticForm) {
+        $automaticDocument = $draft->documents->firstWhere(
+            'document_type',
+            app(ProposalPaperCatalog::class)->find($automaticForm)['document_type'],
+        );
+        $this->actingAs($this->faculty)
+            ->put(route('faculty.proposal-drafts.submission-files.replace', [$draft, $automaticForm]), [
+                'document_version' => $automaticDocument->lock_version,
+                'file' => UploadedFile::fake()->create('replacement.pdf', 10, 'application/pdf'),
+            ])
+            ->assertNotFound();
+        expect($automaticDocument->fresh()->original_filename)->toBe($automaticDocument->original_filename);
+    }
 
     $expenseBreakdown = $draft->documents
         ->firstWhere('document_type', ProposalVersionFile::TYPE_EXPENSE_BREAKDOWN);
@@ -1547,7 +1574,7 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
         ->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
         ->assertSessionHasNoErrors()
-        ->assertSessionHas('success', 'Seven PDF attachments prepared. Review or replace them before turning in.');
+        ->assertSessionHas('success', 'Seven PDFs prepared. Review the five proposal papers; the two assessment forms are included automatically.');
 
     $refreshedLineItemBudget = $draft->documents()
         ->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)
@@ -1557,6 +1584,28 @@ test('faculty prepares reviews replaces and refreshes the seven submission PDFs 
         ->and($refreshedLineItemBudget->source_data['amounts']['telephone_expenses'])->toEqual(6000.0)
         ->and($refreshedLineItemBudget->source_data['co_total'])->toEqual(0.0)
         ->and($refreshedLineItemBudget->source_data['project_total'])->toEqual(6000.0);
+});
+
+test('a previously staged manual assessment form must be regenerated before Turn in', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $form = $draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
+        ->sole();
+    $manualPath = $draft->storageDirectory().'/prepared/manual/gad-checklist/older-replacement.pdf';
+    Storage::disk('local')->put($manualPath, '%PDF-1.7 older manual form');
+    $form->update(['file_path' => $manualPath]);
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeFalse();
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertSessionHasErrors('submission_files');
+
+    $this->post(route('faculty.proposal-drafts.submission-files.prepare', $draft))
+        ->assertSessionHasNoErrors();
+
+    expect(app(ProposalDraftReadiness::class)->submissionFilesArePrepared($draft->fresh()))->toBeTrue()
+        ->and($form->fresh()->file_path)->not->toBe($manualPath);
 });
 
 test('a prepared third proposal remains a draft until a submission slot becomes available', function () {
@@ -1712,6 +1761,17 @@ test('final submission creates one immutable package then rejects a duplicate re
         ->assertSee('max-w-7xl space-y-6', false)
         ->assertSee('lg:grid-cols-[14rem_minmax(0,1fr)]', false)
         ->assertSee('Ready for Turn in.');
+    $this->actingAs($this->faculty)
+        ->get(route('topics.draft-history.index', [$topic, 'paper' => 'work-plan']))
+        ->assertOk()
+        ->assertViewHas('versions', fn ($filteredVersions): bool => $filteredVersions->count() === 2
+            && $filteredVersions->every(fn (ProposalDraftDocumentVersion $history): bool => $history->document_type === ProposalVersionFile::TYPE_WORK_PLAN));
+    $this->actingAs($this->faculty)
+        ->get(route('topics.draft-history.download', [$topic, $archivedFileVersion]))
+        ->assertDownload($archivedFileVersion->original_filename);
+    $this->actingAs($this->faculty)
+        ->get(route('topics.draft-history.index', [$topic, 'paper' => 'not-a-paper']))
+        ->assertNotFound();
     $this->actingAs($this->head)
         ->get(route('topics.draft-history.index', $topic))
         ->assertOk();

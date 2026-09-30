@@ -129,6 +129,57 @@ test('project folder keeps PDF viewing separate from Research Head annotation ac
     expect($facultyDocuments->firstWhere('key', 'proposal-version-file-'.$currentPaper->id))->not->toHaveKey('review_url');
 });
 
+test('generated GAD and screening templates have their own folder category, apart from completed reviews', function () {
+    [$version, $paper] = ($this->makeResponseVersion)();
+    $templates = collect([
+        ProposalVersionFile::TYPE_GAD_CHECKLIST => 'gad-template.pdf',
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM => 'screening-template.pdf',
+    ])->map(function (string $filename, string $type) use ($version, $paper): ProposalVersionFile {
+        $path = 'proposal-packages/'.$filename;
+        Storage::disk('local')->put($path, '%PDF-1.7 generated template');
+
+        return $version->files()->create([
+            ...$paper->only(['mime_type', 'file_size', 'checksum']),
+            'document_type' => $type,
+            'position' => 0,
+            'file_path' => $path,
+            'original_filename' => $filename,
+        ]);
+    });
+    $completedPath = 'proposal-packages/completed-gad.pdf';
+    Storage::disk('local')->put($completedPath, '%PDF-1.7 completed GAD');
+    $completed = $version->files()->create([
+        ...$paper->only(['mime_type', 'file_size', 'checksum']),
+        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+        'position' => 0,
+        'file_path' => $completedPath,
+        'original_filename' => 'completed-gad.pdf',
+        'source_version_file_id' => $templates[ProposalVersionFile::TYPE_GAD_CHECKLIST]->id,
+        'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT],
+    ]);
+
+    $library = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $this->faculty);
+    $documents = $library['documents'];
+
+    expect($documents->firstWhere('key', 'proposal-version-file-'.$paper->id)['category'])
+        ->toBe(ProjectDocument::CATEGORY_PROPOSAL_PAPERS)
+        ->and($documents->firstWhere('key', 'proposal-version-file-'.$completed->id)['category'])
+        ->toBe(ProjectDocument::CATEGORY_REVIEWS_RESPONSES)
+        ->and($library['categories']->firstWhere('key', ProjectDocument::CATEGORY_ASSESSMENT_FORMS)['count'])
+        ->toBe(2)
+        ->and($library['uploadCategories'])->not->toHaveKey(ProjectDocument::CATEGORY_ASSESSMENT_FORMS);
+
+    foreach ($templates as $template) {
+        expect($documents->firstWhere('key', 'proposal-version-file-'.$template->id)['category'])
+            ->toBe(ProjectDocument::CATEGORY_ASSESSMENT_FORMS);
+    }
+
+    $this->actingAs($this->faculty)
+        ->get(route('topics.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Assessment forms <span class="tabular-nums opacity-70">2</span>', false);
+});
+
 test('legacy review comments remain accessible even when no proposal version was recorded', function () {
     $this->topic->update(['status' => 'revision_requested']);
     $review = $this->topic->reviews()->create(['reviewer_id' => $this->faculty->id, 'decision' => 'revision_requested', 'comment' => 'Legacy review feedback.']);

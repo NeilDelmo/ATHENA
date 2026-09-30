@@ -69,6 +69,14 @@ return [
 
     'openalex' => [
         'key' => env('OPENALEX_API_KEY'),
+        'semantic_search' => env('OPENALEX_SEMANTIC_SEARCH', true),
+    ],
+
+    'scopus' => [
+        'key' => env('SCOPUS_API_KEY'),
+        'institution_token' => env('SCOPUS_INSTITUTION_TOKEN'),
+        'source_list_path' => env('SCOPUS_SOURCE_LIST_PATH'),
+        'source_list_url' => env('SCOPUS_SOURCE_LIST_URL'),
     ],
 
     'semantic_scholar' => [

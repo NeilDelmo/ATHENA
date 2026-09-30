@@ -28,6 +28,8 @@ import {
 } from './proposal-semantic-editor';
 import {
     buildLiteratureSearchQuery,
+    buildLiteratureSearchPayload,
+    fetchLiteratureSearch,
     literatureSearchHistoryTitle,
 } from './proposal-literature-search';
 import {
@@ -2757,6 +2759,8 @@ Alpine.store('literatureSearch', {
     },
 
     async search() {
+        if (this.isLoading) return;
+
         const query = this.query.trim();
         this.hasSearched = true;
         this.error = '';
@@ -2782,51 +2786,16 @@ Alpine.store('literatureSearch', {
         this.startLoadingTimer();
 
         try {
-            const response = await fetch(searchUrl, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify(this.searchPayload(query)),
-            });
-
-            const payload = await response.json().catch(() => ({}));
+            const payload = await fetchLiteratureSearch(
+                searchUrl,
+                document.querySelector('meta[name="csrf-token"]').content,
+                this.searchPayload(query),
+            );
             this.failedSources = Array.isArray(payload.failed_sources) ? payload.failed_sources : [];
-            this.providerNotice = typeof payload.provider_notice === 'string' ? payload.provider_notice : '';
+            this.providerNotice = [payload.provider_notice, payload.search_notice].filter(Boolean).join(' ');
             this.queryGuidance = payload.query_guidance && typeof payload.query_guidance === 'object'
                 ? payload.query_guidance
                 : null;
-
-            if (!response.ok) {
-                this.results = [];
-                this.selectedIndex = null;
-
-                if (response.status === 419) {
-                    this.error = 'Refresh the page, then try the search again.';
-                    return;
-                }
-
-                if (response.status === 422) {
-                    this.error = payload.errors?.query?.[0]
-                        || payload.errors?.year_from?.[0]
-                        || payload.errors?.year_to?.[0]
-                        || payload.errors?.min_citations?.[0]
-                        || payload.message
-                        || 'Enter a valid topic, title, or filter.';
-                    return;
-                }
-
-                if (response.status === 429) {
-                    this.error = 'Too many searches were sent. Please wait a moment, then retry.';
-                    return;
-                }
-
-                this.error = payload.message || 'The literature search could not be completed right now.';
-                return;
-            }
 
             this.results = Array.isArray(payload.results) ? payload.results : [];
             this.selectedIndex = this.results.length > 0 ? 0 : null;
@@ -2861,17 +2830,7 @@ Alpine.store('literatureSearch', {
     },
 
     searchPayload(query) {
-        const payload = { query };
-        const yearFrom = this.numberOrNull(this.filters.year_from);
-        const yearTo = this.numberOrNull(this.filters.year_to);
-        const minCitations = this.numberOrNull(this.filters.min_citations);
-
-        if (yearFrom !== null) payload.year_from = yearFrom;
-        if (yearTo !== null) payload.year_to = yearTo;
-        if (minCitations !== null) payload.min_citations = minCitations;
-        if (this.filters.open_access) payload.open_access = true;
-
-        return payload;
+        return buildLiteratureSearchPayload(query, [], this.filters);
     },
 
     numberOrNull(value) {
@@ -4327,13 +4286,18 @@ Alpine.data('notificationMenu', (config) => ({
     notifications: config.notifications,
     unreadCount: config.unreadCount,
     workspace: config.workspace,
-    toasts: [],
-    knownNotificationIds: config.notifications.map((item) => item.id),
     poller: null,
+    notificationHandler: null,
 
     init() {
-        window.addEventListener('athena-notification', (event) => this.receive(event.detail));
+        this.notificationHandler = (event) => this.receive(event.detail);
+        window.addEventListener('athena-notification', this.notificationHandler);
         this.poller = window.setInterval(() => this.refresh(), 30000);
+    },
+
+    destroy() {
+        window.removeEventListener('athena-notification', this.notificationHandler);
+        window.clearInterval(this.poller);
     },
 
     async refresh() {
@@ -4346,17 +4310,8 @@ Alpine.data('notificationMenu', (config) => ({
             if (!response.ok) return;
 
             const payload = await response.json();
-            const newNotifications = payload.notifications
-                .filter((item) => !this.knownNotificationIds.includes(item.id))
-                .reverse();
-
             this.notifications = payload.notifications;
             this.unreadCount = payload.unread_count;
-
-            newNotifications.forEach((item) => {
-                this.knownNotificationIds.push(item.id);
-                this.showToast(item);
-            });
         } catch {
             // Reverb or a temporary network failure should never break the app shell.
         }
@@ -4382,8 +4337,6 @@ Alpine.data('notificationMenu', (config) => ({
             this.notifications.unshift(item);
             this.notifications = this.notifications.slice(0, 15);
             this.unreadCount += 1;
-            this.knownNotificationIds.push(item.id);
-            this.showToast(item);
         }
     },
 
@@ -4395,19 +4348,8 @@ Alpine.data('notificationMenu', (config) => ({
             || (Array.isArray(targetWorkspace) && targetWorkspace.includes(this.workspace));
     },
 
-    showToast(item) {
-        if (this.toasts.some((toast) => toast.id === item.id)) return;
-
-        this.toasts.push({
-            id: item.id,
-            item,
-        });
-
-        window.setTimeout(() => this.dismissToast(item.id), 7000);
-    },
-
-    dismissToast(id) {
-        this.toasts = this.toasts.filter((toast) => toast.id !== id);
+    notificationOpenUrl(item) {
+        return config.openUrl.replace('__ID__', encodeURIComponent(item.id));
     },
 
     async request(url, method = 'PATCH', body = null) {
@@ -4499,25 +4441,12 @@ Alpine.data('notificationMenu', (config) => ({
         window.location.assign(payload.url || item.data.url);
     },
 
-    async openNotification(item) {
+    async openNotification(event, item) {
+        if (!item.data.action_url || item.data.action_completed) return;
+
+        event.preventDefault();
         await this.markNotificationRead(item);
-
-        if (item.data.action_url && !item.data.action_completed) {
-            await this.acceptProposalInvitation(item);
-
-            return;
-        }
-
-        if (item.data.url) window.location.assign(item.data.url);
-    },
-
-    levelClass(level) {
-        return {
-            success: 'bg-green-500',
-            warning: 'bg-amber-500',
-            danger: 'bg-red-600',
-            info: 'bg-blue-500',
-        }[level] || 'bg-gray-400';
+        await this.acceptProposalInvitation(item);
     },
 }));
 
@@ -8043,6 +7972,9 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         methodology: false,
     },
     literatureSearchQuery: '',
+    literatureSearchFilters: { year_from: '', year_to: '', min_citations: '', open_access: false },
+    literatureSearchUseContext: true,
+    literatureSearchKeywords: [],
     literatureSearchResults: [],
     literatureSearchHistory: [],
     literatureSearchLoading: false,
@@ -8767,6 +8699,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async searchSuggestedLiterature() {
+        if (this.literatureSearchLoading) return;
+
         const query = this.literatureSearchQuery.trim();
 
         if (query.length < 3) {
@@ -8777,21 +8711,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.literatureSearchLoading = true;
         this.literatureSearchError = '';
         this.literatureSearchNotice = '';
+        this.literatureSearchResults = [];
+        this.literatureSearchKeywords = [];
 
         try {
-            const response = await fetch(config.literatureSearchUrl || '', {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': config.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ query }),
-            });
-            const payload = await response.json();
-
-            if (!response.ok) throw new Error(payload.message || 'Related literature could not be searched right now.');
+            const payload = await fetchLiteratureSearch(
+                config.literatureSearchUrl || '',
+                config.csrfToken,
+                buildLiteratureSearchPayload(query, this.literatureSearchUseContext ? this.suggestedLiteratureContext() : [], this.literatureSearchFilters),
+            );
 
             this.literatureSearchResults = Array.isArray(payload.results)
                 ? payload.results.map((result) => {
@@ -8805,7 +8733,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                     };
                 })
                 : [];
-            this.literatureSearchNotice = payload.provider_notice || (this.literatureSearchResults.length
+            this.literatureSearchKeywords = Array.isArray(payload.search_keywords) ? payload.search_keywords : [];
+            this.literatureSearchNotice = [payload.provider_notice, payload.search_notice, payload.query_guidance?.message, payload.query_guidance?.suggestion].filter(Boolean).join(' ') || (this.literatureSearchResults.length
                 ? 'Review the abstract and source record before linking a paper.'
                 : 'No matching papers were returned. Edit the query or include different proposal details.');
             this.recordLiteratureSearch(query, this.literatureSearchResults.length);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -13,10 +14,27 @@ class ResearchCoordinatorController extends Controller
     {
         $coordinator = $request->user();
         $memberCount = $this->membersQuery($coordinator)->count();
+        $lrecProposals = TopicProposal::query()
+            ->with(['user:id,name,college', 'latestVersion'])
+            ->where('review_stage', 'lrec')
+            ->whereIn('status', [
+                TopicProposal::STATUS_LREC_QUEUED,
+                TopicProposal::STATUS_LREC_REVIEW,
+                'revision_requested',
+                'resubmitted',
+                'pending',
+                'expert_review',
+                'for_final_decision',
+            ])
+            ->whereHas('user', fn (Builder $query) => $query->where('college', $coordinator->college))
+            ->when(blank($coordinator->college), fn (Builder $query) => $query->whereRaw('1 = 0'))
+            ->latest()
+            ->paginate(12);
 
         return view('research_coordinator.dashboard', [
             'coordinator' => $coordinator,
             'memberCount' => $memberCount,
+            'lrecProposals' => $lrecProposals,
         ]);
     }
 

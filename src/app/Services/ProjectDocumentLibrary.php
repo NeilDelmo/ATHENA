@@ -132,7 +132,11 @@ class ProjectDocumentLibrary
             'reviews.fileRevisions.file.version.topic.stageTransitions',
             'reviews.fileRevisions.annotations.reviewer',
         ]);
-        $routePrefix = $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) ? 'research_head' : 'faculty';
+        $routePrefix = match (true) {
+            $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) => 'research_head',
+            $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE) => 'research_coordinator',
+            default => 'faculty',
+        };
 
         foreach ($topic->reviews->where('decision', 'revision_requested') as $review) {
             $version = $this->commentResponseFeedback->reviewedVersion($review);
@@ -174,7 +178,7 @@ class ProjectDocumentLibrary
         return [
             'key' => 'comment-response-'.($review ? 'review-'.$review->id : 'draft-'.$version->id).'-'.$source,
             'category' => ProjectDocument::CATEGORY_REVIEWS_RESPONSES,
-            'title' => ($source === CommentResponseFeedback::FORM_CO_EVALUATOR ? 'Co-Evaluator' : 'Research Head').' Comment Response Paper',
+            'title' => ($source === CommentResponseFeedback::FORM_CO_EVALUATOR ? 'Co-Evaluator' : ($review?->review_stage === 'lrec' ? 'LREC' : 'Research Head')).' Comment Response Paper',
             'filename' => (Str::slug($version?->title ?? $topic->title) ?: 'proposal').'-'.($version ? 'v'.$version->version_number : 'review-'.$review->id).'-'.$source.'-comment-response.pdf',
             'note' => $review ? 'Generated from this review’s saved comments and submitted Faculty responses.' : 'Private draft from saved highlights. Sending a revision request shares the selected papers’ comments with Faculty.',
             'source' => $versionLabel.' · '.implode(' / ', $stageLabels),
@@ -207,6 +211,10 @@ class ProjectDocumentLibrary
     {
         if ($file->document_type === ProposalVersionFile::TYPE_COMMENT_RESPONSE) {
             return ProjectDocument::CATEGORY_REVIEWS_RESPONSES;
+        }
+
+        if ($file->isGeneratedAssessmentForm()) {
+            return ProjectDocument::CATEGORY_ASSESSMENT_FORMS;
         }
 
         if ($file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD) {
@@ -386,7 +394,8 @@ class ProjectDocumentLibrary
     private function categoryDescription(string $category): string
     {
         return match ($category) {
-            ProjectDocument::CATEGORY_PROPOSAL_PAPERS => 'Generated and submitted proposal forms across versions.',
+            ProjectDocument::CATEGORY_PROPOSAL_PAPERS => 'Submitted proposal papers across versions.',
+            ProjectDocument::CATEGORY_ASSESSMENT_FORMS => 'Auto-generated GAD and screening templates, kept separate from papers for revision.',
             ProjectDocument::CATEGORY_SIGNED_PAPERS => 'Signed and officially released project papers.',
             ProjectDocument::CATEGORY_REVIEWS_RESPONSES => 'Assessments, evaluations, and comment-response papers.',
             ProjectDocument::CATEGORY_NOTICE_TO_PROCEED => 'The project’s official authority to begin.',

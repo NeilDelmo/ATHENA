@@ -144,7 +144,9 @@ class TopicCommentResponseFormController extends Controller
             ),
             'staff' => $this->staffRows($detailedProposal, $lineItemBudget),
             'form_source' => $source,
-            'form_label' => app(CommentResponseFeedback::class)->formLabel($source),
+            'form_label' => $review?->review_stage === 'lrec' && $source === CommentResponseFeedback::FORM_RESEARCH_HEAD
+                ? 'LREC Comment-Response Form'
+                : app(CommentResponseFeedback::class)->formLabel($source),
             'review_id' => $review?->id,
             'feedback' => $feedback,
             'evaluation_stages' => $feedbackService->stagesForRows($feedback, $fallbackStage),

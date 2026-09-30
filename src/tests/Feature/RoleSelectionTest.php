@@ -44,7 +44,8 @@ test('users can continue as faculty for the current session', function () {
     $this->actingAs($this->dualRoleUser)
         ->post(route('role-selection.store'), ['role' => 'faculty'])
         ->assertRedirect(route('faculty.dashboard'))
-        ->assertSessionHas('active_role', 'faculty');
+        ->assertSessionHas('active_role', 'faculty')
+        ->assertSessionHas('active_workspace', User::WORKSPACE_FACULTY);
 
     $this->get(route('dashboard'))
         ->assertRedirect(route('faculty.dashboard'));
@@ -54,7 +55,8 @@ test('users can continue as research coordinator for the current session', funct
     $this->actingAs($this->dualRoleUser)
         ->post(route('role-selection.store'), ['role' => 'research_coordinator'])
         ->assertRedirect(route('research_coordinator.dashboard'))
-        ->assertSessionHas('active_role', 'research_coordinator');
+        ->assertSessionHas('active_role', 'research_coordinator')
+        ->assertSessionHas('active_workspace', User::WORKSPACE_RESEARCH_OFFICE);
 
     $this->get(route('dashboard'))
         ->assertRedirect(route('research_coordinator.dashboard'));

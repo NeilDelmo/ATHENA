@@ -40,11 +40,14 @@ test('the notification menu lists and marks proposal notifications as read', fun
         ->assertSee('Please update the proposal work plan.')
         ->assertSee('Review invitation')
         ->assertSee('View notification inbox')
-        ->assertSee('bg-gray-100/90', false)
-        ->assertSee('shadow-[inset_3px_0_0_0_#dc2626]', false)
-        ->assertSee('>New</span>', false)
+        ->assertSee(':action="notificationOpenUrl(item)"', false)
+        ->assertSee('@submit="openNotification($event, item)"', false)
+        ->assertSee('bg-red-50/40', false)
+        ->assertSee('line-clamp-2', false)
+        ->assertDontSee('>New</span>', false)
+        ->assertDontSee('toast in toasts', false)
         ->assertSee('x-text="unreadCount > 99 ? \'99+\' : unreadCount"', false)
-        ->assertDontSee("x-show=\"unreadCount > 0\"\n            x-text=\"unreadCount > 99 ? '99+' : unreadCount\"", false);
+        ->assertSee('All caught up');
 
     $this->actingAs($faculty)
         ->getJson(route('notifications.index'))
@@ -60,8 +63,8 @@ test('the notification menu lists and marks proposal notifications as read', fun
     $this->actingAs($faculty)
         ->get(route('faculty.dashboard'))
         ->assertOk()
-        ->assertSee('x-text="`${unreadCount} unread`"', false)
-        ->assertDontSee('You are all caught up', false);
+        ->assertSee('All caught up')
+        ->assertDontSee('toast in toasts', false);
 
     expect($notification->fresh()->read_at)->not->toBeNull();
 });
@@ -240,6 +243,8 @@ test('the notification inbox segregates activity and marks an opened item as rea
         ->assertSee('Reviews')
         ->assertSee('Research calls')
         ->assertSee('Projects')
+        ->assertDontSee('>New</span>', false)
+        ->assertSee('bg-red-50/40', false)
         ->assertSee('data-notification-category="invitations"', false)
         ->assertSee('data-notification-category="collaboration"', false)
         ->assertSee('data-notification-category="reviews"', false)
