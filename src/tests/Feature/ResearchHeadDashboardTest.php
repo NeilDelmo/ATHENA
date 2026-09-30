@@ -102,6 +102,8 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertSee('data-dashboard-section-navigation', false)
         ->assertSee('sticky top-[128px] z-20', false)
         ->assertSee('href="#research-calendar"', false)
+        ->assertSeeHtml('<section id="research-calendar" aria-labelledby="research-calendar-heading"')
+        ->assertDontSeeHtml('<details id="research-calendar"')
         ->assertSee('href="#needs-attention"', false)
         ->assertSee('href="#active-projects"', false)
         ->assertSee('href="#received-proposals"', false)
