@@ -14,6 +14,8 @@ class DashboardCalendar extends Component
     #[Reactive]
     public ?int $callId = null;
 
+    public bool $compact = false;
+
     public string $month = '';
 
     public string $selectedDate = '';

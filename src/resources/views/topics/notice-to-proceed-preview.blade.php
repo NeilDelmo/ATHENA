@@ -11,14 +11,14 @@
             <header class="notice-to-proceed-letterhead">
                 <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal">
                 <div>
-                    <p>Republic of the Philippines</p>
+                    <p class="notice-to-proceed-republic">Republic of the Philippines</p>
                     <p class="notice-to-proceed-university">BATANGAS STATE UNIVERSITY</p>
                     <p class="notice-to-proceed-subtitle">The National Engineering University</p>
                     <p class="notice-to-proceed-campus">ARASOF-Nasugbu Campus</p>
-                    <p>R. Martinez St., Brgy. Bucana, Nasugbu, Batangas, Philippines 4231</p>
+                    <p class="notice-to-proceed-address">R. Martinez St., Brgy. Bucana, Nasugbu, Batangas, Philippines 4231</p>
                     <p>Tel Nos.: +63 43 416 0350 local 302</p>
-                    <p>E-mail: research.nasugbu@g.batstate-u.edu.ph &nbsp;|&nbsp; www.batstate-u.edu.ph</p>
                 </div>
+                <p class="notice-to-proceed-contact">E-mail Address: research.nasugbu@g.batstate-u.edu.ph &nbsp;|&nbsp; Website Address: www.batstate-u.edu.ph</p>
             </header>
 
             <div class="notice-to-proceed-office-heading">Research Office</div>
@@ -32,16 +32,16 @@
 
                 <p>You are hereby awarded this <strong>NOTICE TO PROCEED</strong> for the institutionally approved research project entitled <strong>“{{ $notice['PROJECT_TITLE'] }}.”</strong></p>
 
-                <p>Based on the Local Research Evaluation Committee (LREC) Resolution No. {{ $notice['RESOLUTION_NUMBER'] }}, S. {{ $notice['RESOLUTION_YEAR'] }}, the approved duration of the project is {{ $notice['DURATION_WORDS'] }} ({{ $notice['DURATION_MONTHS'] }}) {{ $notice['DURATION_UNIT'] }} which shall commence from {{ $notice['START_DATE'] }} to {{ $notice['END_DATE'] }}, with a budget amounting to {{ $notice['BUDGET_WORDS'] }} (Php {{ $notice['BUDGET_AMOUNT'] }}) only. You are required to present monthly actual accomplishments to the assigned research monitoring personnel and submit quarterly monitoring reports to the Research Office of ARASOF-Nasugbu Campus during the conduct of this project.</p>
+                <p>Based on the Local Research Evaluation Committee (LREC) Resolution No. {{ $notice['RESOLUTION_NUMBER'] }}, S. {{ $notice['RESOLUTION_YEAR'] }}, the approved duration of the project is {{ $notice['DURATION_WORDS'] }} ({{ $notice['DURATION_MONTHS'] }}) {{ $notice['DURATION_UNIT'] }} which shall commence from <strong>{{ $notice['START_DATE'] }} to {{ $notice['END_DATE'] }}</strong>, with a budget amounting to <strong>{{ $notice['BUDGET_WORDS'] }} (Php {{ $notice['BUDGET_AMOUNT'] }})</strong> only. You are required to present monthly actual accomplishments to the assigned research monitoring personnel and submit quarterly monitoring reports to the Research Office of ARASOF-Nasugbu Campus during the conduct of this project.</p>
 
-                <p>You are entitled to the reduction of teaching load during the approved duration of the project based on the University guidelines. Upon completion of the project, you shall be entitled to avail paper presentation support and publication support and incentives for the dissemination of your research outputs, and Technology Transfer support and incentives for the protection and commercialization of Intellectual Property assets that may be generated, subject to the existing policies of the University and availability of funds.</p>
+                <p>You are entitled to the reduction of teaching load during the approved duration of the project based on the University guidelines (please see the table below for your reference). Upon completion of the project, you shall be entitled to avail paper presentation support and publication support and incentives for the dissemination of your research outputs, and Technology Transfer support and incentives for the protection and commercialization of Intellectual Property assets that may be generated, subject to the existing policies of the University and availability of funds.</p>
 
                 <table class="notice-to-proceed-load-table">
                     <thead>
                         <tr>
                             <th>Classification of Researcher</th>
                             <th>Reduction of Teaching Load</th>
-                            <th>Hours Rendered Weekly in Research</th>
+                            <th>Number of Hours to be Rendered Weekly in the Conduct of Research</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -84,10 +84,11 @@
                 <section class="notice-to-proceed-conforme">
                     <p>Conforme:</p>
                     <div class="notice-to-proceed-conforme-line"></div>
-                    <p>Signature above printed name</p>
+                    <p class="notice-to-proceed-conforme-caption">Signature above printed name</p>
                     <p class="notice-to-proceed-conforme-date">Date: ____________________</p>
                 </section>
             </section>
+            <footer class="notice-to-proceed-footer">Leading Innovations. Transforming Lives. Building the Nation.</footer>
         </main>
     </body>
 </html>

@@ -1,37 +1,39 @@
 @if ($researchCallCarouselItems->isNotEmpty())
-    <section data-research-call-carousel class="relative isolate overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Research Office announcements" aria-roledescription="carousel">
-        <img src="{{ asset('images/cteb_building.png') }}" alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.45] grayscale dark:opacity-[0.22]" aria-hidden="true">
-        <div class="pointer-events-none absolute inset-0 bg-white/60 dark:bg-slate-950/70" aria-hidden="true"></div>
-
-        <div data-research-call-viewport data-research-call-single-slide class="relative h-[18rem] overflow-hidden sm:h-[22rem]">
+    <section data-research-call-carousel class="bg-white dark:bg-slate-900" aria-label="Research Office announcements" aria-roledescription="carousel">
+        <div data-research-call-viewport data-research-call-single-slide>
             @foreach ($researchCallCarouselItems as $carouselItem)
-                <article data-research-call-slide class="group absolute left-1/2 top-1/2 h-full w-[calc(100%-6rem)] max-w-md cursor-zoom-in overflow-hidden bg-transparent p-0 text-gray-950 transition-[transform,opacity,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[calc(100%-10rem)]" aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
-                    <div class="relative h-full overflow-hidden bg-transparent">
-                        <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="relative z-[1] h-full w-full cursor-zoom-in object-contain transition-transform duration-500 ease-out" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
-
-                        @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
-                            <div data-research-call-submit-overlay class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-gray-950/55 opacity-0 backdrop-blur-[1px] transition-all duration-300 group-hover:pointer-events-auto group-hover:opacity-100">
-                                <a href="{{ route('faculty.proposal-drafts.create') }}" class="translate-y-3 cursor-pointer rounded-xl bg-red-700 px-5 py-3 text-xs font-black text-white opacity-0 shadow-xl shadow-red-950/30 transition duration-300 hover:scale-105 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-red-700 group-hover:translate-y-0 group-hover:opacity-100">Start a proposal</a>
-                            </div>
-                        @endif
+                <article data-research-call-slide class="grid gap-0 md:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)]" @if (! $loop->first) hidden inert style="display: none" @endif aria-hidden="{{ $loop->first ? 'false' : 'true' }}" aria-roledescription="slide" aria-label="{{ $loop->iteration }} of {{ $researchCallCarouselItems->count() }}">
+                    <div class="flex min-w-0 items-center justify-center bg-slate-100 px-4 py-6 dark:bg-slate-950 sm:px-8 sm:py-8">
+                        <button type="button" data-research-call-preview class="inline-flex max-w-full cursor-zoom-in rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#7A0019] dark:focus-visible:outline-red-300" aria-label="Enlarge {{ $carouselItem['alt'] }}">
+                            <img src="{{ $carouselItem['url'] }}" alt="{{ $carouselItem['alt'] }}" data-research-call-poster-trigger class="h-auto max-h-[32rem] w-auto max-w-full object-contain shadow-lg sm:max-h-[38rem]" loading="{{ $loop->first ? 'eager' : 'lazy' }}" decoding="async">
+                        </button>
+                    </div>
+                    <div class="flex flex-col justify-center border-t border-slate-200 px-6 py-8 dark:border-slate-800 md:border-l md:border-t-0 lg:px-10">
+                        <p class="text-sm font-medium text-[#7A0019] dark:text-red-300">{{ $carouselItem['isResearchCall'] ? 'Research call' : 'Research Office' }}</p>
+                        <h3 class="mt-3 text-2xl font-bold leading-tight tracking-tight text-slate-950 dark:text-white">{{ $carouselItem['alt'] }}</h3>
+                        <p class="mt-4 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $carouselItem['canSubmitProposal'] ? 'Read the announcement for submission requirements and important dates, then start your proposal package.' : 'Read the announcement for research activities and updates from the Research Office.' }}</p>
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            @if ($carouselItem['isResearchCall'] && $carouselItem['canSubmitProposal'])
+                                <a href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">Start a proposal</a>
+                            @endif
+                            <button type="button" data-research-call-preview class="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">View full poster</button>
+                        </div>
                     </div>
                 </article>
             @endforeach
-
-            @if ($researchCallCarouselItems->count() > 1)
-                <button type="button" data-research-call-previous class="group absolute left-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-110 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900 sm:left-5" aria-label="Show previous announcement">
-                    <svg class="h-5 w-5 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg>
-                </button>
-                <button type="button" data-research-call-next class="group absolute right-3 top-1/2 z-40 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white/95 text-gray-500 shadow-md backdrop-blur-sm transition duration-200 hover:scale-110 hover:border-red-200 hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-300 dark:hover:border-red-800 dark:hover:bg-red-950/60 dark:hover:text-red-300 dark:focus:ring-offset-slate-900 sm:right-5" aria-label="Show next announcement">
-                    <svg class="h-5 w-5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
-                </button>
-            @endif
         </div>
-
-        <div data-research-call-lightbox class="fixed inset-0 z-[100] hidden items-center justify-center bg-gray-950/75 p-4 backdrop-blur-sm sm:p-8" role="dialog" aria-modal="true" aria-label="Announcement preview" aria-hidden="true" tabindex="-1">
-            <div class="relative flex max-h-[88vh] max-w-[54rem] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-gray-950 p-2 shadow-2xl">
-                <img data-research-call-lightbox-image src="" alt="" class="max-h-[84vh] max-w-full transform-gpu object-contain">
+        @if ($researchCallCarouselItems->count() > 1)
+            <div class="flex items-center justify-between gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
+                <p data-research-call-counter class="text-xs text-slate-500 dark:text-slate-400" aria-live="polite" aria-atomic="true">Announcement 1 of {{ $researchCallCarouselItems->count() }}</p>
+                <div class="flex gap-2">
+                    <button type="button" data-research-call-previous class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" aria-label="Show previous announcement"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6" /></svg></button>
+                    <button type="button" data-research-call-next class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" aria-label="Show next announcement"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg></button>
+                </div>
             </div>
+        @endif
+        <div data-research-call-lightbox class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/85 p-4 sm:p-8" role="dialog" aria-modal="true" aria-label="Announcement preview" aria-hidden="true" tabindex="-1">
+            <button type="button" data-research-call-lightbox-close class="absolute right-4 top-4 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Close preview</button>
+            <img data-research-call-lightbox-image src="" alt="" class="max-h-[82vh] max-w-full object-contain">
         </div>
     </section>
 @endif

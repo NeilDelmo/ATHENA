@@ -93,27 +93,19 @@ test('proposal dashboard presents a focused research head workspace', function (
         ->assertOk()
         ->assertSee('data-workspace-header-banner', false)
         ->assertSee('data-dashboard-palette="maroon-slate-white"', false)
-        ->assertSee('Research Operations Dashboard')
-        ->assertSee('data-research-operations-status', false)
-        ->assertSee('self-end', false)
-        ->assertSee('Research operations active')
+        ->assertSee('data-research-head-overview', false)
         ->assertDontSee('Project monitoring')
         ->assertSee('Proposal pipeline')
-        ->assertSee('data-dashboard-section-navigation', false)
-        ->assertSee('sticky top-[128px] z-20', false)
-        ->assertSee('href="#research-calendar"', false)
-        ->assertSeeHtml('<section id="research-calendar" aria-labelledby="research-calendar-heading"')
-        ->assertDontSeeHtml('<details id="research-calendar"')
-        ->assertSee('href="#needs-attention"', false)
-        ->assertSee('href="#active-projects"', false)
+        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Needs attention', 'Upcoming deadlines'], false)
+        ->assertSee(route('research_head.calendar'), false)
+        ->assertDontSeeHtml('<section id="research-calendar"')
         ->assertSee('href="#received-proposals"', false)
-        ->assertSee('scroll-mt-64', false)
-        ->assertSee('Inbox controls')
-        ->assertSee('Received proposal inbox')
-        ->assertSee('table-fixed', false)
-        ->assertSee('overflow-x-auto', false)
+        ->assertSee('scroll-mt-40', false)
+        ->assertSee('Search proposals or faculty')
+        ->assertDontSeeHtml('<table')
+        ->assertDontSee('Monthly submission trend')
         ->assertDontSee('All research calls')
-        ->assertSee('Research calendar');
+        ->assertSee('Annual targets');
 });
 
 test('dashboard shows completion percentages for every active project', function () {
@@ -200,7 +192,7 @@ test('proposal dashboard shows received files and opens the submitted package', 
     }
 
     $this->actingAs($this->head)
-        ->get(route('research_head.dashboard'))
+        ->get(route('research_head.analytics'))
         ->assertOk()
         ->assertSee('Received proposal inbox')
         ->assertSee('v1 · 7 files')
@@ -215,9 +207,11 @@ test('proposal dashboard paginates and preserves search', function () {
 
     Livewire::actingAs($this->head)->withQueryParams(['search' => 'Filtered'])
         ->test(ResearchHeadDashboard::class)
-        ->assertViewHas('topics', fn ($topics) => $topics->total() === 16 && $topics->hasMorePages())
+        ->assertViewHas('topics', fn ($topics) => $topics->total() === 16 && $topics->count() === 5 && $topics->hasMorePages())
         ->call('setPage', 2)->assertSet('search', 'Filtered')
-        ->assertViewHas('topics', fn ($topics) => $topics->currentPage() === 2 && $topics->count() === 1);
+        ->assertViewHas('topics', fn ($topics) => $topics->currentPage() === 2 && $topics->count() === 5)
+        ->call('setPage', 4)->assertSet('search', 'Filtered')
+        ->assertViewHas('topics', fn ($topics) => $topics->currentPage() === 4 && $topics->count() === 1);
 });
 
 test('monitoring page shows approved projects only with latest progress and counts', function () {
@@ -357,13 +351,12 @@ test('dashboard distinguishes monthly new submissions from revisions', function 
     createDashboardTopic($this->researcher, $this->call);
 
     $this->actingAs($this->head)
-        ->get(route('research_head.dashboard'))
+        ->get(route('research_head.analytics'))
         ->assertOk()
         ->assertSee('Monthly submission trend')
         ->assertDontSee('Average review time')
-        ->assertSee('first submissions vs revision events')
-        ->assertSee('New proposals:')
-        ->assertSee('Resubmissions / revisions:')
+        ->assertSee('New proposals')
+        ->assertSee('Revisions')
         ->assertDontSee('Submissions volume');
 
 });
@@ -388,10 +381,9 @@ test('dashboard shows the proposal status overview and budget utilization analyt
     ]);
 
     $this->actingAs($this->head)
-        ->get(route('research_head.dashboard'))
+        ->get(route('research_head.analytics'))
         ->assertOk()
         ->assertSee('Proposal pipeline')
-        ->assertSee('Current proposals grouped by workflow stage.')
         ->assertSee('4 total')
         ->assertSee('3 proposals')
         ->assertSee('Faculty Revision')
@@ -408,9 +400,9 @@ test('the proposal dashboard shows the six research analytics KPIs', function ()
         ->get(route('research_head.dashboard'))
         ->assertOk()
         ->assertSee('Awaiting your review')
-        ->assertSee('Delayed / overdue projects')
+        ->assertSee('Delayed / overdue')
         ->assertSee('Completed projects')
-        ->assertSee('Faculty currently involved')
+        ->assertSee('Faculty in research')
         ->assertSee('Reported budget utilization')
         ->assertSee('Active projects')
         ->assertDontSee('In-progress drafts')

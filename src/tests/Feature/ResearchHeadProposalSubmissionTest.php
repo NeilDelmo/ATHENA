@@ -89,6 +89,7 @@ test('research heads can view every initial proposal submission and revision', f
         ->get(route('research_head.proposal-submissions.index'))
         ->assertOk()
         ->assertSee('Proposal Submissions')
+        ->assertDontSee('Manage signatory names')
         ->assertSee('Active proposal queue')
         ->assertSee('All active review stages')
         ->assertSee('Final signing')
@@ -112,13 +113,21 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('2 package files')
         ->assertSee(route('topics.show', $topic).'#version-history', false)
         ->assertSeeInOrder([
-            'Research Head Dashboard',
-            'Proposal Submissions',
-            'Project Monitoring',
-            'Faculty Directory',
-            'Signatory Directory',
-            'Research Calls',
-        ])
+            'aria-label="Overview"',
+            'aria-label="Dashboard"',
+            'aria-label="Calendar"',
+            'aria-label="Research"',
+            'aria-label="Proposals"',
+            'aria-label="Projects"',
+            'aria-label="Faculty"',
+            'aria-label="Planning"',
+            'aria-label="Analytics"',
+            'aria-label="Research calls"',
+            'aria-label="Resources"',
+            'aria-label="Signatories"',
+            'aria-label="Templates"',
+            'aria-label="Knowledge base"',
+        ], false)
         ->assertDontSee('Similarity Checks')
         ->assertDontSee('aria-label="Proposal Templates"', false)
         ->assertDontSee('aria-label="Athena Knowledge"', false);
@@ -489,7 +498,20 @@ test('signing automatically requires five papers and exempts CV and expense brea
     expect($required)->toHaveCount(5)
         ->and($required->pluck('document_type')->all())->not->toContain('curriculum_vitae', 'expense_breakdown')
         ->and($topic->reviews()->latest('id')->firstOrFail()->required_signature_file_ids)->toHaveCount(5);
-    $this->get(route('topics.show', $topic))->assertOk()->assertSee('Upload the required signed PDFs');
+    $signingResponse = $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('Upload the required signed PDFs')
+        ->assertSee('Awaiting signed copy')
+        ->assertSee('aria-label="Signed PDF upload progress" value="0" max="3"', false)
+        ->assertSee('data-signing-continue type="submit" disabled', false);
+
+    foreach ($required as $file) {
+        if (in_array($file->document_type, [ProposalVersionFile::TYPE_GAD_CHECKLIST, ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM], true)) {
+            $signingResponse->assertDontSee('Signed final PDF for '.$file->label());
+        } else {
+            $signingResponse->assertSee('Signed final PDF for '.$file->label());
+        }
+    }
 
     foreach ($exemptFiles as $file) {
         $this->post(route('topics.head-uploads.store', $topic), [
@@ -505,6 +527,13 @@ test('signing automatically requires five papers and exempts CV and expense brea
         ])->assertRedirect();
         expect($workflow->isComplete($version->fresh()))->toBe($index === 4);
     }
+    $this->get(route('topics.show', $topic))
+        ->assertOk()
+        ->assertSee('aria-label="Signed PDF upload progress" value="3" max="3"', false)
+        ->assertSee('Replace signed PDF')
+        ->assertSee('Preview signed PDF')
+        ->assertDontSee('Awaiting signed copy')
+        ->assertDontSee('data-signing-continue type="submit" disabled', false);
     $this->patch(route('research_head.topics.finalizeApproval', $topic))
         ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
     expect($topic->fresh()->notice_to_proceed_issued_at)->toBeNull();

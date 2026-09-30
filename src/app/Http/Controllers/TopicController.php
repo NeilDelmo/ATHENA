@@ -155,6 +155,16 @@ class TopicController extends Controller
         ));
     }
 
+    public function submissions(Request $request): View
+    {
+        $topics = $request->user()->proposals()
+            ->with(['researchCall', 'versions'])
+            ->latest()
+            ->paginate(12);
+
+        return view('faculty.submissions', compact('topics'));
+    }
+
     public function create(Request $request)
     {
         return redirect()->route('faculty.proposal-drafts.index');
@@ -1120,6 +1130,7 @@ class TopicController extends Controller
      *     viewableFileIds: Collection<int, int>,
      *     requiredSignatureFiles: Collection<int, ProposalVersionFile>,
      *     signedSourceFileIds: Collection<int, int>,
+     *     signedCopiesBySource: Collection<int, ProposalVersionFile>,
      *     missingSignatureFiles: Collection<int, ProposalVersionFile>,
      *     signaturesComplete: bool,
      *     gadAssessment: ProposalVersionFile|null,
@@ -1184,9 +1195,10 @@ class TopicController extends Controller
         $requiredSignatureFiles = $latestVersion
             ? $this->signatureWorkflow->requiredFiles($latestVersion)
             : collect();
-        $signedSourceFileIds = $latestVersion
-            ? $this->signatureWorkflow->signedSourceFileIds($latestVersion)
+        $signedCopiesBySource = $latestVersion
+            ? $this->signatureWorkflow->signedCopiesBySource($latestVersion)
             : collect();
+        $signedSourceFileIds = $signedCopiesBySource->keys()->values();
         $missingSignatureFiles = $latestVersion
             ? $this->signatureWorkflow->missingRequiredFiles($latestVersion)
             : collect();
@@ -1203,6 +1215,7 @@ class TopicController extends Controller
             'viewableFileIds',
             'requiredSignatureFiles',
             'signedSourceFileIds',
+            'signedCopiesBySource',
             'missingSignatureFiles',
             'signaturesComplete',
             'gadAssessment',

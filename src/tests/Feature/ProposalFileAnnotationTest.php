@@ -1418,3 +1418,50 @@ test('legacy co evaluator annotations are hidden and locked in the PDF annotatio
     $this->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), ['comment' => 'Corrected transcription'])->assertForbidden();
     $this->deleteJson(route('topics.versions.files.annotations.destroy', [$this->topic, $this->version, $this->file, $annotation]))->assertForbidden();
 });
+
+test('LREC highlights have no reviewer names while preserving the recorder', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+    $url = route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]);
+    $payload = [
+        'annotation_type' => 'pin',
+        'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.1, 'width' => 0.01, 'height' => 0.01]],
+        'comment' => 'Clarify the population.',
+        'lrec_reviewer_name' => 'Dr. Panel Reviewer',
+    ];
+    $this->actingAs($this->head)->get(route('topics.versions.files.annotations.index', [$this->topic, $this->version, $this->file]))
+        ->assertOk()->assertDontSee('LREC reviewer / panelist name')->assertDontSee('draftLrecReviewerName');
+    $this->actingAs($this->head)->postJson($url, $payload)
+        ->assertCreated()->assertJsonPath('feedbackAuthor', '')
+        ->assertJsonPath('recordedBy', $this->head->name);
+    $annotation = ProposalFileAnnotation::sole();
+    expect($annotation->lrec_reviewer_name)->toBeNull();
+    expect($annotation->reviewer_id)->toBe($this->head->id)
+        ->and(app(CommentResponseFeedback::class)->draftRows($this->version)[0]['reviewer'])->toBe('');
+    $this->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), [
+        'comment' => 'Clarify the population and scope.', 'lrec_reviewer_name' => 'Prof. Second Panelist',
+    ])->assertOk()->assertJsonPath('feedbackAuthor', '');
+    $review = $this->topic->reviews()->create(['reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'review_stage' => 'lrec']);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $this->file->id, 'original_filename' => $this->file->original_filename, 'document_type' => $this->file->document_type, 'revision_note' => null,
+    ]);
+    $annotation->update(['topic_review_file_revision_id' => $revision->id]);
+    expect(app(CommentResponseFeedback::class)->rows($review)[0]['reviewer'])->toBe('')
+        ->and($annotation->fresh()->reviewer_id)->toBe($this->head->id);
+});
+
+test('LREC highlights omit reviewer names and committee fallbacks', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW, 'review_stage' => 'lrec']);
+    $this->actingAs($this->head)->postJson(route('topics.versions.files.annotations.store', [$this->topic, $this->version, $this->file]), [
+        'annotation_type' => 'pin', 'page_number' => 1,
+        'rectangles' => [['x' => 0.1, 'y' => 0.1, 'width' => 0.01, 'height' => 0.01]],
+        'comment' => 'Clarify the population.',
+    ])->assertCreated()->assertJsonPath('feedbackAuthor', '');
+    $annotation = $this->file->annotations()->create([
+        'reviewer_id' => $this->head->id, 'annotation_type' => 'pin', 'page_number' => 1,
+        'rectangles' => [], 'comment' => 'Old committee note.',
+    ]);
+    $this->patchJson(route('topics.versions.files.annotations.update', [$this->topic, $this->version, $this->file, $annotation]), ['comment' => 'Updated note.'])
+        ->assertOk()->assertJsonPath('feedbackAuthor', '');
+    expect(app(CommentResponseFeedback::class)->draftRows($this->version)[0]['reviewer'])->toBe('');
+});

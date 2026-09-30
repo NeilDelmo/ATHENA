@@ -1,4 +1,25 @@
 <section class="min-w-0 overflow-hidden rounded-2xl border border-red-100 bg-white text-slate-900 shadow-sm dark:border-red-950/70 dark:bg-slate-950 dark:text-white" aria-label="Research calendar" data-calendar-palette="maroon-slate-white">
+    @if ($compact)
+        <div data-calendar-compact class="dashboard-panel-heading">
+            <h2 class="text-sm font-semibold">Research calendar</h2>
+            <button type="button" x-data x-on:click="$dispatch('open-modal', 'calendar-expanded')" class="rounded-lg p-2 text-slate-400 transition hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-900" aria-label="Expand research calendar" title="Expand research calendar">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H3v5m0-5 6 6m7-6h5v5m0-5-6 6M8 21H3v-5m0 5 6-6m7 6h5v-5m0 5-6-6" /></svg>
+            </button>
+        </div>
+        <div class="p-4">
+            <x-dashboard-calendar-grid :days="$days" :month-label="$monthLabel" :selected-date="$selectedDate" monochrome />
+            <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <h3 class="text-xs font-semibold text-slate-600 dark:text-slate-300">{{ $selectedLabel }}</h3>
+                <button type="button" wire:click="addReminder" class="rounded-lg px-2 py-1.5 text-[11px] font-semibold text-[#7A0019] hover:bg-red-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:text-red-300 dark:hover:bg-red-950/30">+ Add reminder</button>
+            </div>
+            <x-dashboard-calendar-events :events="$selectedEvents" monochrome />
+            <div class="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+                <h3 class="mb-3 text-xs font-semibold text-slate-800 dark:text-slate-200">Upcoming dates</h3>
+                <x-dashboard-calendar-events :events="$upcoming" monochrome empty="No upcoming deadlines or reminders." />
+            </div>
+            <p class="mt-4 text-[10px] text-slate-400">Times in {{ config('app.timezone') }}</p>
+        </div>
+    @else
     <div class="relative overflow-hidden border-b border-red-950/15 bg-gradient-to-r from-[#780019] via-[#991b35] to-[#b4233f] px-5 py-4 text-white">
         <div class="pointer-events-none absolute -right-10 -top-16 size-44 rounded-full border border-white/15"></div>
         <div class="pointer-events-none absolute right-20 -bottom-20 size-36 rounded-full bg-white/5"></div>
@@ -45,15 +66,17 @@
         </div>
     </div>
 
+    @endif
+
     <x-modal name="calendar-expanded" maxWidth="4xl" focusable>
         <div role="dialog" aria-modal="true" aria-label="Expanded research calendar" class="bg-white p-5 text-slate-900 dark:bg-slate-950 dark:text-white">
             <div class="mb-4 flex items-center justify-between border-b border-slate-200 pb-3">
                 <div><p class="text-[10px] font-bold uppercase tracking-[0.18em] text-[#800000] dark:text-red-300">Research operations</p><h3 class="mt-0.5 text-lg font-extrabold">Research calendar</h3></div>
                 <button type="button" x-on:click="$dispatch('close-modal', 'calendar-expanded')" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-[#800000] hover:text-[#800000] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">Close</button>
             </div>
-            <x-dashboard-calendar-grid :days="$days" :month-label="$monthLabel" :selected-date="$selectedDate" expanded />
+            <x-dashboard-calendar-grid :days="$days" :month-label="$monthLabel" :selected-date="$selectedDate" :monochrome="$compact" expanded />
             <h4 class="mt-5 border-t border-slate-200 pt-4 text-xs font-bold uppercase tracking-wider text-slate-600">{{ $selectedLabel }}</h4>
-            <x-dashboard-calendar-events :events="$selectedEvents" />
+            <x-dashboard-calendar-events :events="$selectedEvents" :monochrome="$compact" />
         </div>
     </x-modal>
 
@@ -61,8 +84,8 @@
         <div role="dialog" aria-modal="true" aria-label="Calendar event details" class="bg-white p-5 text-slate-900 dark:bg-slate-950 dark:text-white">
             <div class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800"><p class="text-[10px] font-bold uppercase tracking-wider text-[#800000] dark:text-red-300">Event details</p><button type="button" x-on:click="$dispatch('close-modal', 'calendar-event')" class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-[#800000] hover:text-[#800000] dark:border-slate-700 dark:text-slate-300">Close</button></div>
             @if ($event)
-                @php($eventTone = $event['kind'] === 'personal' ? 'blue' : ($event['deadline'] ? 'amber' : 'rose'))
-                <div class="mt-4 flex flex-wrap items-center gap-2"><x-date-chip :date="\Illuminate\Support\Carbon::parse($event['at'])" :tone="$eventTone" weekday time relative /><span class="rounded-full px-2 py-1 text-[10px] font-bold {{ $event['kind'] === 'personal' ? 'bg-sky-100 text-sky-800' : ($event['deadline'] ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800') }}">{{ $event['kind'] === 'personal' ? 'Personal reminder' : ($event['deadline'] ? 'Deadline' : 'Official schedule') }}</span></div>
+                @php($eventTone = $compact ? 'rose' : ($event['kind'] === 'personal' ? 'blue' : ($event['deadline'] ? 'amber' : 'rose')))
+                <div class="mt-4 flex flex-wrap items-center gap-2"><x-date-chip :date="\Illuminate\Support\Carbon::parse($event['at'])" :tone="$eventTone" weekday time relative /><span class="rounded-full px-2 py-1 text-[10px] font-bold {{ $compact ? 'bg-red-50 text-[#7A0019] dark:bg-red-950/40 dark:text-red-200' : ($event['kind'] === 'personal' ? 'bg-sky-100 text-sky-800' : ($event['deadline'] ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800')) }}">{{ $event['kind'] === 'personal' ? 'Personal reminder' : ($event['deadline'] ? 'Deadline' : 'Official schedule') }}</span></div>
                 <h3 class="mt-4 text-lg font-extrabold tracking-tight">{{ $event['title'] }}</h3>
                 <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ $event['context'] }}</p>
                 <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ config('app.timezone') }}{{ $event['draft'] ? ' · Draft schedule' : '' }}</p>
@@ -80,7 +103,7 @@
 
     <x-modal name="calendar-reminder" maxWidth="md" focusable>
         <form wire:submit="saveReminder" role="dialog" aria-modal="true" aria-label="Personal reminder" class="space-y-4 bg-white p-5 text-slate-900 dark:bg-slate-950 dark:text-white">
-            <div class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800"><div><p class="text-[10px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">Personal schedule</p><h3 class="mt-0.5 text-lg font-extrabold">{{ $editingId ? 'Edit reminder' : 'Add reminder' }}</h3></div><button type="button" x-on:click="$dispatch('close-modal', 'calendar-reminder')" class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancel</button></div>
+            <div class="flex items-center justify-between border-b border-slate-200 pb-3 dark:border-slate-800"><div><p class="text-[10px] font-bold uppercase tracking-wider {{ $compact ? 'text-[#7A0019] dark:text-red-300' : 'text-sky-700 dark:text-sky-300' }}">Personal schedule</p><h3 class="mt-0.5 text-lg font-extrabold">{{ $editingId ? 'Edit reminder' : 'Add reminder' }}</h3></div><button type="button" x-on:click="$dispatch('close-modal', 'calendar-reminder')" class="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancel</button></div>
             <p class="text-xs text-slate-500">Only you can see this reminder. Times use {{ config('app.timezone') }}.</p>
             <label class="block text-sm font-semibold text-slate-700">Title<input wire:model="title" maxlength="160" required class="mt-1 block w-full rounded-md border-slate-200 text-sm focus:border-[#800000] focus:ring-[#800000]">@error('title')<span class="text-xs text-red-600">{{ $message }}</span>@enderror</label>
             <label class="block text-sm font-semibold text-slate-700">Date and time<input type="datetime-local" wire:model="startsAt" required class="mt-1 block w-full rounded-md border-slate-200 text-sm focus:border-[#800000] focus:ring-[#800000]">@error('startsAt')<span class="text-xs text-red-600">{{ $message }}</span>@enderror</label>

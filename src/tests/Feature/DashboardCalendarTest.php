@@ -97,5 +97,36 @@ test('a calendar call filter excludes other official schedules while keeping per
     $reminder->save();
     $events = app(Calendar::class)->events($this->head, CarbonImmutable::now(), CarbonImmutable::now()->addMonth(), $this->call->id);
     expect($events->pluck('context')->all())->not->toContain('Other call')->toContain('Only you');
-    $this->actingAs($this->faculty)->get(route('faculty.dashboard'))->assertOk()->assertSee('Research calendar');
+    $this->actingAs($this->faculty)->get(route('faculty.calendar'))->assertOk()->assertSee('Research calendar');
+});
+
+test('compact dashboard calendars preserve navigation and reminder actions with a restrained palette', function () {
+    $this->actingAs($this->faculty);
+
+    $component = Livewire::test(DashboardCalendar::class, ['compact' => true])
+        ->assertSee('data-calendar-compact', false)
+        ->assertSee('Upcoming dates')
+        ->assertSee('Submission deadline')
+        ->call('moveMonth', 1)
+        ->assertSet('month', '2026-10')
+        ->assertSet('compact', true)
+        ->call('today')
+        ->call('selectDate', '2026-09-12')
+        ->call('addReminder')
+        ->assertDispatched('open-modal', 'calendar-reminder')
+        ->set('title', 'Prepare proposal package')
+        ->set('startsAt', '2026-09-12T14:30')
+        ->call('saveReminder')
+        ->assertHasNoErrors()
+        ->assertSee('Prepare proposal package')
+        ->assertSee('Personal reminder')
+        ->assertSee('2:30 PM')
+        ->assertDontSee('bg-sky-50', false)
+        ->assertDontSee('bg-amber-50', false);
+
+    $reminder = PersonalReminder::where('user_id', $this->faculty->id)->sole();
+
+    $component->call('openEvent', 'reminder-'.$reminder->id)
+        ->assertDispatched('open-modal', 'calendar-event')
+        ->assertSee('Edit reminder');
 });

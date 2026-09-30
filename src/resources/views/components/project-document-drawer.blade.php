@@ -10,7 +10,7 @@
 
 <div
     x-data="projectDocumentDrawer({ initialOpen: @js($initialOpen), uploadOpen: @js($projectDocumentErrors->any()) })"
-    @open-project-documents.window="openDrawer()"
+    @open-project-documents.window="openDrawer($event.detail?.category || 'all')"
     @keydown.escape.window="if (open && !document.querySelector('[data-project-document-preview-content]')) closeDrawer()"
 >
     <button
@@ -185,7 +185,9 @@
                                                             @if ($document['generated_comment_response'] ?? false)
                                                                 <span class="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{{ $document['draft'] ? 'Draft · Research Head only' : 'Generated' }}</span>
                                                             @endif
-                                                            @if ($document['official'])
+                                                            @if ($document['category'] === \App\Models\ProjectDocument::CATEGORY_SIGNED_PAPERS)
+                                                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"><svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 4 4L19 6" /></svg>Signed</span>
+                                                            @elseif ($document['official'])
                                                                 <span class="rounded-full bg-gray-950 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white dark:bg-white dark:text-gray-950">Official</span>
                                                             @endif
                                                         </div>

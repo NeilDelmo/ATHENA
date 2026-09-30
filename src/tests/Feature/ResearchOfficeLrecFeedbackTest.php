@@ -59,7 +59,7 @@ beforeEach(function () {
     ]);
 });
 
-test('Research Office records LREC comments into a faculty revision and Comment Response paper', function () {
+test('Research Office records LREC comments into a faculty revision and Comment Response paper', function (?string $panelist) {
     Notification::fake();
 
     $this->actingAs($this->office)
@@ -74,13 +74,13 @@ test('Research Office records LREC comments into a faculty revision and Comment 
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('data-lrec-office-feedback', false)
-        ->assertSee('Send LREC comments to faculty');
+        ->assertDontSee('LREC reviewer / panelist name')->assertSee('Send LREC comments to faculty');
 
     $this->actingAs($this->office)
         ->withSession(['active_role' => 'research_coordinator', 'active_workspace' => User::WORKSPACE_RESEARCH_OFFICE])
         ->post(route('research_coordinator.topics.lrec-feedback.store', $this->topic), [
             'committee_comments' => [[
-                'reviewer' => 'LREC committee',
+                'reviewer' => $panelist,
                 'location' => 'Detailed Proposal, Methodology',
                 'comment' => 'Clarify the sampling procedure.',
             ]],
@@ -89,6 +89,7 @@ test('Research Office records LREC comments into a faculty revision and Comment 
 
     expect($this->topic->fresh()->status)->toBe('revision_requested');
     $review = $this->topic->reviews()->latest('id')->firstOrFail();
+    expect(app(CommentResponseFeedback::class)->rows($review)[0]['reviewer'])->toBe('');
     expect($review->review_stage)->toBe('lrec');
     expect($review->reviewer_id)->toBe($this->office->id);
     expect($review->committee_comments[0]['comment'])->toBe('Clarify the sampling procedure.');
@@ -107,7 +108,7 @@ test('Research Office records LREC comments into a faculty revision and Comment 
         ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
         ->assertSee('Clarify the sampling procedure.');
-});
+})->with(['named panelist' => ['Dr. External Panelist'], 'unnamed committee' => [null]]);
 
 test('Research Office can preview its saved LREC Comment Response paper', function () {
     $review = $this->topic->reviews()->create([

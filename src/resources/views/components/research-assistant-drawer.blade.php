@@ -1,11 +1,30 @@
+<button
+    id="research-assistant-launcher"
+    x-cloak
+    x-show="!$store.researchAssistant.workspaceOpen"
+    type="button"
+    @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
+    :aria-expanded="$store.researchAssistant.drawerOpen"
+    :aria-label="$store.researchAssistant.drawerOpen ? 'Close Athena AI research assistant' : 'Open Athena AI research assistant'"
+    aria-controls="research-assistant-panel"
+    aria-label="Open Athena AI research assistant"
+    class="group fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-[71] inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg shadow-red-950/20 transition hover:from-red-700 hover:to-rose-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-4 dark:focus-visible:ring-offset-slate-950 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden"
+>
+    <span x-show="!$store.researchAssistant.drawerOpen" class="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-slate-700" aria-hidden="true">Ask ATHENA</span>
+    <svg x-show="!$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
+    </svg>
+    <svg x-show="$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+    </svg>
+</button>
+
 <div
     x-cloak
     x-show="$store.researchAssistant.drawerOpen"
     @keydown.escape.window="$store.researchAssistant.closeDrawer()"
-    class="athena-readable pointer-events-none fixed inset-0 z-[70]"
+    class="athena-readable pointer-events-none fixed inset-0 z-[70] print:hidden"
 >
-    <div x-show="$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen" x-transition.opacity @click="$store.researchAssistant.closeDrawer()" class="pointer-events-auto absolute inset-0 bg-gray-950/45 backdrop-blur-sm xl:hidden" aria-hidden="true"></div>
-
     <aside
         id="research-assistant-panel"
         x-show="$store.researchAssistant.drawerOpen"
@@ -16,9 +35,8 @@
         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
         x-transition:leave-end="opacity-0 translate-y-4 scale-95"
         role="dialog"
-        :aria-modal="$store.researchAssistant.workspaceOpen || $store.researchAssistant.isOverlayViewport() ? 'true' : null"
         aria-labelledby="research-assistant-drawer-title"
-        class="pointer-events-auto absolute inset-x-2 bottom-2 flex h-[44rem] max-h-[calc(100dvh-1rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[28rem]"
+        class="pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[38rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[26rem]"
     >
         <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
             <div class="flex min-w-0 items-center gap-3">

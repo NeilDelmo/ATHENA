@@ -99,6 +99,7 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
 
     $awaiting = $createProject('Approved awaiting NTP project', 'approved');
     $active = $createProject('Active NTP project', 'approved', TopicProposal::PROJECT_STATUS_ONGOING, true);
+    $active->update(['estimated_budget' => 50000]);
     $delayed = $createProject('Delayed NTP project', 'approved', TopicProposal::PROJECT_STATUS_DELAYED, true);
     $completed = $createProject('Completed archive project', 'approved', TopicProposal::PROJECT_STATUS_COMPLETED, true);
     $pending = $createProject('Hidden pending proposal', 'pending');
@@ -126,7 +127,19 @@ test('faculty researcher workspace separates active awaiting NTP and completed p
         ->assertSee($delayed->title)
         ->assertSee($awaiting->title)
         ->assertSee($completed->title)
-        ->assertSee('64% monitored')
+        ->assertDontSee('64% monitored')
+        ->assertSeeHtml('mx-auto max-w-6xl')
+        ->assertSeeInOrder(['Project #'.$active->id, 'Ongoing monitoring', 'A.Y. 2026-2027', 'PHP', $active->title, 'Latest monitoring report is available.', '64%', 'Reported project completion', 'View milestones'])
+        ->assertSeeHtml('bg-gray-900 text-white shadow-sm')
+        ->assertSeeHtml('data-project-metadata class="flex flex-wrap items-center gap-x-3 gap-y-3"')
+        ->assertSeeHtml('data-project-progress-summary class="flex items-start justify-between gap-3"')
+        ->assertSeeHtml('data-project-progress class="w-full overflow-hidden')
+        ->assertSeeHtml('data-project-progress-percent')
+        ->assertSeeHtml('aria-valuenow="64"')
+        ->assertSeeHtml('from-red-300 via-red-500 to-red-700')
+        ->assertSeeHtml('style="width: 64%"')
+        ->assertSeeHtml('data-project-action class="flex shrink-0 items-center justify-center')
+        ->assertSeeHtml('border-[#7A0019] bg-[#7A0019] px-4 py-2.5 text-sm font-bold text-white')
         ->assertSee('View milestones')
         ->assertSee('View status')
         ->assertSee('View archive')

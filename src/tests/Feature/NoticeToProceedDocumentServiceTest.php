@@ -59,6 +59,7 @@ test('it fills the official notice template with approved project details', func
         ->and((int) $xpath->evaluate('count(//w:r[w:t="Republic of the Philippines"]/w:rPr/w:b)'))->toBe(1)
         ->and((int) $xpath->evaluate('count(//w:r[w:t="R. Martinez St., Brgy. Bucana, Nasugbu, Batangas, Philippines 4231"]/w:rPr/w:b)'))->toBe(1)
         ->and((int) $xpath->evaluate('count(/w:document/w:body/w:tbl[1]/following-sibling::w:p[1]/w:pPr/w:pBdr/w:bottom[@w:color="000000"])'))->toBe(1)
+        ->and($xpath->evaluate('string(/w:document/w:body/w:tbl[1]/following-sibling::w:p[1]/w:pPr/w:pBdr/w:bottom/@w:sz)'))->toBe('6')
         ->and((int) $xpath->evaluate('count(//w:p[w:r/w:t="Research Office"]/w:pPr/w:jc[@w:val="left"])'))->toBe(1)
         ->and((int) $xpath->evaluate('count(//w:r[w:t="July 7, 2025 to July 6, 2026"]/w:rPr/w:b)'))->toBe(1)
         ->and((int) $xpath->evaluate('count(//w:r[w:t="one hundred forty seven thousand one hundred twenty eight pesos (Php 147,128.00)"]/w:rPr/w:b)'))->toBe(1)
@@ -69,4 +70,29 @@ test('it fills the official notice template with approved project details', func
         ->and($xml)->toContain('Conforme:')
         ->and((string) $footerXml)->toContain('Leading Innovations. Transforming Lives. Building the Nation.')
         ->and($xml)->toContain('w:footer="648"');
+
+    foreach ([
+        'Republic of the Philippines' => ['Times New Roman', '28'],
+        'BATANGAS STATE UNIVERSITY' => ['Times New Roman', '36'],
+        'The National Engineering University' => ['Arial', '24'],
+        'ARASOF-Nasugbu Campus' => ['Times New Roman', '28'],
+        'Research Office' => ['Times New Roman', '26'],
+        'June 24, 2025' => ['Times New Roman', '22'],
+        'Dear Researchers:' => ['Times New Roman', '22'],
+        'Classification of Researcher' => ['Times New Roman', '22'],
+        'Regular Faculty' => ['Times New Roman', '22'],
+        'DR. FROILAN G. DESTREZA' => ['Times New Roman', '22'],
+        'Vice Chancellor for Research, Development and Extension Services' => ['Times New Roman', '22'],
+    ] as $text => [$family, $size]) {
+        $run = $xpath->query('//w:r[w:t="'.$text.'"]')->item(0);
+
+        expect($run)->not->toBeNull()
+            ->and($xpath->evaluate('string(w:rPr/w:rFonts/@w:ascii)', $run))->toBe($family)
+            ->and($xpath->evaluate('string(w:rPr/w:rFonts/@w:hAnsi)', $run))->toBe($family)
+            ->and($xpath->evaluate('string(w:rPr/w:rFonts/@w:cs)', $run))->toBe($family)
+            ->and($xpath->evaluate('string(w:rPr/w:sz/@w:val)', $run))->toBe($size)
+            ->and($xpath->evaluate('string(w:rPr/w:szCs/@w:val)', $run))->toBe($size);
+    }
+
+    expect((int) $xpath->evaluate('count(/w:document/w:body/w:p/w:r[w:t]/w:rPr/w:rFonts[@w:ascii="Arial"])'))->toBe(0);
 });

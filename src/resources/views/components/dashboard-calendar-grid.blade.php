@@ -1,7 +1,7 @@
-@props(['days', 'monthLabel', 'selectedDate', 'expanded' => false, 'large' => false])
+@props(['days', 'monthLabel', 'selectedDate', 'expanded' => false, 'large' => false, 'monochrome' => false])
 <div>
     <div class="mb-4 flex items-center justify-between gap-3">
-        <div><p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#7A0019] dark:text-red-300">Month view</p><h4 class="mt-0.5 text-lg font-black tracking-tight text-slate-950 dark:text-white">{{ $monthLabel }}</h4></div>
+        <div>@unless ($monochrome)<p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#7A0019] dark:text-red-300">Month view</p>@endunless<h4 class="mt-0.5 {{ $monochrome ? 'text-sm font-semibold' : 'text-lg font-black' }} tracking-tight text-slate-950 dark:text-white">{{ $monthLabel }}</h4></div>
         <div class="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <button type="button" wire:click="moveMonth(-1)" aria-label="Previous month" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-base font-black text-slate-500 transition hover:bg-red-50 hover:text-[#7A0019] dark:text-slate-300 dark:hover:bg-red-950/30 dark:hover:text-red-200">&lsaquo;</button>
             <button type="button" wire:click="today" class="rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-slate-600 transition hover:bg-slate-100 hover:text-[#7A0019] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-red-200">Today</button>
@@ -16,7 +16,7 @@
             @php
                 $hasDeadline = $day['events']->contains(fn (array $event) => $event['deadline']);
                 $hasPersonal = $day['events']->contains(fn (array $event) => $event['kind'] === 'personal');
-                $eventTone = $hasDeadline ? 'amber' : ($hasPersonal ? 'sky' : 'red');
+                $eventTone = $monochrome ? 'red' : ($hasDeadline ? 'amber' : ($hasPersonal ? 'sky' : 'red'));
                 $eventClasses = match ($eventTone) {
                     'amber' => 'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100',
                     'sky' => 'border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100',

@@ -42,6 +42,7 @@ class StoreProposalFileAnnotationRequest extends FormRequest
             'rectangles.*.y' => ['required', 'numeric', 'between:0,1'],
             'rectangles.*.width' => ['required', 'numeric', 'gt:0', 'max:1'],
             'rectangles.*.height' => ['required', 'numeric', 'gt:0', 'max:1'],
+            'lrec_reviewer_name' => ['exclude'],
             'comment' => ['required', 'string', 'max:5000'],
             'editor_target' => ['nullable', 'string', Rule::in($editorTargets)],
         ];

@@ -382,7 +382,10 @@ class CommentResponseFormDocumentService
                 }
 
                 $cells = $this->elements($xpath, './w:tc', $row);
-                $values = [($index + 1).'.', $item['reviewer']."\n".$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+                $reviewerPrefix = ($item['stage'] ?? null) !== 'lrec' && filled($item['reviewer'] ?? null)
+                    ? $item['reviewer']."\n"
+                    : '';
+                $values = [($index + 1).'.', $reviewerPrefix.$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
 
                 foreach ($cells as $offset => $cell) {
                     $paragraphs = $this->elements($xpath, './w:p', $cell);

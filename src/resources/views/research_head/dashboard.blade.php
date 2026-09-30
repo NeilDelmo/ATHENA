@@ -1,21 +1,18 @@
 <x-app-layout>
     <x-slot name="header">
         <x-workspace-header-banner
-            class="!pt-0"
-            eyebrow="Research Office Control Center"
-            title="Research Operations Dashboard"
-            description="Review proposals, track active projects, and manage official research deadlines."
+            class="!border-l-0 !bg-transparent !px-0 !pt-0 [&_p:first-child]:!text-sm [&_p:first-child]:!normal-case [&_p:first-child]:!tracking-normal [&_h2]:!text-3xl dark:[&_h2]:text-slate-100 dark:[&_p]:text-slate-400"
+            eyebrow="Research Head"
+            title="Dashboard"
+            description="Your review queue, project priorities, and upcoming deadlines."
         >
             <x-slot:actions>
-                <span data-research-operations-status class="inline-flex self-end items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 sm:self-auto">
-                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                Research operations active
-                </span>
+                <x-research-head-page-navigation />
             </x-slot:actions>
         </x-workspace-header-banner>
     </x-slot>
 
-    <div class="-mx-4 -my-6 min-h-screen bg-slate-50 px-4 py-6 text-slate-900 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" data-dashboard-palette="maroon-slate-white" data-research-head-dashboard>
+    <div class="-mx-4 -my-6 min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" data-dashboard-palette="maroon-slate-white" data-research-head-dashboard>
         @if (session('success'))
             <div class="mb-4 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
                 <span class="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true"></span>
@@ -30,6 +27,6 @@
             </div>
         @endif
 
-        <livewire:research-head-dashboard />
+        <livewire:research-head-dashboard :overview="true" />
     </div>
 </x-app-layout>

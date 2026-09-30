@@ -16,7 +16,10 @@ use Illuminate\Support\Str;
 
 class ProjectDocumentLibrary
 {
-    public function __construct(private readonly CommentResponseFeedback $commentResponseFeedback) {}
+    public function __construct(
+        private readonly CommentResponseFeedback $commentResponseFeedback,
+        private readonly ProposalSignatureWorkflow $signatureWorkflow,
+    ) {}
 
     /** @return array{categories: Collection<int, array{key: string, label: string, description: string, count: int}>, documents: Collection<int, array<string, mixed>>, total: int, canUpload: bool, uploadCategories: array<string, string>} */
     public function build(TopicProposal $topic, User $viewer): array
@@ -36,9 +39,10 @@ class ProjectDocumentLibrary
         $topic->versions
             ->sortByDesc('version_number')
             ->each(function (ProposalVersion $version) use ($topic, $viewer, $documents, $seenPaths): void {
+                $signedCopies = $this->signatureWorkflow->signedCopiesBySource($version)->keyBy('id');
                 $version->files
                     ->sortByDesc('created_at')
-                    ->each(function (ProposalVersionFile $file) use ($topic, $viewer, $version, $documents, $seenPaths): void {
+                    ->each(function (ProposalVersionFile $file) use ($topic, $viewer, $version, $documents, $seenPaths, $signedCopies): void {
                         if (! $file->canPreviewAsPdf()
                             || ! Storage::disk('local')->exists($file->file_path)
                             || $seenPaths->contains($file->file_path)
@@ -47,10 +51,12 @@ class ProjectDocumentLibrary
                         }
 
                         $seenPaths->push($file->file_path);
+                        $isSignedCopy = $signedCopies->has($file->id);
+                        $signedSource = $isSignedCopy ? $version->files->firstWhere('id', $file->source_version_file_id) : null;
                         $documents->push([
                             'key' => 'proposal-version-file-'.$file->id,
-                            'category' => $this->categoryForVersionFile($file),
-                            'title' => $this->titleForVersionFile($file),
+                            'category' => $isSignedCopy ? ProjectDocument::CATEGORY_SIGNED_PAPERS : $this->categoryForVersionFile($file),
+                            'title' => $signedSource ? $signedSource->label().' — signed copy' : $this->titleForVersionFile($file),
                             'filename' => $file->original_filename,
                             'note' => $file->source_data['note'] ?? null,
                             'source' => $this->sourceForVersionFile($file, $version),
@@ -59,7 +65,7 @@ class ProjectDocumentLibrary
                             'file_size' => $file->file_size,
                             'view_url' => route('topics.versions.files.view', [$topic, $version, $file]),
                             'download_url' => route('topics.versions.files.download', [$topic, $version, $file]),
-                            'official' => $file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD
+                            'official' => $isSignedCopy || $file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD
                                 || ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                         ]);
                     });
@@ -396,7 +402,7 @@ class ProjectDocumentLibrary
         return match ($category) {
             ProjectDocument::CATEGORY_PROPOSAL_PAPERS => 'Submitted proposal papers across versions.',
             ProjectDocument::CATEGORY_ASSESSMENT_FORMS => 'Auto-generated GAD and screening templates, kept separate from papers for revision.',
-            ProjectDocument::CATEGORY_SIGNED_PAPERS => 'Signed and officially released project papers.',
+            ProjectDocument::CATEGORY_SIGNED_PAPERS => 'Signed PDFs, including accepted copies from GAD and initial screening reviews.',
             ProjectDocument::CATEGORY_REVIEWS_RESPONSES => 'Assessments, evaluations, and comment-response papers.',
             ProjectDocument::CATEGORY_NOTICE_TO_PROCEED => 'The project’s official authority to begin.',
             ProjectDocument::CATEGORY_MONITORING_REPORTS => 'Progress, narrative, and terminal report PDFs.',

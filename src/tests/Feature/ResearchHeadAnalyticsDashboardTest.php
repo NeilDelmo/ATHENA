@@ -9,6 +9,8 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ResearchHeadAnalytics;
+use Illuminate\Support\Facades\File;
+use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
@@ -41,6 +43,131 @@ beforeEach(function () {
         'topic_id' => $topic->id, 'submitted_by' => $this->faculty->id, 'reporting_date' => '2026-08-31',
         'progress_percentage' => 25, 'accomplishments' => 'Recorded progress', 'review_status' => 'reviewed', ...$attributes,
     ]);
+});
+
+test('overview prioritizes reviews and preserves compact independently paginated lists', function () {
+    foreach (range(1, 9) as $index) {
+        ($this->topic)(['title' => 'Priority proposal '.$index]);
+        ($this->project)(['title' => 'Delayed project '.$index, 'project_status' => 'delayed']);
+    }
+    ($this->topic)(['title' => 'Committee review', 'status' => 'lrec_queued']);
+
+    $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->assertSet('overview', true)->assertSet('pipeline', 'awaiting_review')
+        ->assertSee('Review queue')->assertSee('View all proposals')
+        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="needs-attention"', 'Upcoming deadlines'], false)
+        ->assertDontSeeHtml('<table')->assertDontSee('Monthly submission trend')
+        ->assertViewHas('topics', fn ($items): bool => $items->total() === 9 && $items->count() === 4)
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->total() === 9 && $items->count() === 4);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-dashboard-review-workspace]//*[@id="received-proposals"]'))->toHaveCount(1)
+        ->and($xpath->query('//aside[@aria-label="Research priorities"]//*[@id="needs-attention"]'))->toHaveCount(1)
+        ->and($xpath->query('//details[@data-dashboard-date-filters and not(@open)]'))->toHaveCount(1);
+
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/head-dashboard-overview.html'), $component->html());
+        File::put(storage_path('framework/testing/head-dashboard-shell.html'), $this->actingAs($this->head)->get(route('research_head.dashboard'))->getContent());
+        File::put(storage_path('framework/testing/head-calendar-shell.html'), $this->get(route('research_head.calendar'))->getContent());
+    }
+
+    $component->call('nextPage', 'attentionPage')
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->currentPage() === 2 && $items->count() === 4)
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 1)
+        ->call('nextPage')
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 2 && $items->count() === 4)
+        ->call('nextPage')->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 3 && $items->count() === 1)
+        ->set('search', 'Priority proposal 1')
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 1 && $items->total() === 1)
+        ->set('search', '')->call('setPipeline', 'lrec')
+        ->assertSeeHtml('aria-pressed="true" aria-label="Show LREC proposals: 1"')
+        ->assertViewHas('topics', fn ($items): bool => $items->total() === 1 && $items->first()->title === 'Committee review')
+        ->call('showReviewQueue')->assertSet('pipeline', 'awaiting_review')
+        ->assertViewHas('topics', fn ($items): bool => $items->total() === 9)
+        ->call('showReviewQueue')->assertSet('pipeline', 'awaiting_review');
+});
+
+test('calendar and analytics have separate protected routes and grouped functional navigation', function () {
+    $this->actingAs($this->head)->get(route('research_head.calendar'))->assertOk()
+        ->assertSeeHtml('data-research-head-calendar')->assertSee('Research calendar')
+        ->assertDontSeeHtml('data-research-head-overview')->assertDontSee('Annual research targets');
+    $this->get(route('research_head.analytics'))->assertOk()
+        ->assertSeeHtml('data-research-head-analytics')->assertSee('Annual research targets')
+        ->assertSee('Monthly submission trend')->assertDontSeeHtml('id="research-calendar"');
+
+    $response = $this->get(route('research_head.dashboard'))->assertOk()
+        ->assertSeeInOrder(['aria-label="Overview"', 'aria-label="Research"', 'aria-label="Planning"', 'aria-label="Resources"'], false)
+        ->assertSeeHtml('data-sidebar-account')->assertSee('Account Profile')
+        ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_submissions').'"')
+        ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'project_monitoring').'"')
+        ->assertDontSee('Coverage:')->assertDontSee('Project Monitoring')->assertDontSee('Proposal Submissions');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $links = $xpath->query('//nav[@data-research-head-navigation]//a');
+    expect($links->length)->toBe(10);
+    foreach ($links as $link) {
+        $this->get($link->getAttribute('href'))->assertOk();
+    }
+
+    $this->actingAs($this->faculty)->get(route('research_head.calendar'))->assertForbidden();
+    $this->get(route('research_head.analytics'))->assertForbidden();
+    $this->actingAs($this->head)->withSession(['active_workspace' => User::WORKSPACE_FACULTY]);
+    $this->get(route('research_head.calendar'))->assertForbidden();
+    $this->get(route('research_head.analytics'))->assertForbidden();
+});
+
+test('Research Head pages share consistent header navigation with the correct active page', function (string $routeName, string $activeLabel) {
+    $response = $this->actingAs($this->head)->get(route($routeName))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $links = $xpath->query('//*[@data-workspace-header-banner]//nav[@data-research-head-page-navigation]/a');
+    $current = $xpath->query('//*[@data-research-head-page-navigation]/a[@aria-current="page"]');
+
+    expect($links->length)->toBe(3)->and($current->length)->toBe(1)
+        ->and(trim($current->item(0)->textContent))->toBe($activeLabel);
+    foreach (['research_head.dashboard' => 'Dashboard', 'research_head.calendar' => 'Calendar', 'research_head.analytics' => 'Analytics'] as $destination => $label) {
+        $link = $xpath->query('//*[@data-research-head-page-navigation]/a[@href="'.route($destination).'"]')->item(0);
+        expect($link)->not->toBeNull()->and(trim($link->textContent))->toBe($label)
+            ->and($link->hasAttribute('wire:navigate'))->toBeTrue()
+            ->and($link->getAttribute('class'))->toContain('min-h-[44px]', 'rounded-lg', 'text-sm', 'font-semibold')
+            ->and(str_contains($link->getAttribute('class'), 'bg-brand'))->toBe($destination === $routeName);
+    }
+    if ($routeName === 'research_head.calendar') {
+        $response->assertSeeHtml('href="'.route('research-calls.index').'"');
+    }
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/head-navigation-'.str($routeName)->afterLast('.').'.html'), $response->getContent());
+    }
+})->with([
+    'dashboard' => ['research_head.dashboard', 'Dashboard'],
+    'calendar' => ['research_head.calendar', 'Calendar'],
+    'analytics' => ['research_head.analytics', 'Analytics'],
+]);
+
+test('the overview mode cannot be changed through a client update', function () {
+    expect(fn () => Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])->set('overview', false))
+        ->toThrow(CannotUpdateLockedPropertyException::class);
+});
+
+test('overview carries the selected academic year and date range to its analytics links', function () {
+    ResearchAnnualTarget::factory()->create([
+        'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+        'projects_target' => 4, 'publications_target' => 2, 'faculty_target' => 6,
+    ]);
+    Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->assertSee('Date range applied')
+        ->assertSeeHtml('data-dashboard-date-filters  open')
+        ->assertSee('0 / 4')->assertSee('0 / 2')->assertSee('0 / 6')
+        ->assertSeeHtml('href="'.e(route('research_head.analytics', ['academicYear' => '2026-2027', 'fromDate' => '2026-08-01', 'toDate' => '2027-07-31'])).'#annual-targets"')
+        ->set('fromDate', '2026-09-01')->assertDontSee('0 / 4')
+        ->assertSee('select the full academic year');
 });
 
 test('the pipeline reuses workflow statuses and review KPIs exclude external review stages', function () {
@@ -166,6 +293,60 @@ test('unknown year dates and empty datasets have honest no-data states', functio
         ->set('academicYear', '2026-2027')->assertSee('Set this academic year');
 });
 
+test('annual targets are prominent and editable without crowding the dashboard', function () {
+    ResearchAnnualTarget::factory()->create([
+        'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+        'projects_target' => 4, 'publications_target' => 2, 'faculty_target' => 4,
+    ]);
+    ($this->project)();
+
+    Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class)
+        ->assertSeeHtml('data-analytics-layout="workbench"')
+        ->assertSeeInOrder(['Annual research targets', 'Monthly submission trend', 'Proposal pipeline'])
+        ->assertSee('of 4 target')->assertSee('25% achieved')->assertSee('3 to go')
+        ->assertSee('Edit annual targets')->assertDontSeeHtml('id="target-projects_target"')
+        ->assertSeeHtml('<details data-analytics-methodology')
+        ->assertDontSeeHtml('<details data-analytics-methodology open')
+        ->assertDontSeeHtml('<section id="research-calendar"')
+        ->call('editTargets')->assertSeeHtml('id="target-projects_target"')
+        ->set('targetForm.projects_target', 5)->call('saveTargets')->assertHasNoErrors()
+        ->assertSee('of 5 target')->assertSee('20% achieved')
+        ->call('editTargets')->assertDontSeeHtml('id="target-projects_target"');
+
+    expect(ResearchAnnualTarget::sole()->projects_target)->toBe(5);
+});
+
+test('annual achievement retains actual overachievement while clamping the visual bar', function () {
+    ResearchAnnualTarget::factory()->create([
+        'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+        'projects_target' => 2, 'publications_target' => null, 'faculty_target' => null,
+    ]);
+    foreach (range(1, 3) as $index) {
+        ($this->project)();
+    }
+
+    Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class)
+        ->assertSee('of 2 target')->assertSee('150% achieved')->assertSee('Target met')
+        ->assertSeeHtml('aria-valuenow="100" aria-valuetext="3 achieved against a target of 2"')
+        ->set('fromDate', '2026-09-01')->assertDontSee('of 2 target')
+        ->assertSee('Annual target hidden for this date range');
+});
+
+test('readable monthly charts expose a count axis and retain clickable revision drill downs', function () {
+    $topic = ($this->topic)(['status' => 'resubmitted']);
+    ($this->version)($topic, 1, 'initial', '2026-08-05');
+    ($this->version)($topic, 2, 'revision', '2026-09-05');
+
+    Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
+        ->assertSeeHtml('data-submission-chart')
+        ->assertSeeHtml('aria-label="Proposal count axis"')
+        ->assertSeeHtml('class="rh-title">Monthly submission trend')
+        ->set('submissionMonth', '2026-09')
+        ->assertViewHas('topics', fn ($topics): bool => $topics->total() === 1)
+        ->assertSeeHtml('aria-pressed="true"')
+        ->assertSee('1 revisions');
+});
+
 test('invalid dates and target values are rejected without writes', function () {
     Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)->set('fromDate', 'invalid')->assertHasErrors('fromDate');
     Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)->set('targetForm', [
@@ -173,6 +354,56 @@ test('invalid dates and target values are rejected without writes', function () 
         'projects_target' => -1, 'publications_target' => '', 'faculty_target' => '',
     ])->call('saveTargets')->assertHasErrors(['targetForm.ends_on', 'targetForm.projects_target']);
     expect(ResearchAnnualTarget::count())->toBe(0);
+});
+
+test('analytics keeps its independent queues and exposes details outside the overview', function () {
+    ResearchAnnualTarget::factory()->create([
+        'academic_year' => '2026-2027', 'starts_on' => '2026-08-01', 'ends_on' => '2027-07-31',
+        'projects_target' => 12, 'publications_target' => 8, 'faculty_target' => 20,
+    ]);
+    foreach (range(1, 11) as $index) {
+        $topic = ($this->topic)(['title' => 'Research queue item '.$index]);
+        ($this->version)($topic, 1, 'initial', '2026-08-05');
+        if ($index <= 4) {
+            ($this->version)($topic, 2, 'revision', '2026-09-05');
+        }
+    }
+    foreach (range(1, 7) as $index) {
+        ($this->project)(['title' => 'Active project '.$index]);
+    }
+
+    $component = Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class)
+        ->assertSeeInOrder(['data-dashboard-kpi-band', 'id="annual-targets"', 'data-dashboard-compact-queues'], false)
+        ->assertDontSee('Coverage:')
+        ->assertDontSeeHtml('id="research-calendar"')
+        ->assertSeeHtml('data-dashboard-queue="attention"')
+        ->assertSeeHtml('data-dashboard-queue="proposals"')
+        ->assertDontSeeHtml('min-w-[720px]')
+        ->assertDontSeeHtml('sticky top-[128px]')
+        ->assertViewHas('topics', fn ($items): bool => $items->total() === 11 && $items->perPage() === 5 && $items->count() === 5)
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->total() === 11 && $items->perPage() === 5 && $items->count() === 5)
+        ->assertViewHas('projectItems', fn ($items): bool => $items->total() === 7 && $items->perPage() === 6 && $items->count() === 6);
+
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/head-dashboard-workbench.html'), $component->html());
+    }
+
+    $component->call('nextPage', 'attentionPage')
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->currentPage() === 2 && $items->count() === 5)
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 1)
+        ->call('nextPage', 'attentionPage')
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->currentPage() === 3 && $items->count() === 1)
+        ->call('nextPage')
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 2 && $items->count() === 5)
+        ->call('nextPage')
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 3 && $items->count() === 1)
+        ->call('nextPage', 'projectPage')
+        ->assertViewHas('projectItems', fn ($items): bool => $items->currentPage() === 2 && $items->count() === 1)
+        ->set('search', 'Research queue item 11')
+        ->assertViewHas('topics', fn ($items): bool => $items->currentPage() === 1 && $items->total() === 1)
+        ->assertViewHas('attentionItems', fn ($items): bool => $items->currentPage() === 1)
+        ->assertViewHas('projectItems', fn ($items): bool => $items->currentPage() === 1);
 });
 
 test('initial-screening deadlines do not incorrectly mark LREC revisions overdue', function () {
@@ -202,8 +433,8 @@ test('analytics pagination and derived project drill-down reset properly', funct
     }
     ($this->project)(['project_status' => 'completed']);
     Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)->call('showProjects', 'delayed')
-        ->assertViewHas('projectItems', fn ($items): bool => $items->total() === 11 && $items->count() === 9)
-        ->call('setPage', 2, 'projectPage')->assertViewHas('projectItems', fn ($items): bool => $items->count() === 2)
+        ->assertViewHas('projectItems', fn ($items): bool => $items->total() === 11 && $items->count() === 6)
+        ->call('setPage', 2, 'projectPage')->assertViewHas('projectItems', fn ($items): bool => $items->count() === 5)
         ->call('showProjects', 'completed')->assertViewHas('projectItems', fn ($items): bool => $items->currentPage() === 1 && $items->total() === 1)
         ->call('resetAnalyticsFilters')->assertViewHas('projectItems', fn ($items): bool => $items->currentPage() === 1 && $items->total() === 12);
 });

@@ -25,11 +25,13 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
     </head>
+    @php($isFacultyWorkspace = Auth::user()?->isUsingWorkspace(['faculty', 'faculty_researcher']))
     <body
         x-data
         @keydown.escape.window="$store.sidebar.setOpen(false)"
         @resize.window="$store.researchAssistant.syncPageScroll()"
         data-app-shell
+        @if ($isFacultyWorkspace) data-faculty-shell @endif
         data-auth-user-id="{{ Auth::id() }}"
         @auth
             data-research-assistant-url="{{ route('research-support.chat') }}"
@@ -76,7 +78,7 @@
             data-app-content-shell
         >
             
-            <nav class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
+            <nav data-app-topbar class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
                 <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-red-700 via-red-700 to-red-950 md:from-transparent md:via-red-700/70 md:to-red-950" aria-hidden="true"></div>
 
                 <div
@@ -123,23 +125,6 @@
                 </div>
 
                 <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
-
-                    @auth
-                        <button
-                            type="button"
-                            @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
-                            :aria-expanded="$store.researchAssistant.drawerOpen"
-                            aria-controls="research-assistant-panel"
-                            class="group inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 px-3 text-[13px] font-black text-white shadow-sm transition hover:from-red-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-                            aria-label="Open Athena AI research assistant"
-                            title="Open Athena AI research assistant"
-                        >
-                            <svg class="h-4 w-4 transition group-hover:rotate-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
-                            </svg>
-                            <span class="hidden sm:inline">Ask ATHENA</span>
-                        </button>
-                    @endauth
 
                     <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
                         <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

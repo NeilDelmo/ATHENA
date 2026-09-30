@@ -189,3 +189,25 @@ test('Research Head annotation save does not transmit reviewer impersonation fie
     await state.saveAnnotation();
     assert.equal(state.annotations.length, 1);
 });
+
+
+test('LREC comments never send reviewer names', async (t) => {
+    const state = annotationWorkspace();
+    state.config.isLrecReview = true;
+    state.draftSelection = { type: 'pin', pageNumber: 1, rectangles: [] };
+    state.draftComment = 'Clarify the population.';
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', async (_url, options) => {
+        calls++;
+        const body = JSON.parse(options.body);
+        assert.equal(Object.hasOwn(body, 'lrec_reviewer_name'), false);
+        return Response.json({ id: 1, pageNumber: 1, comment: body.comment, lrecReviewerName: body.lrec_reviewer_name });
+    });
+    await state.saveAnnotation();
+    assert.equal(calls, 1);
+    state.draftSelection = { type: 'pin', pageNumber: 1, rectangles: [] };
+    state.draftComment = 'Clarify the population.';
+    await state.saveAnnotation();
+    assert.equal(calls, 2);
+    assert.equal(state.annotations.at(-1).lrecReviewerName, undefined);
+});

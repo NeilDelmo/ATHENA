@@ -722,7 +722,7 @@ test('review feedback and revision controls are visible on both dashboards', fun
     $this->actingAs($head)
         ->get('/research-head/dashboard')
         ->assertOk()
-        ->assertSee('Research Operations Dashboard');
+        ->assertSee('data-research-head-overview', false);
 
     $this->actingAs($head)
         ->get(route('topics.show', $topic))

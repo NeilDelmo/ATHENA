@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { acceptedProjectPdfFiles } from '../../resources/js/project-document-drawer.js';
+import { acceptedProjectPdfFiles, projectDocumentDrawer } from '../../resources/js/project-document-drawer.js';
+
+test('signing shortcut opens signed papers and the Files button returns to all documents', () => {
+    const drawer = projectDocumentDrawer();
+    drawer.openDrawer('signed_papers');
+    assert.equal(drawer.open, true);
+    assert.equal(drawer.activeCategory, 'signed_papers');
+    drawer.openDrawer();
+    assert.equal(drawer.activeCategory, 'all');
+});
 
 test('the project document dropzone accepts only unique PDFs', () => {
     const proposal = { name: 'proposal.pdf', type: 'application/pdf', size: 120, lastModified: 1 };

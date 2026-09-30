@@ -156,7 +156,7 @@ class CommentResponseFeedback
 
                 return [
                     'key' => 'annotation_'.$annotation->id,
-                    'reviewer' => $annotation->feedbackLabel().($annotation->reviewer ? ' · '.$annotation->reviewer->name : ''),
+                    'reviewer' => $this->annotationReviewerLabel($annotation, $this->annotationStage($annotation, $version, $fallbackStage)),
                     'location' => implode(' · ', array_filter([$annotation->file->label(), 'Page '.$annotation->page_number, $section])),
                     'comment' => $annotation->comment,
                     'response' => '',
@@ -173,14 +173,14 @@ class CommentResponseFeedback
         $review->loadMissing(['reviewer', 'fileRevisions.file.version.files', 'fileRevisions.file.version.topic.stageTransitions', 'fileRevisions.annotations.reviewer']);
         $rows = [];
         $stage = $this->reviewStage($review);
-        $headLabel = 'Research Head'.($review->reviewer ? ' · '.$review->reviewer->name : '');
+        $headLabel = $stage === 'lrec' ? '' : 'Research Head'.($review->reviewer ? ' · '.$review->reviewer->name : '');
 
         if (filled($review->comment)) {
             $rows[] = ['key' => 'overall', 'reviewer' => $headLabel, 'location' => 'Overall proposal', 'comment' => $review->comment, 'stage' => $stage];
         }
 
         foreach ($review->committee_comments ?? [] as $index => $comment) {
-            $rows[] = ['key' => 'committee_'.$index, 'reviewer' => ($review->review_stage === 'lrec' ? 'LREC' : 'Reviewer').' · '.$comment['reviewer'], 'location' => $comment['location'] ?? 'Overall proposal', 'comment' => $comment['comment'], 'stage' => $stage];
+            $rows[] = ['key' => 'committee_'.$index, 'reviewer' => $stage === 'lrec' ? '' : 'Reviewer'.(filled($comment['reviewer'] ?? null) ? ' · '.$comment['reviewer'] : ''), 'location' => $comment['location'] ?? 'Overall proposal', 'comment' => $comment['comment'], 'stage' => $stage];
         }
 
         foreach ($review->fileRevisions->sortBy('id') as $revision) {
@@ -195,23 +195,29 @@ class CommentResponseFeedback
                 ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
                 ->sortBy('id') as $annotation) {
                 $section = $file ? app(ProposalRevisionTargetCatalog::class)->labelFor($file, $annotation->editor_target) : null;
-                $reviewer = $annotation->feedbackLabel();
-
-                if ($annotation->reviewer) {
-                    $reviewer .= ' · '.$annotation->reviewer->name;
-                }
+                $annotationStage = $file?->version ? $this->annotationStage($annotation, $file->version, $stage) : $stage;
+                $reviewer = $this->annotationReviewerLabel($annotation, $annotationStage);
 
                 $rows[] = [
                     'key' => 'annotation_'.$annotation->id,
                     'reviewer' => $reviewer,
                     'location' => implode(' · ', array_filter([$fileLabel, 'Page '.$annotation->page_number, $section])),
                     'comment' => $annotation->comment,
-                    'stage' => $file?->version ? $this->annotationStage($annotation, $file->version, $stage) : $stage,
+                    'stage' => $annotationStage,
                 ];
             }
         }
 
         return $rows;
+    }
+
+    private function annotationReviewerLabel(ProposalFileAnnotation $annotation, string $stage): string
+    {
+        if ($stage === 'lrec' || filled($annotation->lrec_reviewer_name)) {
+            return '';
+        }
+
+        return $annotation->feedbackLabel().($annotation->reviewer ? ' · '.$annotation->reviewer->name : '');
     }
 
     /** @return list<array{key: string, reviewer: string, location: string, comment: string, stage: string}> */

@@ -6,8 +6,9 @@
 
 <section
     id="rrl-finder"
-    x-data="{ workspaceMode: 'find', saveOptionsOpen: false }"
+    x-data="{ workspaceMode: window.location.hash === '#shared-literature-library' ? 'library' : 'find', saveOptionsOpen: false }"
     x-init="$store.literatureSearch.initializeLibrary($el)"
+    @hashchange.window="workspaceMode = window.location.hash === '#shared-literature-library' ? 'library' : 'find'"
     class="athena-readable mb-5 scroll-mt-36 overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_24px_70px_-36px_rgba(15,23,42,0.35)] ring-1 ring-slate-950/[0.025] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/30 dark:ring-white/5"
     aria-label="Literature Search and Source Organizer"
     data-rrl-workspace

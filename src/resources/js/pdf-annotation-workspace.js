@@ -867,7 +867,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                                 mark.append(badge);
                             }
                             mark.dataset.feedbackSource = 'research_head';
-                            mark.title = 'Research Head: ' + annotation.comment;
+                            mark.title = (annotation.feedbackAuthor || 'Research Head') + ': ' + annotation.comment;
                             mark.setAttribute('aria-label', `Revision comment on page ${annotation.pageNumber}: ${annotation.comment}`);
                             mark.addEventListener('click', () => this.selectAnnotation(annotation));
                             overlay.append(mark);

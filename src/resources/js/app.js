@@ -1704,14 +1704,10 @@ Alpine.store('researchAssistant', {
         });
     },
 
-    isOverlayViewport() {
-        return !window.matchMedia('(min-width: 1280px)').matches;
-    },
-
     syncPageScroll() {
         document.documentElement.classList.toggle(
             'overflow-hidden',
-            this.workspaceOpen || (this.drawerOpen && this.isOverlayViewport()),
+            this.workspaceOpen,
         );
     },
 

@@ -87,6 +87,7 @@ class ProposalFileAnnotationController extends Controller
             }
         }
         $annotationConfiguration = [
+            'isLrecReview' => $topic->review_stage === 'lrec',
             'researchHeadName' => $isResearchHead ? $request->user()->name : ($annotations->first()?->reviewer?->name ?? 'Research Head'),
             'researchHeadAvatar' => $isResearchHead ? $request->user()->avatar : $annotations->first()?->reviewer?->avatar,
             'pdfUrl' => route('topics.versions.files.view', [$topic, $version, $file]),
@@ -239,6 +240,10 @@ class ProposalFileAnnotationController extends Controller
     /** @return array<string, mixed> */
     private function annotationPayload(ProposalFileAnnotation $annotation, ProposalVersionFile $file): array
     {
+        $isLrecFeedback = filled($annotation->lrec_reviewer_name)
+            || $annotation->fileRevision?->review?->review_stage === 'lrec'
+            || ($annotation->topic_review_file_revision_id === null && $file->version->topic->review_stage === 'lrec');
+
         return [
             'id' => $annotation->id,
             'type' => $annotation->annotation_type,
@@ -253,10 +258,11 @@ class ProposalFileAnnotationController extends Controller
             'editorTargetLabel' => $this->revisionTargets->labelFor($file, $annotation->editor_target),
             'reviewer' => $annotation->reviewer?->name ?? 'Research Head',
             'feedbackSource' => $annotation->feedback_source ?? ProposalFileAnnotation::SOURCE_HEAD,
-            'feedbackLabel' => $annotation->feedbackLabel(),
+            'feedbackLabel' => $isLrecFeedback ? 'LREC' : $annotation->feedbackLabel(),
             'coEvaluatorName' => $annotation->co_evaluator_name,
-            'feedbackAuthor' => $annotation->feedback_source === ProposalFileAnnotation::SOURCE_CO_EVALUATOR
-                ? $annotation->co_evaluator_name : ($annotation->reviewer?->name ?? 'Research Head'),
+            'recordedBy' => $annotation->reviewer?->name,
+            'feedbackAuthor' => $isLrecFeedback ? '' : ($annotation->feedback_source === ProposalFileAnnotation::SOURCE_CO_EVALUATOR
+                ? $annotation->co_evaluator_name : ($annotation->reviewer?->name ?? 'Research Head')),
             'createdAt' => $annotation->created_at?->format('M j, Y g:i A'),
             'state' => match (true) {
                 $annotation->topic_review_file_revision_id === null => 'draft',

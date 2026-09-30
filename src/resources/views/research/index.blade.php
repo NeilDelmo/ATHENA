@@ -35,7 +35,7 @@
         class="-mx-4 -my-6 min-h-[calc(100vh-12rem)] bg-[#FAFBFD] px-4 py-8 text-slate-900 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
         data-dashboard-layout="project-list"
         x-data="{
-            filter: 'all',
+            filter: @js(in_array(request('status'), ['active', 'waiting', 'completed'], true) ? request('status') : 'all'),
             query: {{ Illuminate\Support\Js::from($search) }},
             items: {{ Illuminate\Support\Js::from($filterableProjects) }},
             matches(category, haystack) {
@@ -49,9 +49,9 @@
             },
         }"
     >
-        <div class="mx-auto max-w-4xl space-y-6">
+        <div class="mx-auto max-w-6xl space-y-6">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div class="relative w-full sm:w-72">
+                <div class="relative w-full sm:w-80">
                     <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" />
                     </svg>
@@ -61,7 +61,7 @@
                         x-model.debounce.150ms="query"
                         type="search"
                         placeholder="Search title or academic year"
-                        class="block w-full rounded-lg border-slate-200 bg-white py-2.5 pl-9 pr-3 text-xs text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-[#7A0019] focus:ring-[#7A0019]"
+                        class="block w-full rounded-lg border-slate-200 bg-white py-3 pl-9 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-[#7A0019] focus:ring-[#7A0019]"
                     >
                 </div>
 
@@ -70,12 +70,12 @@
                         <button
                             type="button"
                             @click="filter = '{{ $filter['key'] }}'"
-                            :class="filter === '{{ $filter['key'] }}' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'"
-                            class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition sm:flex-none"
+                            :class="filter === '{{ $filter['key'] }}' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-900 hover:bg-white'"
+                            class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-xs font-bold transition sm:flex-none"
                             :aria-pressed="filter === '{{ $filter['key'] }}'"
                         >
                             <span>{{ $filter['label'] }}</span>
-                            <span class="hidden min-w-5 items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-black text-slate-500 sm:inline-flex">{{ $filter['count'] }}</span>
+                            <span :class="filter === '{{ $filter['key'] }}' ? 'border-white/20 bg-white/10 text-white' : 'border-slate-200 bg-slate-50 text-slate-500'" class="hidden min-w-5 items-center justify-center rounded-full border px-1.5 py-0.5 text-[9px] font-black sm:inline-flex">{{ $filter['count'] }}</span>
                         </button>
                     @endforeach
                 </nav>
@@ -120,7 +120,7 @@
                                 $isCompleted => 'Project completed. Final reports and monitoring records remain available.',
                                 $isCompletionPending => 'Monitoring reached 100%. A signed terminal report is required before completion.',
                                 $isDelayed => "Monitoring is delayed at {$completion}%. Open the project record to document the delay and accomplishment.",
-                                $topic->latestProgressReport !== null => "Latest monitoring progress is {$completion}%.",
+                                $topic->latestProgressReport !== null => 'Latest monitoring report is available. Open the project to review its milestones.',
                                 default => 'Monitoring is open. No progress report has been recorded yet.',
                             };
 
@@ -136,43 +136,46 @@
                             x-show="matches('{{ $category }}', {{ Illuminate\Support\Js::from($searchableText) }})"
                             x-transition.opacity.duration.150ms
                             data-project-status="{{ $topic->project_status }}"
-                            class="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition duration-150 hover:border-slate-300 hover:shadow-md"
+                            class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-150 hover:border-rose-200 hover:shadow-md sm:px-6 sm:py-5"
                         >
-                            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                <div class="min-w-0 flex-1 space-y-2.5">
-                                    <div class="flex flex-wrap items-center gap-2">
-                                        <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-[10px] font-black {{ $statusClass }}">
-                                            <span class="h-1.5 w-1.5 rounded-full {{ $dotClass }}" aria-hidden="true"></span>
-                                            {{ $statusLabel }}
-                                        </span>
-                                        <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                                        <span class="whitespace-nowrap text-[11px] font-bold text-slate-500">A.Y. {{ $topic->researchCall?->academic_year ?: 'Not provided' }}</span>
-                                        <span class="text-slate-300" aria-hidden="true">&bull;</span>
-                                        <span class="whitespace-nowrap text-[11px] font-black tabular-nums text-slate-700">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Budget not provided' }}</span>
+                            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                                <div class="min-w-0 flex-1 space-y-3">
+                                    <div data-project-metadata class="flex flex-wrap items-center gap-x-3 gap-y-3">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="whitespace-nowrap text-xs font-bold tabular-nums text-slate-500">Project #{{ $topic->id }}</span>
+                                            <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-bold {{ $statusClass }}">
+                                                <span class="h-1.5 w-1.5 rounded-full {{ $dotClass }}" aria-hidden="true"></span>
+                                                {{ $statusLabel }}
+                                            </span>
+                                            <span class="whitespace-nowrap text-xs font-semibold text-slate-500">A.Y. {{ $topic->researchCall?->academic_year ?: 'Not provided' }}</span>
+                                        </div>
+                                        <span class="whitespace-nowrap text-sm font-bold tabular-nums text-slate-700">{{ $topic->estimated_budget !== null ? 'PHP '.number_format((float) $topic->estimated_budget, 2) : 'Budget not provided' }}</span>
                                     </div>
 
-                                    <h3 class="text-base font-black leading-snug text-slate-950 transition-colors group-hover:text-[#7A0019]">
+                                    <h3 class="text-lg font-bold leading-snug text-slate-950 transition-colors group-hover:text-[#7A0019] sm:text-xl">
                                         <a href="{{ $projectUrl }}" class="focus:outline-none focus-visible:underline focus-visible:underline-offset-4">{{ $topic->title }}</a>
                                     </h3>
 
-                                    <p class="text-xs leading-5 text-slate-500">{{ $summary }}</p>
-
-                                    @if (! $isWaiting && ! $isCompleted)
-                                        <div class="flex max-w-sm items-center gap-3 pt-1" aria-label="{{ $completion }} percent monitored">
-                                            <div class="h-2 flex-1 overflow-hidden rounded-full border border-slate-200/70 bg-slate-100" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $completion }}">
-                                                <div class="h-full rounded-full {{ $isDelayed ? 'bg-amber-500' : ($isCompletionPending ? 'bg-emerald-600' : 'bg-slate-700') }}" style="width: {{ $completion }}%"></div>
-                                            </div>
-                                            <span class="shrink-0 whitespace-nowrap text-[11px] font-black tabular-nums {{ $isCompletionPending ? 'text-emerald-700' : 'text-slate-600' }}">{{ $completion }}% monitored</span>
+                                    <div class="flex flex-col gap-2">
+                                        <div data-project-progress-summary class="flex items-start justify-between gap-3">
+                                            <p class="min-w-0 flex-1 text-sm leading-5 text-slate-500">{{ $summary }}</p>
+                                            @if (! $isWaiting && ! $isCompleted)
+                                                <span data-project-progress-percent class="shrink-0 text-sm font-bold leading-5 tabular-nums text-gray-900">{{ $completion }}%</span>
+                                            @endif
                                         </div>
-                                    @endif
+                                        @if (! $isWaiting && ! $isCompleted)
+                                            <div data-project-progress class="w-full overflow-hidden rounded-full bg-red-100 dark:bg-red-950/50" role="progressbar" aria-label="Reported project completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $completion }}">
+                                                <div class="h-2.5 rounded-full bg-gradient-to-r from-red-300 via-red-500 to-red-700 dark:from-red-800 dark:via-red-600 dark:to-red-400" style="width: {{ $completion }}%"></div>
+                                            </div>
+                                        @endif
+                                    </div>
                                 </div>
 
-                                <div class="flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 pt-3 sm:min-w-40 sm:flex-col sm:items-end sm:border-0 sm:pt-0">
-                                    <a href="{{ $projectUrl }}" class="inline-flex min-h-9 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[11px] font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2 {{ $isCompletionPending ? 'border-[#7A0019] bg-[#7A0019] text-white hover:bg-[#650015]' : 'border-slate-200 bg-white text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-[#7A0019]' }}">
+                                <div data-project-action class="flex shrink-0 items-center justify-center border-t border-slate-100 pt-3 sm:min-w-40 sm:border-0 sm:pt-0">
+                                    <a href="{{ $projectUrl }}" class="inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg border border-[#7A0019] bg-[#7A0019] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-[#650015] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] focus-visible:ring-offset-2">
                                         {{ $actionLabel }}
                                         <span class="ml-1" aria-hidden="true">&rarr;</span>
                                     </a>
-                                    <span class="whitespace-nowrap text-[10px] font-semibold text-slate-400">Project #{{ $topic->id }}</span>
                                 </div>
                             </div>
                         </article>

@@ -17,7 +17,7 @@ class StoreResearchOfficeLrecFeedbackRequest extends FormRequest
         return [
             'committee_comments' => ['required', 'array', 'min:1', 'max:100'],
             'committee_comments.*' => ['required', 'array:reviewer,comment,location'],
-            'committee_comments.*.reviewer' => ['required', 'string', 'max:160'],
+            'committee_comments.*.reviewer' => ['exclude'],
             'committee_comments.*.comment' => ['required', 'string', 'max:5000'],
             'committee_comments.*.location' => ['nullable', 'string', 'max:300'],
             'status' => ['prohibited'],

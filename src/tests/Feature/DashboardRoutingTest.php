@@ -58,7 +58,7 @@ test('the shared faculty dashboard uses the correct workspace identity for each 
         ->assertSee('What needs your attention')
         ->assertDontSee('Portfolio pulse')
         ->assertDontSee('A compact view of current execution')
-        ->assertSee('Research calendar')
+        ->assertSee('Open calendar')
         ->assertSee(route('research.index'), false)
         ->assertDontSee('data-dashboard-layout="project-list"', false)
         ->assertDontSee('Research Proposal Workspace');
@@ -118,7 +118,7 @@ test('the faculty dashboard shows recent accessible proposal drafts', function (
         ->assertDontSee('Private Draft That Must Stay Hidden');
 });
 
-test('the faculty dashboard prioritizes revision requests and keeps submitted proposals compact', function () {
+test('the faculty dashboard prioritizes revisions and links to dedicated submissions', function () {
     $this->withoutVite();
 
     $head = User::factory()->create(['name' => 'Research Head']);
@@ -155,16 +155,16 @@ test('the faculty dashboard prioritizes revision requests and keeps submitted pr
         ->get(route('faculty.dashboard'))
         ->assertOk()
         ->assertSeeInOrder([
-            'Action required',
             'Proposal overview',
+            'Action required',
             'Continue working',
-            'Submitted proposals',
         ])
         ->assertSee('1 proposal needs your attention.')
         ->assertSee('Clarify the sampling plan before resubmitting.')
         ->assertSee('Revise and resubmit proposal')
-        ->assertSee(route('topics.show', $topic).'#proposal-review', false)
-        ->assertSee('Status and submission details at a glance.')
+        ->assertSee(route('faculty.topics.revision', $topic), false)
+        ->assertSee(route('faculty.submissions'), false)
+        ->assertDontSee('submitted-proposals-heading', false)
         ->assertDontSee('Proposal version history')
         ->assertDontSee('Download latest');
 });
@@ -225,7 +225,7 @@ test('the faculty researcher dashboard is an overview instead of a duplicate pro
         ->assertDontSee('A compact view of current execution')
         ->assertSee('Monitoring needed')
         ->assertSee('Approved Community Research')
-        ->assertSee('Research calendar')
+        ->assertSee('Open calendar')
         ->assertSee('Open My Projects')
         ->assertSee(route('research.index'), false)
         ->assertDontSee('data-dashboard-layout="project-list"', false)
@@ -310,28 +310,19 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ->assertSee('data-research-call-carousel', false)
         ->assertSee('data-research-call-single-slide', false)
         ->assertSee('data-research-call-lightbox', false)
-        ->assertDontSee('data-research-call-lightbox-close', false)
-        ->assertSeeInOrder([
-            'data-research-call-carousel',
-            'Proposal overview',
-        ], false)
-        ->assertSee('data-research-call-submit-overlay', false)
-        ->assertSee('max-w-md', false)
-        ->assertSee('transform-gpu object-contain', false)
-        ->assertSee(asset('images/cteb_building.png'), false)
-        ->assertSee('opacity-[0.45]', false)
-        ->assertSee('h-full w-[calc(100%-6rem)]', false)
-        ->assertDontSee(' live')
-        ->assertSee('h-[22rem]', false)
-        ->assertSee('h-full w-full cursor-zoom-in object-contain', false)
-        ->assertSee('transition-transform duration-500', false)
-        ->assertSee('duration-700', false)
-        ->assertSee('ease-[cubic-bezier(0.22,1,0.36,1)]', false)
+        ->assertSee('data-research-call-lightbox-close', false)
+        ->assertSee('data-research-call-preview', false)
+        ->assertSee('data-research-call-counter', false)
+        ->assertDontSee('data-research-call-submit-overlay', false)
+        ->assertSee('sm:max-h-[38rem]', false)
+        ->assertSee('View full poster')
+        ->assertDontSee('xl:grid-cols-[minmax(0,1fr)_340px]', false)
+        ->assertSeeInOrder(['Proposal overview', 'data-research-call-carousel'], false)
         ->assertSee('First Uploaded Research Call')
         ->assertSee('Second Uploaded Research Call')
         ->assertSee('Start a proposal')
         ->assertSee(route('research-calls.reference-image', $firstCall), false)
-        ->assertSee(route('faculty.proposal-drafts.create', ['research_call_id' => $firstCall->id]), false)
+        ->assertSee(route('faculty.proposal-drafts.create'), false)
         ->assertSee('data-research-call-previous', false)
         ->assertSee('data-research-call-next', false)
         ->assertDontSee('Open research calls')
@@ -350,11 +341,10 @@ test('the faculty dashboard shows uploaded research call posters in a carousel',
         ), false);
 
     $this->actingAs($faculty)
-        ->get(route('faculty.proposal-drafts.create', ['research_call_id' => $firstCall->id]))
+        ->get(route('faculty.proposal-drafts.create'))
         ->assertOk()
-        ->assertSee('name="research_call_id"', false)
-        ->assertSee('value="'.$firstCall->id.'"', false)
-        ->assertSee('checked', false);
+        ->assertSee('name="project_title"', false)
+        ->assertSee('Create draft and continue');
 });
 
 test('the forbidden response uses the friendly error page', function () {

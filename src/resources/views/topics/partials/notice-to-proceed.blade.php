@@ -1,16 +1,13 @@
 @php($noticePreparedForSigning = $topic->hasPreparedNoticeToProceed())
 
-<section id="notice-to-proceed" class="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-    <div class="relative overflow-hidden bg-gray-950 px-5 py-6 text-white sm:px-7">
-        <div class="absolute inset-y-0 right-0 w-48 bg-gradient-to-l from-red-700/40 to-transparent"></div>
-        <div class="absolute -right-8 -top-14 h-40 w-40 rounded-full border-[24px] border-red-700/20"></div>
-
-        <div class="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+<section id="notice-to-proceed" class="ntp-workspace rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div class="border-b border-gray-200 px-5 py-6 sm:px-7">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-                <h3 class="text-2xl font-black tracking-tight">Notice to Proceed</h3>
+                <h3 class="text-2xl font-semibold tracking-tight text-gray-950">Notice to Proceed</h3>
 
                 @if ($topic->hasIssuedNoticeToProceed())
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
+                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">
                         Signed copy issued {{ $topic->notice_to_proceed_issued_at->format('M j, Y g:i A') }}
                         @if ($topic->noticeIssuer)
                             by {{ $topic->noticeIssuer->name }}
@@ -18,23 +15,23 @@
                         {{ $topic->isCompletedProject() ? 'This notice remains part of the completed project archive.' : 'Project monitoring is now open.' }}
                     </p>
                 @elseif ($noticePreparedForSigning)
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">Download the unsigned PDF, have it signed, then upload the signed copy to release it.</p>
+                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Download the unsigned PDF, have it signed, then upload the signed copy to release it.</p>
                 @else
-                    <p class="mt-2 max-w-3xl text-sm leading-6 text-gray-300">Review the details and prepare the unsigned PDF for signature.</p>
+                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Review the details and prepare the unsigned PDF for signature.</p>
                 @endif
             </div>
 
             @if ($topic->hasIssuedNoticeToProceed())
                 <div class="relative flex shrink-0 flex-col gap-2 sm:flex-row">
-                    <a href="{{ route('topics.notice-to-proceed.download', $topic) }}" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-white">
+                    <a href="{{ route('topics.notice-to-proceed.download', $topic) }}" class="rh-button">
                         Download signed PDF
                     </a>
                     @if (! $isResearchHead && $topic->user_id === Auth::id())
-                        <a href="{{ route('workspace.select') }}" class="inline-flex items-center justify-center rounded-xl border border-gray-600 bg-white/10 px-4 py-3 text-sm font-black text-white transition hover:bg-white/20">Open researcher workspace</a>
+                        <a href="{{ route('workspace.select') }}" class="rh-button-secondary">Open researcher workspace</a>
                     @endif
                 </div>
             @elseif ($noticePreparedForSigning && $isResearchHead)
-                <a href="{{ route('research_head.topics.notice-to-proceed.download-unsigned', $topic) }}" class="relative inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-4 py-3 text-sm font-black text-gray-950 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white">
+                <a href="{{ route('research_head.topics.notice-to-proceed.download-unsigned', $topic) }}" class="rh-button-secondary shrink-0">
                     Download unsigned PDF
                 </a>
             @endif
@@ -105,21 +102,15 @@
                     <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">{{ $message }}</div>
                 @enderror
 
-                <div class="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
-                    <div class="rounded-2xl border border-gray-200 p-5">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="text-xs font-black uppercase tracking-[0.14em] text-red-700">01 · Project identity</p>
-                                <h4 class="mt-1 text-lg font-black text-gray-950">Researchers and approved title</h4>
-                            </div>
-                            <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-600">Prefilled from proposal</span>
-                        </div>
+                <div class="space-y-6">
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-950">Project details</h4>
 
-                        <div class="mt-5 space-y-4" x-data="{ researchers: @js(old('researcher_names', $noticeToProceedForm['researcher_names'])) }">
+                        <div class="mt-4 grid gap-5 md:grid-cols-2" x-data="{ researchers: @js(old('researcher_names', $noticeToProceedForm['researcher_names'])) }">
                             <div>
                                 <div class="flex items-center justify-between gap-3">
                                     <label class="text-sm font-bold text-gray-800">Researcher names</label>
-                                    <button type="button" class="text-xs font-black text-red-700 hover:text-red-900" @click="researchers.push('')">+ Add researcher</button>
+                                    <button type="button" class="min-h-6 text-sm font-semibold text-brand hover:underline focus-visible:outline-brand" @click="researchers.push('')">+ Add researcher</button>
                                 </div>
                                 <div class="mt-2 space-y-2">
                                     <template x-for="(researcher, index) in researchers" :key="index">
@@ -131,58 +122,52 @@
                                 </div>
                                 @error('researcher_names')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
                                 @error('researcher_names.*')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
-                                <p class="mt-2 text-xs leading-5 text-gray-500">Names come from the project leader and staff saved in the proposal papers. You can add or correct a researcher here.</p>
+                                <p class="mt-2 text-sm leading-5 text-gray-500">From the proposal. Add or correct names as needed.</p>
                             </div>
 
                             <label class="block text-sm font-bold text-gray-800">
-                                Institution / campus line
+                                Institution / campus
                                 <input name="campus_line" type="text" value="{{ old('campus_line', $noticeToProceedForm['campus_line']) }}" required maxlength="255" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 @error('campus_line')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                             </label>
 
-                            <label class="block text-sm font-bold text-gray-800">
+                            <label class="block text-sm font-bold text-gray-800 md:col-span-2">
                                 Approved project title
-                                <textarea name="project_title" rows="3" required maxlength="500" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">{{ old('project_title', $noticeToProceedForm['project_title']) }}</textarea>
+                                <textarea name="project_title" rows="2" required maxlength="500" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">{{ old('project_title', $noticeToProceedForm['project_title']) }}</textarea>
                                 @error('project_title')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                             </label>
                         </div>
                     </div>
 
-                    <div class="rounded-2xl border border-gray-200 p-5">
-                        <p class="text-xs font-black uppercase tracking-[0.14em] text-red-700">02 · Approval record</p>
-                        <h4 class="mt-1 text-lg font-black text-gray-950">Notice and resolution</h4>
+                    <div class="border-t border-gray-200 pt-6">
+                        <h4 class="text-lg font-semibold text-gray-950">Approval record</h4>
 
-                        <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                        <div class="mt-4 grid gap-5 md:grid-cols-2">
                             <label class="block text-sm font-bold text-gray-800">
                                 Notice date
                                 <x-date-picker id="notice-date" name="notice_date" :value="old('notice_date', $noticeToProceedForm['notice_date'])" required class="mt-2" />
                                 @error('notice_date')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                             </label>
 
-                            <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-3">
+                            <div class="grid grid-cols-[minmax(0,1fr)_110px] gap-4">
                                 <label class="block text-sm font-bold text-gray-800">
                                     LREC Resolution No.
                                     <input name="resolution_number" type="text" value="{{ old('resolution_number', $noticeToProceedForm['resolution_number']) }}" required maxlength="50" placeholder="01" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    @error('resolution_number')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                                 </label>
                                 <label class="block text-sm font-bold text-gray-800">
                                     Series
                                     <input name="resolution_year" type="number" min="2000" max="2100" value="{{ old('resolution_year', $noticeToProceedForm['resolution_year']) }}" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
+                                    @error('resolution_year')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                                 </label>
                             </div>
-                            @error('resolution_number')<p class="-mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
-                            @error('resolution_year')<p class="-mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
                         </div>
                     </div>
                 </div>
 
-                <div class="rounded-2xl border border-gray-200 p-5">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                        <div>
-                            <p class="text-xs font-black uppercase tracking-[0.14em] text-red-700">03 · Approved implementation</p>
-                            <h4 class="mt-1 text-lg font-black text-gray-950">Schedule, duration, and Line-Item Budget</h4>
-                        </div>
-                        <p class="max-w-xl text-xs leading-5 text-gray-500">These begin with the proposed schedule and computed Line-Item Budget. Edit them if the approving body changed the final values.</p>
-                    </div>
+                <div class="border-t border-gray-200 pt-6">
+                    <h4 class="text-lg font-semibold text-gray-950">Schedule and budget</h4>
+                    <p class="mt-1 text-sm leading-5 text-gray-500">Update the proposed values if the final approval changed them.</p>
 
                     <div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <label class="block text-sm font-bold text-gray-800">
@@ -242,17 +227,17 @@
                     </div>
                 </details>
 
-                <div class="flex flex-col gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-4 border-t border-gray-200 pt-6 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                         <p class="text-sm font-black text-gray-950">Preview the unsigned PDF before preparing it for signatures.</p>
                         <p class="mt-1 text-xs leading-5 text-gray-600">Previewing does not release anything. Faculty access and project monitoring remain locked until the signed PDF is uploaded.</p>
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2">
-                        <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="inline-flex items-center justify-center rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-black text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+                        <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rh-button-secondary disabled:cursor-wait disabled:opacity-60">
                             <span x-show="!previewLoading">Preview notice</span>
                             <span x-show="previewLoading" x-cloak>Generating preview...</span>
                         </button>
-                        <button type="submit" :disabled="submitting || previewLoading" class="inline-flex items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+                        <button type="submit" :disabled="submitting || previewLoading" class="rh-button disabled:cursor-wait disabled:opacity-60">
                             <span x-show="!submitting">{{ $noticePreparedForSigning ? 'Save corrected details' : 'Save notice details' }}</span>
                             <span x-show="submitting" x-cloak>Saving details...</span>
                         </button>

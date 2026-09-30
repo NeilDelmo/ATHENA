@@ -2,6 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+    .ntp-workspace {
+        font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .ntp-workspace label {
+        @apply font-medium leading-6;
+    }
+
+    .ntp-workspace input:not([type="hidden"]):not([type="file"]),
+    .ntp-workspace textarea {
+        @apply min-h-11 rounded-lg border-gray-300 text-base font-normal shadow-none focus:border-brand focus:ring-brand;
+    }
+
+    .ntp-workspace .font-black {
+        @apply font-semibold;
+    }
+
+    .ntp-workspace [role="dialog"] {
+        @apply w-full sm:w-80;
+    }
+
+    .dashboard-panel {
+        @apply min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+    }
+
+    .dashboard-panel-heading {
+        @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800;
+    }
+
+    .dashboard-action {
+        @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand;
+    }
+
+    .rh-panel {
+        @apply min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900;
+    }
+
+    .rh-panel-heading {
+        @apply flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800;
+    }
+
+    .rh-title {
+        @apply text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100;
+    }
+
+    .rh-muted {
+        @apply text-slate-600 dark:text-slate-400;
+    }
+
+    .rh-control {
+        @apply min-h-[44px] min-w-0 rounded-xl border-slate-300 bg-white text-sm text-slate-900 focus:border-brand focus:ring-brand dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100;
+    }
+
+    .rh-button {
+        @apply inline-flex min-h-[44px] items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-50;
+    }
+
+    .rh-button-secondary {
+        @apply inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
+    }
+
+    .rh-badge {
+        @apply inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold tabular-nums text-slate-700 dark:bg-slate-800 dark:text-slate-300;
+    }
+
+    .rh-table {
+        @apply w-full table-fixed text-left text-sm;
+    }
+
+    .rh-table th {
+        @apply bg-slate-50 px-5 py-2.5 font-semibold text-slate-600 dark:bg-slate-950/50 dark:text-slate-400;
+    }
+
+    .rh-table td {
+        @apply px-5 py-2.5 align-top;
+    }
+
+    .rh-table tbody tr {
+        @apply border-t border-slate-100 dark:border-slate-800;
+    }
+
+    .rh-table tbody tr:hover {
+        @apply bg-slate-50/70 dark:bg-slate-800/40;
+    }
+}
+
 @media (min-width: 640px) {
     html[data-sidebar-collapsed='true'] #app-sidebar {
         width: 76px;

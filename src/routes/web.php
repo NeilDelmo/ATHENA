@@ -103,9 +103,11 @@ Route::middleware('auth')->group(function () {
 // FACULTY ROUTES
 Route::middleware(['auth', 'workspace:faculty|faculty_researcher'])->group(function () {
     Route::get('/faculty/dashboard', [TopicController::class, 'index'])->name('faculty.dashboard');
+    Route::view('/faculty/calendar', 'faculty.calendar')->name('faculty.calendar');
 });
 
 Route::middleware(['auth', 'workspace:faculty'])->group(function () {
+    Route::get('/faculty/submissions', [TopicController::class, 'submissions'])->name('faculty.submissions');
     Route::get('/faculty/topics/create', [TopicController::class, 'create'])->name('faculty.topics.create');
 
     Route::prefix('/faculty/proposal-drafts')->name('faculty.proposal-drafts.')->group(function () {
@@ -422,6 +424,8 @@ Route::middleware(['auth', 'workspace:faculty_researcher|research_head'])->prefi
 // RESEARCH HEAD ROUTES
 Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/dashboard', [ResearchHeadTopicController::class, 'index'])->name('research_head.dashboard');
+    Route::view('/research-head/analytics', 'research_head.analytics')->name('research_head.analytics');
+    Route::view('/research-head/calendar', 'research_head.calendar')->name('research_head.calendar');
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');

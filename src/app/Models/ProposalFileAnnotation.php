@@ -22,6 +22,7 @@ class ProposalFileAnnotation extends Model
     protected $fillable = [
         'feedback_source',
         'co_evaluator_name',
+        'lrec_reviewer_name',
         'reviewer_id',
         'topic_review_file_revision_id',
         'annotation_type',

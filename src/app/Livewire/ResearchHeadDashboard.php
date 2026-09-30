@@ -14,6 +14,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -21,6 +22,9 @@ use Livewire\WithPagination;
 class ResearchHeadDashboard extends Component
 {
     use WithPagination;
+
+    #[Locked]
+    public bool $overview = false;
 
     #[Url]
     public string $pipeline = '';
@@ -58,8 +62,12 @@ class ResearchHeadDashboard extends Component
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
     }
 
-    public function mount(): void
+    public function mount(bool $overview = false): void
     {
+        $this->overview = $overview;
+        if ($this->overview && $this->pipeline === '') {
+            $this->pipeline = 'awaiting_review';
+        }
         if ($this->academicYear !== '' && $this->fromDate === '' && $this->toDate === '') {
             $target = ResearchAnnualTarget::where('academic_year', $this->academicYear)->first();
             $this->fromDate = $target?->starts_on?->toDateString() ?? '';
@@ -166,6 +174,13 @@ class ResearchHeadDashboard extends Component
         $this->resetPage();
     }
 
+    public function showReviewQueue(): void
+    {
+        $this->pipeline = 'awaiting_review';
+        $this->reset('status', 'attention');
+        $this->resetPage();
+    }
+
     public function toggleRepeatedRevisions(): void
     {
         $this->attention = $this->attention === 'repeat' ? '' : 'repeat';
@@ -238,23 +253,26 @@ class ResearchHeadDashboard extends Component
                     $search->where('title', 'like', '%'.$this->search.'%')->orWhere('description', 'like', '%'.$this->search.'%')
                         ->orWhereHas('user', fn (Builder $users) => $users->where('name', 'like', '%'.$this->search.'%'));
                 });
-            })->latest()->paginate(15)->withQueryString();
+            })->latest()->paginate($this->overview ? 4 : 5)->withQueryString();
 
         $projectRows = $data['projects']->when($this->projectStatus !== '', fn (Collection $rows) => $this->projectStatus === 'active' ? $rows->where('status', '!=', 'completed') : $rows->where('status', $this->projectStatus))->values();
+        $attentionRows = $this->overview
+            ? $data['attention']->reject(fn (array $issue): bool => $issue['type'] === 'head_review')->values()
+            : $data['attention'];
 
-        return view('livewire.research-head-dashboard', [
+        return view($this->overview ? 'livewire.research-head-overview' : 'livewire.research-head-dashboard', [
             'topics' => $topics, 'deadlines' => $deadlines,
             'analytics' => $data, 'stageLabels' => ResearchDashboardAnalytics::STAGES,
-            'attentionItems' => $this->paginateRows($data['attention'], 'attentionPage'),
-            'projectItems' => $this->paginateRows($projectRows, 'projectPage'),
+            'attentionItems' => $this->paginateRows($attentionRows, 'attentionPage', $this->overview ? 4 : 5),
+            'projectItems' => $this->paginateRows($projectRows, 'projectPage', 6),
             'academicYears' => ResearchCall::whereNotNull('academic_year')->pluck('academic_year')->merge(ResearchAnnualTarget::pluck('academic_year'))->unique()->sortDesc()->values(),
         ]);
     }
 
-    private function paginateRows(Collection $rows, string $pageName): LengthAwarePaginator
+    private function paginateRows(Collection $rows, string $pageName, int $perPage): LengthAwarePaginator
     {
         $page = max(1, (int) $this->getPage($pageName));
 
-        return new LengthAwarePaginator($rows->forPage($page, 9)->values(), $rows->count(), 9, $page, ['path' => route('research_head.dashboard'), 'pageName' => $pageName]);
+        return new LengthAwarePaginator($rows->forPage($page, $perPage)->values(), $rows->count(), $perPage, $page, ['path' => route($this->overview ? 'research_head.dashboard' : 'research_head.analytics'), 'pageName' => $pageName]);
     }
 }

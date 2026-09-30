@@ -34,7 +34,7 @@ class UpdateResearchHeadTopicStatusRequest extends FormRequest
             'lrec_clearance_confirmed' => ['exclude_unless:status,ready_for_signature', 'accepted'],
             'committee_comments' => ['exclude_unless:status,revision_requested', 'nullable', 'array', 'max:100'],
             'committee_comments.*' => ['array:reviewer,comment,location'],
-            'committee_comments.*.reviewer' => ['required', 'string', 'max:160'],
+            'committee_comments.*.reviewer' => ['exclude'],
             'committee_comments.*.comment' => ['required', 'string', 'max:5000'],
             'committee_comments.*.location' => ['nullable', 'string', 'max:300'],
             'redirect_to' => ['nullable', Rule::in(['topic'])],

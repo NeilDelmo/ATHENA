@@ -42,7 +42,7 @@
                     @forelse ($commentResponseForm['feedback'] as $item)
                         <tr>
                             <td>{{ $loop->iteration }}.</td>
-                            <td><strong class="reviewer">{{ $item['reviewer'] }}</strong><span class="location">{{ $item['location'] }}</span><div class="comment">{{ $item['comment'] }}</div></td>
+                            <td>@if (($item['stage'] ?? null) !== 'lrec' && filled($item['reviewer'] ?? null))<strong class="reviewer">{{ $item['reviewer'] }}</strong>@endif<span class="location">{{ $item['location'] }}</span><div class="comment">{{ $item['comment'] }}</div></td>
                             <td class="comment">{{ $item['response'] }}</td><td class="comment">{{ $item['remarks'] }}</td>
                         </tr>
                     @empty

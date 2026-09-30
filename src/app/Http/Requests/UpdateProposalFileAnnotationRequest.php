@@ -10,6 +10,6 @@ class UpdateProposalFileAnnotationRequest extends StoreProposalFileAnnotationReq
     /** @return array<string, mixed> */
     public function rules(ProposalRevisionTargetCatalog $revisionTargets): array
     {
-        return Arr::only(parent::rules($revisionTargets), ['comment', 'editor_target']);
+        return Arr::only(parent::rules($revisionTargets), ['comment', 'editor_target', 'lrec_reviewer_name']);
     }
 }

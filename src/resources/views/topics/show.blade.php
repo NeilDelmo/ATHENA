@@ -187,15 +187,15 @@
         @endif
 
         <div class="space-y-3">
-            <nav class="overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
-                <div class="flex min-w-max gap-1" role="tablist" aria-label="Proposal workspace sections">
+            <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
+                <div class="flex shrink-0 gap-1" role="tablist" aria-label="Proposal workspace sections">
                 <button id="proposal-details-tab-button" type="button" role="tab" aria-controls="proposal-details-tab" :aria-selected="activeTopicTab === 'details'" @click="setTopicTab('details', 'proposal-details')" :class="activeTopicTab === 'details' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v13.5A2.25 2.25 0 0 1 17.75 21H6.25A2.25 2.25 0 0 1 4 18.75V5.25Z" /><path stroke-linecap="round" d="M8 8h8M8 12h8M8 16h5" /></svg>
                     Proposal
                 </button>
                 <button id="proposal-review-tab-button" type="button" role="tab" aria-controls="proposal-review-tab" :aria-selected="activeTopicTab === 'review'" @click="setTopicTab('review', '{{ $reviewTabHash }}')" :class="activeTopicTab === 'review' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5A2.25 2.25 0 0 1 19.5 6v14.25H4.5V6a2.25 2.25 0 0 1 2.25-2.25Z" /><path stroke-linecap="round" d="M8.25 9.5h7.5M8.25 13h5.25" /></svg>
-                    {{ $isResearchHead ? ($canReturnToRevision ? 'Review history' : 'Review & decision') : ($isResearchOffice ? 'LREC comments' : 'Review status') }}
+                    {{ $isResearchHead ? (($canReturnToRevision || $topic->status === 'approved') ? 'Review history' : 'Review & decision') : ($isResearchOffice ? 'LREC comments' : 'Review status') }}
                 </button>
                 @if ($canViewNoticeToProceed)
                     <button id="notice-to-proceed-tab-button" type="button" role="tab" aria-controls="notice-to-proceed-tab" :aria-selected="activeTopicTab === 'notice'" @click="setTopicTab('notice', 'notice-to-proceed')" :class="activeTopicTab === 'notice' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
@@ -214,16 +214,15 @@
                     </button>
                 @endif
                 </div>
-            </nav>
             @unless ($canViewMonitoring)
-                <div class="flex justify-end">
+                <div class="flex shrink-0 justify-end border-l border-slate-200 pl-3 dark:border-slate-700">
                     <button
                     type="button"
                     @click="routingDocketOpen = ! routingDocketOpen; try { sessionStorage.setItem('review-workflow-{{ $topic->id }}', routingDocketOpen ? 'shown' : 'hidden') } catch (error) {}"
                     data-review-workflow-toggle
                     :aria-expanded="routingDocketOpen.toString()"
                     aria-controls="proposal-routing-docket"
-                    class="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50"
+                    class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-slate-800"
                     aria-label="Show proposal routing information"
                     title="Proposal routing information"
                 >
@@ -232,6 +231,7 @@
                     </button>
                 </div>
             @endunless
+            </nav>
         </div>
 
         @unless ($canViewMonitoring)
@@ -663,8 +663,8 @@
                     </div>
                 </section>
             @elseif (Auth::user()->isUsingWorkspace('research_head'))
-                @if ($canReturnToRevision)
-                    <div class="rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">LREC review is complete. Continue in <button type="button" @click="setTopicTab('notice', 'notice-to-proceed')" class="font-semibold text-red-700 underline underline-offset-2 dark:text-red-300">Signing & release</button> to upload signed documents.</div>
+                @if ($canReturnToRevision || $topic->status === 'approved')
+                    <x-proposal-review-summary :topic="$topic" :version="$latestVersion" :workspace="$headUploadWorkspace" />
                 @elseif ($topic->status === 'revision_requested')
                     <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                         <p class="font-bold">Waiting for the faculty revision</p>
@@ -680,9 +680,14 @@
 
         @if ($canViewNoticeToProceed)
             <section id="notice-to-proceed-tab" x-show="activeTopicTab === 'notice'" x-cloak role="tabpanel" aria-labelledby="notice-to-proceed-tab-button" class="space-y-5">
-                <div>
-                    <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
-                    <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
+                    </div>
+                    @if ($isResearchHead)
+                        <a href="{{ route('signatories.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900">Manage signatory names</a>
+                    @endif
                 </div>
                 @if ($isResearchHead && $headUploadWorkspace)
                     <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
@@ -815,7 +820,6 @@
                                     @endcan
                                     @foreach ($review->committee_comments ?? [] as $commentIndex => $committeeComment)
                                         <div class="mt-3 rounded-xl border border-gray-200 p-4 text-base leading-7 dark:border-slate-700">
-                                            <p class="font-semibold">LREC · {{ $committeeComment['reviewer'] }}</p>
                                             <p class="text-sm text-gray-500">{{ $committeeComment['location'] ?? '' }}</p>
                                             <p class="mt-2 whitespace-pre-line">{{ $committeeComment['comment'] }}</p>
                                             @if ($answer = ($review->feedback_responses['committee_'.$commentIndex] ?? null))

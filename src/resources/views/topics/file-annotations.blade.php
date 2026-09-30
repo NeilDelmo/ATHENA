@@ -58,7 +58,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-3 dark:border-gray-800 sm:px-4">
                     <div data-annotation-tools-guide>
                         @if ($canAnnotate)
-                            <p class="text-base font-bold text-gray-950 dark:text-white">Drag over the part that needs revision, then add a Research Head comment.</p>
+                            <p class="text-base font-bold text-gray-950 dark:text-white">{{ $topic->review_stage === 'lrec' ? 'Drag over the part that needs revision, then add the LREC feedback.' : 'Drag over the part that needs revision, then add a Research Head comment.' }}</p>
                             <p class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400" x-text="draftSelection ? modeInstruction : 'Comments remain drafts until you send the revision request.'"></p>
                         @else
                             <p class="text-base text-gray-600 dark:text-gray-300" x-text="modeInstruction"></p>
@@ -85,7 +85,7 @@
                                 <template x-if="config.researchHeadAvatar"><img :src="config.researchHeadAvatar" alt="" class="h-full w-full object-cover" x-on:error="config.researchHeadAvatar = null"></template>
                                 <span x-show="!config.researchHeadAvatar" x-text="reviewerInitials(config.researchHeadName || 'Research Head')"></span>
                             </span>
-                            <div class="min-w-0"><p class="font-serif text-lg font-bold text-red-950 dark:text-red-100">Research Head comments</p><p class="truncate text-sm text-red-800 dark:text-red-200" x-text="config.researchHeadName || 'Research Head'"></p></div>
+                            <div class="min-w-0"><p class="font-serif text-lg font-bold text-red-950 dark:text-red-100">{{ $topic->review_stage === 'lrec' ? 'LREC comments' : 'Research Head comments' }}</p><p class="truncate text-sm text-red-800 dark:text-red-200" x-text="config.isLrecReview ? 'Recorded by ' + config.researchHeadName : (config.researchHeadName || 'Research Head')"></p></div>
                         </div>
                         <div class="mb-3 flex items-center justify-between gap-2">
                             <h3 id="annotation-comments-heading" class="font-serif text-lg font-bold text-gray-950 dark:text-white">Comments <span class="ml-1 font-sans text-sm font-semibold text-gray-500" x-text="reviewerCommentCount"></span></h3>
@@ -108,14 +108,14 @@
                                     <blockquote x-show="annotation.selectedText" class="mt-3 line-clamp-3 border-l-2 border-red-200 pl-3 text-sm leading-6 text-gray-500 dark:text-gray-400" x-text="annotation.selectedText"></blockquote>
                                     <p class="mt-3 whitespace-pre-line break-words text-base leading-7 text-gray-900 dark:text-gray-100" x-text="annotation.comment"></p>
                                     <p x-show="annotation.editorTargetLabel" class="mt-2 text-sm text-gray-500" x-text="annotation.editorTargetLabel"></p>
-                                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400"><span class="font-semibold">Research Head</span> · <span x-text="annotation.reviewer"></span><span class="block" x-text="annotation.createdAt"></span></p>
+                                    <p class="mt-3 text-sm leading-6 text-gray-500 dark:text-gray-400"><span class="font-semibold" x-text="annotation.feedbackLabel"></span><span x-show="annotation.feedbackAuthor"> · <span x-text="annotation.feedbackAuthor"></span></span><span class="block" x-text="annotation.createdAt"></span></p>
                                     <p x-show="annotation.state !== 'draft'" class="mt-2 text-sm text-gray-500" x-text="annotation.state === 'resolved' ? 'Resolved by a new version' : 'Sent · locked'"></p>
                                     <a x-show="!isResearchHead && annotation.state === 'requested' && revisionUrl" :href="annotationEditUrl(annotation)" @click.stop class="mt-3 inline-flex min-h-11 items-center rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white">
                                         <span x-text="annotation.editorTargetLabel ? 'Edit ' + annotation.editorTargetLabel : 'Revise this paper'"></span>
                                     </a>
                                 </article>
                             </template>
-                            <p x-show="reviewerCommentCount === 0" class="py-8 text-center text-sm leading-6 text-gray-500 dark:text-gray-400">No Research Head comments yet.</p>
+                            <p x-show="reviewerCommentCount === 0" class="py-8 text-center text-sm leading-6 text-gray-500 dark:text-gray-400">{{ $topic->review_stage === 'lrec' ? 'No LREC comments yet.' : 'No Research Head comments yet.' }}</p>
                         </div>
                     </aside>
                 </div>
@@ -129,7 +129,9 @@
                             </div>
                             <button type="button" @click="cancelDraft()" :disabled="saving" aria-label="Close comment editor" class="rounded px-2 text-xl text-gray-500 disabled:opacity-40">×</button>
                         </div>
-                        <p class="mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Research Head · <span x-text="config.researchHeadName || ''"></span></p>
+                        @unless ($topic->review_stage === 'lrec')
+                            <p class="mt-2 text-sm font-semibold text-gray-700 dark:text-gray-200">Research Head · <span x-text="config.researchHeadName || ''"></span></p>
+                        @endunless
                         <p x-show="draftSectionLabel" x-text="draftSectionLabel" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300"></p>
                         <blockquote x-show="draftSelection?.selectedText" class="mt-3 max-h-20 overflow-auto border-l-2 border-red-200 pl-3 text-sm leading-6 text-gray-500" x-text="draftSelection?.selectedText"></blockquote>
                         <label class="mt-4 block text-base font-semibold text-gray-800 dark:text-gray-100">What needs to change?

@@ -33,6 +33,9 @@ test('evaluation boxes use black shading beside the reference labels without add
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tblPr/w:tblpPr')->length)->toBe(0)
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr[1]/w:tc[2]')->item(0)?->textContent)->toBe('Initial Screening')
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr[2]/w:tc[2]')->item(0)?->textContent)->toBe('Local Research Evaluation');
+        if ($stages === ['lrec']) {
+            expect($document->textContent)->not->toContain('Reviewer', 'LREC committee');
+        }
         if ($stages !== []) {
             expect($document->textContent)->toContain('Revised the sampling plan.');
         }

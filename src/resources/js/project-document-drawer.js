@@ -44,7 +44,8 @@ export function projectDocumentDrawer(config = {}) {
         destroy() {
             document.body.classList.remove('overflow-hidden');
         },
-        openDrawer() {
+        openDrawer(category = 'all') {
+            this.activeCategory = category;
             this.open = true;
         },
         closeDrawer() {
