@@ -3,6 +3,49 @@
 @tailwind utilities;
 
 @layer components {
+    .athena-page-header::before,
+    .athena-page-header::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        height: 100%;
+        pointer-events: none;
+    }
+
+    .athena-page-header::before {
+        width: 62%;
+        background-image:
+            linear-gradient(to left, rgba(128, 0, 32, 0.14) 1px, transparent 1px),
+            linear-gradient(to top, rgba(128, 0, 32, 0.14) 1px, transparent 1px);
+        background-size: 26px 26px;
+        background-position: right bottom;
+        -webkit-mask-image: radial-gradient(ellipse at 100% 100%, #000 0%, rgba(0, 0, 0, 0.5) 35%, transparent 72%);
+        mask-image: radial-gradient(ellipse at 100% 100%, #000 0%, rgba(0, 0, 0, 0.5) 35%, transparent 72%);
+    }
+
+    .athena-page-header::after {
+        width: 48%;
+        background: radial-gradient(ellipse at 100% 100%, theme('colors.red.600 / 0.28') 0%, theme('colors.red.600 / 0.10') 40%, transparent 72%);
+    }
+
+    .dark .athena-page-header::before {
+        background-image:
+            linear-gradient(to left, rgba(128, 0, 32, 0.10) 1px, transparent 1px),
+            linear-gradient(to top, rgba(128, 0, 32, 0.10) 1px, transparent 1px);
+    }
+
+    .dark .athena-page-header::after {
+        background: radial-gradient(ellipse at 100% 100%, theme('colors.red.600 / 0.18') 0%, theme('colors.red.600 / 0.06') 40%, transparent 72%);
+    }
+
+    @media (max-width: 639px) {
+        .athena-page-header::before,
+        .athena-page-header::after {
+            width: 40%;
+        }
+    }
+
     .ntp-workspace {
         font-family: "Segoe UI", Arial, sans-serif;
     }

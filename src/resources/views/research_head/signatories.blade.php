@@ -10,56 +10,75 @@
         </x-page-header>
     </x-slot>
 
-    <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
-        <section
-            data-add-signatory-panel
-            x-cloak
-            x-show="addSignatoryOpen"
-            x-transition:enter="transition ease-out duration-200"
-            x-transition:enter-start="-translate-y-3 opacity-0"
-            x-transition:enter-end="translate-y-0 opacity-100"
-            x-transition:leave="transition ease-in duration-150"
-            x-transition:leave-start="translate-y-0 opacity-100"
-            x-transition:leave-end="-translate-y-3 opacity-0"
-            class="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-sm dark:border-red-900 dark:bg-slate-900"
-            aria-labelledby="add-signatory-heading"
-        >
-            <div class="flex items-start justify-between gap-4 border-b border-red-100 bg-red-50 px-5 py-4 dark:border-red-950 dark:bg-red-950/30 sm:px-6">
-                <div>
-                    <h3 id="add-signatory-heading" class="text-base font-black text-[#7A0019] dark:text-red-200">Add a signatory</h3>
-                    <p class="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">Add an approved name for faculty to use across proposal signature blocks.</p>
+    <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" x-on:keydown.escape.window="addSignatoryOpen = false" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
+        <div x-show="addSignatoryOpen" x-cloak class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
+            <button type="button" x-on:click="addSignatoryOpen = false" data-add-signatory-backdrop class="pointer-events-auto absolute inset-0 bg-slate-950/60 backdrop-blur-sm xl:hidden" aria-label="Close add signatory editor"></button>
+            <section
+                data-add-signatory-panel
+                x-show="addSignatoryOpen"
+                x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+                x-transition:enter-start="translate-y-4 scale-95 opacity-0"
+                x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+                x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+                x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+                x-transition:leave-end="translate-y-4 scale-95 opacity-0"
+                class="pointer-events-auto absolute inset-x-2 bottom-2 flex h-auto max-h-[calc(100dvh-1rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:inset-x-auto sm:bottom-4 sm:right-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[min(40rem,calc(100vw-2rem))]"
+                role="dialog"
+                x-bind:aria-modal="window.matchMedia('(max-width: 1279px)').matches ? 'true' : null"
+                aria-labelledby="add-signatory-heading"
+            >
+                <header class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Signatory editor</p>
+                        <h3 id="add-signatory-heading" class="mt-1 text-lg font-black text-slate-950 dark:text-white">Add a signatory</h3>
+                    </div>
+                    <button type="button" x-on:click="addSignatoryOpen = false" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close add signatory form">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                    </button>
+                </header>
+
+                <div class="min-h-0 flex-auto overflow-y-auto overscroll-contain bg-slate-50/70 dark:bg-slate-950/55">
+                    <form action="{{ route('signatories.store') }}" method="POST" class="space-y-5 px-4 py-5 sm:px-6">
+                        @csrf
+                        <input type="hidden" name="active" value="1">
+
+                        <section class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5" aria-labelledby="new-signatory-details-heading">
+                            <p class="text-[11px] font-black uppercase tracking-[0.18em] text-red-700 dark:text-red-300">Signatory details</p>
+                            <h4 id="new-signatory-details-heading" class="mt-1 text-lg font-black tracking-tight text-gray-950 dark:text-white">Name and designation</h4>
+                            <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Add an approved name for faculty to use across proposal signature blocks.</p>
+
+                            <div class="mt-5 grid gap-5 md:grid-cols-2">
+                                <label class="block md:col-span-2" for="new-signatory-role">
+                                    <span class="text-sm font-black text-gray-800 dark:text-slate-100">Signature role</span>
+                                    <select id="new-signatory-role" name="role_key" required class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
+                                        @foreach ($roles as $key => $label)
+                                            <option value="{{ $key }}" @selected(old('role_key') === $key)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <x-input-error :messages="$errors->get('role_key')" class="mt-2" />
+                                </label>
+
+                                <label class="block" for="new-signatory-name">
+                                    <span class="text-sm font-black text-gray-800 dark:text-slate-100">Full name</span>
+                                    <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="e.g. Dr. Ana M. Reyes" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
+                                    <x-input-error :messages="$errors->get('name')" class="mt-2" />
+                                </label>
+
+                                <label class="block" for="new-signatory-position">
+                                    <span class="text-sm font-black text-gray-800 dark:text-slate-100">Position / designation</span>
+                                    <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="e.g. Dean, College of Engineering" class="mt-2 block w-full rounded-xl border-gray-300 bg-white px-3.5 py-3 text-sm font-semibold text-gray-900 shadow-sm transition placeholder:text-gray-400 hover:border-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:hover:border-slate-500">
+                                    <x-input-error :messages="$errors->get('position')" class="mt-2" />
+                                </label>
+                            </div>
+
+                            <div class="mt-5 flex justify-end border-t border-gray-100 pt-5 dark:border-slate-800">
+                                <button type="submit" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white shadow-sm shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto dark:focus:ring-offset-slate-900">Add name</button>
+                            </div>
+                        </section>
+                    </form>
                 </div>
-                <button type="button" x-on:click="addSignatoryOpen = false" class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white hover:text-[#7A0019] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7A0019] dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-red-200" aria-label="Close add signatory form">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
-                </button>
-            </div>
-
-            <form action="{{ route('signatories.store') }}" method="POST" class="grid gap-3 p-5 sm:p-6 md:grid-cols-[14rem_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
-                @csrf
-                <input type="hidden" name="active" value="1">
-
-                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-role">
-                    Signature role
-                    <select id="new-signatory-role" name="role_key" required class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] shadow-none focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white">
-                        @foreach ($roles as $key => $label)
-                            <option value="{{ $key }}" @selected(old('role_key') === $key)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </label>
-
-                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-name">
-                    Full name
-                    <input id="new-signatory-name" name="name" value="{{ old('name') }}" required maxlength="120" autocomplete="name" placeholder="e.g. Dr. Ana M. Reyes" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
-                </label>
-
-                <label class="block text-[12.5px] text-[#6B6258] dark:text-slate-300" for="new-signatory-position">
-                    Position / designation
-                    <input id="new-signatory-position" name="position" value="{{ old('position') }}" required maxlength="120" placeholder="e.g. Dean, College of Engineering" class="mt-1.5 block w-full rounded-lg border-[#E7E2D8] bg-white px-3 py-2.5 text-sm text-[#201A15] placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500">
-                </label>
-
-                <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#C1272D] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9C1E23] focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:focus:ring-offset-slate-900">Add name</button>
-            </form>
-        </section>
+            </section>
+        </div>
 
         @if (session('success'))
             <div role="status" class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300">{{ session('success') }}</div>

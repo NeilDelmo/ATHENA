@@ -15,10 +15,10 @@
     @endphp
 
     <x-slot name="header">
-        <x-workspace-header-banner
+        <x-page-header variant="hero"
             eyebrow="Faculty workspace"
             title="Faculty research"
-            :description="'Welcome back, '.Auth::user()->name.'. Manage your drafts, review feedback, and submitted proposals.'"
+            :subtitle="'Welcome back, '.Auth::user()->name.'. Manage your drafts, review feedback, and submitted proposals.'"
         >
             <x-slot:actions>
                 <div class="flex w-full sm:w-auto">
@@ -28,7 +28,7 @@
                     </a>
                 </div>
             </x-slot:actions>
-        </x-workspace-header-banner>
+        </x-page-header>
     </x-slot>
 
     <div class="space-y-5" data-dashboard-palette="red-black-white" data-dashboard-layout="faculty-overview">

@@ -1,9 +1,9 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-workspace-header-banner
+        <x-page-header variant="hero"
             eyebrow="Research Office"
             title="Research Office Dashboard"
-            :description="'Record LREC committee feedback for proposals from '.($coordinator->college ?: 'your college').'.'"
+            :subtitle="'Record LREC committee feedback for proposals from '.($coordinator->college ?: 'your college').'.'"
         />
     </x-slot>
 

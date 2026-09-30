@@ -100,7 +100,9 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('New packages are marked in red.')
         ->assertSee('data-proposal-state="new"', false)
         ->assertSee('Revised package · Version 2')
-        ->assertSee('Open for review')
+        ->assertSee('aria-label="Review Community Flood Resilience"', false)
+        ->assertDontSee('Open for review')
+        ->assertDontSee('Open revision record')
         ->assertSee('Submission history')
         ->assertSee('Initial submission')
         ->assertSee('Revision')
@@ -136,7 +138,7 @@ test('research heads can view every initial proposal submission and revision', f
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
     expect($xpath->query('//dl[@data-submission-summary]/div')->length)->toBe(5)
-        ->and($xpath->query('//*[@data-proposal-queue-layout="rows"]//article')->length)->toBe(1)
+        ->and($xpath->query('//table[@data-proposal-queue-layout="table"]/tbody/tr[@data-proposal-id]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-submission-history and not(@open)]')->length)->toBe(1)
         ->and($xpath->query('//table[@data-submission-history-layout="compact"]//th[@scope="col"]')->length)->toBe(5)
         ->and($xpath->query('//table[@data-submission-history-layout="compact"]/tbody/tr')->length)->toBe(2)
@@ -239,7 +241,7 @@ test('one shared workflow reference explains queue labels while review keeps pro
         ->and($xpath->query('.//*[@aria-current="step"]', $workflow->item(0))->length)->toBe(0)
         ->and($xpath->query('.//*[@data-workflow-label-key]/div', $workflow->item(0))->length)->toBe(6)
         ->and($workflow->item(0)->parentNode->hasAttribute('x-cloak'))->toBeTrue()
-        ->and($xpath->query('//article//*[@data-proposal-route]')->length)->toBe(0)
+        ->and($xpath->query('//table[@data-proposal-queue-layout]//*[@data-proposal-route]')->length)->toBe(0)
         ->and($xpath->query('//span[@data-proposal-status-label="'.$label.'"]')->length)->toBe(1)
         ->and($xpath->query('//button[@data-proposal-status-label]')->length)->toBe(0)
         ->and($topic->fresh()->research_head_viewed_version_id)->toBeNull();

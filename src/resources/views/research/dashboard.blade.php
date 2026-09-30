@@ -6,11 +6,11 @@
     @endphp
 
     <x-slot name="header">
-        <x-workspace-header-banner
+        <x-page-header variant="hero"
             data-faculty-researcher-dashboard
             eyebrow="Faculty Researcher Dashboard"
             title="Your research at a glance"
-            description="Track your projects, review what needs attention, and plan your next steps."
+            subtitle="Track your projects, review what needs attention, and plan your next steps."
         >
             <x-slot:actions>
                 <a href="{{ route('research.index') }}" class="dashboard-action">
@@ -18,7 +18,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-6-6 6 6-6 6" /></svg>
                 </a>
             </x-slot:actions>
-        </x-workspace-header-banner>
+        </x-page-header>
     </x-slot>
 
     <div class="space-y-5" data-dashboard-layout="research-overview" data-dashboard-palette="red-black-white">

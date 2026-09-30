@@ -1,11 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-workspace-header-banner eyebrow="Faculty workspace" title="Draft proposals" description="Prepare your proposal package, then follow its review in Submitted.">
+        <x-page-header title="Draft proposals" subtitle="Prepare your proposal package, then follow its review in Submitted.">
             <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">New Proposal</a></x-slot:actions>
-        </x-workspace-header-banner>
+        </x-page-header>
     </x-slot>
-    <div class="space-y-5" data-proposal-workspace-tabs>
-        <x-faculty-proposal-navigation active="drafts" />
+    <div class="space-y-5">
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif

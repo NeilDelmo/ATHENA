@@ -567,14 +567,20 @@ test('decision history is collapsed and organized newest first', function () {
         ->assertSee('data-decision-history', false)
         ->assertSee('2 decisions')
         ->assertSee('Rejected')
-        ->assertSee('View history')
+        ->assertSee('View Decision History (2)')
+        ->assertSee('decisionHistoryOpen: false', false)
+        ->assertDontSee('View history')
         ->assertSeeInOrder(['Newest rejection reason.', 'Older revision request.']);
 
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
 
-    expect($xpath->query('//section[@data-decision-history][@data-initially-open="false"]//button[@aria-controls="decision-history-list"]')->length)->toBe(1)
+    expect($xpath->query('//nav//button[@data-decision-history-toggle][@aria-controls="decision-history-list"][@aria-expanded="false"]')->length)->toBe(1)
+        ->and($xpath->query('//button[@data-decision-history-toggle][@x-show="activeTopicTab === \'history\'"]')->length)->toBe(1)
+        ->and($xpath->query('//button[@data-decision-history-toggle]/following-sibling::button[1][@data-review-workflow-toggle]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-decision-history][@data-initially-open="false"][@x-show="decisionHistoryOpen"][@x-cloak]')->length)->toBe(1)
+        ->and($xpath->query('//section[@data-decision-history]//button[@aria-controls="decision-history-list"]')->length)->toBe(0)
         ->and($xpath->query('//section[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2)
         ->and($xpath->query('//*[@id="proposal-review-tab"]//*[@data-decision-history]')->length)->toBe(0)
         ->and($xpath->query('//*[@id="version-history-tab"]//*[@data-decision-history]')->length)->toBe(1)

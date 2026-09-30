@@ -4,11 +4,13 @@
     </x-slot>
 
     <div class="space-y-6">
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            @foreach ([['Ongoing', $summary['ongoing'], 'bg-blue-50 text-blue-700'], ['Delayed', $summary['delayed'], $summary['delayed'] > 0 ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200'], ['Completion pending', $summary['completion_pending'], 'bg-violet-50 text-violet-700'], ['Completed', $summary['completed'], 'bg-green-50 text-green-700'], ['Reports awaiting review', $summary['pending_reports'], 'bg-amber-50 text-amber-700']] as [$label, $count, $style])
-                <div class="rounded-2xl border border-gray-200 border-t-[3px] border-t-brand bg-white p-5 shadow-sm dark:border-slate-800 dark:border-t-brand-soft dark:bg-slate-900"><p class="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-slate-400">{{ $label }}</p><p class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $style }}">{{ $count }}</p></div>
-            @endforeach
-        </div>
+        <x-kpi-strip :items="[
+            ['label' => 'Ongoing', 'value' => $summary['ongoing'], 'icon' => 'play'],
+            ['label' => 'Delayed', 'value' => $summary['delayed'], 'icon' => 'alert-triangle'],
+            ['label' => 'Completion pending', 'value' => $summary['completion_pending'], 'icon' => 'hourglass'],
+            ['label' => 'Completed', 'value' => $summary['completed'], 'icon' => 'circle-check'],
+            ['label' => 'Reports awaiting review', 'value' => $summary['pending_reports'], 'icon' => 'file-text'],
+        ]" />
 
         <form method="GET" action="{{ route('research_head.projects.index') }}" class="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_210px_auto]">
             <input name="search" type="search" value="{{ $search }}" placeholder="Search project or researcher..." class="block w-full rounded-xl border-gray-200 text-sm">

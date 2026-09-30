@@ -178,17 +178,15 @@
             </nav>
 
             @isset($header)
-                <header class="border-b border-gray-100 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
-                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                        @if (request()->routeIs('faculty.proposal-drafts.*') && ! request()->routeIs('faculty.proposal-drafts.index'))
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
-                                <div class="min-w-0 flex-1">{{ $header }}</div>
-                            </div>
-                        @else
-                            {{ $header }}
-                        @endif
-                    </div>
-                </header>
+                <x-page-header container>
+                    @if (request()->routeIs('faculty.proposal-drafts.*') && ! request()->routeIs('faculty.proposal-drafts.index'))
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start">
+                            <div class="min-w-0 flex-1">{{ $header }}</div>
+                        </div>
+                    @else
+                        {{ $header }}
+                    @endif
+                </x-page-header>
             @endisset
 
             @auth

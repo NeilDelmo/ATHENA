@@ -9,6 +9,10 @@
             default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
         };
         $statusLabel = $topic->workflowStatusLabel($latestVersion);
+        $decisionReviews = $topic->reviews
+            ->where('decision', '!=', 'head_upload')
+            ->sortByDesc('created_at')
+            ->values();
         if ($topic->isAwaitingNoticeToProceed()) {
             $statusClass = 'bg-amber-100 text-amber-800';
             $statusLabel = 'Final signing';
@@ -107,6 +111,7 @@
                         : @js($isResearchOffice || $canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details')
             ),
             routingDocketOpen: false,
+            decisionHistoryOpen: false,
             setTopicTab(tab, hash) {
                 this.activeTopicTab = tab;
                 window.location.hash = hash;
@@ -214,8 +219,21 @@
                     </button>
                 @endif
                 </div>
-            @unless ($canViewMonitoring)
-                <div class="flex shrink-0 justify-end border-l border-slate-200 pl-3 dark:border-slate-700">
+                <div x-show="activeTopicTab === 'history' || @js(! $canViewMonitoring)" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+                    <button
+                        type="button"
+                        x-show="activeTopicTab === 'history'"
+                        x-cloak
+                        @click="decisionHistoryOpen = ! decisionHistoryOpen"
+                        data-decision-history-toggle
+                        :aria-expanded="decisionHistoryOpen.toString()"
+                        aria-expanded="false"
+                        aria-controls="decision-history-list"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        View Decision History ({{ $decisionReviews->count() }})
+                    </button>
+                    @unless ($canViewMonitoring)
                     <button
                     type="button"
                     @click="routingDocketOpen = ! routingDocketOpen; try { sessionStorage.setItem('review-workflow-{{ $topic->id }}', routingDocketOpen ? 'shown' : 'hidden') } catch (error) {}"
@@ -229,8 +247,8 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path stroke-linecap="round" d="M12 10.5v5m0-8.25h.01" /></svg>
                     <span x-text="routingDocketOpen ? 'Hide workflow' : 'Show workflow'">Show workflow</span>
                     </button>
+                    @endunless
                 </div>
-            @endunless
             </nav>
         </div>
 
@@ -269,10 +287,6 @@
                             <span class="inline-flex w-fit rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wider {{ $availableSubmittedFileIds->count() === $submittedFiles->count() && $submittedFiles->isNotEmpty() ? 'bg-gray-950 text-white dark:bg-white dark:text-gray-950' : 'bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-200' }}">
                                 {{ $availableSubmittedFileIds->count() }}/{{ $submittedFiles->count() }} files available
                             </span>
-                            <button type="button" @click="$dispatch('open-project-documents')" class="inline-flex min-h-9 items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-black text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75A2.25 2.25 0 0 1 6 4.5h3.19c.597 0 1.17.237 1.591.659l1.06 1.06c.422.422.994.659 1.591.659H18A2.25 2.25 0 0 1 20.25 9.13v7.62A2.25 2.25 0 0 1 18 19H6a2.25 2.25 0 0 1-2.25-2.25v-10Z" /></svg>
-                                Open files
-                            </button>
                         </div>
                     </div>
 
@@ -767,18 +781,9 @@
                 </section>
             @endif
 
-            @php
-                $decisionReviews = $topic->reviews
-                    ->where('decision', '!=', 'head_upload')
-                    ->sortByDesc('created_at')
-                    ->values();
-            @endphp
-            <section x-data="{ open: false }" data-decision-history data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="decision-history-list" class="flex min-h-11 w-full items-center justify-between gap-4 px-5 py-3 text-left transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-700 dark:hover:bg-gray-900 sm:px-6">
-                    <span class="text-sm font-semibold text-gray-950 dark:text-white">Decision history <span class="ml-2 font-normal text-gray-500 dark:text-gray-400">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span></span>
-                    <span class="text-sm text-gray-500 dark:text-gray-400" x-text="open ? 'Hide history' : 'View history'">View history</span>
-                </button>
-                <div id="decision-history-list" x-show="open" x-cloak x-transition class="max-h-[42rem] overflow-y-auto overscroll-contain border-t border-gray-100 dark:border-gray-800" data-decision-history-list>
+            <section x-show="decisionHistoryOpen" x-cloak x-transition data-decision-history data-initially-open="false" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <h3 class="px-5 py-3 text-sm font-semibold text-gray-950 dark:text-white sm:px-6">Decision history <span class="ml-2 font-normal text-gray-500 dark:text-gray-400">{{ $decisionReviews->count() }} {{ str('decision')->plural($decisionReviews->count()) }}</span></h3>
+                <div id="decision-history-list" class="max-h-[42rem] overflow-y-auto overscroll-contain border-t border-gray-100 dark:border-gray-800" data-decision-history-list>
                     @if ($decisionReviews->isNotEmpty())
                         <ol class="divide-y divide-gray-100 dark:divide-gray-800">
                         @foreach ($decisionReviews as $review)
