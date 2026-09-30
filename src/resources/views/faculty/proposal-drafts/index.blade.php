@@ -1,139 +1,54 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header
-            title="Proposal Package Workspace"
-            subtitle="Create proposal packages and track every submitted proposal in one place."
-            x-data="{
-                activeWorkspaceTab: window.location.hash === '#submitted-proposals'
-                    ? 'submitted'
-                    : (window.location.hash === '#drafts'
-                        ? 'drafts'
-                        : (new URLSearchParams(window.location.search).has('submitted-page') ? 'submitted' : 'drafts')),
-                selectWorkspaceTab(tab) {
-                    this.activeWorkspaceTab = tab;
-                    window.history.replaceState(
-                        {},
-                        '',
-                        window.location.pathname + window.location.search + (tab === 'submitted' ? '#submitted-proposals' : '#drafts')
-                    );
-                    window.dispatchEvent(new CustomEvent('proposal-workspace-tab-selected', { detail: { tab } }));
-                },
-            }"
-        >
-            <x-slot name="actions">
-                <a href="{{ route('faculty.proposal-drafts.create') }}" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                        New Proposal
-                </a>
-
-                <div class="inline-flex w-full rounded-xl border border-gray-200 bg-gray-100 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950 sm:w-auto" role="tablist" aria-label="Proposal workspace" data-proposal-workspace-toggle>
-                    <button
-                        id="proposal-workspace-drafts-tab"
-                        type="button"
-                        role="tab"
-                        aria-controls="proposal-workspace-drafts-panel"
-                        :aria-selected="activeWorkspaceTab === 'drafts'"
-                        :tabindex="activeWorkspaceTab === 'drafts' ? 0 : -1"
-                        x-on:click="selectWorkspaceTab('drafts')"
-                        x-on:keydown.right.prevent="$refs.submittedTab.focus(); selectWorkspaceTab('submitted')"
-                        class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:flex-none dark:focus-visible:ring-offset-slate-950"
-                        :class="activeWorkspaceTab === 'drafts'
-                            ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
-                            : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
-                    >
-                        Drafts
-                        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums" :class="activeWorkspaceTab === 'drafts' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'">{{ $proposalDrafts->total() }}</span>
-                    </button>
-
-                    <button
-                        x-ref="submittedTab"
-                        id="proposal-workspace-submitted-tab"
-                        type="button"
-                        role="tab"
-                        aria-controls="proposal-workspace-submitted-panel"
-                        :aria-selected="activeWorkspaceTab === 'submitted'"
-                        :tabindex="activeWorkspaceTab === 'submitted' ? 0 : -1"
-                        x-on:click="selectWorkspaceTab('submitted')"
-                        x-on:keydown.left.prevent="document.getElementById('proposal-workspace-drafts-tab').focus(); selectWorkspaceTab('drafts')"
-                        class="inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-black transition focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 sm:flex-none dark:focus-visible:ring-offset-slate-950"
-                        :class="activeWorkspaceTab === 'submitted'
-                            ? 'bg-white text-gray-950 shadow-sm ring-1 ring-black/5 dark:bg-slate-800 dark:text-white dark:ring-white/10'
-                            : 'text-gray-500 hover:bg-white/60 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200'"
-                    >
-                        Submitted
-                        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums" :class="activeWorkspaceTab === 'submitted' ? 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300' : 'bg-gray-200/80 text-gray-600 dark:bg-slate-800 dark:text-slate-400'">{{ $submittedProposals->total() }}</span>
-                    </button>
-                </div>
-            </x-slot>
-        </x-page-header>
+        <x-workspace-header-banner eyebrow="Faculty workspace" title="Draft proposals" description="Prepare your proposal package, then follow its review in Submitted.">
+            <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">New Proposal</a></x-slot:actions>
+        </x-workspace-header-banner>
     </x-slot>
-
-    <div
-        x-data="{
-            activeWorkspaceTab: window.location.hash === '#submitted-proposals'
-                ? 'submitted'
-                : (window.location.hash === '#drafts'
-                    ? 'drafts'
-                    : (new URLSearchParams(window.location.search).has('submitted-page') ? 'submitted' : 'drafts')),
-        }"
-        x-on:proposal-workspace-tab-selected.window="activeWorkspaceTab = $event.detail.tab"
-        class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8"
-        data-proposal-workspace-tabs
-    >
+    <div class="space-y-5" data-proposal-workspace-tabs>
+        <x-faculty-proposal-navigation active="drafts" />
         @if (session('success'))
             <x-proposal-alert>{{ session('success') }}</x-proposal-alert>
         @endif
-
         @if ($errors->any())
             <x-proposal-alert type="error">
                 <p class="font-bold">The requested draft action could not be completed.</p>
                 <ul class="mt-1 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
             </x-proposal-alert>
         @endif
-
-        <section
-            id="proposal-workspace-drafts-panel"
-            role="tabpanel"
-            aria-labelledby="proposal-workspace-drafts-tab"
-            x-show="activeWorkspaceTab === 'drafts'"
-            x-cloak
-        >
-            <p class="mb-4 text-xs font-medium text-gray-500 dark:text-slate-400">Continue a package or start a new one. Drafts stay private until submitted.</p>
-
-            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                @forelse ($proposalDrafts as $proposalDraft)
-                    @php
-                        $draftChecklist = app(\App\Support\ProposalDraftReadiness::class)->checklist($proposalDraft);
-                        $completeCount = $draftChecklist
-                            ->filter(fn (array $item): bool => $item['complete'] && ! $item['needs_attention'])
-                            ->count();
-                    @endphp
-                    <article class="flex min-h-64 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="flex flex-wrap gap-2">
-                                <span class="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-800">Draft</span>
-                                <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">{{ $proposalDraft->user_id === auth()->id() ? 'Owner' : 'Team member' }}</span>
-                            </div>
-                            <span class="text-[11px] text-gray-500">Saved {{ $proposalDraft->updated_at->diffForHumans() }}</span>
+        <section data-faculty-drafts class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Your draft proposals">
+            <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+                <div>
+                    <h2 class="text-sm font-semibold text-slate-900 dark:text-white">Draft packages</h2>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Drafts stay private until submitted.</p>
+                </div>
+                <span class="shrink-0 text-xs text-slate-500 dark:text-slate-400">{{ $proposalDrafts->total() }} {{ str('draft')->plural($proposalDrafts->total()) }}</span>
+            </div>
+            @forelse ($proposalDrafts as $proposalDraft)
+                @php
+                    $draftChecklist = app(\App\Support\ProposalDraftReadiness::class)->checklist($proposalDraft);
+                    $completeCount = $draftChecklist->filter(fn (array $item): bool => $item['complete'] && ! $item['needs_attention'])->count();
+                @endphp
+                <article data-proposal-draft="{{ $proposalDraft->id }}" class="grid min-w-0 gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 lg:grid-cols-[minmax(0,1fr)_11rem] lg:items-center lg:gap-6">
+                    <div class="min-w-0">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <h3 class="break-words text-base font-semibold text-slate-950 dark:text-white">{{ $proposalDraft->project_title ?: 'Untitled proposal' }}</h3>
+                            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">{{ $proposalDraft->user_id === auth()->id() ? 'Owner' : 'Team member' }}</span>
                         </div>
-                        <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-900">{{ $proposalDraft->project_title }}</h4>
-                        <p class="mt-2 text-xs leading-5 text-gray-500">{{ $proposalDraft->researchCall?->title ?? 'Draft in progress' }}</p>
-                        <p class="mt-1 text-[11px] font-semibold text-gray-500">Workspace owner: {{ $proposalDraft->owner->name }}</p>
-
-                        <div class="mt-5" aria-label="{{ $completeCount }} of {{ $draftChecklist->count() }} papers complete">
-                            <div class="flex items-center justify-between text-[11px] font-bold text-gray-600">
-                                <span>Package progress</span>
-                                <span>{{ $completeCount }}/{{ $draftChecklist->count() }} papers</span>
-                            </div>
-                            <div class="mt-2 h-2 overflow-hidden rounded-full bg-gray-100">
-                                <div class="h-full rounded-full bg-red-600" style="width: {{ $draftChecklist->isEmpty() ? 0 : ($completeCount / $draftChecklist->count()) * 100 }}%"></div>
-                            </div>
-                        </div>
-
-                        <div class="mt-auto grid gap-2 pt-6 {{ $proposalDraft->user_id === auth()->id() ? 'sm:grid-cols-[1fr_auto]' : '' }}">
-                            <a href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="inline-flex w-full items-center justify-center rounded-xl bg-gray-900 px-4 py-2.5 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2">Resume</a>
-                            @can('delete', $proposalDraft)
+                        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $proposalDraft->researchCall?->title ?? 'Independent submission' }}</p>
+                        <p class="mt-1 text-xs text-slate-400">Saved {{ $proposalDraft->updated_at->diffForHumans() }} &middot; Workspace owner: {{ $proposalDraft->owner->name }}</p>
+                        <p data-draft-readiness class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                            <svg class="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8m-8 4h5" /></svg>
+                            <span>{{ $completeCount }} of {{ $draftChecklist->count() }} papers ready</span>
+                            @if ($draftChecklist->isNotEmpty() && $completeCount === $draftChecklist->count())
+                                <span class="font-semibold text-[#7A0019] dark:text-red-300">Review package</span>
+                            @endif
+                        </p>
+                    </div>
+                    <div data-draft-actions class="grid w-44 grid-cols-2 items-center gap-2">
+                        <a wire:navigate href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}" class="dashboard-action col-start-1 w-full">Resume</a>
+                        @can('delete', $proposalDraft)
                             <form
+                                class="col-start-2"
                                 action="{{ route('faculty.proposal-drafts.destroy', $proposalDraft) }}"
                                 method="POST"
                                 data-proposal-confirm
@@ -143,112 +58,21 @@
                             >
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Delete</button>
+                                <button type="submit" class="inline-flex w-full items-center justify-center min-h-11 rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2.5 text-xs font-bold text-slate-500 dark:text-slate-400 transition hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Delete</button>
                             </form>
-                            @endcan
-                        </div>
-                    </article>
-                @empty
-                    <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center md:col-span-2 xl:col-span-3">
-                        <h4 class="text-base font-black text-gray-900">No saved proposal drafts</h4>
-                        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">Start a proposal and complete each required paper. You can submit anytime.</p>
-                                                    <a href="{{ route('faculty.proposal-drafts.create') }}" class="mt-5 inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">New Proposal</a>
+                        @endcan
                     </div>
-                @endforelse
-            </div>
-
-            @if ($proposalDrafts->hasPages())
-                <div class="mt-6">{{ $proposalDrafts->fragment('drafts')->links() }}</div>
-            @endif
+                </article>
+            @empty
+                <div class="px-6 py-16 text-center">
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-white">No saved proposal drafts</h3>
+                    <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500 dark:text-slate-400">Start a proposal and complete each required paper. You can submit anytime.</p>
+                    <a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action mt-5">New Proposal</a>
+                </div>
+            @endforelse
         </section>
-
-        <section
-            id="proposal-workspace-submitted-panel"
-            role="tabpanel"
-            aria-labelledby="proposal-workspace-submitted-tab"
-            x-show="activeWorkspaceTab === 'submitted'"
-            x-cloak
-        >
-            <p class="mb-4 text-xs font-medium text-gray-500 dark:text-slate-400">Follow review decisions, requested revisions, signatures, and approved project records.</p>
-
-            <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                @forelse ($submittedProposals as $proposal)
-                    @php
-                        [$statusLabel, $statusDescription, $statusStyle] = match (true) {
-                            $proposal->status === 'gad_review' => ['GAD assessment', 'The Research Head cleared this version. It must pass GAD assessment before co-evaluator review.', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200'],
-                            in_array($proposal->status, ['expert_review', 'for_final_decision'], true) => ['Research Head review', 'Your submitted package is awaiting a Research Head action.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
-                            $proposal->status === 'revision_requested' => ['Revision required', 'The Research Head returned this proposal with feedback. Review the requested changes and resubmit your updated package.', 'bg-red-700 text-white dark:bg-red-600 dark:text-white'],
-                            $proposal->status === 'resubmitted' => ['Resubmitted', 'Your revised package has been received for another review.', 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-200'],
-                            $proposal->status === 'ready_for_signature' || ($proposal->status === 'approved' && ! $proposal->hasIssuedNoticeToProceed()) => ['Final signing', 'The final signed papers and Notice to Proceed are being completed.', 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-200'],
-                            $proposal->status === 'approved' => ['Project monitoring', 'The Notice to Proceed was released. This research is now managed in Project Monitoring.', 'bg-green-100 text-green-800 dark:bg-green-950/50 dark:text-green-200'],
-                            $proposal->status === 'rejected' => ['Closed', 'This proposal is retained as a historical record and requires no further review action.', 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300'],
-                            default => ['Submitted', 'Your package was received and is waiting for the Research Office review.', 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-200'],
-                        };
-                        $latestSubmission = $proposal->latestVersion;
-                        $submittedAt = $latestSubmission?->created_at ?? $proposal->created_at;
-                    @endphp
-
-                    <article
-                        @class([
-                            'flex min-h-64 flex-col rounded-2xl border bg-white p-5 dark:bg-slate-900',
-                            'border-red-300 shadow-md ring-1 ring-red-100 dark:border-red-800 dark:ring-red-950' => $proposal->status === 'revision_requested',
-                            'border-gray-200 shadow-sm dark:border-slate-800' => $proposal->status !== 'revision_requested',
-                        ])
-                        data-submitted-proposal="{{ $proposal->id }}"
-                        @if ($proposal->status === 'revision_requested') data-revision-action-required @endif
-                    >
-                        <div class="flex items-start justify-between gap-3">
-                            <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $statusStyle }}">{{ $statusLabel }}</span>
-                            <time datetime="{{ $submittedAt?->toIso8601String() }}" class="shrink-0 text-[11px] text-gray-500 dark:text-slate-400">{{ $submittedAt?->diffForHumans() }}</time>
-                        </div>
-
-                        <h4 class="mt-4 line-clamp-2 text-base font-black leading-6 text-gray-900 dark:text-white">{{ $proposal->title }}</h4>
-                        <p class="mt-2 text-xs leading-5 text-gray-500 dark:text-slate-400">{{ $proposal->researchCall?->title ?? 'Independent submission' }}</p>
-                        @if ($proposal->researchCall?->academic_year)
-                            <p class="mt-1 text-[11px] font-semibold text-gray-500 dark:text-slate-400">AY {{ $proposal->researchCall->academic_year }}</p>
-                        @endif
-
-                        <p class="mt-4 text-xs leading-5 text-gray-600 dark:text-slate-300">{{ $statusDescription }}</p>
-
-                        @if ($proposal->status === 'revision_requested')
-                            <div class="mt-4 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-black text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
-                                <span class="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-red-700 text-white" aria-hidden="true">!</span>
-                                <span>Research Head feedback is waiting for your response.</span>
-                            </div>
-                        @endif
-
-                        <div class="mt-4 rounded-xl bg-gray-50 px-3 py-2.5 text-[11px] font-semibold text-gray-600 dark:bg-slate-950 dark:text-slate-300">
-                            @if ($latestSubmission)
-                                Version {{ $latestSubmission->version_number }} · {{ $latestSubmission->submission_type === 'revision' ? 'Revision submitted' : 'Initial package submitted' }}
-                            @else
-                                Submitted proposal record
-                            @endif
-                        </div>
-
-                        <div class="mt-auto pt-6">
-                            <a
-                                href="{{ $proposal->status === 'revision_requested' ? route('faculty.topics.revision', $proposal) : route('topics.show', $proposal) }}"
-                                @class([
-                                    'inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-xs font-bold text-white transition focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-900',
-                                    'bg-red-700 hover:bg-red-800 focus:ring-red-700' => $proposal->status === 'revision_requested',
-                                    'bg-gray-900 hover:bg-gray-800 focus:ring-gray-900 dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-500' => $proposal->status !== 'revision_requested',
-                                ])
-                            >
-                                {{ $proposal->status === 'revision_requested' ? 'Open revision request' : ($proposal->status === 'approved' ? 'Open project record' : 'View status') }}
-                            </a>
-                        </div>
-                    </article>
-                @empty
-                    <div class="rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-slate-700 dark:bg-slate-900 md:col-span-2 xl:col-span-3">
-                        <h4 class="text-base font-black text-gray-900 dark:text-white">No submitted proposals yet</h4>
-                        <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400">When you turn in a proposal package, its review status and future decisions will appear here.</p>
-                    </div>
-                @endforelse
-            </div>
-
-            @if ($submittedProposals->hasPages())
-                <div class="mt-6">{{ $submittedProposals->fragment('submitted-proposals')->links() }}</div>
-            @endif
-        </section>
+        @if ($proposalDrafts->hasPages())
+            <div>{{ $proposalDrafts->links() }}</div>
+        @endif
     </div>
 </x-app-layout>

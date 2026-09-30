@@ -193,8 +193,14 @@
                     </div>
                 </div>
 
-                <details class="rounded-2xl border border-gray-200 bg-gray-50" @if ($errors->hasAny(['issuing_officer_name', 'issuing_officer_title', 'issuing_officer_committee_role', 'verifying_officer_name', 'verifying_officer_title', 'verifying_officer_committee_role'])) open @endif>
-                    <summary class="cursor-pointer px-5 py-4 text-sm font-black text-gray-900">Authorized signatories <span class="ml-1 font-medium text-gray-500">— editable when appointments change</span></summary>
+                <details data-signatories-disclosure class="group/signatories rounded-2xl border border-gray-200 bg-gray-50" @if ($errors->hasAny(['issuing_officer_name', 'issuing_officer_title', 'issuing_officer_committee_role', 'verifying_officer_name', 'verifying_officer_title', 'verifying_officer_committee_role'])) open @endif>
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] [&::-webkit-details-marker]:hidden">
+                        <span><span class="block font-semibold">Authorized signatories</span><span class="mt-1 block text-xs text-gray-500">Update names and positions when appointments change.</span></span>
+                        <span class="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-gray-300 bg-white px-4 text-xs font-semibold text-[#7A0019]">
+                            <span class="group-open/signatories:hidden">Show fields</span>
+                            <span class="hidden group-open/signatories:inline">Hide fields</span>
+                        </span>
+                    </summary>
                     <div class="grid gap-5 border-t border-gray-200 bg-white p-5 lg:grid-cols-2">
                         <div class="space-y-4">
                             <p class="text-xs font-black uppercase tracking-wider text-red-700">Issuing officer</p>

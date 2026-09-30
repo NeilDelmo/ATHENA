@@ -33,6 +33,7 @@ use App\Support\ProposalPaperCatalog;
 use App\Support\ProposalRevisionFileScope;
 use App\Support\WorkPlanData;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -157,7 +158,8 @@ class TopicController extends Controller
 
     public function submissions(Request $request): View
     {
-        $topics = $request->user()->proposals()
+        $topics = TopicProposal::query()
+            ->accessibleTo($request->user())
             ->with(['researchCall', 'versions'])
             ->latest()
             ->paginate(12);
@@ -872,7 +874,7 @@ class TopicController extends Controller
         ProposalPackageService $packageService,
         GADChecklistScoreExtractor $gadScoreExtractor,
         InitialScreeningNarrativeExtractor $narrativeExtractor,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
         $validated = $request->validated();
         $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
         $isSignedCopy = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
@@ -930,17 +932,13 @@ class TopicController extends Controller
         }
 
         if ($isSignedCopy && $topic->status !== TopicProposal::STATUS_READY_FOR_SIGNATURE) {
-            return back()
-                ->withInput()
-                ->withErrors(['purpose' => 'Signed final copies can only be uploaded while the proposal is ready for signature.'], 'headUpload');
+            return $this->headUploadErrorResponse($topic, false, ['purpose' => 'Signed final copies can only be uploaded while the proposal is ready for signature.']);
         }
 
         if ($isSignedCopy
             && $sourceFile
             && ! $this->signatureWorkflow->requiredFiles($latestVersion)->contains('id', $sourceFile->id)) {
-            return back()
-                ->withInput()
-                ->withErrors(['source_file_id' => $sourceFile->label().' does not require a signed copy.'], 'headUpload');
+            return $this->headUploadErrorResponse($topic, false, ['source_file_id' => $sourceFile->label().' does not require a signed copy.']);
         }
 
         $file = $request->file('review_file');
@@ -1096,6 +1094,19 @@ class TopicController extends Controller
             );
         }
 
+        if ($isSignedCopy && $request->expectsJson()) {
+            $version = $latestVersion->fresh('files');
+            $signedCopy = $this->signatureWorkflow->signedCopiesBySource($version)->get($sourceFile->id);
+
+            return response()->json([
+                'source_file_id' => $sourceFile->id,
+                'filename' => $signedCopy->original_filename,
+                'view_url' => route('topics.versions.files.view', [$topic, $version, $signedCopy]),
+                'download_url' => route('topics.versions.files.download', [$topic, $version, $signedCopy]),
+                'complete' => $this->signatureWorkflow->isComplete($version),
+            ]);
+        }
+
         if ($isGadAssessment) {
             $scoreAction = $gadScoreEnteredManually ? 'recorded a confirmed Total GAD Score of ' : 'extracted a Total GAD Score of ';
 
@@ -1234,7 +1245,11 @@ class TopicController extends Controller
         TopicProposal $topic,
         bool $isInitialReviewUpload,
         array $errors,
-    ): RedirectResponse {
+    ): RedirectResponse|JsonResponse {
+        if (request()->expectsJson()) {
+            return response()->json(['message' => collect($errors)->flatten()->first(), 'errors' => $errors], 422);
+        }
+
         $response = $isInitialReviewUpload
             ? redirect()->to($this->initialReviewUploadReturnUrl($topic))
             : back();

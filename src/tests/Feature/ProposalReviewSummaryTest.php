@@ -138,10 +138,14 @@ test('accepted assessments appear as signed papers while final signing requests 
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//*[@data-signing-document]')->length)->toBe(3)
         ->and($xpath->query('//*[@data-signing-document][contains(., "Awaiting signed copy")]')->length)->toBe(3)
-        ->and($xpath->query('//*[@data-signing-document]//form[not(ancestor::details)]')->length)->toBe(3)
+        ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-paper-input]')->length)->toBe(3)
+        ->and($xpath->query('//*[@data-signed-batch-input and @multiple]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-signing-document]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-copy-preview]')->length)->toBe(0);
-    $response->assertSee('GAD Checklist and Initial Screening Form are already signed from earlier reviews.')
-        ->assertSee('aria-label="Signed PDF upload progress" value="0" max="3"', false);
+    $response->assertSee('Earlier assessments are complete.')
+        ->assertSee('Files save automatically.')
+        ->assertDontSee('Upload PDF')
+        ->assertDontSee('Replace signed PDF');
     $library = app(ProjectDocumentLibrary::class)->build($this->topic->fresh(), $this->head);
     $signedDocuments = $library['documents']->where('category', ProjectDocument::CATEGORY_SIGNED_PAPERS);
     expect($signedDocuments)->toHaveCount(2)

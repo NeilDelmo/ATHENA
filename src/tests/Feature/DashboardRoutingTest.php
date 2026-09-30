@@ -156,10 +156,14 @@ test('the faculty dashboard prioritizes revisions and links to dedicated submiss
         ->assertOk()
         ->assertSeeInOrder([
             'Proposal overview',
-            'Action required',
+            'data-dashboard-columns',
+            'Revisions to address',
             'Continue working',
         ])
-        ->assertSee('1 proposal needs your attention.')
+        ->assertSee('data-revision-worklist', false)
+        ->assertSee('Reviewer feedback')
+        ->assertSee('Changes requested')
+        ->assertDontSee('Action required')
         ->assertSee('Clarify the sampling plan before resubmitting.')
         ->assertSee('Revise and resubmit proposal')
         ->assertSee(route('faculty.topics.revision', $topic), false)

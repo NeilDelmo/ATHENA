@@ -121,23 +121,19 @@ test('calendar and analytics have separate protected routes and grouped function
     $this->get(route('research_head.analytics'))->assertForbidden();
 });
 
-test('Research Head pages share consistent header navigation with the correct active page', function (string $routeName, string $activeLabel) {
+test('Research Head pages use sidebar navigation without duplicate header tabs', function (string $routeName, string $activeLabel) {
     $response = $this->actingAs($this->head)->get(route($routeName))->assertOk();
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
-    $links = $xpath->query('//*[@data-workspace-header-banner]//nav[@data-research-head-page-navigation]/a');
-    $current = $xpath->query('//*[@data-research-head-page-navigation]/a[@aria-current="page"]');
-
-    expect($links->length)->toBe(3)->and($current->length)->toBe(1)
-        ->and(trim($current->item(0)->textContent))->toBe($activeLabel);
+    expect($xpath->query('//*[@data-research-head-page-navigation]')->length)->toBe(0);
     foreach (['research_head.dashboard' => 'Dashboard', 'research_head.calendar' => 'Calendar', 'research_head.analytics' => 'Analytics'] as $destination => $label) {
-        $link = $xpath->query('//*[@data-research-head-page-navigation]/a[@href="'.route($destination).'"]')->item(0);
+        $link = $xpath->query('//nav[@data-research-head-navigation]//a[@href="'.route($destination).'"]')->item(0);
         expect($link)->not->toBeNull()->and(trim($link->textContent))->toBe($label)
             ->and($link->hasAttribute('wire:navigate'))->toBeTrue()
-            ->and($link->getAttribute('class'))->toContain('min-h-[44px]', 'rounded-lg', 'text-sm', 'font-semibold')
-            ->and(str_contains($link->getAttribute('class'), 'bg-brand'))->toBe($destination === $routeName);
+            ->and($link->getAttribute('class'))->toContain('min-h-[44px]');
     }
+    $response->assertSee($activeLabel);
     if ($routeName === 'research_head.calendar') {
         $response->assertSeeHtml('href="'.route('research-calls.index').'"');
     }
@@ -302,7 +298,7 @@ test('annual targets are prominent and editable without crowding the dashboard',
 
     Livewire::actingAs($this->head)->withQueryParams(['academicYear' => '2026-2027'])->test(ResearchHeadDashboard::class)
         ->assertSeeHtml('data-analytics-layout="workbench"')
-        ->assertSeeInOrder(['Annual research targets', 'Monthly submission trend', 'Proposal pipeline'])
+        ->assertSeeInOrder(['Monthly submission trend', 'Proposal pipeline', 'Annual research targets'])
         ->assertSee('of 4 target')->assertSee('25% achieved')->assertSee('3 to go')
         ->assertSee('Edit annual targets')->assertDontSeeHtml('id="target-projects_target"')
         ->assertSeeHtml('<details data-analytics-methodology')
@@ -484,4 +480,39 @@ test('manually delayed projects and completed projects without terminal reports 
     expect($data['attention']->where('id', $delayed->id)->firstWhere('type', 'delayed')['days'])->toBeNull()
         ->and($data['attention']->where('id', $completed->id)->firstWhere('type', 'terminal')['days'])->toBeNull()
         ->and($data['projectStatuses']->firstWhere('key', 'completed')['count'])->toBe(1);
+});
+
+test('analytics charts distinguish actionable filters from static summaries', function () {
+    ($this->project)(['title' => 'Ongoing example']);
+    ($this->project)(['title' => 'Completed example', 'project_status' => 'completed']);
+
+    $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
+        ->assertDontSeeHtml('data-dashboard-section-navigation')
+        ->assertSeeInOrder(['Monthly submission trend', 'Proposal pipeline', 'Annual research targets'])
+        ->assertSee('View faculty directory')->assertSee('View budget breakdown')
+        ->assertSeeHtml('data-project-distribution-chart')
+        ->assertSeeHtml('style="width: 50%"')
+        ->call('showProjects', 'completed')
+        ->assertSee('Selected filter')
+        ->assertViewHas('projectItems', fn ($items): bool => $items->total() === 1 && $items->first()['title'] === 'Completed example');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+    $facultyLink = $xpath->query('//*[@data-dashboard-kpi-band]//a[@href="'.route('research_head.faculty-directory.index').'"]')->item(0);
+    $selected = $xpath->query('//*[@data-project-distribution-chart]//button[@aria-pressed="true"]');
+
+    expect($facultyLink)->not->toBeNull()
+        ->and($facultyLink->hasAttribute('wire:click'))->toBeFalse()
+        ->and($selected)->toHaveCount(1)
+        ->and($selected->item(0)->getAttribute('aria-label'))->toContain('Completed', '1 of 2')
+        ->and($xpath->query('//*[@data-project-distribution-chart]//button'))->toHaveCount(4);
+});
+
+test('empty project charts show zero shares with an explicit empty state', function () {
+    Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
+        ->assertSee('No issued projects in this selection.')
+        ->assertSeeHtml('data-project-distribution-chart')
+        ->assertSeeHtml('style="width: 0%"')
+        ->assertDontSee('NaN')->assertDontSee('INF');
 });

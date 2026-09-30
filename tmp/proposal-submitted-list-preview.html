@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="0GiG61gcIliqOEvLTztLpLV5BZNM43Y9jUIDjFHM">
+        <meta name="app-url" content="http://localhost/athena-app">
+
+        <title>Laravel</title>
+
+        <script>
+    (() => {
+        const storageKey = 'athena-theme';
+        const legacyKeys = ['athena-auth-theme', 'theme'];
+
+        const storedTheme = (() => {
+            try {
+                const theme = localStorage.getItem(storageKey);
+                return ['dark', 'light'].includes(theme) ? theme : null;
+            } catch {
+                return null;
+            }
+        })();
+
+        try {
+            legacyKeys.forEach((key) => localStorage.removeItem(key));
+        } catch {
+            // Local storage can be unavailable in privacy-restricted browsers.
+        }
+
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const resolvedTheme = storedTheme ?? (prefersDark ? 'dark' : 'light');
+
+        document.documentElement.classList.toggle('dark', resolvedTheme === 'dark');
+        document.documentElement.style.colorScheme = resolvedTheme;
+    })();
+</script>
+
+        <script>
+            try {
+                document.documentElement.dataset.sidebarCollapsed = String(
+                    window.innerWidth >= 640 && sessionStorage.getItem('athena-sidebar-open') === 'false'
+                );
+            } catch {
+                document.documentElement.dataset.sidebarCollapsed = 'false';
+            }
+        </script>
+
+        <link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
+
+        <link rel="preload" as="style" href="http://localhost/athena-app/build/assets/app-Cwp32jZn.css" /><link rel="preload" as="style" href="http://localhost/athena-app/build/assets/app-BmzOR7Uu.css" /><link rel="modulepreload" as="script" href="http://localhost/athena-app/build/assets/app-DNwdQOm5.js" /><link rel="stylesheet" href="http://localhost/athena-app/build/assets/app-Cwp32jZn.css" data-navigate-track="reload" /><link rel="stylesheet" href="http://localhost/athena-app/build/assets/app-BmzOR7Uu.css" data-navigate-track="reload" /><script type="module" src="http://localhost/athena-app/build/assets/app-DNwdQOm5.js" data-navigate-track="reload"></script>        
+    </head>
+        <body
+        x-data
+        @keydown.escape.window="$store.sidebar.setOpen(false)"
+        @resize.window="$store.researchAssistant.syncPageScroll()"
+        data-app-shell
+         data-faculty-shell         data-auth-user-id="1"
+                    data-research-assistant-url="http://localhost/athena-app/research-support/chat"
+            data-research-assistant-history-url="http://localhost/athena-app/research-support/history"
+            data-research-assistant-documents-url="http://localhost/athena-app/research-support/documents"
+                                         data-literature-search-url="http://localhost/athena-app/research-support/literature-search"                 class="bg-[#F5F7FA] font-sans text-gray-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-100"
+    >
+                    <script>
+                window.athenaResearchAssistantContexts = JSON.parse('[{\u0022id\u0022:29,\u0022label\u0022:\u0022Signature Layout Verification — Neil Carlo Delmo\u0022,\u0022status\u0022:\u0022ready for signature\u0022,\u0022meta\u0022:\u0022Information and Communications Technology · 2024-2027 · v2\u0022},{\u0022id\u0022:28,\u0022label\u0022:\u0022Review Process Test Submission — Neil Carlo Delmo\u0022,\u0022status\u0022:\u0022pending\u0022,\u0022meta\u0022:\u0022Information and Communications Technology · 2024-2027 · v1\u0022},{\u0022id\u0022:16,\u0022label\u0022:\u0022Digital Marketplace and Logistics Matching for Local Fisherfolk Catch\u0022,\u0022status\u0022:\u0022ready for signature\u0022,\u0022meta\u0022:\u0022Education and Human Development · 2024-2027 · v2\u0022},{\u0022id\u0022:17,\u0022label\u0022:\u0022Computer Vision System for Automated Attendance in Large Lecture Classes\u0022,\u0022status\u0022:\u0022approved\u0022,\u0022meta\u0022:\u0022Information and Communications Technology · 2024-2027 · v2\u0022},{\u0022id\u0022:13,\u0022label\u0022:\u0022Community-Based Solid Waste Segregation Tracking with Mobile Reporting\u0022,\u0022status\u0022:\u0022lrec review\u0022,\u0022meta\u0022:\u0022Health and Wellness · 2024-2027 · v2\u0022},{\u0022id\u0022:14,\u0022label\u0022:\u0022AI-Assisted Reading Comprehension Tool for Elementary Learners\u0022,\u0022status\u0022:\u0022ready for signature\u0022,\u0022meta\u0022:\u0022Agriculture and Food Security · 2024-2027 · v2\u0022},{\u0022id\u0022:15,\u0022label\u0022:\u0022Low-Cost Water Quality Sensor Network for Local River Systems\u0022,\u0022status\u0022:\u0022rejected\u0022,\u0022meta\u0022:\u0022Environment and Climate Resilience · 2024-2027 · v1\u0022},{\u0022id\u0022:9,\u0022label\u0022:\u0022Machine Learning Approach to Rice Yield Prediction Using Weather and Soi...\u0022,\u0022status\u0022:\u0022revision requested\u0022,\u0022meta\u0022:\u0022Agriculture and Food Security · 2024-2027 · v2\u0022}]');
+                window.athenaResearchAssistantActiveContextId = null;
+                window.athenaResearchAssistantHistory = JSON.parse('[{\u0022id\u0022:2,\u0022title\u0022:\u0022what is the process of research\u0022,\u0022preview\u0022:\u0022what is the process of research\u0022,\u0022updated_at\u0022:\u00222026-09-03T02:21:05.000000Z\u0022}]');
+                window.athenaResearchAssistantPageActions = [];
+            </script>
+        
+                <div x-persist="app-sidebar-faculty">
+            <aside
+    x-data
+    id="app-sidebar"
+    :class="$store.sidebar.open ? '!w-[280px] shadow-xl sm:shadow-none' : '!w-[76px] '"
+    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden bg-white dark:bg-slate-900 border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
+>
+    
+    <div
+        :class="$store.sidebar.open ? 'px-5 pb-5 pt-5' : 'px-3 pb-4 pt-4'"
+        class="relative z-10 flex shrink-0 flex-col border-b border-slate-200/70 dark:border-slate-800/80"
+    >
+        <a
+            wire:navigate
+            x-show="$store.sidebar.open"
+            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+            href="http://localhost/athena-app/dashboard"
+            class="flex min-w-0 items-center gap-3 rounded-2xl px-1"
+            title="ATHENA dashboard"
+            aria-label="ATHENA dashboard"
+        >
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#7A0019]/8 ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:ring-white/10">
+                <img
+                    src="http://localhost/athena-app/images/athenalogo-transparent.png"
+                    alt="ATHENA logo"
+                    class="h-10 w-10 object-contain"
+                />
+            </span>
+
+            <span class="min-w-0">
+                <span class="block truncate text-lg font-extrabold tracking-[0.12em] text-[#7A0019] dark:text-white">
+                    ATHENA
+                </span>
+                <span class="block truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Research Management
+                </span>
+            </span>
+        </a>
+
+        <button
+            x-show="$store.sidebar.open"
+            type="button"
+            @click="$store.sidebar.setOpen(false)"
+            :aria-expanded="$store.sidebar.open"
+            aria-controls="app-sidebar-navigation"
+            class="absolute right-3 top-6 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl
+                   text-slate-400 transition hover:bg-slate-100 hover:text-[#7A0019]
+                   focus:outline-none focus:ring-2 focus:ring-[#7A0019]/20
+                   dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white"
+            aria-label="Collapse navigation menu"
+            title="Collapse menu"
+        >
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18m7-6-3-3 3-3" />
+            </svg>
+        </button>
+
+        <button
+            x-show="!$store.sidebar.open"
+            type="button"
+            @click="$store.sidebar.setOpen(true)"
+            :aria-expanded="$store.sidebar.open"
+            aria-controls="app-sidebar-navigation"
+            class="group inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl
+                   bg-[#7A0019]/8 ring-1 ring-[#7A0019]/10 transition
+                   hover:bg-[#7A0019]/12 focus:outline-none focus:ring-2 focus:ring-[#7A0019]/20
+                   dark:bg-white/5 dark:ring-white/10 dark:hover:bg-white/10"
+            aria-label="Expand navigation menu"
+            title="Expand menu"
+        >
+            <img
+                src="http://localhost/athena-app/images/athenalogo-transparent.png"
+                alt=""
+                class="h-11 w-11 object-contain group-hover:hidden"
+            />
+
+            <svg
+                class="hidden h-5 w-5 text-[#7A0019] group-hover:block dark:text-[#E7A5B2]"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+            >
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 3v18m5-6 3-3-3-3" />
+            </svg>
+        </button>
+    </div>
+
+    <div
+        id="app-sidebar-navigation"
+        :class="$store.sidebar.open
+            ? 'px-4'
+            : 'px-3 [&>a]:justify-center [&>a]:gap-0 [&>a]:px-0 [&>div>button]:justify-center [&>div>button]:gap-0 [&>div>button]:px-0'"
+        wire:navigate:scroll
+        class="relative z-10 grow space-y-1 overflow-x-hidden overflow-y-auto py-4
+               scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-300
+               dark:scrollbar-thumb-slate-700"
+    >
+        
+
+        
+        
+                                <nav aria-label="Faculty navigation" class="space-y-4" x-data="{ activeHash: window.location.hash }" @hashchange.window="activeHash = window.location.hash" data-faculty-navigation>
+            <section aria-label="Overview">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Overview<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/athena-app/faculty/dashboard"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Faculty Dashboard" title="Dashboard" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Research">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Research<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/athena-app/faculty/proposal-drafts/create"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="New proposal" title="New proposal" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">New proposal</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/athena-app/faculty/proposal-drafts"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                               data-sidebar-attention-url="http://localhost/athena-app/sidebar-attention/proposal_workspace"                        @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Draft proposals" title="Draft proposals" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8m-8 4h5" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Draft proposals</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/athena-app/faculty/submissions"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Submitted proposals" title="Submitted proposals" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Submitted proposals</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Planning">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Planning<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/athena-app/faculty/calendar"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Calendar" title="Calendar" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Calendar</span>
+                                            </a>
+                                                        <a wire:navigate href="http://localhost/athena-app/research-calls"
+                                                  wire:current.exact="!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200"
+                           :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Research calls" title="Research calls" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 3v4m8-4v4M4 10h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Research calls</span>
+                                            </a>
+                            </div>
+        </section>
+            <section aria-label="Resources">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Resources<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+            </h2>
+            <div class="space-y-1">
+                                                        <a wire:navigate href="http://localhost/athena-app/research-support#shared-literature-library"
+                                                  :class="[
+                               $store.sidebar.open ? '' : '!justify-center !gap-0 !px-0',
+                               $store.sidebar.currentPath === '\/athena-app\/research-support' && activeHash === '#shared-literature-library' ? '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1\/2 before:h-5 before:w-0.5 before:-translate-y-1\/2 before:rounded-full before:bg-brand dark:!bg-red-950\/30 dark:!text-red-200' : '',
+                           ]"
+                                                                     @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                       aria-label="Saved literature" title="Saved literature" class="relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">
+                        <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4h4v16H4V4Zm7 0h4v16h-4V4Zm7 0 4 1-4 15-4-1 4-15Z" />
+                        </svg>
+                        <span x-show="$store.sidebar.open" class="whitespace-nowrap">Saved literature</span>
+                                            </a>
+                            </div>
+        </section>
+    </nav>
+            <div
+                x-data="{
+                    researchHelpOpen: false,
+                    activeResearchHelpSection: window.location.hash || '#rrl-finder',
+                }"
+                @hashchange.window="activeResearchHelpSection = window.location.hash || '#rrl-finder'"
+                x-on:livewire:navigated.window="
+                    activeResearchHelpSection = window.location.hash || '#rrl-finder';
+                    if ($store.sidebar.currentPath.startsWith('\/athena-app\/research-support')) researchHelpOpen = true;
+                "
+                data-research-help-menu
+            >
+                <button
+                    type="button"
+                    @click="
+                        if (!$store.sidebar.open) {
+                            $store.sidebar.setOpen(true);
+                            researchHelpOpen = true;
+                        } else {
+                            researchHelpOpen = !researchHelpOpen;
+                        }
+                    "
+                    :aria-expanded="researchHelpOpen"
+                    aria-controls="research-help-feature-links"
+                    aria-label="Research Help Facility"
+                    title="Research Help Facility"
+                    :class="[
+                        $store.sidebar.open ? 'px-4' : 'justify-center gap-0 !px-0',
+                        $store.sidebar.currentPath.startsWith('\/athena-app\/research-support') && activeResearchHelpSection !== '#shared-literature-library' ? '!bg-red-50 !text-[#7A0019] before:absolute before:left-0 before:top-1\/2 before:h-5 before:w-0.5 before:-translate-y-1\/2 before:rounded-full before:bg-[#7A0019] dark:!bg-red-950\/30 dark:!text-red-200' : '',
+                    ]"
+                    class="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white py-3"
+                >
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
+                    </svg>
+
+                    <span
+                        x-show="$store.sidebar.open"
+                        class="min-w-0 flex-1 whitespace-nowrap text-left"
+                    >
+                        Research Help Facility
+                    </span>
+
+                    <svg
+                        x-show="$store.sidebar.open"
+                        :class="researchHelpOpen ? 'rotate-180' : ''"
+                        class="h-4 w-4 shrink-0 transition-transform duration-200"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
+                    </svg>
+                </button>
+
+                <div
+                    id="research-help-feature-links"
+                    x-cloak
+                    x-show="$store.sidebar.open && researchHelpOpen"
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="-translate-y-1 opacity-0"
+                    x-transition:enter-end="translate-y-0 opacity-100"
+                    x-transition:leave="transition ease-in duration-100"
+                    x-transition:leave-start="translate-y-0 opacity-100"
+                    x-transition:leave-end="-translate-y-1 opacity-0"
+                    class="relative mt-1 space-y-1 pl-8 before:absolute before:bottom-2 before:left-[18px]
+                           before:top-2 before:w-px before:bg-slate-200 dark:before:bg-slate-800"
+                >
+                    <a
+                        wire:navigate
+                        href="http://localhost/athena-app/research-support#rrl-finder"
+                        @click="
+                            activeResearchHelpSection = '#rrl-finder';
+                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
+                        "
+                        :class="activeResearchHelpSection === '#rrl-finder'
+                            ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
+                            : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
+                        class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
+                    >
+                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
+                        <span>Literature Search and Source Organizer</span>
+                    </a>
+
+                    <a
+                        wire:navigate
+                        href="http://localhost/athena-app/research-support#turnitin"
+                        @click="
+                            activeResearchHelpSection = '#turnitin';
+                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
+                        "
+                        :class="activeResearchHelpSection === '#turnitin'
+                            ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
+                            : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
+                        class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
+                    >
+                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
+                        <span>Turnitin</span>
+                    </a>
+
+                                    </div>
+            </div>
+        
+    </div>
+            <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
+                                        <a wire:navigate href="http://localhost/athena-app/choose-workspace" aria-label="Switch Workspace" title="Switch Workspace" class="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white" :class="!$store.sidebar.open && 'justify-center !px-0'">
+                    <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h14m0 0-4-4m4 4-4 4M17 17H3m0 0 4 4m-4-4 4-4" /></svg>
+                    <span x-show="$store.sidebar.open">Switch Workspace</span>
+                </a>
+                        <a wire:navigate href="http://localhost/athena-app/profile" aria-label="Account Profile" title="Account Profile" class="flex items-center gap-3 rounded-lg p-2 transition hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#7A0019] dark:hover:bg-slate-800" :class="!$store.sidebar.open && 'justify-center'">
+                <div
+    x-data="{ avatarFailed: false }"
+            x-init="$nextTick(() => { if ($refs.image.complete && $refs.image.naturalWidth === 0) avatarFailed = true })"
+        role="img"
+    aria-label="Profile photo for Neil Carlo Delmo"
+    data-user-avatar
+    class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 shrink-0 rounded-full bg-[#7A0019] text-xs text-white"
+>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">N</span>
+
+            <img
+            x-ref="image"
+            x-show="! avatarFailed"
+            x-on:error="avatarFailed = true"
+            src="https://lh3.googleusercontent.com/a/ACg8ocJAczS3hToyakXfYEk1yHpFppWzENXitu5IB6M0F3w1eM7EnNU8=s96-c"
+            alt=""
+            class="absolute inset-0 h-full w-full object-cover"
+            data-user-avatar-image
+        >
+    </div>                <span x-show="$store.sidebar.open" class="min-w-0">
+                    <span class="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">Neil Carlo Delmo</span>
+                    <span class="block truncate text-[11px] text-slate-500">Account Profile</span>
+                </span>
+            </a>
+        </div>
+    </aside>
+        </div>
+
+        <div
+            x-cloak
+            x-show="$store.sidebar.open"
+            x-transition.opacity
+            @click="$store.sidebar.setOpen(false)"
+            class="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-[1px] sm:hidden"
+            aria-hidden="true"
+        ></div>
+
+        <div
+            :class="$store.sidebar.open ? 'sm:!pl-[280px]' : 'sm:!pl-[76px]'"
+            class="flex min-h-screen flex-col bg-[#F5F7FA] pl-[76px] sm:pl-[280px] transition-colors duration-300 dark:bg-slate-950"
+            data-app-content-shell
+        >
+            
+            <nav data-app-topbar class="sticky top-0 z-30 flex h-[120px] items-end justify-between border-b border-red-200/60 bg-white px-4 pb-3 shadow-sm transition-colors duration-300 dark:border-red-950 dark:bg-slate-900 sm:px-8 relative">
+                <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-red-700 via-red-700 to-red-950 md:from-transparent md:via-red-700/70 md:to-red-950" aria-hidden="true"></div>
+
+                <div
+                    class="pointer-events-none absolute inset-y-0 left-0 hidden w-[30rem] overflow-hidden md:block"
+                    style="-webkit-mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%); mask-image: linear-gradient(to right, #000 0%, #000 72%, transparent 100%);"
+                    aria-hidden="true"
+                >
+                    <img src="http://localhost/athena-app/images/front.jpg" alt="" class="absolute inset-0 h-full w-full object-cover object-center" />
+                    <div class="absolute inset-0 bg-gradient-to-r from-red-950/65 via-red-700/25 to-red-600/60"></div>
+                    <div class="absolute -bottom-14 right-20 h-32 w-32 rotate-45 rounded-3xl border border-white/20 bg-white/10"></div>
+                    <div class="absolute -top-16 left-24 h-36 w-36 rounded-full border-[18px] border-white/10"></div>
+                </div>
+
+                <svg class="pointer-events-none absolute inset-y-0 right-0 h-full w-[55%] text-white/[0.11]" aria-hidden="true">
+                    <defs>
+                        <pattern id="athena-header-hexagons" width="52" height="45" patternUnits="userSpaceOnUse">
+                            <path d="M13 1h26l12 21.5L39 44H13L1 22.5 13 1Z" fill="none" stroke="currentColor" stroke-width="1" />
+                        </pattern>
+                        <linearGradient id="athena-header-pattern-fade" x1="0" x2="1">
+                            <stop offset="0" stop-color="white" stop-opacity="0" />
+                            <stop offset="0.38" stop-color="white" stop-opacity="0.55" />
+                            <stop offset="1" stop-color="white" stop-opacity="1" />
+                        </linearGradient>
+                        <mask id="athena-header-pattern-mask">
+                            <rect width="100%" height="100%" fill="url(#athena-header-pattern-fade)" />
+                        </mask>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#athena-header-hexagons)" mask="url(#athena-header-pattern-mask)" />
+                </svg>
+
+                <div class="pointer-events-none absolute inset-x-0 bottom-0 z-30 h-[5px] bg-gradient-to-r from-red-700 via-red-400 to-yellow-400" aria-hidden="true"></div>
+
+                <div class="absolute right-8 top-3 z-10 hidden min-w-0 items-center gap-3 md:flex">
+                    <div class="rounded-xl border border-white/15 bg-red-950/25 px-4 py-2 text-xs font-medium text-red-100 shadow-sm backdrop-blur-sm">
+                        Philippine Time:
+                        <time
+                            id="manila-system-time"
+                            class="font-bold tabular-nums text-white"
+                            data-timezone="Asia/Manila"
+                            aria-live="off"
+                        >Sep 30, 2026 | 09:30:57 PM</time>
+                        <span class="ml-1 text-[10px] font-black uppercase tracking-wider text-red-200">PHT</span>
+                    </div>
+                </div>
+
+                <div class="athena-header-actions relative z-20 ml-auto flex items-center gap-1.5 sm:gap-3 lg:gap-4">
+
+                    <button id="app-theme-toggle" data-theme-toggle type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Toggle light and dark theme" title="Toggle theme">
+                        <svg class="h-5 w-5 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 15.75A9 9 0 118.25 2.25a7.5 7.5 0 0013.5 13.5z" />
+                        </svg>
+                        <svg class="hidden h-5 w-5 dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1.5m0 15V21m9-9h-1.5M4.5 12H3m15.364 6.364l-1.061-1.061M6.697 6.697L5.636 5.636m12.728 0l-1.061 1.061M6.697 17.303l-1.061 1.061M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+                        </svg>
+                    </button>
+
+                    <div
+    x-data="notificationMenu({
+        notifications: JSON.parse('[{\u0022id\u0022:\u0022d3926abc-4917-4add-a837-52cb0fca4282\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Proposal ready for signature\u0022,\u0022message\u0022:\u0022The review of “Signature Layout Verification — Neil Carlo Delmo” is complete. The Research Head is preparing the required signed final copies.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/29\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:29,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:\u0022faculty\u0022,\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-30T15:21:00+08:00\u0022,\u0022created_at\u0022:\u002212 hours ago\u0022},{\u0022id\u0022:\u002246afbef0-c703-42fe-a5e2-9083e39e2505\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022LREC review started\u0022,\u0022message\u0022:\u0022The research office is recording the LREC outcome for “Signature Layout Verification — Neil Carlo Delmo”. Any revisions will be shared in one Comment-Response Form.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/29\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:29,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:\u0022faculty\u0022,\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-30T15:21:00+08:00\u0022,\u0022created_at\u0022:\u002223 hours ago\u0022},{\u0022id\u0022:\u002221ec0474-5bae-42ba-931e-0c4dcbd958f0\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Queued for LREC\u0022,\u0022message\u0022:\u0022Initial review is complete for “Signature Layout Verification — Neil Carlo Delmo”. Await the LREC presentation schedule from the research office.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/29\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:29,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-30T15:21:00+08:00\u0022,\u0022created_at\u0022:\u00221 day ago\u0022},{\u0022id\u0022:\u0022406911b2-9af4-4cf2-be33-d56713c112e1\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Cleared for GAD assessment\u0022,\u0022message\u0022:\u0022The Research Head cleared “Signature Layout Verification — Neil Carlo Delmo”. The corrected proposal now proceeds to the GAD Office before co-evaluator review.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/29\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:29,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-30T15:21:00+08:00\u0022,\u0022created_at\u0022:\u00221 day ago\u0022},{\u0022id\u0022:\u002269166e7f-2ec2-4f7e-81da-3e0dc11badc4\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Revision requested\u0022,\u0022message\u0022:\u00221 proposal file(s) require changes in “Signature Layout Verification — Neil Carlo Delmo”. Review the Comment-Response Forms and the selected papers, then submit a new version.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/faculty\\\/topics\\\/29\\\/revision?revision_annotation=12\u0022,\u0022level\u0022:\u0022warning\u0022,\u0022topic_id\u0022:29,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-28T20:46:44+08:00\u0022,\u0022created_at\u0022:\u00222 days ago\u0022},{\u0022id\u0022:\u0022e8b37691-d2c7-4390-86d6-7a4f766c01d3\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Signed Notice to Proceed issued\u0022,\u0022message\u0022:\u0022Your signed Notice to Proceed for \\u0022Book Management System\\u0022 is ready. Project monitoring is now open.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/1#project-monitoring\u0022,\u0022level\u0022:\u0022success\u0022,\u0022topic_id\u0022:1,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022my_projects\u0022},\u0022read_at\u0022:\u00222026-09-03T17:37:52+08:00\u0022,\u0022created_at\u0022:\u00223 weeks ago\u0022},{\u0022id\u0022:\u0022aee7a523-b2e9-4b29-a842-f3fea1669546\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Signed documents ready\u0022,\u0022message\u0022:\u0022All required signed final copies for “Book Management System” are now available. The proposal is approved and waiting for its Notice to Proceed.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/1\u0022,\u0022level\u0022:\u0022success\u0022,\u0022topic_id\u0022:1,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-08T23:04:29+08:00\u0022,\u0022created_at\u0022:\u00223 weeks ago\u0022},{\u0022id\u0022:\u0022058efdc5-370d-4867-9313-3ec8fcae584f\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Proposal ready for signature\u0022,\u0022message\u0022:\u0022The review of “Book Management System” is complete. The Research Head is preparing the required signed final copies.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/topics\\\/1\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:1,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:[\u0022faculty_researcher\u0022,\u0022faculty\u0022],\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-09-08T23:04:29+08:00\u0022,\u0022created_at\u0022:\u00223 weeks ago\u0022},{\u0022id\u0022:\u00229d1a042a-2673-4c4e-bbe6-0c8e754a6fdd\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Proposal workspace invitation\u0022,\u0022message\u0022:\u0022Djanisse Villaflor invited you to collaborate on “Mangostene Fruit Drop Detection System”.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/notifications\\\/proposal-invitations\\\/2\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:null,\u0022action_url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/notifications\\\/proposal-invitations\\\/2\\\/accept\u0022,\u0022action_data\u0022:{\u0022proposal_title\u0022:\u0022Mangostene Fruit Drop Detection System\u0022,\u0022inviter_name\u0022:\u0022Djanisse Villaflor\u0022},\u0022workspace\u0022:null,\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-08-26T21:04:59+08:00\u0022,\u0022created_at\u0022:\u00221 month ago\u0022},{\u0022id\u0022:\u002202f0df4d-7b2d-4f11-a12f-9f71070a0c59\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Proposal submitted for review\u0022,\u0022message\u0022:\u0022The collaborative proposal “Student Mental Health and Wellness Tracking Mobile App” was submitted for Research Head review.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/faculty\\\/dashboard\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:2,\u0022action_url\u0022:null,\u0022action_data\u0022:[],\u0022workspace\u0022:null,\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022},\u0022read_at\u0022:\u00222026-08-26T21:04:59+08:00\u0022,\u0022created_at\u0022:\u00221 month ago\u0022},{\u0022id\u0022:\u002243ff5c18-706e-4cd7-8980-05e1c5ee7808\u0022,\u0022data\u0022:{\u0022title\u0022:\u0022Proposal workspace invitation\u0022,\u0022message\u0022:\u0022Djanisse Villaflor invited you to collaborate on “Student Mental Health and Wellness Tracking Mobile App”.\u0022,\u0022url\u0022:\u0022http:\\\/\\\/localhost\\\/athena-app\\\/faculty\\\/proposal-drafts\\\/3\u0022,\u0022level\u0022:\u0022info\u0022,\u0022topic_id\u0022:null,\u0022workspace\u0022:null,\u0022sidebar_area\u0022:\u0022proposal_workspace\u0022,\u0022action_completed\u0022:true},\u0022read_at\u0022:\u00222026-08-20T10:21:51+08:00\u0022,\u0022created_at\u0022:\u00221 month ago\u0022}]'),
+        unreadCount: 0,
+        workspace: 'faculty',
+        indexUrl: 'http:\/\/localhost\/athena-app\/notifications',
+        openUrl: 'http:\/\/localhost\/athena-app\/notifications\/__ID__\/open',
+        readUrl: 'http:\/\/localhost\/athena-app\/notifications\/__ID__\/read',
+        readAllUrl: 'http:\/\/localhost\/athena-app\/notifications\/read-all',
+    })"
+    class="relative"
+    data-notification-menu
+    @click.outside="open = false"
+    @keydown.escape.window="open = false"
+>
+    <button
+        type="button"
+        @click="open = !open; if (open) refresh()"
+        class="relative inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-gray-500 transition duration-150 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-300 dark:hover:bg-slate-800"
+        aria-label="Notifications"
+        :aria-expanded="open"
+        title="Notifications"
+    >
+        <span
+            x-cloak
+            x-show="unreadCount > 0"
+            x-text="unreadCount > 99 ? '99+' : unreadCount"
+            class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900"
+        ></span>
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+    </button>
+
+    <div
+        x-cloak
+        x-show="open"
+        x-transition
+        class="fixed left-4 right-4 top-[7.5rem] z-[60] w-auto overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[24rem] sm:max-w-[calc(100vw-2rem)]"
+        role="dialog"
+        aria-label="Notifications"
+    >
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800">
+            <div>
+                <p class="text-sm font-bold text-slate-900 dark:text-white">Notifications</p>
+                <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400" x-text="unreadCount === 0 ? 'All caught up' : `${unreadCount} unread`"></p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+                <button x-show="unreadCount > 0" @click="markAllRead" type="button" class="rounded-lg px-2 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-950/30">Mark all read</button>
+                <button @click="open = false" type="button" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:hover:bg-slate-800 dark:hover:text-slate-100" aria-label="Close notifications">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="max-h-[min(26rem,calc(100vh-12rem))] divide-y divide-slate-100 overflow-y-auto overscroll-contain dark:divide-slate-800">
+            <template x-if="notifications.length === 0">
+                <div class="px-6 py-10 text-center">
+                    <p class="text-sm font-bold text-gray-700 dark:text-slate-200">No notifications yet</p>
+                    <p class="mt-1 text-xs text-gray-400">Proposal activity will appear here.</p>
+                </div>
+            </template>
+
+            <template x-for="item in notifications" :key="item.id">
+                <form method="POST" :action="notificationOpenUrl(item)" @submit="openNotification($event, item)">
+                    <input type="hidden" name="_token" value="0GiG61gcIliqOEvLTztLpLV5BZNM43Y9jUIDjFHM" autocomplete="off">                    <button
+                        type="submit"
+                        class="group flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors focus:outline-none focus-visible:bg-slate-100 dark:focus-visible:bg-slate-800"
+                        :class="item.read_at
+                            ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-800/70'
+                            : 'bg-red-50/40 hover:bg-red-50 dark:bg-red-950/10 dark:hover:bg-red-950/20'"
+                    >
+                        <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full" :class="item.read_at ? 'bg-slate-300 dark:bg-slate-600' : 'bg-red-600 dark:bg-red-400'"></span>
+                        <span class="min-w-0 flex-1">
+                            <span class="flex items-start justify-between gap-3">
+                                <span class="min-w-0 text-[13px] leading-5" :class="item.read_at ? 'font-semibold text-slate-600 dark:text-slate-300' : 'font-bold text-slate-900 dark:text-white'" x-text="item.data.title"></span>
+                                <span class="shrink-0 pt-0.5 text-[10px] text-slate-400 dark:text-slate-500" x-text="item.created_at"></span>
+                            </span>
+                            <span class="mt-0.5 block line-clamp-2 text-xs leading-5" :class="item.read_at ? 'text-slate-500 dark:text-slate-400' : 'text-slate-600 dark:text-slate-300'" x-text="item.data.message"></span>
+                            <span x-show="item.data.action_url && !item.data.action_completed" class="mt-1.5 inline-block text-[10px] font-semibold text-red-700 dark:text-red-300">Review invitation</span>
+                        </span>
+                    </button>
+                </form>
+            </template>
+        </div>
+
+        <div class="border-t border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+            <a href="http://localhost/athena-app/notifications" @click="open = false" class="flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-red-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-red-300">
+                <span>View notification inbox</span>
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </a>
+        </div>
+    </div>
+
+</div>
+
+                    <div class="hidden h-6 w-px bg-white/25 sm:block"></div>
+
+                    <div x-data="{ open: false }" class="relative shrink-0" data-header-account-menu>
+                        <button type="button" @click="open = !open" :aria-expanded="open" aria-haspopup="menu" aria-label="Open account menu" class="flex min-w-0 cursor-pointer items-center gap-2 rounded-xl p-1.5 transition duration-150 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70">
+                            <div
+    x-data="{ avatarFailed: false }"
+            x-init="$nextTick(() => { if ($refs.image.complete && $refs.image.naturalWidth === 0) avatarFailed = true })"
+        role="img"
+    aria-label="Profile photo for Neil Carlo Delmo"
+    data-user-avatar
+    class="relative inline-flex shrink-0 items-center justify-center overflow-hidden font-black uppercase text-white h-8 w-8 rounded-full border border-gray-200 bg-red-600 text-xs shadow-sm"
+>
+    <span aria-hidden="true" class="flex h-full w-full items-center justify-center">N</span>
+
+            <img
+            x-ref="image"
+            x-show="! avatarFailed"
+            x-on:error="avatarFailed = true"
+            src="https://lh3.googleusercontent.com/a/ACg8ocJAczS3hToyakXfYEk1yHpFppWzENXitu5IB6M0F3w1eM7EnNU8=s96-c"
+            alt=""
+            class="absolute inset-0 h-full w-full object-cover"
+            data-user-avatar-image
+        >
+    </div>                            <span class="hidden min-w-0 max-w-20 truncate text-sm font-bold text-white sm:block lg:max-w-[120px]" title="Neil Carlo Delmo">Neil Carlo Delmo</span>
+                            <svg class="hidden h-4 w-4 text-red-100 sm:block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                        </button>
+
+                        <div x-cloak x-show="open" @click.away="open = false" x-transition role="menu" class="absolute right-0 z-50 mt-2 w-56 max-w-[calc(100vw-6rem)] overflow-hidden rounded-2xl border border-gray-200 bg-white py-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                            <div class="border-b border-gray-100 px-4 py-2 dark:border-slate-800">
+                                <p class="text-xs text-gray-400 font-semibold uppercase">Account Profile</p>
+                                <p class="text-xs font-bold text-gray-800 truncate mt-0.5">23-78498@g.batstate-u.edu.ph</p>
+                                <p class="mt-1 text-[11px] font-bold text-red-600 dark:text-red-300">Using Faculty</p>
+                            </div>
+                            
+                            <a wire:navigate href="http://localhost/athena-app/profile" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                Account Profile
+                            </a>
+
+                                                            <a wire:navigate href="http://localhost/athena-app/choose-workspace" class="block px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-slate-800">
+                                    Switch Workspace
+                                </a>
+                                                        
+                            <form method="POST" action="http://localhost/athena-app/logout" data-proposal-confirm data-confirm-title="Log out of ATHENA?" data-confirm-text="You will need to sign in again to continue working in ATHENA." data-confirm-button="Log out" data-cancel-button="Stay signed in" data-confirm-icon="warning">
+                                <input type="hidden" name="_token" value="0GiG61gcIliqOEvLTztLpLV5BZNM43Y9jUIDjFHM" autocomplete="off">                                <button type="submit" class="block w-full cursor-pointer px-4 py-2.5 text-left text-sm font-bold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+                                    Log Out
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </nav>
+
+                            <header class="border-b border-gray-100 bg-white transition-colors duration-300 dark:border-slate-800 dark:bg-slate-900">
+                    <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                                                    <div
+    data-workspace-header-banner
+    class="flex flex-col gap-4 border-l-4 border-[#800000] bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+>
+    <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#800000]">Faculty workspace</p>
+        <h2 class="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Submitted proposals</h2>
+        <p class="mt-1 max-w-3xl text-sm text-slate-500">Follow each proposal through review, revision, and approval.</p>
+    </div>
+
+            <a wire:navigate href="http://localhost/athena-app/faculty/proposal-drafts/create" class="dashboard-action">New Proposal</a>
+    </div>
+                                            </div>
+                </header>
+            
+                                        
+            <main class="flex-1 py-6 px-4 sm:px-6 lg:px-8">
+                <div class="max-w-7xl mx-auto">
+                    <div class="space-y-5">
+    <nav data-proposal-workspace-navigation aria-label="Proposal workspace" class="flex gap-6 border-b border-slate-200 dark:border-slate-800">
+            <a wire:navigate href="http://localhost/athena-app/faculty/proposal-drafts"  class="inline-flex min-h-12 items-center border-b-2 px-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white">Drafts</a>
+            <a wire:navigate href="http://localhost/athena-app/faculty/submissions"  aria-current="page"  class="inline-flex min-h-12 items-center border-b-2 px-1 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand border-brand text-brand dark:border-red-400 dark:text-red-300">Submitted</a>
+    </nav>
+    <section data-faculty-submissions class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Your submitted proposals">
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+            <h2 class="text-sm font-semibold text-slate-900 dark:text-white">Submission history</h2>
+            <span class="text-xs text-slate-500">16 proposals</span>
+        </div>
+                                <article data-submitted-proposal="29" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Signature Layout Verification — Neil Carlo Delmo</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Final signing</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 28, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/29" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="28" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Review Process Test Submission — Neil Carlo Delmo</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Research Head review</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 28, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/28" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="16" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Digital Marketplace and Logistics Matching for Local Fisherfolk Catch</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Final signing</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/16" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="17" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Computer Vision System for Automated Attendance in Large Lecture Classes</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Project monitoring</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/17" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="13" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Community-Based Solid Waste Segregation Tracking with Mobile Reporting</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">LREC review</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/13" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="14" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">AI-Assisted Reading Comprehension Tool for Elementary Learners</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Final signing</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/14" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="15" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Low-Cost Water Quality Sensor Network for Local River Systems</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Closed</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/15" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="9" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Machine Learning Approach to Rice Yield Prediction Using Weather and Soil Data</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Research Head revision requested</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/faculty/topics/9/revision" class="dashboard-action" data-revision-action-required>Revise proposal</a>
+                        <a wire:navigate href="http://localhost/athena-app/topics/9" class="inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-semibold text-slate-600 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="10" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Development of a University Chatbot for Student Services Using Natural Language Processing</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Research Head revision awaiting review</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/10" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="11" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Solar-Powered Smart Irrigation System for Smallholder Vegetable Farms</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">GAD assessment</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/11" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="12" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Blockchain-Based Academic Credential Verification Platform</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Awaiting LREC presentation</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/12" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+                                <article data-submitted-proposal="7" class="flex flex-col gap-4 border-b border-slate-100 px-6 py-5 last:border-b-0 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <h3 class="text-base font-semibold text-slate-950 dark:text-white">Development of a Digital Barangay Services and Citizen Request Management System</h3>
+                        <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-[#7A0019] dark:bg-red-950/40 dark:text-red-200">Research Head review</span>
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Research Lifecycle Demonstration Cohort</p>
+                    <p class="mt-1 text-xs text-slate-400">Submitted Sep 13, 2026</p>
+                </div>
+                <div class="flex shrink-0 flex-wrap items-center gap-2">
+                                            <a wire:navigate href="http://localhost/athena-app/topics/7" class="dashboard-action">View proposal</a>
+                                    </div>
+            </article>
+            </section>
+    <div class="mt-5"><nav role="navigation" aria-label="Pagination Navigation">
+
+        <div class="flex gap-2 items-center justify-between sm:hidden">
+
+                            <span class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 cursor-not-allowed leading-5 rounded-md dark:text-gray-300 dark:bg-gray-700 dark:border-gray-600">
+                    &laquo; Previous
+                </span>
+            
+                            <a href="http://localhost/athena-app/faculty/submissions?page=2" rel="next" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-800 bg-white border border-gray-300 leading-5 rounded-md hover:text-gray-700 focus:outline-none focus:ring ring-gray-300 focus:border-blue-300 active:bg-gray-100 active:text-gray-800 transition ease-in-out duration-150 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200 dark:focus:border-blue-700 dark:active:bg-gray-700 dark:active:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-900 dark:hover:text-gray-200">
+                    Next &raquo;
+                </a>
+            
+        </div>
+
+        <div class="hidden sm:flex-1 sm:flex sm:gap-2 sm:items-center sm:justify-between">
+
+            <div>
+                <p class="text-sm text-gray-700 leading-5 dark:text-gray-600">
+                    Showing
+                                            <span class="font-medium">1</span>
+                        to
+                        <span class="font-medium">12</span>
+                                        of
+                    <span class="font-medium">16</span>
+                    results
+                </p>
+            </div>
+
+            <div>
+                <span class="inline-flex rtl:flex-row-reverse shadow-sm rounded-md">
+
+                    
+                                            <span aria-disabled="true" aria-label="&amp;laquo; Previous">
+                            <span class="inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 cursor-not-allowed rounded-l-md leading-5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400" aria-hidden="true">
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </span>
+                        </span>
+                    
+                    
+                                            
+                        
+                        
+                                                                                                                        <span aria-current="page">
+                                        <span class="inline-flex items-center px-4 py-2 -ml-px text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 cursor-default leading-5 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300">1</span>
+                                    </span>
+                                                                                                                                <a href="http://localhost/athena-app/faculty/submissions?page=2" class="inline-flex items-center px-4 py-2 -ml-px text-sm font-medium text-gray-700 bg-white border border-gray-300 leading-5 hover:text-gray-700 focus:outline-none focus:ring ring-gray-300 focus:border-blue-300 active:bg-gray-100 active:text-gray-700 transition ease-in-out duration-150 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:text-gray-300 dark:active:bg-gray-700 dark:focus:border-blue-800 hover:bg-gray-100 dark:hover:bg-gray-900" aria-label="Go to page 2">
+                                        2
+                                    </a>
+                                                                                                        
+                    
+                                            <a href="http://localhost/athena-app/faculty/submissions?page=2" rel="next" class="inline-flex items-center px-2 py-2 -ml-px text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md leading-5 hover:text-gray-400 focus:outline-none focus:ring ring-gray-300 focus:border-blue-300 active:bg-gray-100 active:text-gray-500 transition ease-in-out duration-150 dark:bg-gray-800 dark:border-gray-600 dark:active:bg-gray-700 dark:focus:border-blue-800 dark:text-gray-300 dark:hover:bg-gray-900 dark:hover:text-gray-300" aria-label="Next &amp;raquo;">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </a>
+                                    </span>
+            </div>
+        </div>
+    </nav>
+</div>
+    </div>
+                </div>
+            </main>
+
+        </div>
+
+                    <button
+    id="research-assistant-launcher"
+    x-cloak
+    x-show="!$store.researchAssistant.workspaceOpen"
+    type="button"
+    @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
+    :aria-expanded="$store.researchAssistant.drawerOpen"
+    :aria-label="$store.researchAssistant.drawerOpen ? 'Close Athena AI research assistant' : 'Open Athena AI research assistant'"
+    aria-controls="research-assistant-panel"
+    aria-label="Open Athena AI research assistant"
+    class="group fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-[71] inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg shadow-red-950/20 transition hover:from-red-700 hover:to-rose-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-4 dark:focus-visible:ring-offset-slate-950 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden"
+>
+    <span x-show="!$store.researchAssistant.drawerOpen" class="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-slate-700" aria-hidden="true">Ask ATHENA</span>
+    <svg x-show="!$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
+    </svg>
+    <svg x-show="$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+    </svg>
+</button>
+
+<div
+    x-cloak
+    x-show="$store.researchAssistant.drawerOpen"
+    @keydown.escape.window="$store.researchAssistant.closeDrawer()"
+    class="athena-readable pointer-events-none fixed inset-0 z-[70] print:hidden"
+>
+    <aside
+        id="research-assistant-panel"
+        x-show="$store.researchAssistant.drawerOpen"
+        x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+        x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+        role="dialog"
+        aria-labelledby="research-assistant-drawer-title"
+        class="pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[38rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[26rem]"
+    >
+        <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h2 id="research-assistant-drawer-title" class="truncate text-sm font-black text-gray-900 dark:text-white">Athena</h2>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite"><span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span><span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Research assistant'"></span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button x-show="!$store.researchAssistant.workspaceOpen" type="button" @click="$store.researchAssistant.openWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Expand to full workspace" title="Expand to full workspace">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Start a new chat" title="New chat">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeDrawer()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close research assistant">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="shrink-0 border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
+            <span class="font-black">Context-aware assistance:</span> A page action states which saved ATHENA record it uses. On proposal forms, a limited focused-field snapshot may also be included; contact and sensitive profile fields are redacted. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
+        </div>
+
+        <div data-assistant-messages class="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
+            <div x-show="!$store.researchAssistant.hasConversation()" class="flex min-h-full flex-col items-center justify-center px-5 py-10 text-center">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white dark:bg-white dark:text-slate-900">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h3 class="mt-4 text-xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h3>
+                <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-7 grid w-full max-w-lg gap-2 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="rounded-2xl border border-gray-200 p-3 text-left transition hover:border-gray-300 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-xs font-semibold leading-5 text-gray-700 dark:text-slate-200" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="px-4 py-6 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-6 flex">
+                        <div x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                            <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy'"></button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex items-center gap-3" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                    <div class="flex gap-1.5"><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:pb-4">
+            <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2">
+                <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                </select>
+            </div>
+
+            <div x-show="$store.researchAssistant.canSelectDocuments()" x-cloak class="mb-2">
+    <button
+        type="button"
+        @click="$store.researchAssistant.toggleDocumentPicker()"
+        :aria-expanded="$store.researchAssistant.documentPickerOpen"
+        aria-controls="assistant-document-picker-drawer"
+        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 6.5 8.8 12.2a2.5 2.5 0 1 0 3.5 3.5l6.1-6.1a4.5 4.5 0 0 0-6.4-6.4l-6.6 6.6a6.5 6.5 0 0 0 9.2 9.2l5.4-5.4" /></svg>
+        Analyze document
+    </button>
+
+    <div
+        id="assistant-document-picker-drawer"
+        x-show="$store.researchAssistant.documentPickerOpen"
+        x-transition.opacity.duration.150ms
+        class="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70"
+    >
+        <div class="flex items-center gap-2">
+            <select
+                id="assistant-document-select-drawer"
+                x-model="$store.researchAssistant.selectedDocumentToken"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.documentOptions.length"
+                aria-label="Document to analyze"
+                class="min-w-0 flex-1 rounded-lg border-gray-200 bg-white py-1.5 text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+                <template x-for="documentOption in $store.researchAssistant.documentOptions" :key="documentOption.token">
+                    <option :value="documentOption.token" x-text="`${documentOption.label} · ${documentOption.format}`"></option>
+                </template>
+            </select>
+            <button
+                type="button"
+                @click="$store.researchAssistant.analyzeSelectedDocument()"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading"
+                class="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-[11px] font-black text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                x-text="$store.researchAssistant.documentLoading ? 'Loading…' : 'Analyze'"
+            ></button>
+        </div>
+        <p x-show="$store.researchAssistant.documentError" class="mt-1.5 text-[10px] font-semibold text-red-600 dark:text-red-300" x-text="$store.researchAssistant.documentError"></p>
+        <p x-show="!$store.researchAssistant.documentError" class="mt-1.5 text-[10px] leading-4 text-gray-400">Only the selected PDF or DOCX is sent to Athena for this request.</p>
+    </div>
+</div>
+
+            <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800">
+                <label for="research-assistant-drawer-message" class="sr-only">Message Athena Research Assistant</label>
+                <textarea id="research-assistant-drawer-message" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Message Athena…" class="max-h-44 min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"></textarea>
+                <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg></button>
+                <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+            </form>
+            <div class="mt-2 flex items-center justify-between gap-3 px-1">
+                <p class="text-[10px] text-gray-400">AI can make mistakes. Avoid confidential data.</p>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="text-[10px] font-bold text-gray-400 hover:text-gray-700 disabled:opacity-40 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
+                    <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="text-[10px] font-bold text-gray-400 hover:text-gray-700 disabled:opacity-40 dark:hover:text-white">Export</button>
+                </div>
+            </div>
+        </footer>
+    </aside>
+</div>
+            <div
+                x-cloak
+                x-show="$store.researchAssistant.workspaceOpen"
+                x-transition.opacity
+                class="fixed inset-0 z-[80] bg-white dark:bg-slate-900"
+                data-assistant-full-workspace
+            >
+                <section
+    id="athena-assistant-workspace"
+    class="athena-readable flex h-full min-h-0 w-full overflow-hidden border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    aria-labelledby="assistant-heading"
+    data-assistant-workspace
+>
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/80 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">
+        <div class="border-b border-gray-200 p-4 dark:border-slate-800">
+            <div class="flex items-center gap-3 px-1 py-2">
+                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-black text-gray-900 dark:text-white">Athena AI</p>
+                    <p class="text-[11px] text-gray-500 dark:text-slate-400">Research copilot</p>
+                </div>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.newConversation()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-red-300 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                New chat
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4">
+            <div class="flex items-center justify-between gap-2 px-2">
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Chat history</p>
+                <span class="text-[10px] font-semibold text-gray-400" x-text="$store.researchAssistant.history.length ? `${$store.researchAssistant.history.length} chats` : ''"></span>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white">
+                <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                Search history
+                <kbd class="ml-auto rounded border border-gray-200 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 dark:border-slate-700">Ctrl K</kbd>
+            </button>
+
+            <div class="mt-3 space-y-1">
+                <template x-for="conversation in $store.researchAssistant.history" :key="conversation.id">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700' : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'" class="w-full rounded-xl px-3 py-2.5 text-left transition">
+                        <span class="block truncate text-xs font-bold" x-text="conversation.title"></span>
+                        <span class="mt-1 block truncate text-[10px] leading-4 text-gray-400 dark:text-slate-500" x-text="conversation.preview"></span>
+                        <span class="mt-1 block text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="!$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-xl bg-red-50 px-3 py-2.5 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p class="font-black uppercase tracking-wider">Paper help</p>
+                <p class="mt-1 font-semibold leading-4" x-text="$store.researchAssistant.paperContextLabel()"></p>
+                <p x-show="$store.researchAssistant.hasLiveFormContext()" class="mt-1.5 font-bold text-red-700 dark:text-red-300">Focused field and current row context included</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mt-6 border-t border-gray-200 pt-5 dark:border-slate-800">
+                <label for="assistant-workspace-context" class="flex items-center gap-2 text-[11px] font-bold text-gray-700 dark:text-slate-300">
+                    <input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-slate-700">
+                    Use proposal context
+                </label>
+                <select id="assistant-workspace-context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="mt-2 block w-full rounded-xl border-gray-200 bg-white text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id">
+                        <option :value="context.id" x-text="context.label"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+
+        <div class="space-y-1 border-t border-gray-200 p-4 dark:border-slate-800">
+            <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
+            <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">Export .txt</button>
+            <p class="px-3 pt-3 text-[10px] leading-4 text-gray-400"><span class="font-bold">Privacy:</span> Chats are saved to your ATHENA account.</p>
+        </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900">
+        <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 sm:px-6 dark:border-slate-800">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h3 id="assistant-heading" class="truncate text-sm font-black text-gray-900 dark:text-white">Athena Research Assistant</h3>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite">
+                        <span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span>
+                        <span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Ready'"></span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                    <span class="hidden sm:inline">New chat</span>
+                </button>
+                <button type="button" @click="$store.researchAssistant.collapseWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Collapse to side panel" title="Collapse to side panel">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Back to Research Support" title="Back to Research Support">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <div
+            data-assistant-messages
+            class="flex-1 overflow-y-auto scroll-smooth"
+            aria-live="polite"
+            :aria-busy="$store.researchAssistant.isLoading"
+        >
+            <div x-show="!$store.researchAssistant.hasConversation()" class="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-5 py-12 text-center">
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg dark:bg-white dark:text-slate-900">
+                    <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h4 class="mt-5 text-2xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h4>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-8 grid w-full gap-3 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-7 flex">
+                        <div x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-5 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100 sm:max-w-[75%]">
+                            <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                        </div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3 sm:gap-4">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                            </div>
+                            <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex gap-4" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg>
+                    </div>
+                    <div class="flex h-8 items-center gap-1.5">
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="border-t border-gray-100 bg-white px-3 pb-3 pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6 sm:pb-5">
+            <div class="mx-auto max-w-3xl">
+                <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                    <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200 lg:hidden">
+                    <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                    <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                    <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2 lg:hidden">
+                    <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                    <select id="assistant-mobile-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                    </select>
+                </div>
+
+                <div x-show="$store.researchAssistant.canSelectDocuments()" x-cloak class="mb-2">
+    <button
+        type="button"
+        @click="$store.researchAssistant.toggleDocumentPicker()"
+        :aria-expanded="$store.researchAssistant.documentPickerOpen"
+        aria-controls="assistant-document-picker-workspace"
+        class="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+    >
+        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M14.5 6.5 8.8 12.2a2.5 2.5 0 1 0 3.5 3.5l6.1-6.1a4.5 4.5 0 0 0-6.4-6.4l-6.6 6.6a6.5 6.5 0 0 0 9.2 9.2l5.4-5.4" /></svg>
+        Analyze document
+    </button>
+
+    <div
+        id="assistant-document-picker-workspace"
+        x-show="$store.researchAssistant.documentPickerOpen"
+        x-transition.opacity.duration.150ms
+        class="mt-1.5 rounded-xl border border-gray-200 bg-gray-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/70"
+    >
+        <div class="flex items-center gap-2">
+            <select
+                id="assistant-document-select-workspace"
+                x-model="$store.researchAssistant.selectedDocumentToken"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.documentOptions.length"
+                aria-label="Document to analyze"
+                class="min-w-0 flex-1 rounded-lg border-gray-200 bg-white py-1.5 text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+            >
+                <template x-for="documentOption in $store.researchAssistant.documentOptions" :key="documentOption.token">
+                    <option :value="documentOption.token" x-text="`${documentOption.label} · ${documentOption.format}`"></option>
+                </template>
+            </select>
+            <button
+                type="button"
+                @click="$store.researchAssistant.analyzeSelectedDocument()"
+                :disabled="$store.researchAssistant.documentLoading || !$store.researchAssistant.selectedDocumentToken || $store.researchAssistant.isLoading"
+                class="shrink-0 rounded-lg bg-gray-900 px-3 py-2 text-[11px] font-black text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-slate-900"
+                x-text="$store.researchAssistant.documentLoading ? 'Loading…' : 'Analyze'"
+            ></button>
+        </div>
+        <p x-show="$store.researchAssistant.documentError" class="mt-1.5 text-[10px] font-semibold text-red-600 dark:text-red-300" x-text="$store.researchAssistant.documentError"></p>
+        <p x-show="!$store.researchAssistant.documentError" class="mt-1.5 text-[10px] leading-4 text-gray-400">Only the selected PDF or DOCX is sent to Athena for this request.</p>
+    </div>
+</div>
+
+                <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm transition focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:focus-within:border-slate-600">
+                    <label for="research-assistant-message" class="sr-only">Message Athena Research Assistant</label>
+                    <textarea
+                        id="research-assistant-message"
+                        data-assistant-composer
+                        x-model="$store.researchAssistant.draft"
+                        @input="$store.researchAssistant.resizeComposer($event)"
+                        @keydown="$store.researchAssistant.handleComposerKeydown($event)"
+                        rows="1"
+                        maxlength="2000"
+                        placeholder="Message Athena…"
+                        class="max-h-44 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"
+                    ></textarea>
+                    <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg>
+                    </button>
+                    <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+                </form>
+                <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. A limited focused-field snapshot is included on proposal forms; avoid confidential data. Verify guidance with official university policies. Press Shift+Enter for a new line.</p>
+            </div>
+        </footer>
+    </div>
+
+    <div x-cloak x-show="$store.researchAssistant.historySearchOpen" @click.self="$store.researchAssistant.closeHistorySearch()" @keydown.escape.window="$store.researchAssistant.closeHistorySearch()" class="fixed inset-0 z-[100] flex items-start justify-center bg-gray-950/45 px-4 py-[12vh] backdrop-blur-sm" role="presentation">
+        <div x-show="$store.researchAssistant.historySearchOpen" x-transition role="dialog" aria-modal="true" aria-labelledby="assistant-history-search-title" class="flex max-h-[min(70vh,38rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+                <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <label id="assistant-history-search-title" for="assistant-history-search" class="sr-only">Search chat history</label>
+                <input id="assistant-history-search" type="search" x-model="$store.researchAssistant.historySearchQuery" @input="$store.researchAssistant.queueHistorySearch()" placeholder="Search your chats" autocomplete="off" class="min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0 dark:text-white">
+                <span x-show="$store.researchAssistant.historySearchLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Searching"></span>
+                <button type="button" @click="$store.researchAssistant.closeHistorySearch()" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white">Esc</button>
+            </div>
+            <div class="overflow-y-auto p-2">
+                <template x-for="conversation in $store.researchAssistant.historySearchResults" :key="`search-${conversation.id}`">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" class="w-full rounded-xl px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-slate-800">
+                        <span class="block text-sm font-bold text-gray-800 dark:text-slate-100" x-html="$store.researchAssistant.highlightHistoryText(conversation.title)"></span>
+                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-html="$store.researchAssistant.highlightHistoryText(conversation.preview)"></span>
+                        <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
+            </div>
+            <div class="border-t border-gray-100 px-4 py-2.5 text-[10px] text-gray-400 dark:border-slate-800">Search matches words in your chat titles and messages.</div>
+        </div>
+    </div>
+</section>
+            </div>
+        
+        <script>
+            function initializeManilaClock() {
+                const clock = document.getElementById('manila-system-time');
+                if (!clock) return;
+
+                const formatter = new Intl.DateTimeFormat('en-PH', {
+                    timeZone: 'Asia/Manila',
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                });
+
+                const updateClock = () => {
+                    const now = new Date();
+                    clock.textContent = formatter.format(now).replace(',', ' |');
+                    clock.dateTime = now.toISOString();
+                };
+
+                updateClock();
+                if (window.manilaClockInterval) clearInterval(window.manilaClockInterval);
+                window.manilaClockInterval = setInterval(updateClock, 1000);
+            }
+
+            initializeManilaClock();
+            document.addEventListener('livewire:navigated', initializeManilaClock);
+        </script>
+
+        <script  data-navigate-once="true">window.livewireScriptConfig = {"csrf":"0GiG61gcIliqOEvLTztLpLV5BZNM43Y9jUIDjFHM","uri":"http:\/\/localhost\/athena-app\/athena-app\/livewire-d7275e0f\/update","moduleUrl":"http:\/\/localhost\/athena-app\/livewire-d7275e0f","progressBar":"","nonce":""};</script>
+    </body>
+</html>

@@ -6,9 +6,6 @@
             title="Dashboard"
             description="Your review queue, project priorities, and upcoming deadlines."
         >
-            <x-slot:actions>
-                <x-research-head-page-navigation />
-            </x-slot:actions>
         </x-workspace-header-banner>
     </x-slot>
 

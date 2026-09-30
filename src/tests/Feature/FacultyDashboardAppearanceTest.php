@@ -5,6 +5,9 @@ use App\Models\ProposalDraft;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\ProposalDraftReadiness;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\ViewErrorBag;
 use Spatie\Permission\Models\Role;
 
 test('faculty dashboards show workspace-specific data in the shared restrained layout', function (string $workspace) {
@@ -137,3 +140,92 @@ test('faculty dashboards show workspace-specific data in the shared restrained l
     }
 
 })->with([User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER]);
+
+test('dashboard announcements use compact previews and retain proposal and full poster actions', function () {
+    $items = collect([
+        [
+            'url' => '/test-call-poster.png',
+            'alt' => 'Institutional research proposals',
+            'isResearchCall' => true,
+            'canSubmitProposal' => true,
+        ],
+        [
+            'url' => '/test-announcement.png',
+            'alt' => 'Research Office workshop',
+            'isResearchCall' => false,
+            'canSubmitProposal' => false,
+        ],
+    ]);
+
+    $html = view('faculty.partials.research-call-carousel', [
+        'researchCallCarouselItems' => $items,
+    ])->render();
+
+    $document = new DOMDocument;
+    @$document->loadHTML($html);
+    $xpath = new DOMXPath($document);
+    $slides = $xpath->query('//*[@data-research-call-slide]');
+    $poster = $xpath->query('//*[@data-research-call-poster-trigger]')->item(0);
+
+    expect($slides)->toHaveCount(2)
+        ->and($slides->item(0)->getAttribute('data-announcement-layout'))->toBe('compact')
+        ->and($slides->item(1)->hasAttribute('hidden'))->toBeTrue()
+        ->and($slides->item(1)->hasAttribute('inert'))->toBeTrue()
+        ->and($poster->getAttribute('class'))->toContain('h-40', 'sm:h-44', 'object-contain')
+        ->and($xpath->query('//a')->length)->toBe(1)
+        ->and($xpath->query('//a')->item(0)->getAttribute('href'))->toBe(route('faculty.proposal-drafts.create'))
+        ->and($xpath->query('//*[@data-research-call-preview]')->length)->toBe(4)
+        ->and($xpath->query('//*[@data-research-call-lightbox]')->length)->toBe(1)
+        ->and($html)->toContain('View full poster', 'Show next announcement')
+        ->not->toContain('max-h-[38rem]', 'text-2xl');
+});
+
+test('announcement section is omitted when there are no posters', function () {
+    expect(trim(view('faculty.partials.research-call-carousel', [
+        'researchCallCarouselItems' => collect(),
+    ])->render()))->toBe('');
+});
+
+test('draft list keeps resume aligned for owners and collaborators with clear paper readiness', function () {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => 'faculty']);
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $owner = User::factory()->make(['id' => 98765]);
+    $this->actingAs($faculty);
+
+    $drafts = collect([
+        new ProposalDraft(['user_id' => $faculty->id, 'project_title' => 'Owned draft', 'status' => 'draft']),
+        new ProposalDraft(['user_id' => $owner->id, 'project_title' => 'Shared draft', 'status' => 'draft']),
+    ]);
+    foreach ($drafts as $index => $draft) {
+        $draft->id = 900 + $index;
+        $draft->updated_at = now();
+        $draft->setRelation('owner', $index === 0 ? $faculty : $owner);
+        $draft->setRelation('researchCall', null);
+    }
+    $this->mock(ProposalDraftReadiness::class)
+        ->shouldReceive('checklist')->twice()->andReturn(
+            collect(array_fill(0, 7, ['complete' => true, 'needs_attention' => false])),
+            collect(array_fill(0, 7, ['complete' => false, 'needs_attention' => false])),
+        );
+
+    view()->share('errors', new ViewErrorBag);
+    $html = view('faculty.proposal-drafts.index', [
+        'proposalDrafts' => new LengthAwarePaginator($drafts, 2, 12),
+    ])->render();
+    $document = new DOMDocument;
+    @$document->loadHTML($html);
+    $xpath = new DOMXPath($document);
+    $actions = $xpath->query('//*[@data-draft-actions]');
+
+    expect($actions)->toHaveCount(2)
+        ->and($actions->item(0)->getAttribute('class'))->toContain('grid-cols-2')
+        ->and($actions->item(1)->getAttribute('class'))->toContain('grid-cols-2')
+        ->and($xpath->query('.//a', $actions->item(0))->item(0)->getAttribute('class'))->toContain('col-start-1')
+        ->and($xpath->query('.//a', $actions->item(1))->item(0)->getAttribute('class'))->toContain('col-start-1')
+        ->and($xpath->query('.//form', $actions->item(0))->length)->toBe(1)
+        ->and($xpath->query('.//form', $actions->item(1))->length)->toBe(0)
+        ->and($html)->toContain('7 of 7 papers ready', '0 of 7 papers ready', 'data-proposal-confirm')
+        ->not->toContain('Package progress', '<progress');
+});

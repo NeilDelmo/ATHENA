@@ -33,7 +33,6 @@ test('regular workspace pages use the shared page header', function () {
         'research_calls/faculty-index.blade.php',
         'research_calls/calendar-detail.blade.php',
         'faculty/topics/create.blade.php',
-        'faculty/proposal-drafts/index.blade.php',
         'faculty/proposal-drafts/create.blade.php',
         'faculty/proposal-drafts/show.blade.php',
         'faculty/proposal-drafts/review.blade.php',
@@ -58,6 +57,11 @@ test('regular workspace pages use the shared page header', function () {
 
     foreach ($views as $view) {
         expect(File::get(resource_path('views/'.$view)))->toContain('<x-page-header');
+    }
+
+    foreach (['faculty/proposal-drafts/index.blade.php', 'faculty/submissions.blade.php'] as $view) {
+        expect(File::get(resource_path('views/'.$view)))
+            ->toContain('<x-workspace-header-banner', '<x-faculty-proposal-navigation');
     }
 
     $researchCalls = File::get(resource_path('views/research_calls/index.blade.php'));

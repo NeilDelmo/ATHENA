@@ -7,15 +7,15 @@
 
     <section class="grid grid-cols-2 gap-3 md:grid-cols-3" aria-label="Priority KPIs" data-dashboard-priority-kpis>
         <a href="#received-proposals" wire:click="showReviewQueue" class="col-span-2 flex items-center justify-between gap-4 rounded-xl bg-brand px-5 py-5 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:col-span-1 md:flex-col md:items-start xl:flex-row xl:items-center">
-            <span><span class="block text-sm font-semibold">Awaiting your review</span><span class="mt-1 block text-xs text-rose-100">Open the review queue</span></span>
+            <span><span class="block text-sm font-semibold">Awaiting your review</span><span class="mt-1 block text-xs text-rose-100">Open the review queue <span aria-hidden="true">&rarr;</span></span></span>
             <strong class="text-4xl font-bold tracking-tight tabular-nums">{{ $analytics['kpis']['review'] }}</strong>
         </a>
         <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => 'delayed']) }}#active-projects" class="flex flex-col items-start justify-between gap-4 rounded-xl border xl:flex-row xl:items-center border-slate-200 bg-white px-5 py-5 hover:border-amber-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-800 dark:bg-slate-900">
-            <span><span class="block text-sm font-semibold">Delayed / overdue</span><span class="mt-1 block text-xs rh-muted">Projects needing follow-up</span></span>
+            <span><span class="block text-sm font-semibold">Delayed / overdue</span><span class="mt-1 block text-xs rh-muted">View projects needing follow-up <span aria-hidden="true">&rarr;</span></span></span>
             <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $analytics['kpis']['delayed'] ? 'text-amber-700 dark:text-amber-300' : '' }}">{{ $analytics['kpis']['delayed'] }}</strong>
         </a>
         <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => 'active']) }}#active-projects" class="flex flex-col items-start justify-between gap-4 rounded-xl border xl:flex-row xl:items-center border-slate-200 bg-white px-5 py-5 hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-slate-800 dark:bg-slate-900">
-            <span><span class="block text-sm font-semibold">Active projects</span><span class="mt-1 block text-xs rh-muted">Research in progress</span></span>
+            <span><span class="block text-sm font-semibold">Active projects</span><span class="mt-1 block text-xs rh-muted">View projects in progress <span aria-hidden="true">&rarr;</span></span></span>
             <strong class="text-4xl font-bold tracking-tight tabular-nums">{{ $analytics['kpis']['active'] }}</strong>
         </a>
     </section>
@@ -29,8 +29,13 @@
                     @foreach ($academicYears as $year)<option value="{{ $year }}">{{ $year }}</option>@endforeach
                 </select>
             </div>
-            <details class="w-full sm:w-auto" data-dashboard-date-filters @if ($fromDate || $toDate) open @endif>
-                <summary class="cursor-pointer rounded-lg py-3 text-sm font-semibold text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300">{{ $fromDate || $toDate ? 'Date range applied' : 'Filter by submission date' }}</summary>
+            <details class="group w-full sm:w-auto" data-dashboard-date-filters @if ($fromDate || $toDate) open @endif>
+                <summary class="rh-button-secondary flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                    <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6.75 3v2.25M17.25 3v2.25M3.75 18.75V7.5A2.25 2.25 0 016 5.25h12a2.25 2.25 0 012.25 2.25v11.25M3.75 18.75A2.25 2.25 0 006 21h12a2.25 2.25 0 002.25-2.25M3.75 18.75v-7.5h16.5v7.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    <span>{{ $fromDate || $toDate ? 'Date range applied' : 'Filter by submission date' }}</span>
+                    <span class="ml-auto text-lg leading-none group-open:hidden" aria-hidden="true">+</span>
+                    <span class="ml-auto hidden text-lg leading-none group-open:inline" aria-hidden="true">&minus;</span>
+                </summary>
                 <div class="mt-2 flex flex-wrap items-end gap-3">
                     <div class="min-w-0 flex-1 basis-36 sm:basis-auto sm:flex-none"><label for="overview-from" class="block text-xs font-semibold rh-muted">First submitted from</label><input id="overview-from" type="date" wire:model="fromDate" class="rh-control mt-1.5 w-full"></div>
                     <div class="min-w-0 flex-1 basis-36 sm:basis-auto sm:flex-none"><label for="overview-to" class="block text-xs font-semibold rh-muted">Through</label><input id="overview-to" type="date" wire:model="toDate" class="rh-control mt-1.5 w-full"></div>
@@ -123,16 +128,17 @@
 
             <section class="xl:col-start-1 xl:row-start-2 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="pipeline-heading">
                 <div class="flex items-center justify-between gap-3"><h2 id="pipeline-heading" class="text-base font-bold">Proposal pipeline</h2><span class="text-xs rh-muted">{{ $analytics['pipeline']->sum('count') }} total</span></div>
-                <p class="mt-1 text-xs rh-muted">Select a stage to filter the review queue.</p>
-                <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3" data-dashboard-stage-filters>
+                <p class="mt-1 text-xs rh-muted">Compare proposal counts by stage. Click a row to filter the review queue.</p>
+                <div class="mt-4 space-y-2" data-dashboard-stage-filters data-dashboard-pipeline-chart>
                     @foreach ($analytics['pipeline'] as $stage)
                         <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" aria-label="Show {{ $stage['label'] }} proposals: {{ $stage['count'] }}"
                             @class([
-                                'flex min-h-[64px] items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+                                'grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_2rem] items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
                                 'border-brand bg-brand-wash text-brand dark:border-rose-400 dark:bg-rose-950/40 dark:text-rose-200' => $pipeline === $stage['key'],
                                 'border-slate-200 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500' => $pipeline !== $stage['key'],
                             ])>
-                            <span class="text-xs font-semibold leading-5">{{ $stage['label'] }}</span><strong class="text-xl font-bold tabular-nums">{{ $stage['count'] }}</strong>
+                            <span class="text-xs font-semibold leading-5">{{ $stage['label'] }} @if ($pipeline === $stage['key'])<span class="ml-1">Selected</span>@endif</span><strong class="text-lg font-bold tabular-nums text-right">{{ $stage['count'] }}</strong>
+                            <span class="col-span-2 block h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded bg-brand dark:bg-rose-400" style="width: {{ 100 * $stage['count'] / max(1, $analytics['pipeline']->max('count')) }}%"></span></span>
                         </button>
                     @endforeach
                 </div>
@@ -142,13 +148,13 @@
 
     <section class="grid gap-4 border-t border-slate-200 pt-5 dark:border-slate-800 sm:grid-cols-3" aria-label="Research summary">
         <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => 'completed']) }}#active-projects" class="flex items-center justify-between gap-4 rounded-lg p-2 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-900">
-            <span class="text-xs font-semibold rh-muted">Completed projects</span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['completed'] }}</strong>
+            <span><span class="block text-xs font-semibold rh-muted">Completed projects</span><span class="mt-1 block text-xs font-semibold text-brand dark:text-rose-300">View completed projects &rarr;</span></span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['completed'] }}</strong>
         </a>
         <a wire:navigate href="{{ route('research_head.faculty-directory.index') }}" class="flex items-center justify-between gap-4 rounded-lg p-2 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-900">
-            <span class="text-xs font-semibold rh-muted">Faculty in research</span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['faculty'] }}</strong>
+            <span><span class="block text-xs font-semibold rh-muted">Faculty in research</span><span class="mt-1 block text-xs font-semibold text-brand dark:text-rose-300">View faculty directory &rarr;</span></span><strong class="text-xl font-bold tabular-nums">{{ $analytics['kpis']['faculty'] }}</strong>
         </a>
         <a wire:navigate href="{{ $analyticsUrl }}#reported-budget" class="flex items-center justify-between gap-4 rounded-lg p-2 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-900">
-            <span class="text-xs font-semibold rh-muted">Reported budget utilization</span><strong class="text-xl font-bold tabular-nums">{{ $analytics['budget']['percentage'] !== null ? number_format($analytics['budget']['percentage'], 1).'%' : '—' }}</strong>
+            <span><span class="block text-xs font-semibold rh-muted">Reported budget utilization</span><span class="mt-1 block text-xs font-semibold text-brand dark:text-rose-300">View budget breakdown &rarr;</span></span><strong class="text-xl font-bold tabular-nums">{{ $analytics['budget']['percentage'] !== null ? number_format($analytics['budget']['percentage'], 1).'%' : '—' }}</strong>
         </a>
     </section>
 </div>

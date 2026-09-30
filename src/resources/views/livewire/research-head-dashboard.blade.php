@@ -5,15 +5,6 @@
         $projectTotal = $analytics['projects']->count();
     @endphp
 
-    <section data-dashboard-section-navigation class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-2xl font-bold tracking-tight">Research performance</h2>
-        <nav class="flex flex-wrap gap-2 text-sm font-semibold" aria-label="Dashboard sections">
-            @foreach (['annual-targets' => 'Annual targets', 'needs-attention' => 'Needs attention', 'received-proposals' => 'Proposals', 'active-projects' => 'Projects'] as $id => $label)
-                <a href="#{{ $id }}" class="rounded-xl px-3 py-2.5 rh-muted hover:bg-white hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white">{{ $label }}</a>
-            @endforeach
-        </nav>
-    </section>
-
     <section class="rh-panel p-4" aria-label="Analytics filters">
         <form wire:submit="applyFilters" class="flex flex-wrap items-end gap-3">
             <div class="min-w-40 flex-1">
@@ -39,17 +30,80 @@
             @if ($filter)
                 <button type="button" wire:click="setPipeline('{{ $filter }}')" aria-pressed="{{ $pipeline === $filter ? 'true' : 'false' }}" class="flex flex-col justify-between gap-3 border-r border-slate-100 p-5 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:border-slate-800 dark:hover:bg-slate-800">
             @else
-                <a href="#active-projects" wire:click="showProjects('{{ in_array($key, ['active', 'faculty'], true) ? 'active' : $key }}')" class="flex flex-col justify-between gap-3 border-r border-slate-100 p-5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
+                <a href="{{ $key === 'faculty' ? route('research_head.faculty-directory.index') : '#active-projects' }}" @if ($key !== 'faculty') wire:click="showProjects('{{ in_array($key, ['active', 'faculty'], true) ? 'active' : $key }}')" @endif class="flex flex-col justify-between gap-3 border-r border-slate-100 p-5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
             @endif
                 <span class="text-sm font-semibold rh-muted">{{ $label }}</span>
                 <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-amber-700 dark:text-amber-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
+                <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $filter ? 'Filter review queue' : ($key === 'faculty' ? 'View faculty directory' : 'View projects') }} <span aria-hidden="true">&rarr;</span></span>
             @if ($filter)</button>@else</a>@endif
         @endforeach
         <a href="#reported-budget" class="flex flex-col justify-between gap-3 p-5 hover:bg-slate-50 dark:hover:bg-slate-800">
             <span class="text-sm font-semibold rh-muted">Reported budget utilization</span>
             <strong class="text-4xl font-bold tracking-tight tabular-nums">{{ $analytics['budget']['percentage'] !== null ? number_format($analytics['budget']['percentage'], 1).'%' : '—' }}</strong>
+            <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">View budget breakdown <span aria-hidden="true">&rarr;</span></span>
         </a>
     </section>
+
+    <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <section class="rh-panel p-5" aria-labelledby="monthly-trend-heading">
+            <h3 id="monthly-trend-heading" class="rh-title">Monthly submission trend</h3>
+            <p class="mt-1 text-xs font-medium text-brand dark:text-rose-300">Click a month to filter proposals below.</p>
+            <p class="mt-1 text-sm rh-muted">{{ $analytics['trendStart'] }} — {{ $analytics['trendEnd'] }}</p>
+            <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-base">
+                <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-brand" aria-hidden="true"></span> New proposals <strong class="tabular-nums">{{ $analytics['trend']->sum('new') }}</strong></span>
+                <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-slate-400" aria-hidden="true"></span> Revisions <strong class="tabular-nums">{{ $analytics['trend']->sum('revision') }}</strong></span>
+            </div>
+            @if ($analytics['trend']->sum('new') + $analytics['trend']->sum('revision') > 0)
+                <div class="mt-6 flex gap-3" data-submission-chart>
+                    <div class="relative h-52 w-9 shrink-0 text-right text-sm tabular-nums rh-muted" aria-label="Proposal count axis">
+                        @foreach (range(0, 4) as $tick)<span class="absolute right-0 -translate-y-1/2" style="top: {{ $tick * 25 }}%">{{ (int) ($chartAxisMax * (4 - $tick) / 4) }}</span>@endforeach
+                    </div>
+                    <div class="min-w-0 flex-1 overflow-x-auto pb-2">
+                        <div class="relative" style="min-width: {{ max(280, $analytics['trend']->count() * 52) }}px">
+                            <div class="pointer-events-none absolute inset-x-0 top-0 h-52" aria-hidden="true">
+                                @foreach (range(0, 4) as $tick)<div class="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style="top: {{ $tick * 25 }}%"></div>@endforeach
+                            </div>
+                            <div class="relative flex gap-2">
+                                @foreach ($analytics['trend'] as $month)
+                                    <button type="button" wire:click="$set('submissionMonth', '{{ $submissionMonth === $month['key'] ? '' : $month['key'] }}')" class="min-w-12 flex-1 rounded-md px-1 text-center hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $submissionMonth === $month['key'] ? 'bg-brand-wash dark:bg-rose-950/40 ring-1 ring-brand' : '' }}" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revisions. Filter inbox." aria-pressed="{{ $submissionMonth === $month['key'] ? 'true' : 'false' }}" title="{{ $month['label'] }}: {{ $month['new'] }} new · {{ $month['revision'] }} revisions">
+                                        <span class="flex h-52 items-end justify-center gap-1.5" aria-hidden="true">
+                                            <span class="w-4 rounded-t-md bg-brand dark:bg-rose-400 sm:w-5" style="height: {{ 100 * $month['new'] / $chartAxisMax }}%"></span>
+                                            <span class="w-4 rounded-t-md bg-slate-400 sm:w-5" style="height: {{ 100 * $month['revision'] / $chartAxisMax }}%"></span>
+                                        </span>
+                                        <span class="mt-3 block text-sm font-medium rh-muted">{{ $month['label'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @if ($submissionMonth)
+                    @php
+                        $selectedMonth = $analytics['trend']->firstWhere('key', $submissionMonth);
+                    @endphp
+                    @if ($selectedMonth)<p role="status" class="mt-4 text-sm font-semibold text-brand dark:text-rose-300">{{ $selectedMonth['label'] }}: {{ $selectedMonth['new'] }} new proposals · {{ $selectedMonth['revision'] }} revisions</p>@endif
+                @else
+                    <p class="mt-4 text-sm rh-muted">Select a month to filter the proposal inbox.</p>
+                @endif
+            @else
+                <div class="mt-6 flex min-h-52 items-center justify-center rounded-xl bg-slate-50 px-6 dark:bg-slate-950/50 text-center"><p class="text-base rh-muted">No data yet{{ $analytics['periodAvailable'] ? ' for this period.' : ' — set academic-year dates.' }}</p></div>
+            @endif
+        </section>
+        <section class="rh-panel p-5" aria-labelledby="pipeline-heading">
+            <div class="flex items-center justify-between gap-3"><h3 id="pipeline-heading" class="rh-title">Proposal pipeline</h3><span class="rh-badge">{{ $analytics['pipeline']->sum('count') }} total</span></div>
+            <p class="mt-2 text-xs rh-muted">Compare stage counts. Click a stage to filter proposals below.</p>
+            <div class="mt-4 flex flex-col gap-1">
+                @foreach ($analytics['pipeline'] as $stage)
+                    <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" class="rounded-xl px-2 py-1.5 text-left hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $pipeline === $stage['key'] ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
+                        <span class="flex items-center justify-between gap-3 text-sm font-semibold"><span>{{ $stage['label'] }} @if ($pipeline === $stage['key'])<span class="ml-1 text-xs text-brand dark:text-rose-300">Selected</span>@endif</span><strong class="text-lg tabular-nums">{{ $stage['count'] }}</strong></span>
+                        <span class="mt-2 block h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ 100 * $stage['count'] / $pipelineMax }}%"></span></span>
+                    </button>
+                @endforeach
+            </div>
+            @if ($analytics['pipeline']->sum('count') === 0)<p class="mt-3 text-sm rh-muted">No data yet.</p>@endif
+        </section>
+    </div>
+
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-dashboard-performance-grid>
     <section id="annual-targets" class="rh-panel scroll-mt-40 border-t-4 border-t-brand dark:border-t-brand-soft" aria-labelledby="targets-heading">
@@ -126,78 +180,30 @@
         </section>
     </div>
 
-    <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <section class="rh-panel p-5" aria-labelledby="monthly-trend-heading">
-            <h3 id="monthly-trend-heading" class="rh-title">Monthly submission trend</h3>
-            <p class="mt-1 text-sm rh-muted">{{ $analytics['trendStart'] }} — {{ $analytics['trendEnd'] }}</p>
-            <div class="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-base">
-                <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-brand" aria-hidden="true"></span> New proposals <strong class="tabular-nums">{{ $analytics['trend']->sum('new') }}</strong></span>
-                <span class="flex items-center gap-2"><span class="h-3 w-3 rounded-sm bg-slate-400" aria-hidden="true"></span> Revisions <strong class="tabular-nums">{{ $analytics['trend']->sum('revision') }}</strong></span>
-            </div>
-            @if ($analytics['trend']->sum('new') + $analytics['trend']->sum('revision') > 0)
-                <div class="mt-6 flex gap-3" data-submission-chart>
-                    <div class="relative h-52 w-9 shrink-0 text-right text-sm tabular-nums rh-muted" aria-label="Proposal count axis">
-                        @foreach (range(0, 4) as $tick)<span class="absolute right-0 -translate-y-1/2" style="top: {{ $tick * 25 }}%">{{ (int) ($chartAxisMax * (4 - $tick) / 4) }}</span>@endforeach
-                    </div>
-                    <div class="min-w-0 flex-1 overflow-x-auto pb-2">
-                        <div class="relative" style="min-width: {{ max(280, $analytics['trend']->count() * 52) }}px">
-                            <div class="pointer-events-none absolute inset-x-0 top-0 h-52" aria-hidden="true">
-                                @foreach (range(0, 4) as $tick)<div class="absolute inset-x-0 border-t border-slate-100 dark:border-slate-800" style="top: {{ $tick * 25 }}%"></div>@endforeach
-                            </div>
-                            <div class="relative flex gap-2">
-                                @foreach ($analytics['trend'] as $month)
-                                    <button type="button" wire:click="$set('submissionMonth', '{{ $submissionMonth === $month['key'] ? '' : $month['key'] }}')" class="min-w-12 flex-1 rounded-md px-1 text-center hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $submissionMonth === $month['key'] ? 'bg-brand-wash dark:bg-rose-950/40 ring-1 ring-brand' : '' }}" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revisions. Filter inbox." aria-pressed="{{ $submissionMonth === $month['key'] ? 'true' : 'false' }}" title="{{ $month['label'] }}: {{ $month['new'] }} new · {{ $month['revision'] }} revisions">
-                                        <span class="flex h-52 items-end justify-center gap-1.5" aria-hidden="true">
-                                            <span class="w-4 rounded-t-md bg-brand dark:bg-rose-400 sm:w-5" style="height: {{ 100 * $month['new'] / $chartAxisMax }}%"></span>
-                                            <span class="w-4 rounded-t-md bg-slate-400 sm:w-5" style="height: {{ 100 * $month['revision'] / $chartAxisMax }}%"></span>
-                                        </span>
-                                        <span class="mt-3 block text-sm font-medium rh-muted">{{ $month['label'] }}</span>
-                                    </button>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                @if ($submissionMonth)
-                    @php
-                        $selectedMonth = $analytics['trend']->firstWhere('key', $submissionMonth);
-                    @endphp
-                    @if ($selectedMonth)<p role="status" class="mt-4 text-sm font-semibold text-brand dark:text-rose-300">{{ $selectedMonth['label'] }}: {{ $selectedMonth['new'] }} new proposals · {{ $selectedMonth['revision'] }} revisions</p>@endif
-                @else
-                    <p class="mt-4 text-sm rh-muted">Select a month to filter the proposal inbox.</p>
-                @endif
-            @else
-                <div class="mt-6 flex min-h-52 items-center justify-center rounded-xl bg-slate-50 px-6 dark:bg-slate-950/50 text-center"><p class="text-base rh-muted">No data yet{{ $analytics['periodAvailable'] ? ' for this period.' : ' — set academic-year dates.' }}</p></div>
-            @endif
-        </section>
-        <section class="rh-panel p-5" aria-labelledby="pipeline-heading">
-            <div class="flex items-center justify-between gap-3"><h3 id="pipeline-heading" class="rh-title">Proposal pipeline</h3><span class="rh-badge">{{ $analytics['pipeline']->sum('count') }} total</span></div>
-            <div class="mt-4 flex flex-col gap-1">
-                @foreach ($analytics['pipeline'] as $stage)
-                    <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" class="rounded-xl px-2 py-1.5 text-left hover:bg-brand-wash dark:hover:bg-rose-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand {{ $pipeline === $stage['key'] ? 'bg-brand-wash dark:bg-rose-950/40' : '' }}">
-                        <span class="flex items-center justify-between gap-3 text-sm font-semibold"><span>{{ $stage['label'] }}</span><strong class="text-lg tabular-nums">{{ $stage['count'] }}</strong></span>
-                        <span class="mt-2 block h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded-full bg-brand dark:bg-rose-400" style="width: {{ 100 * $stage['count'] / $pipelineMax }}%"></span></span>
-                    </button>
-                @endforeach
-            </div>
-            @if ($analytics['pipeline']->sum('count') === 0)<p class="mt-3 text-sm rh-muted">No data yet.</p>@endif
-        </section>
-    </div>
-
-
     <section class="rh-panel p-5" aria-labelledby="project-status-heading">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 id="project-status-heading" class="rh-title">Project status analytics</h3>
             <span class="rh-badge">{{ $projectTotal }} issued projects</span>
         </div>
-        <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <p class="mt-2 text-sm rh-muted">Share of issued projects in each status. Click a row to view the matching projects below.</p>
+        <div class="mt-5 space-y-2" data-project-distribution-chart>
             @foreach ($analytics['projectStatuses'] as $stage)
-                <a href="#active-projects" wire:click="showProjects('{{ $projectStatus === $stage['key'] ? '' : $stage['key'] }}')" class="rounded-xl bg-slate-50 p-4 hover:ring-1 hover:ring-brand dark:bg-slate-950/60 {{ $projectStatus === $stage['key'] ? 'ring-1 ring-brand' : '' }}">
-                    <span class="flex items-start justify-between gap-3"><span class="text-sm font-semibold rh-muted">{{ $stage['label'] }}</span><strong class="text-2xl tabular-nums">{{ $stage['count'] }}</strong></span>
-                    <span class="mt-3 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded-full {{ $stage['key'] === 'delayed' ? 'bg-amber-500' : ($stage['key'] === 'completed' ? 'bg-emerald-600' : 'bg-brand dark:bg-rose-400') }}" style="width: {{ $projectTotal ? 100 * $stage['count'] / $projectTotal : 0 }}%"></span></span>
-                </a>
+                @php
+                    $share = $projectTotal ? round(100 * $stage['count'] / $projectTotal, 1) : 0;
+                @endphp
+                <button type="button" wire:click="showProjects('{{ $projectStatus === $stage['key'] ? '' : $stage['key'] }}')"
+                    aria-pressed="{{ $projectStatus === $stage['key'] ? 'true' : 'false' }}"
+                    aria-label="Filter {{ $stage['label'] }} projects: {{ $stage['count'] }} of {{ $projectTotal }}"
+                    class="grid w-full gap-2 rounded-lg border p-3 text-left hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:grid-cols-[15rem_minmax(0,1fr)_5rem] sm:items-center {{ $projectStatus === $stage['key'] ? 'border-brand bg-brand-wash dark:border-rose-400 dark:bg-rose-950/40' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800' }}">
+                    <span class="text-sm font-medium">{{ $stage['label'] }} @if ($projectStatus === $stage['key'])<span class="block text-xs font-semibold text-brand dark:text-rose-300">Selected filter</span>@endif</span>
+                    <span class="block h-5 overflow-hidden rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+                        <span class="block h-full rounded {{ $stage['key'] === 'delayed' ? 'bg-amber-500' : ($stage['key'] === 'completed' ? 'bg-emerald-600' : 'bg-brand dark:bg-rose-400') }}" style="width: {{ $share }}%"></span>
+                    </span>
+                    <span class="text-sm font-semibold tabular-nums sm:text-right">{{ $stage['count'] }} <span class="text-xs font-normal rh-muted">({{ $share }}%)</span></span>
+                </button>
             @endforeach
         </div>
+        @if ($projectTotal === 0)<p class="mt-3 text-sm rh-muted">No issued projects in this selection. Shares will appear when a Notice to Proceed is issued.</p>@endif
         @if ($analytics['unknownSchedules'])<p class="mt-3 text-sm text-amber-800 dark:text-amber-300">{{ $analytics['unknownSchedules'] }} active projects have no recorded schedule.</p>@endif
     </section>
 

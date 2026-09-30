@@ -43,32 +43,8 @@ class ProposalDraftController extends Controller
             ->latest()
             ->paginate(12)
             ->withQueryString();
-        $submittedProposals = TopicProposal::query()
-            ->accessibleTo($request->user())
-            ->select([
-                'id',
-                'user_id',
-                'research_call_id',
-                'title',
-                'status',
-                'project_status',
-                'notice_to_proceed_issued_at',
-                'created_at',
-                'updated_at',
-            ])
-            ->with([
-                'researchCall:id,title,academic_year',
-                'user:id,name',
-                'latestVersion',
-            ])
-            ->latest()
-            ->paginate(12, ['*'], 'submitted-page')
-            ->withQueryString();
 
-        return view('faculty.proposal-drafts.index', compact(
-            'proposalDrafts',
-            'submittedProposals',
-        ));
+        return view('faculty.proposal-drafts.index', compact('proposalDrafts'));
     }
 
     public function create(Request $request): View

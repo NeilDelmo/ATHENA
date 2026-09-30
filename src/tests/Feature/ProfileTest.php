@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use Spatie\Permission\Models\Role;
 
@@ -205,3 +207,48 @@ test('long account identities and unavailable avatars remain visible', function 
         ->assertSee('break-words', false)
         ->assertSee('max-w-[calc(100vw-6rem)]', false);
 });
+
+test('account profiles render recent proposals across workspaces with optional research calls', function (string $role, string $workspace, bool $hasResearchCall) {
+    $this->withoutVite();
+    Role::firstOrCreate(['name' => $role]);
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $call = $hasResearchCall ? ResearchCall::create([
+        'title' => 'Profile research call',
+        'opens_at' => now()->subDay(),
+        'closes_at' => now()->addMonth(),
+        'academic_year' => '2026-2027',
+        'status' => 'open',
+    ]) : null;
+    $proposal = TopicProposal::create([
+        'user_id' => $user->id,
+        'research_call_id' => $call?->id,
+        'category_id' => null,
+        'title' => 'My profile proposal',
+        'status' => 'approved',
+    ]);
+    $otherUser = User::factory()->create();
+    TopicProposal::create([
+        'user_id' => $otherUser->id,
+        'title' => 'Another account private proposal',
+        'status' => 'approved',
+    ]);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])
+        ->actingAs($user)->get(route('profile.edit'))->assertOk()
+        ->assertSee('Account Profile')
+        ->assertSee($proposal->title)
+        ->assertSee($hasResearchCall ? 'Profile research call' : 'Independent submission')
+        ->assertViewHas('recentProposals', fn ($items): bool => $items->count() === 1 && $items->first()->id === $proposal->id);
+})->with([
+    'faculty independent' => ['faculty', User::WORKSPACE_FACULTY, false],
+    'faculty call' => ['faculty', User::WORKSPACE_FACULTY, true],
+    'researcher independent' => ['faculty_researcher', User::WORKSPACE_FACULTY_RESEARCHER, false],
+    'researcher call' => ['faculty_researcher', User::WORKSPACE_FACULTY_RESEARCHER, true],
+    'head independent' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, false],
+    'head call' => ['research_head', User::WORKSPACE_RESEARCH_HEAD, true],
+    'office independent' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, false],
+    'office call' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE, true],
+    'secretary independent' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, false],
+    'secretary call' => ['research_secretary', User::WORKSPACE_RESEARCH_SECRETARY, true],
+]);

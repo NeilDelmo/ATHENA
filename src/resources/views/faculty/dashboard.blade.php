@@ -65,43 +65,6 @@
             </div>
         @endif
 
-        @if ($revisionRequestedTopics->isNotEmpty())
-            <section aria-labelledby="action-required-heading" class="overflow-hidden rounded-2xl border border-red-200 bg-red-50/70 shadow-sm dark:border-red-950 dark:bg-red-950/20">
-                <div class="flex flex-col gap-2 border-b border-red-200 px-5 py-4 dark:border-red-950 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex items-center gap-3">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7A0019] text-white dark:bg-red-700" aria-hidden="true">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9.303 3.376c.866 1.5-.217 3.374-1.948 3.374H4.645c-1.73 0-2.813-1.874-1.948-3.374L10.052 3.38c.865-1.5 3.03-1.5 3.896 0l7.355 12.746ZM12 16.5h.008v.008H12V16.5Z" /></svg>
-                        </span>
-                        <div>
-                            <h3 id="action-required-heading" class="text-sm font-semibold text-gray-950 dark:text-white">Action required</h3>
-                            <p class="mt-0.5 text-xs text-gray-600 dark:text-gray-300">{{ $revisionRequestedTopics->count() }} {{ str('proposal')->plural($revisionRequestedTopics->count()) }} {{ $revisionRequestedTopics->count() === 1 ? 'needs' : 'need' }} your attention.</p>
-                        </div>
-                    </div>
-                    <span class="w-fit rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#7A0019] ring-1 ring-inset ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-900">Needs revision</span>
-                </div>
-
-                <div class="divide-y divide-red-200 dark:divide-red-950">
-                    @foreach ($revisionRequestedTopics as $topic)
-                        @php
-                            $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->last() ?? $topic->reviews->last();
-                        @endphp
-                        <article class="grid gap-4 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                            <div class="min-w-0">
-                                <h4 class="truncate text-sm font-semibold text-gray-950 dark:text-white">{{ $topic->title }}</h4>
-                                <p class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'Independent submission' }}</p>
-                                <p class="mt-2 line-clamp-2 text-xs leading-5 text-gray-700 dark:text-gray-300">{{ $latestRevisionReview?->comment ?: 'The Research Office requested changes to this proposal.' }}</p>
-                            </div>
-                            <a href="{{ route('faculty.topics.revision', $topic) }}" class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#7A0019] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:bg-red-700 dark:hover:bg-red-600 dark:focus:ring-red-400 dark:focus:ring-offset-red-950">
-                                Revise and resubmit proposal
-                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m9 18 6-6-6-6" /></svg>
-                            </a>
-                        </article>
-                    @endforeach
-                </div>
-            </section>
-        @endif
-
-
         <div data-dashboard-columns class="min-w-0 space-y-6">
                 @if ($researchCallCarouselItems->isNotEmpty())
                     <div class="dashboard-panel">
@@ -112,6 +75,37 @@
                         @include('faculty.partials.research-call-carousel', ['researchCallCarouselItems' => $researchCallCarouselItems])
                     </div>
                 @endif
+        @if ($revisionRequestedTopics->isNotEmpty())
+            <section data-revision-worklist aria-labelledby="revision-worklist-heading" class="space-y-3">
+                <div class="flex items-center gap-3">
+                    <h2 id="revision-worklist-heading" class="text-base font-semibold text-gray-950 dark:text-white">Revisions to address</h2>
+                    <span class="flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">{{ $revisionRequestedTopics->count() }}</span>
+                </div>
+                <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                    <div class="divide-y divide-gray-200 dark:divide-gray-800">
+                        @foreach ($revisionRequestedTopics as $topic)
+                            @php
+                                $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->last() ?? $topic->reviews->last();
+                            @endphp
+                            <article data-revision-task class="grid min-w-0 gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-8">
+                                <div class="flex min-w-0 flex-col items-start gap-3">
+                                    <span class="inline-flex items-center gap-2 text-xs font-semibold text-[#7A0019] dark:text-red-300"><span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true"></span>Changes requested</span>
+                                    <h3 class="max-w-prose break-words text-base font-semibold leading-6 text-gray-950 dark:text-white">{{ $topic->title }}</h3>
+                                    <p class="text-xs leading-5 text-gray-500 dark:text-gray-400">{{ $topic->researchCall?->title ?? 'Independent submission' }}</p>
+                                    <a href="{{ route('faculty.topics.revision', $topic) }}" class="mt-1 inline-flex min-h-11 items-center justify-center rounded-lg bg-[#7A0019] px-4 py-2.5 text-xs font-semibold text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:bg-red-700 dark:hover:bg-red-600 dark:focus-visible:outline-red-400">Revise and resubmit proposal</a>
+                                </div>
+                                <div class="min-w-0 border-t border-gray-200 pt-4 dark:border-gray-800 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                                    <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Reviewer feedback</p>
+                                    <p class="mt-3 max-w-prose whitespace-pre-line break-words text-sm leading-6 text-gray-600 dark:text-gray-400">{{ $latestRevisionReview?->comment ?: 'The Research Office requested changes to this proposal.' }}</p>
+                                    <p class="mt-3 text-xs leading-5 text-gray-400 dark:text-gray-500">Open the revision workspace to review comments and update your papers.</p>
+                                </div>
+                            </article>
+                        @endforeach
+                    </div>
+                </div>
+            </section>
+        @endif
+
         @if (! $isFacultyResearcher)
             <section id="recent-drafts" aria-labelledby="recent-drafts-heading">
             <div class="flex items-end justify-between gap-4">

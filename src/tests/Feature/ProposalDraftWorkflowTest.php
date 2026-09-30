@@ -285,29 +285,27 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
     $this->actingAs($this->faculty)
         ->get(route('faculty.proposal-drafts.index'))
         ->assertOk()
-        ->assertSee('data-proposal-workspace-tabs', false)
-        ->assertSee('data-proposal-workspace-toggle', false)
-        ->assertSee('role="tablist"', false)
-        ->assertSeeInOrder([
-            'New Proposal',
-            'data-proposal-workspace-toggle',
-            'proposal-workspace-drafts-tab',
-            'proposal-workspace-submitted-tab',
-        ], false)
-        ->assertSee('Drafts')
-        ->assertSee('Submitted')
-        ->assertSee('x-show="activeWorkspaceTab === \'drafts\'"', false)
-        ->assertSee('x-show="activeWorkspaceTab === \'submitted\'"', false)
-        ->assertSee('submitted-page', false)
+        ->assertSee('data-proposal-workspace-navigation', false)
+        ->assertSee('data-faculty-drafts', false)
+        ->assertSee('aria-current="page"', false)
         ->assertSee('Coastal Draft Package')
+        ->assertSee('Proposal package completion')
+        ->assertSee(route('faculty.submissions'), false)
+        ->assertDontSee('data-submitted-proposal=', false)
+        ->assertDontSee('Another Faculty Proposal');
+
+    $this->get(route('faculty.submissions'))
+        ->assertOk()
+        ->assertSee('data-proposal-workspace-navigation', false)
+        ->assertSee('data-faculty-submissions', false)
+        ->assertSee(route('faculty.proposal-drafts.index'), false)
         ->assertSee('Revised Coastal Study')
-        ->assertSee('Revision required')
         ->assertSee('data-revision-action-required', false)
-        ->assertSee('Research Head feedback is waiting for your response.')
         ->assertSee(route('faculty.topics.revision', $revisionProposal), false)
         ->assertSee('Approved Mangrove Study')
         ->assertSee('Final signing')
         ->assertSee(route('topics.show', $approvedProposal), false)
+        ->assertDontSee('data-proposal-draft=', false)
         ->assertDontSee('Another Faculty Proposal');
 
     $this->actingAs($this->faculty)

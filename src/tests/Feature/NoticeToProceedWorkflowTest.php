@@ -71,6 +71,10 @@ test('the notice form groups editable details without a decorative banner', func
     $xpath = new DOMXPath($document);
     $section = $xpath->query('//section[@id="notice-to-proceed"]')->item(0);
 
+    $summary = $xpath->query('.//details[@data-signatories-disclosure]/summary', $section)->item(0);
+    expect($summary)->not->toBeNull()
+        ->and($summary->getAttribute('class'))->toContain('list-none', '[&::-webkit-details-marker]:hidden')
+        ->and($summary->textContent)->toContain('Show fields', 'Hide fields');
     expect($section)->not->toBeNull()
         ->and($section->getAttribute('class'))->toContain('ntp-workspace');
     expect($xpath->query('.//*[contains(@class, "bg-gray-950") or contains(@class, "bg-gradient-to-l")]', $section)->length)->toBe(0);
