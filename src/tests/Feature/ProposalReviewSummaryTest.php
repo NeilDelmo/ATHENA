@@ -152,6 +152,7 @@ test('accepted assessments appear as signed papers while final signing requests 
         ->and($xpath->query('//*[@data-signing-document]//a[@target="_blank"]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-copy-preview]')->length)->toBe(0);
+    expect($xpath->query('//button[@data-view-signed-papers]/svg')->length)->toBe(1);
     $response->assertSee('View signed papers')
         ->assertSee('Files save automatically.')
         ->assertDontSee('Upload PDF')

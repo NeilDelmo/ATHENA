@@ -8,12 +8,25 @@
     }
 
     .ntp-workspace label {
-        @apply text-sm font-semibold leading-6 dark:text-slate-200;
+        @apply text-base font-semibold leading-6 dark:text-slate-200;
     }
 
     .ntp-workspace input:not([type="hidden"]):not([type="file"]),
     .ntp-workspace textarea {
         @apply min-h-12 rounded-lg border-slate-300 bg-white text-base font-normal text-slate-900 shadow-none focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100;
+    }
+
+    .ntp-workspace [data-file-dropzone] span {
+        @apply text-base leading-6 !important;
+    }
+
+    .ntp-workspace [data-file-dropzone] {
+        @apply dark:border-slate-600 dark:bg-slate-950;
+    }
+
+    .ntp-workspace [data-file-dropzone] .text-gray-700,
+    .ntp-workspace [data-file-dropzone] .text-gray-400 {
+        @apply text-slate-600 dark:text-slate-300;
     }
 
     .ntp-form-section {

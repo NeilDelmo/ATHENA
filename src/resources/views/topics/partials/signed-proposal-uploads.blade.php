@@ -79,7 +79,7 @@
         <div data-signing-next-step class="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/60 px-5 py-5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p role="status" class="text-base leading-6 text-slate-600 dark:text-slate-300" x-text="complete ? 'Signed papers ready' : @js($assessmentsComplete ? 'Save all three signed papers to continue.' : 'Complete the earlier assessments and save the signed papers.')">{{ $signaturesComplete ? 'Signed papers ready' : ($assessmentsComplete ? 'Save all three signed papers to continue.' : 'Complete the earlier assessments and save the signed papers.') }}</p>
             <div class="flex flex-wrap items-center gap-3">
-                <button type="button" @click="$dispatch('open-project-documents', { category: 'signed_papers' })" class="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-slate-600 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-slate-300">View signed papers</button>
+                <button type="button" @click="$dispatch('open-project-documents', { category: 'signed_papers' })" data-view-signed-papers class="rh-button-secondary !min-h-12 gap-2 !text-base"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M6 3h8l4 4v14H6V3Z M14 3v5h4 M9 12h6 M9 16h6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>View signed papers</span></button>
             </div>
         </div>
     @endif

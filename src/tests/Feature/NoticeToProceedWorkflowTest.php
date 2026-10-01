@@ -58,8 +58,11 @@ beforeEach(function () {
     ]);
 });
 
-test('the notice form groups editable details without a decorative banner', function () {
+test('the notice form keeps editable details visible above the signed upload', function (bool $prepared) {
     completeSignedProposalPackage($this->topic, $this->faculty, $this->head);
+    if ($prepared) {
+        $this->topic->update(['notice_to_proceed_data' => app(NoticeToProceedDataService::class)->defaults($this->topic)]);
+    }
 
     $response = $this->actingAs($this->head)
         ->withSession(['active_workspace' => 'research_head'])
@@ -69,16 +72,25 @@ test('the notice form groups editable details without a decorative banner', func
         ->assertSee('Project staff')
         ->assertSee('Add project staff')
         ->assertDontSee('Add researcher')
-        ->assertDontSee('Researcher names');
+        ->assertDontSee('Researcher names')
+        ->assertSee('Save notice details')
+        ->assertDontSee('Save corrected details')
+        ->assertDontSee('Request paper revision');
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
     $section = $xpath->query('//section[@id="notice-to-proceed"]')->item(0);
 
-    $summary = $xpath->query('.//details[@data-signatories-disclosure]/summary', $section)->item(0);
-    expect($summary)->not->toBeNull()
-        ->and($summary->getAttribute('class'))->toContain('list-none', '[&::-webkit-details-marker]:hidden')
-        ->and($summary->textContent)->toContain('Show fields', 'Hide fields');
+    expect($xpath->query('.//details', $section)->length)->toBe(0)
+        ->and($xpath->query('.//section[@data-notice-signatories]', $section)->length)->toBe(1);
+    if ($prepared) {
+        $response->assertSeeInOrder(['data-notice-to-proceed-autosave-form', 'name="approved_budget"', 'name="verifying_officer_name"', 'data-notice-signed-upload'], false);
+        expect($xpath->query('.//section[@data-notice-signed-upload]//button[@type="submit"]/svg', $section)->length)->toBe(1);
+        expect($xpath->query('.//a[span="Download unsigned PDF"]/svg', $section)->length)->toBe(1);
+    }
+    foreach (['.//button[@data-notice-to-proceed-preview-button]', './/form[@data-notice-to-proceed-autosave-form]//button[@type="submit"]'] as $action) {
+        expect($xpath->query($action.'/svg', $section)->length)->toBe(1);
+    }
     expect($section)->not->toBeNull()
         ->and($section->getAttribute('class'))->toContain('ntp-workspace');
     expect($xpath->query('.//*[contains(@class, "bg-gray-950") or contains(@class, "bg-gradient-to-l")]', $section)->length)->toBe(0);
@@ -101,7 +113,7 @@ test('the notice form groups editable details without a decorative banner', func
     if (getenv('ATHENA_EXPORT_NOTICE_LAYOUT') === '1') {
         file_put_contents(storage_path('framework/testing/notice-form-layout.html'), $response->getContent());
     }
-});
+})->with(['new notice' => false, 'saved notice' => true]);
 
 test('the signed Notice to Proceed promotes the faculty member and opens monitoring', function () {
     completeSignedProposalPackage($this->topic, $this->faculty, $this->head);

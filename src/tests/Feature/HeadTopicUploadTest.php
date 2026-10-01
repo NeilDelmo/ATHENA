@@ -1025,8 +1025,8 @@ test('a cleared proposal moves to final signing without a manual approval step',
         ->assertSee('data-signed-count="0"', false)
         ->assertSee('Signed PDF for')
         ->assertSee('Signing &amp; release', false)
-        ->assertSee('Need to change a submitted proposal paper?')
-        ->assertSee('If only a signature or scanned signed PDF is wrong, replace that signed file above.')
+        ->assertDontSee('Need to change a submitted proposal paper?')
+        ->assertDontSee('Request paper revision')
         ->assertDontSee('Papers that must be corrected')
         ->assertDontSee('One clear review process')
         ->assertDontSee('Research Head workspace')
@@ -1042,8 +1042,7 @@ test('a cleared proposal moves to final signing without a manual approval step',
     $xpath = new DOMXPath($document);
     $correction = $xpath->query('//*[@id="notice-to-proceed-tab"]//*[@data-signing-correction-disclosure]')->item(0);
 
-    expect($correction)->not->toBeNull()
-        ->and($xpath->query('./details', $correction)->item(0)->hasAttribute('open'))->toBeFalse()
+    expect($correction)->toBeNull()
         ->and($xpath->query('//*[@id="proposal-review-tab"]//*[@data-signing-correction-disclosure]')->length)->toBe(0);
 });
 

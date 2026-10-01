@@ -60,10 +60,7 @@
             : (($noticeToProceedErrors || ($canViewNoticeToProceed && $errors->getBag('headUpload')->any()))
                 ? 'notice'
                 : (in_array(session('topic_tab'), ['details', 'review', 'notice', 'history', 'monitoring'], true) ? session('topic_tab') : null));
-        $signingCorrectionErrors = $canReturnToRevision && $errors->hasAny(['revision_file_ids', 'revision_file_notes.*', 'committee_comments.*']);
-        if ($signingCorrectionErrors) {
-            $initialTopicTab = 'notice';
-        }
+
     @endphp
 
     <x-slot name="header">
@@ -686,39 +683,14 @@
                         <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
                     </div>
                     @if ($isResearchHead)
-                        <a href="{{ route('signatories.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900">Manage signatory names</a>
+                        <a href="{{ route('signatories.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"><svg class="mr-2 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M20 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round"/><circle cx="9" cy="7" r="4"/></svg><span>Manage signatory names</span></a>
                     @endif
                 </div>
                 @if ($isResearchHead && $headUploadWorkspace)
                     <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
                 @endif
                 @include('topics.partials.notice-to-proceed')
-                @if ($canReturnToRevision)
-                    <section data-signing-correction-disclosure class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
-                        <details @if ($signingCorrectionErrors) open @endif>
-                            <summary class="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-red-700 dark:hover:bg-gray-900 sm:px-6">
-                                <span>
-                                    <span class="block text-sm font-semibold text-gray-900 dark:text-white">Need to change a submitted proposal paper?</span>
-                                    <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400">Send it back for revision only if the original paper needs changes.</span>
-                                </span>
-                                <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                            </summary>
-                            <div class="border-t border-gray-200 px-5 py-5 dark:border-gray-800 sm:px-6">
-                                <p class="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">If only a signature or scanned signed PDF is wrong, replace that signed file above. Use this action when the submitted proposal paper itself must be revised by the faculty member. It pauses signing, and any signed copies already uploaded remain in the audit history.</p>
-                                <form action="{{ route('research_head.topics.updateStatus', $topic) }}" method="POST" class="mt-5 space-y-4">
-                                    @csrf @method('PATCH')
-                                    <input type="hidden" name="status" value="revision_requested">
-                                    <input type="hidden" name="redirect_to" value="topic">
-                                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white">Select papers to return</h4>
-                                    <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">Select each paper the faculty member needs to edit. Add a specific comment or highlight for the requested change.</p>
-                                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'showGuidance' => false])
-                                    @error('revision_file_ids')<p class="text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
-                                    <button type="submit" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Request paper revision</button>
-                                </form>
-                            </div>
-                        </details>
-                    </section>
-                @endif
+
             </section>
         @endif
 
