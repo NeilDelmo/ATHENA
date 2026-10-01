@@ -5206,10 +5206,13 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
 }));
 
 Alpine.data('noticeToProceedForm', (config = {}) => ({
+    ...proposalPreviewWorkspace(),
     submitting: false,
-    previewDocumentUrl: '',
+    previewHtml: '',
+    previewReady: false,
     previewError: '',
     previewLoading: false,
+    validationMessage: '',
     autoSaveTimer: null,
     autoSaveInFlight: false,
     autoSaveBlocked: false,
@@ -5227,8 +5230,14 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
 
         this.lastSavedNoticeDetails = this.noticeDetailsFingerprint(form);
 
-        form.addEventListener('input', () => this.triggerNoticeDetailsAutoSave());
-        form.addEventListener('change', () => this.triggerNoticeDetailsAutoSave(true));
+        form.addEventListener('input', () => {
+            this.markProposalPreviewStale();
+            this.triggerNoticeDetailsAutoSave();
+        });
+        form.addEventListener('change', () => {
+            this.markProposalPreviewStale();
+            this.triggerNoticeDetailsAutoSave(true);
+        });
     },
 
     noticeDetailsAutoSaveForm() {
@@ -5347,17 +5356,18 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
     },
 
     clearPreview() {
-        if (this.previewDocumentUrl) URL.revokeObjectURL(this.previewDocumentUrl);
-
-        this.previewDocumentUrl = '';
+        this.previewHtml = '';
+        this.previewReady = false;
     },
 
     async generatePreview() {
-        if (!this.$refs.form.reportValidity()) return;
+        if (this.previewLoading || !this.$refs.form.reportValidity()) return;
 
         this.previewError = '';
         this.previewLoading = true;
+        this.previewStale = false;
         this.clearPreview();
+        const previewRevision = this.previewRevision;
 
         try {
             const response = await fetch(config.previewUrl, {
@@ -5387,12 +5397,9 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
                 throw new Error('The Notice to Proceed preview could not be generated. Please try again.');
             }
 
-            const preview = new Blob([previewHtml], { type: 'text/html' });
-            this.previewDocumentUrl = URL.createObjectURL(preview);
-            this.$nextTick(() => {
-                const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-                this.$refs.previewSection?.scrollIntoView({ behavior, block: 'start' });
-            });
+            this.previewHtml = previewHtml;
+            this.previewStale = this.previewRevision !== previewRevision;
+            this.$nextTick(() => this.applyProposalPreviewZoom());
         } catch (error) {
             this.clearPreview();
             this.previewError = error instanceof Error
@@ -5404,11 +5411,15 @@ Alpine.data('noticeToProceedForm', (config = {}) => ({
     },
 
     printPreview() {
-        this.$refs.previewFrame?.contentWindow?.print();
+        if (!this.previewReady || !this.$refs.previewFrame?.contentWindow) return;
+
+        this.$refs.previewFrame.contentWindow.focus();
+        this.$refs.previewFrame.contentWindow.print();
     },
 
     destroy() {
         window.clearTimeout(this.autoSaveTimer);
+        this.stopProposalPreviewDrag();
         this.clearPreview();
     },
 }));

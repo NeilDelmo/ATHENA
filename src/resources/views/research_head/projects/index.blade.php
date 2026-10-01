@@ -1,6 +1,9 @@
+@php
+    $projectRoute = ($completedOnly ?? false) ? 'research_head.completed-projects.index' : 'research_head.projects.index';
+@endphp
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Project Monitoring" subtitle="Track approved projects and review submitted progress updates." />
+        <x-page-header :title="($completedOnly ?? false) ? 'Completed projects' : 'Research projects'" subtitle="Track approved projects and review submitted progress updates." />
     </x-slot>
 
     <div class="space-y-6">
@@ -10,15 +13,15 @@
             @endforeach
         </div>
 
-        <form method="GET" action="{{ route('research_head.projects.index') }}" class="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_210px_auto]">
+        <form method="GET" action="{{ route($projectRoute) }}" class="grid gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_210px_auto]">
             <input name="search" type="search" value="{{ $search }}" placeholder="Search project or researcher..." class="block w-full rounded-xl border-gray-200 text-sm">
-            <select name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold"><option value="">All project statuses</option>@foreach (['ongoing' => 'Ongoing', 'delayed' => 'Delayed', 'completion_pending' => 'Completion pending', 'completed' => 'Completed'] as $value => $label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach</select>
+            <select @if ($completedOnly ?? false) disabled aria-label="Completed project status" @endif name="status" class="block w-full rounded-xl border-gray-200 text-sm font-semibold"><option value="">All project statuses</option>@foreach (['ongoing' => 'Ongoing', 'delayed' => 'Delayed', 'completion_pending' => 'Completion pending', 'completed' => 'Completed'] as $value => $label)<option value="{{ $value }}" @selected($status === $value)>{{ $label }}</option>@endforeach</select>
             <select name="attention" class="block w-full rounded-xl border-gray-200 text-sm font-semibold"><option value="">All report states</option><option value="needs_attention" @selected($attention === 'needs_attention')>Needs attention</option><option value="pending_reports" @selected($attention === 'pending_reports')>Reports awaiting review</option></select>
-            <div class="flex gap-2"><button class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white">Filter</button>@if ($search !== '' || $status !== '' || $attention !== '')<a href="{{ route('research_head.projects.index') }}" class="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600">Clear</a>@endif</div>
+            <div class="flex gap-2"><button class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white">Filter</button>@if ($search !== '' || $status !== '' || $attention !== '')<a href="{{ route($projectRoute) }}" class="inline-flex items-center rounded-xl border border-gray-200 px-4 py-2 text-xs font-bold text-gray-600">Clear</a>@endif</div>
         </form>
 
         <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">Research Projects Under Monitoring</h3><p class="mt-1 text-xs text-gray-400">Review implementation status and submitted reports. Delayed projects and projects with reports awaiting review appear first.</p></div>
+            <div class="border-b border-gray-100 px-5 py-4"><h3 class="text-base font-black text-gray-900">{{ ($completedOnly ?? false) ? 'Completed project records' : 'Research projects under monitoring' }}</h3><p class="mt-1 text-xs text-gray-400">Review implementation status and submitted reports. Delayed projects and projects with reports awaiting review appear first.</p></div>
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-100">
                     <thead class="bg-gray-50"><tr><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Project</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Status</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Latest progress</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Project secretary</th><th class="px-5 py-3 text-left text-[11px] font-black uppercase text-gray-400">Reports</th><th class="px-5 py-3"><span class="sr-only">Open</span></th></tr></thead>

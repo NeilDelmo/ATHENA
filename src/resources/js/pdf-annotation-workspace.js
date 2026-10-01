@@ -195,7 +195,7 @@ export function matchRevisionSection(sections, selection) {
 }
 
 export default function registerPdfAnnotationWorkspace(Alpine) {
-    Alpine.data('pdfAnnotationWorkspace', () => {
+    Alpine.data('pdfAnnotationWorkspace', (configuration = null) => {
         let pdfDocument = null;
         let pageElements = new Map();
         let areaPointer = null;
@@ -259,7 +259,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
 
             init() {
                 try {
-                    this.config = JSON.parse(this.$el.dataset.pdfAnnotationConfig || '{}');
+                    this.config = configuration ?? JSON.parse(this.$el.dataset.pdfAnnotationConfig || '{}');
                 } catch {
                     this.loadError = 'The annotation workspace configuration is invalid.';
                     this.loading = false;

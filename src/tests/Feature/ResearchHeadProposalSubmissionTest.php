@@ -88,7 +88,7 @@ test('research heads can view every initial proposal submission and revision', f
     $response = $this->actingAs($this->researchHead)
         ->get(route('research_head.proposal-submissions.index'))
         ->assertOk()
-        ->assertSee('Proposal Submissions')
+        ->assertSee('Proposal reviews')
         ->assertDontSee('Manage signatory names')
         ->assertSee('Active proposal queue')
         ->assertSee('All active review stages')
@@ -101,6 +101,7 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('data-proposal-state="new"', false)
         ->assertSee('Revised package · Version 2')
         ->assertSee('Open for review')
+        ->assertSee('inline-flex min-h-11 w-48 whitespace-nowrap', false)
         ->assertSee('Submission history')
         ->assertSee('Initial submission')
         ->assertSee('Revision')
@@ -116,16 +117,21 @@ test('research heads can view every initial proposal submission and revision', f
             'aria-label="Overview"',
             'aria-label="Dashboard"',
             'aria-label="Calendar"',
-            'aria-label="Research"',
-            'aria-label="Proposals"',
-            'aria-label="Projects"',
-            'aria-label="Faculty"',
-            'aria-label="Planning"',
             'aria-label="Analytics"',
+            'aria-label="Submission"',
             'aria-label="Research calls"',
+            'aria-label="Received submissions"',
+            'aria-label="Review"',
+            'aria-label="Proposal reviews"',
+            'aria-label="Report reviews"',
+            'aria-label="Monitoring"',
+            'aria-label="Research projects"',
+            'aria-label="Completed projects"',
+            'aria-label="Faculty directory"',
             'aria-label="Resources"',
             'aria-label="Signatories"',
             'aria-label="Templates"',
+            'aria-label="Administration"',
             'aria-label="Knowledge base"',
         ], false)
         ->assertDontSee('Similarity Checks')
@@ -138,9 +144,10 @@ test('research heads can view every initial proposal submission and revision', f
     expect($xpath->query('//dl[@data-submission-summary]/div')->length)->toBe(5)
         ->and($xpath->query('//*[@data-proposal-queue-layout="rows"]//article')->length)->toBe(1)
         ->and($xpath->query('//details[@data-submission-history and not(@open)]')->length)->toBe(1)
-        ->and($xpath->query('//table[@data-submission-history-layout="compact"]//th[@scope="col"]')->length)->toBe(5)
-        ->and($xpath->query('//table[@data-submission-history-layout="compact"]/tbody/tr')->length)->toBe(2)
-        ->and($xpath->query('//table[@data-submission-history-layout="compact"]//details[not(@open)]')->length)->toBe(2);
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//article')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//details[not(@open)]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//summary[contains(@class, "list-none")]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//a[contains(@href, "#version-history")]')->length)->toBe(2);
 
     $review = $topic->reviews()->create([
         'reviewer_id' => $this->researchHead->id,
@@ -502,14 +509,14 @@ test('signing automatically requires five papers and exempts CV and expense brea
         ->assertOk()
         ->assertSee('Upload the required signed PDFs')
         ->assertSee('Awaiting signed copy')
-        ->assertSee('aria-label="Signed PDF upload progress" value="0" max="3"', false)
-        ->assertSee('data-signing-continue type="submit" disabled', false);
+        ->assertSee('data-signed-count="0"', false)
+        ->assertDontSee('data-signing-continue', false);
 
     foreach ($required as $file) {
         if (in_array($file->document_type, [ProposalVersionFile::TYPE_GAD_CHECKLIST, ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM], true)) {
-            $signingResponse->assertDontSee('Signed final PDF for '.$file->label());
+            $signingResponse->assertDontSee('Signed PDF for '.$file->label());
         } else {
-            $signingResponse->assertSee('Signed final PDF for '.$file->label());
+            $signingResponse->assertSee('Signed PDF for '.$file->label());
         }
     }
 
@@ -529,11 +536,12 @@ test('signing automatically requires five papers and exempts CV and expense brea
     }
     $this->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('aria-label="Signed PDF upload progress" value="3" max="3"', false)
-        ->assertSee('Replace signed PDF')
-        ->assertSee('Preview signed PDF')
-        ->assertDontSee('Awaiting signed copy')
-        ->assertDontSee('data-signing-continue type="submit" disabled', false);
+        ->assertSee('data-signed-count="3"', false)
+        ->assertSee('Replace PDF')
+        ->assertSee('Preview')
+        ->assertSee('Signed papers ready')
+        ->assertDontSee('Prepare Notice to Proceed')
+        ->assertDontSee('data-signing-continue', false);
     $this->patch(route('research_head.topics.finalizeApproval', $topic))
         ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
     expect($topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
@@ -843,3 +851,25 @@ test('revision requests remain attached to the review stage that issued them', f
         ->assertOk()
         ->assertSee('data-proposal-status-label="LREC revision requested"', false);
 });
+
+test('received submissions shows incoming packages without duplicating the active review queue', function () {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id, 'research_call_id' => $this->researchCall->id,
+        'title' => 'Incoming Coastal Research', 'estimated_budget' => 35000, 'estimated_duration_months' => 12, 'status' => 'pending',
+    ]);
+    createProposalSubmission($topic, $this->faculty, ['version_number' => 1, 'submission_type' => 'initial', 'title' => 'Incoming Coastal Research']);
+    $response = $this->actingAs($this->researchHead)->get(route('research_head.received-submissions.index'))
+        ->assertOk()->assertSee('Received submissions')->assertSee('Received packages')->assertSee('Incoming Coastal Research')
+        ->assertDontSee('data-proposal-queue-layout', false)->assertDontSee('data-submission-workflow-reference', false)
+        ->assertSee('action="'.route('research_head.received-submissions.index').'"', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//section[@data-submission-history]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//article')->length)->toBe(1);
+});
+
+test('new lifecycle pages reject faculty workspace access', function (string $destination) {
+    $this->get(route('research_head.'.$destination.'.index'))->assertRedirect(route('login'));
+    $this->actingAs($this->faculty)->get(route('research_head.'.$destination.'.index'))->assertForbidden();
+})->with(['received-submissions', 'report-reviews', 'completed-projects']);

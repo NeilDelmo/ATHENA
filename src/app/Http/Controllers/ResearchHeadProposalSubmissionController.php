@@ -41,6 +41,7 @@ class ResearchHeadProposalSubmissionController extends Controller
     {
         Gate::authorize('viewAny', TopicProposal::class);
 
+        $receivedOnly = $request->routeIs('research_head.received-submissions.index');
         $search = $request->string('search')->trim()->toString();
         $submissionType = $request->string('type')->toString();
         $status = $request->string('status')->toString();
@@ -52,7 +53,7 @@ class ResearchHeadProposalSubmissionController extends Controller
             'revision' => ProposalVersion::query()->where('submission_type', 'revision')->count(),
         ];
 
-        $activeProposals = TopicProposal::query()
+        $activeProposals = $receivedOnly ? null : TopicProposal::query()
             ->select([
                 'id',
                 'user_id',
@@ -127,6 +128,7 @@ class ResearchHeadProposalSubmissionController extends Controller
             'activeProposals',
             'submissions',
             'summary',
+            'receivedOnly',
         ));
     }
 

@@ -52,12 +52,70 @@
         @endforeach
     </section>
 
+    <section class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]" aria-label="Research activity and project health" data-dashboard-visual-summary>
+        <section class="rh-panel !rounded-xl !shadow-none p-5" aria-labelledby="overview-activity-heading">
+            @php
+                $recentMonths = $analytics['trend']->take(-6)->values();
+                $activityMax = max(1, $recentMonths->max(fn ($month) => max($month['new'], $month['revision'])));
+                $activityTotal = $recentMonths->sum('new') + $recentMonths->sum('revision');
+            @endphp
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 id="overview-activity-heading" class="text-base font-bold">Submission activity</h2><p class="mt-1 text-xs rh-muted">New proposals and revision packages · recent months in the selected period</p></div>
+                <a wire:navigate href="{{ $analyticsUrl }}" class="rh-button-secondary whitespace-nowrap">View analytics</a>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-4 text-xs rh-muted"><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-brand dark:bg-rose-400" aria-hidden="true"></span>New proposals</span><span class="inline-flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-sm bg-slate-400" aria-hidden="true"></span>Revision packages</span></div>
+            @if ($activityTotal > 0)
+                <div class="mt-5 flex min-w-0 items-end gap-2" data-dashboard-activity-chart>
+                    @foreach ($recentMonths as $month)
+                        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'submissionMonth' => $month['key']]) }}#received-proposals" class="min-w-0 flex-1 rounded-lg px-1 pb-2 pt-1 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800" aria-label="{{ $month['label'] }}: {{ $month['new'] }} new proposals and {{ $month['revision'] }} revision packages" title="{{ $month['label'] }}: {{ $month['new'] }} new, {{ $month['revision'] }} revisions">
+                            <span class="flex h-36 items-end justify-center gap-1 border-b border-slate-200 dark:border-slate-700" aria-hidden="true"><span class="w-4 rounded-t bg-brand dark:bg-rose-400" style="height: {{ 100 * $month['new'] / $activityMax }}%"></span><span class="w-4 rounded-t bg-slate-400" style="height: {{ 100 * $month['revision'] / $activityMax }}%"></span></span>
+                            <span class="mt-2 block text-center text-[11px] font-medium rh-muted">{{ \Illuminate\Support\Carbon::parse($month['key'].'-01')->format('M') }}</span>
+                        </a>
+                    @endforeach
+                </div>
+                <p class="mt-3 text-xs rh-muted">{{ $activityTotal }} packages in these months. Select a month to inspect its proposals.</p>
+            @else
+                <div class="mt-5 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-slate-200 p-4 dark:border-slate-700"><p class="text-center text-sm rh-muted">{{ $analytics['periodAvailable'] ? 'No submission activity recorded in these months.' : 'Choose academic-year dates to see submission activity.' }}</p></div>
+            @endif
+        </section>
+        <section class="rh-panel !rounded-xl !shadow-none p-5" aria-labelledby="overview-health-heading">
+            @php
+                $projectTotal = $analytics['projectStatuses']->sum('count');
+                $projectColors = ['ongoing' => '#047857', 'delayed' => '#b45309', 'awaiting' => '#7a0019', 'completed' => '#64748b'];
+                $ringOffset = 0;
+            @endphp
+            <h2 id="overview-health-heading" class="text-base font-bold">Project health</h2>
+            <p class="mt-1 text-xs rh-muted">Issued projects in the selected scope</p>
+            <div class="mt-5 flex flex-col items-stretch gap-5 sm:flex-row sm:items-center">
+                <div class="relative h-36 w-36 shrink-0 self-center sm:self-auto" role="img" aria-label="{{ $projectTotal }} issued projects. {{ $analytics['projectStatuses']->map(fn ($state) => $state['label'].': '.$state['count'])->join('; ') }}">
+                    <svg viewBox="0 0 100 100" class="h-full w-full -rotate-90" fill="none" aria-hidden="true">
+                        <circle cx="50" cy="50" r="40" stroke-width="10" class="stroke-slate-100 dark:stroke-slate-800" />
+                        @foreach ($analytics['projectStatuses'] as $state)
+                            @php($share = 100 * $state['count'] / max(1, $projectTotal))
+                            @if ($share > 0)<circle cx="50" cy="50" r="40" stroke-width="10" pathLength="100" stroke="{{ $projectColors[$state['key']] }}" stroke-dasharray="{{ $share }} {{ 100 - $share }}" stroke-dashoffset="{{ -$ringOffset }}" />@endif
+                            @php($ringOffset += $share)
+                        @endforeach
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center"><strong class="text-3xl font-bold tabular-nums">{{ $projectTotal }}</strong><span class="text-xs rh-muted">projects</span></div>
+                </div>
+                <div class="min-w-0 flex-1 space-y-2">
+                    @foreach ($analytics['projectStatuses'] as $state)
+                        <a wire:navigate href="{{ route('research_head.analytics', [...$filterParams, 'projectStatus' => $state['key']]) }}#active-projects" class="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:border-slate-700 dark:hover:bg-slate-800">
+                            <span class="h-2.5 w-2.5 shrink-0 rounded-sm" style="background-color: {{ $projectColors[$state['key']] }}" aria-hidden="true"></span><span class="min-w-0 flex-1">{{ $state['label'] }}</span><strong class="tabular-nums">{{ $state['count'] }}</strong>
+                        </a>
+                    @endforeach
+                </div>
+            </div>
+            @if ($projectTotal === 0)<p class="mt-4 text-xs rh-muted">Projects appear here once their signed Notice to Proceed is issued.</p>@endif
+        </section>
+    </section>
+
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]" data-dashboard-compact-queues>
-        <div class="min-w-0" data-dashboard-review-workspace>
+        <div class="min-w-0 space-y-5" data-dashboard-review-workspace>
             <section id="received-proposals" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="inbox-heading">
                 <div class="flex flex-wrap items-center justify-between gap-3 px-5 pb-4 pt-5">
                     <div><h2 id="inbox-heading" class="text-xl font-bold tracking-tight">Review queue</h2><p class="mt-1 text-sm rh-muted">{{ $topics->total() }} {{ str('proposal')->plural($topics->total()) }} · {{ $selectedStage }}</p></div>
-                    <a wire:navigate href="{{ route('research_head.proposal-submissions.index') }}" class="inline-flex min-h-[44px] items-center text-sm font-semibold text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-rose-300">View all proposals</a>
+                    <a wire:navigate href="{{ route('research_head.proposal-submissions.index') }}" class="rh-button whitespace-nowrap">View all proposals</a>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 pb-4 dark:border-slate-800">
                     <label for="overview-search" class="sr-only">Search proposals</label><input id="overview-search" type="search" wire:model.live.debounce.300ms="search" placeholder="Search proposals or faculty" class="rh-control min-w-0 flex-1 !rounded-lg !bg-slate-50 dark:!bg-slate-950">
@@ -79,10 +137,29 @@
                 @if ($topics->hasPages())<div class="border-t border-slate-100 px-5 py-4 dark:border-slate-800">{{ $topics->links('livewire::simple-tailwind', ['scrollTo' => '#received-proposals']) }}</div>@endif
             </section>
 
+            <section class="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="pipeline-heading">
+                <div class="flex items-center justify-between gap-3"><h2 id="pipeline-heading" class="text-base font-bold">Proposal pipeline</h2><span class="text-xs rh-muted">{{ $analytics['pipeline']->sum('count') }} total</span></div>
+                <p class="mt-1 text-xs rh-muted">Compare proposal counts by stage. Click a row to filter the review queue.</p>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2" data-dashboard-stage-filters data-dashboard-pipeline-chart>
+                    @foreach ($analytics['pipeline'] as $stage)
+                        <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" aria-label="Show {{ $stage['label'] }} proposals: {{ $stage['count'] }}"
+                            @class([
+                                'grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_2rem] items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
+                                'border-brand bg-brand-wash text-brand dark:border-rose-400 dark:bg-rose-950/40 dark:text-rose-200' => $pipeline === $stage['key'],
+                                'border-slate-200 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500' => $pipeline !== $stage['key'],
+                            ])>
+                            <span class="text-xs font-semibold leading-5">{{ $stage['label'] }} @if ($pipeline === $stage['key'])<span class="ml-1">Selected</span>@endif</span><strong class="text-lg font-bold tabular-nums text-right">{{ $stage['count'] }}</strong>
+                            <span class="col-span-2 block h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded bg-brand dark:bg-rose-400" style="width: {{ 100 * $stage['count'] / max(1, $analytics['pipeline']->max('count')) }}%"></span></span>
+                        </button>
+                    @endforeach
+                </div>
+                @if ($analytics['pipeline']->sum('count') === 0)<p class="mt-3 text-sm rh-muted">No data yet.</p>@endif
+            </section>
+
 
         </div>
 
-        <aside class="min-w-0 space-y-5 xl:col-start-2 xl:row-span-2 xl:row-start-1" aria-label="Research priorities">
+        <aside class="min-w-0 space-y-5 xl:col-start-2 xl:row-start-1" aria-label="Research priorities">
             <section id="needs-attention" class="rh-panel !rounded-xl !shadow-none scroll-mt-40" aria-labelledby="attention-heading">
                 <div class="rh-panel-heading !gap-2"><h2 id="attention-heading" class="text-base font-bold">Needs attention</h2><span class="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{{ $attentionItems->total() }} {{ str('issue')->plural($attentionItems->total()) }}</span></div>
                 <div class="divide-y divide-slate-100 dark:divide-slate-800" data-dashboard-queue="attention">
@@ -99,7 +176,7 @@
             </section>
 
             <section class="rh-panel !rounded-xl !shadow-none" aria-labelledby="deadlines-heading">
-                <div class="rh-panel-heading"><h2 id="deadlines-heading" class="text-base font-bold">Upcoming deadlines</h2><a wire:navigate href="{{ route('research_head.calendar') }}" class="inline-flex min-h-[44px] items-center text-xs font-semibold text-brand hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:text-rose-300">Calendar</a></div>
+                <div class="rh-panel-heading"><h2 id="deadlines-heading" class="text-base font-bold">Upcoming deadlines</h2><a wire:navigate href="{{ route('research_head.calendar') }}" class="rh-button-secondary whitespace-nowrap">Calendar</a></div>
                 <div class="divide-y divide-slate-100 dark:divide-slate-800">
                     @forelse ($deadlines->take(3) as $event)
                         <a href="{{ $event['url'] }}" class="flex items-center gap-3 px-5 py-4 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-brand dark:hover:bg-slate-800/60">
@@ -126,24 +203,7 @@
             </section>
         </aside>
 
-            <section class="xl:col-start-1 xl:row-start-2 rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-labelledby="pipeline-heading">
-                <div class="flex items-center justify-between gap-3"><h2 id="pipeline-heading" class="text-base font-bold">Proposal pipeline</h2><span class="text-xs rh-muted">{{ $analytics['pipeline']->sum('count') }} total</span></div>
-                <p class="mt-1 text-xs rh-muted">Compare proposal counts by stage. Click a row to filter the review queue.</p>
-                <div class="mt-4 space-y-2" data-dashboard-stage-filters data-dashboard-pipeline-chart>
-                    @foreach ($analytics['pipeline'] as $stage)
-                        <button type="button" wire:click="setPipeline('{{ $stage['key'] }}')" aria-pressed="{{ $pipeline === $stage['key'] ? 'true' : 'false' }}" aria-label="Show {{ $stage['label'] }} proposals: {{ $stage['count'] }}"
-                            @class([
-                                'grid min-h-[56px] w-full grid-cols-[minmax(0,1fr)_2rem] items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
-                                'border-brand bg-brand-wash text-brand dark:border-rose-400 dark:bg-rose-950/40 dark:text-rose-200' => $pipeline === $stage['key'],
-                                'border-slate-200 hover:border-slate-400 dark:border-slate-700 dark:hover:border-slate-500' => $pipeline !== $stage['key'],
-                            ])>
-                            <span class="text-xs font-semibold leading-5">{{ $stage['label'] }} @if ($pipeline === $stage['key'])<span class="ml-1">Selected</span>@endif</span><strong class="text-lg font-bold tabular-nums text-right">{{ $stage['count'] }}</strong>
-                            <span class="col-span-2 block h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true"><span class="block h-full rounded bg-brand dark:bg-rose-400" style="width: {{ 100 * $stage['count'] / max(1, $analytics['pipeline']->max('count')) }}%"></span></span>
-                        </button>
-                    @endforeach
-                </div>
-                @if ($analytics['pipeline']->sum('count') === 0)<p class="mt-3 text-sm rh-muted">No data yet.</p>@endif
-            </section>
+
     </div>
 
     <section class="grid gap-4 border-t border-slate-200 pt-5 dark:border-slate-800 sm:grid-cols-3" aria-label="Research summary">

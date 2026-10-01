@@ -80,11 +80,15 @@ test('personal reminders can be added edited and deleted only by their owner', f
 
 test('calendar navigation handles year boundaries and validates reminder input', function () {
     $this->actingAs($this->head);
-    Livewire::test(DashboardCalendar::class)->assertSee('data-calendar-legend', false)->assertSee('Official schedule')->assertSee('Personal reminder')
+    $component = Livewire::test(DashboardCalendar::class)->assertSee('data-calendar-legend', false)->assertSee('Official schedule')->assertSee('Personal reminder')
+        ->assertSee('Upcoming dates')->assertSee('Submission deadline')
+        ->assertDontSee('bg-amber-50', false)->assertDontSee('bg-gradient-', false)
         ->set('month', '2026-12')->call('moveMonth', 1)->assertSet('month', '2027-01')
         ->call('moveMonth', -1)->assertSet('month', '2026-12')->call('today')->assertSet('month', '2026-09')
         ->call('selectDate', '2026-09-21')->assertSee('Paper revision deadline')
         ->set('title', '  ')->set('startsAt', 'invalid')->call('saveReminder')->assertHasErrors(['title', 'startsAt']);
+    $official = app(Calendar::class)->events($this->head, CarbonImmutable::parse('2026-09-01'), CarbonImmutable::parse('2026-09-30'))->firstWhere('title', 'Submission deadline');
+    $component->call('openEvent', $official['id'])->assertDispatched('open-modal', 'calendar-event')->assertSee('Open research call');
 });
 
 test('a calendar call filter excludes other official schedules while keeping personal reminders', function () {

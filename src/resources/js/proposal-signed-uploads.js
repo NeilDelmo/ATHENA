@@ -1,20 +1,18 @@
 export function proposalSignedUploads(config = {}) {
     return {
         documents: (config.documents ?? []).map(document => ({ ...document, busy: false, error: '', file: null })),
-        pending: [],
-        nextId: 0,
+        previewDocument: null,
         complete: Boolean(config.complete),
         get busy() { return this.documents.some(document => document.busy); },
         get count() { return this.documents.filter(document => document.saved).length; },
-        selectBatch(files) {
-            // Require an explicit destination: a filename cannot prove which paper a scan contains.
-            this.pending.push(...Array.from(files).map(file => ({ id: ++this.nextId, file })));
-        },
-        async assign(item, sourceId) {
-            const document = this.documents.find(document => String(document.id) === String(sourceId));
-            if (!document || document.busy) return;
-            this.pending = this.pending.filter(pending => pending !== item);
-            await this.upload(document, item.file);
+        async drop(document, files) {
+            if (document.busy) return;
+            const selected = Array.from(files ?? []);
+            if (selected.length !== 1) {
+                document.error = 'Drop one PDF at a time onto its matching paper.';
+                return;
+            }
+            await this.upload(document, selected[0]);
         },
         async upload(document, file) {
             if (!file || document.busy) return;

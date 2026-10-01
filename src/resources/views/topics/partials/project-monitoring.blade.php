@@ -343,7 +343,7 @@
                     $isLatestTerminalReport = $isTerminalReport && $report->id === $latestTerminalReportId;
                     $signedCopy = $report->signedCopy();
                 @endphp
-                <article class="rounded-xl border border-gray-200 p-4">
+                <article id="narrative-report-{{ $report->id }}" class="scroll-mt-32 rounded-xl border border-gray-200 p-4">
                     <div class="flex flex-wrap justify-between gap-3">
                         <div>
                             <p class="text-sm font-black text-gray-900">{{ $report->report_label }}@if ($report->report_type === 'terminal' && isset($report->terminal_data['version_number'])) · Version {{ $report->terminal_data['version_number'] }}@endif</p>

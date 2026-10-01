@@ -6,6 +6,7 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ProjectDocumentLibrary;
 use App\Services\ProposalSignatureWorkflow;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -86,6 +87,8 @@ test('completed reviews expose a dated timeline and accurate signing checklist',
         ->not->toContain('Internal upload event.')
         ->and($xpath->query('.//*[@data-review-timeline]/li', $summary)->length)->toBe(3)
         ->and($xpath->query('.//*[@data-review-timeline]/li[1]', $summary)->item(0)->textContent)->toContain('Cleared for signing')
+        ->and($xpath->query('.//*[@data-review-timeline]//h4[contains(@class, "text-base")]', $summary)->length)->toBe(3)
+        ->and($xpath->query('.//*[@data-review-timeline]//time[contains(@class, "text-sm")]', $summary)->length)->toBe(3)
         ->and($xpath->query('.//*[@data-review-signature-count]', $summary)->item(0)->textContent)->toContain('1 of 5')
         ->and($xpath->query('.//*[@data-review-signature-checklist]/li', $summary)->length)->toBe(5)
         ->and($xpath->query('.//*[@data-review-signature-checklist]/li[contains(., "Signed copy uploaded")]', $summary)->length)->toBe(1);
@@ -133,16 +136,23 @@ test('accepted assessments appear as signed papers while final signing requests 
         ->and($workflow->missingRequiredFiles($this->version->fresh()))->toHaveCount(3)
         ->and($workflow->isComplete($this->version->fresh()))->toBeFalse();
     $response = $this->actingAs($this->head)->get(route('topics.show', $this->topic))->assertOk();
+    if (getenv('ATHENA_EXPORT_SIGNING_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        file_put_contents(storage_path('framework/testing/signed-upload-layout.html'), $response->getContent());
+    }
     $dom = new DOMDocument;
     @$dom->loadHTML($response->getContent());
     $xpath = new DOMXPath($dom);
     expect($xpath->query('//*[@data-signing-document]')->length)->toBe(3)
         ->and($xpath->query('//*[@data-signing-document][contains(., "Awaiting signed copy")]')->length)->toBe(3)
         ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-paper-input]')->length)->toBe(3)
-        ->and($xpath->query('//*[@data-signed-batch-input and @multiple]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-signed-batch-input]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-signed-dropzone]')->length)->toBe(3)
+        ->and($xpath->query('//*[@data-signed-preview-modal]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-signing-document]//a[@target="_blank"]')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@data-signing-document]//*[@data-signed-copy-preview]')->length)->toBe(0);
-    $response->assertSee('Earlier assessments are complete.')
+    $response->assertSee('View signed papers')
         ->assertSee('Files save automatically.')
         ->assertDontSee('Upload PDF')
         ->assertDontSee('Replace signed PDF');

@@ -31,8 +31,7 @@ body {
 
 .notice-to-proceed-letterhead {
     display: grid;
-    grid-template-columns: 0.82in minmax(0, 1fr);
-    column-gap: 0.2in;
+    grid-template-columns: 1.2333in minmax(0, 1fr) 1.2333in;
     align-items: center;
     padding-bottom: 0.14in;
     border-bottom: 0.75pt solid #000;
@@ -42,7 +41,7 @@ body {
 
 .notice-to-proceed-letterhead img {
     display: block;
-    width: 0.78in;
+    width: 1.2in;
     height: auto;
 }
 

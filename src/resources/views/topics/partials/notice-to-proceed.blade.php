@@ -1,10 +1,10 @@
 @php($noticePreparedForSigning = $topic->hasPreparedNoticeToProceed())
 
-<section id="notice-to-proceed" class="ntp-workspace rounded-2xl border border-gray-200 bg-white shadow-sm">
-    <div class="border-b border-gray-200 px-5 py-6 sm:px-7">
+<section id="notice-to-proceed" class="ntp-workspace scroll-mt-32 rounded-2xl border border-slate-200">
+    <div class="rounded-t-2xl border-b border-t-4 border-slate-200 border-t-brand bg-slate-50 px-5 py-6 dark:border-b-slate-700 dark:bg-slate-900 sm:px-7">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-                <h3 class="text-2xl font-semibold tracking-tight text-gray-950">Notice to Proceed</h3>
+                <h3 tabindex="-1" class="text-2xl font-semibold tracking-tight text-gray-950 focus:outline-none">Notice to Proceed</h3>
 
                 @if ($topic->hasIssuedNoticeToProceed())
                     <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">
@@ -103,30 +103,33 @@
                 @enderror
 
                 <div class="space-y-6">
-                    <div>
+                    <div class="ntp-form-section">
                         <h4 class="text-lg font-semibold text-gray-950">Project details</h4>
 
-                        <div class="mt-4 grid gap-5 md:grid-cols-2" x-data="{ researchers: @js(old('researcher_names', $noticeToProceedForm['researcher_names'])) }">
+                        <div class="mt-5 grid gap-6 md:grid-cols-2" x-data="{ projectStaff: @js(old('researcher_names', $noticeToProceedForm['researcher_names'])) }">
                             <div>
-                                <div class="flex items-center justify-between gap-3">
-                                    <label class="text-sm font-bold text-gray-800">Researcher names</label>
-                                    <button type="button" class="min-h-6 text-sm font-semibold text-brand hover:underline focus-visible:outline-brand" @click="researchers.push('')">+ Add researcher</button>
-                                </div>
+                                <span class="block text-sm font-semibold leading-6 text-slate-800 dark:text-slate-200">Project staff</span>
                                 <div class="mt-2 space-y-2">
-                                    <template x-for="(researcher, index) in researchers" :key="index">
-                                        <div class="flex gap-2">
-                                            <input type="text" :name="`researcher_names[${index}]`" x-model="researchers[index]" required maxlength="255" class="block w-full rounded-xl border-gray-300 text-sm font-semibold shadow-sm focus:border-red-600 focus:ring-red-600" :aria-label="`Researcher ${index + 1}`">
-                                            <button type="button" class="rounded-xl border border-gray-200 px-3 text-sm font-black text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700" x-show="researchers.length > 1" @click="researchers.splice(index, 1)" aria-label="Remove researcher">×</button>
+                                    <template x-for="(staffMember, index) in projectStaff" :key="index">
+                                        <div class="flex min-w-0 items-center gap-2">
+                                            <input data-project-staff-input type="text" :name="`researcher_names[${index}]`" x-model="projectStaff[index]" required maxlength="255" placeholder="Full name" class="block min-w-0 w-full" :aria-label="`Project staff member ${index + 1}`">
+                                            <button type="button" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-red-950/40 dark:hover:text-red-300" x-show="projectStaff.length > 1" @click="projectStaff.splice(index, 1)" :aria-label="`Remove project staff member ${index + 1}`"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke-linecap="round" /></svg></button>
                                         </div>
                                     </template>
                                 </div>
                                 @error('researcher_names')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
                                 @error('researcher_names.*')<p class="mt-2 text-sm font-semibold text-red-700">{{ $message }}</p>@enderror
-                                <p class="mt-2 text-sm leading-5 text-gray-500">From the proposal. Add or correct names as needed.</p>
+                                <div class="mt-3 space-y-3">
+                                    <button data-add-project-staff type="button" class="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-brand/30 bg-brand-wash/60 px-4 py-2.5 text-sm font-semibold text-brand hover:border-brand/60 hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-200 dark:hover:bg-rose-950/60" @click="projectStaff.push(''); $nextTick(() => $el.closest('[x-data]').querySelectorAll('[data-project-staff-input]').item(projectStaff.length - 1).focus())">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                                        <span>Add project staff</span>
+                                    </button>
+                                    <p class="text-sm leading-5 text-slate-500 dark:text-slate-400">Names from the proposal. Add or update project staff as needed.</p>
+                                </div>
                             </div>
 
                             <label class="block text-sm font-bold text-gray-800">
-                                Institution / campus
+                                <span class="block">Institution / campus</span>
                                 <input name="campus_line" type="text" value="{{ old('campus_line', $noticeToProceedForm['campus_line']) }}" required maxlength="255" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                                 @error('campus_line')<span class="mt-2 block text-sm font-semibold text-red-700">{{ $message }}</span>@enderror
                             </label>
@@ -139,7 +142,7 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-gray-200 pt-6">
+                    <div class="ntp-form-section">
                         <h4 class="text-lg font-semibold text-gray-950">Approval record</h4>
 
                         <div class="mt-4 grid gap-5 md:grid-cols-2">
@@ -165,7 +168,7 @@
                     </div>
                 </div>
 
-                <div class="border-t border-gray-200 pt-6">
+                <div class="ntp-form-section">
                     <h4 class="text-lg font-semibold text-gray-950">Schedule and budget</h4>
                     <p class="mt-1 text-sm leading-5 text-gray-500">Update the proposed values if the final approval changed them.</p>
 
@@ -233,13 +236,13 @@
                     </div>
                 </details>
 
-                <div class="flex flex-col gap-4 border-t border-gray-200 pt-6 xl:flex-row xl:items-center xl:justify-between">
+                <div class="flex flex-col gap-4 border-t border-slate-300 pt-6 dark:border-slate-700 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                         <p class="text-sm font-black text-gray-950">Preview the unsigned PDF before preparing it for signatures.</p>
                         <p class="mt-1 text-xs leading-5 text-gray-600">Previewing does not release anything. Faculty access and project monitoring remain locked until the signed PDF is uploaded.</p>
                     </div>
                     <div class="flex shrink-0 flex-wrap gap-2">
-                        <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="rh-button-secondary disabled:cursor-wait disabled:opacity-60">
+                        <button type="button" data-notice-to-proceed-preview-button @click="showProposalPreview()" :aria-expanded="previewPaneOpen" aria-controls="notice-to-proceed-preview-panel-{{ $topic->id }}" aria-haspopup="dialog" :disabled="previewLoading || submitting" class="rh-button-secondary disabled:cursor-wait disabled:opacity-60">
                             <span x-show="!previewLoading">Preview notice</span>
                             <span x-show="previewLoading" x-cloak>Generating preview...</span>
                         </button>
@@ -252,19 +255,12 @@
 
                 <p x-show="previewError" x-cloak x-text="previewError" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"></p>
 
-                <section x-show="previewDocumentUrl" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <p class="text-sm font-black text-gray-900">Notice to Proceed preview</p>
-                            <p class="text-xs text-gray-500">This unsigned notice is generated from the current form values. It has not been released to the faculty researcher.</p>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <a :href="previewDocumentUrl" target="_blank" rel="noopener" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Open preview</a>
-                            <button type="button" @click="printPreview" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50">Print preview</button>
-                        </div>
-                    </div>
-                    <iframe x-ref="previewFrame" :src="previewDocumentUrl" title="Notice to Proceed document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
-                </section>
+                <x-proposal-document-preview
+                    panel-id="notice-to-proceed-preview-panel-{{ $topic->id }}"
+                    title="Notice to Proceed preview"
+                    description="Unsigned notice generated from the current form details."
+                    frame-title="Notice to Proceed document preview"
+                />
             </form>
 
             @if ($noticePreparedForSigning)

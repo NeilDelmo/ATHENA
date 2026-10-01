@@ -106,7 +106,8 @@ class ProjectMonitoringController extends Controller
 
     public function index(Request $request)
     {
-        $status = $request->string('status')->toString();
+        $completedOnly = $request->routeIs('research_head.completed-projects.index');
+        $status = $completedOnly ? 'completed' : $request->string('status')->toString();
         $attention = $request->string('attention')->toString();
         $search = trim($request->string('search')->toString());
         $allowedStatuses = ['ongoing', 'delayed', 'completion_pending', 'completed'];
@@ -175,7 +176,7 @@ class ProjectMonitoringController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search'));
+        return view('research_head.projects.index', compact('projects', 'summary', 'status', 'attention', 'search', 'completedOnly'));
     }
 
     private function ensureResearcherCanPrepareReport(Request $request, TopicProposal $topic): void

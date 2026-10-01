@@ -1,4 +1,4 @@
-@props(['attentionCounts' => []])
+@props(['attentionCounts' => [], 'reportReviewCount' => 0])
 @php
     $icons = [
         'dashboard' => 'M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z',
@@ -13,19 +13,26 @@
         'Overview' => [
             ['Dashboard', 'research_head.dashboard', 'dashboard', null],
             ['Calendar', 'research_head.calendar', 'calendar', null],
-        ],
-        'Research' => [
-            ['Proposals', 'research_head.proposal-submissions.index', 'proposals', 'proposal_submissions'],
-            ['Projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
-            ['Faculty', 'research_head.faculty-directory.index', 'faculty', null],
-        ],
-        'Planning' => [
             ['Analytics', 'research_head.analytics', 'chart', null],
+        ],
+        'Submission' => [
             ['Research calls', 'research-calls.index', 'calendar', null],
+            ['Received submissions', 'research_head.received-submissions.index', 'document', null],
+        ],
+        'Review' => [
+            ['Proposal reviews', 'research_head.proposal-submissions.index', 'proposals', 'proposal_submissions'],
+            ['Report reviews', 'research_head.report-reviews.index', 'document', null],
+        ],
+        'Monitoring' => [
+            ['Research projects', 'research_head.projects.index', 'chart', 'project_monitoring'],
+            ['Completed projects', 'research_head.completed-projects.index', 'document', null],
+            ['Faculty directory', 'research_head.faculty-directory.index', 'faculty', null],
         ],
         'Resources' => [
             ['Signatories', 'signatories.index', 'signatories', null],
             ['Templates', 'research_head.proposal-templates.index', 'document', null],
+        ],
+        'Administration' => [
             ['Knowledge base', 'research_head.assistant-knowledge.index', 'document', null],
         ],
     ];
@@ -35,7 +42,7 @@
 <nav aria-label="Research Head navigation" class="space-y-4" data-research-head-navigation>
     @foreach ($sections as $heading => $links)
         <section aria-label="{{ $heading }}">
-            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
                 {{ $heading }}<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
             </h2>
             <div class="space-y-1">
@@ -53,6 +60,7 @@
                         </svg>
                         <span x-show="$store.sidebar.open" class="whitespace-nowrap">{{ $label }}</span>
                         @if ($attentionArea)<x-sidebar-attention-badge :count="$attentionCounts[$attentionArea] ?? 0" />@endif
+                        @if ($routeName === 'research_head.report-reviews.index')<x-sidebar-attention-badge :count="$reportReviewCount" :label="$reportReviewCount.' reports awaiting review'" />@endif
                     </a>
                 @endforeach
             </div>

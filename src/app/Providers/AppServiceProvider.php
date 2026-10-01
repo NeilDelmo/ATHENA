@@ -8,6 +8,7 @@ use App\Models\ResearchAssistantConversation;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\LibreOfficeDocumentPdfConverter;
+use App\Services\ResearchHeadReportQueue;
 use App\Services\SidebarAttentionService;
 use App\Support\ResearchCallDeadlineNotice;
 use Illuminate\Support\Facades\View;
@@ -37,6 +38,9 @@ class AppServiceProvider extends ServiceProvider
             $view->with('sidebarAttentionCounts', $user
                 ? $sidebarAttention->countsFor($user)
                 : []);
+            $view->with('reportReviewCount', $user?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+                ? app(ResearchHeadReportQueue::class)->pendingCount()
+                : 0);
         });
 
         View::composer('layouts.app', function ($view) use ($researchCallDeadlineNotice): void {

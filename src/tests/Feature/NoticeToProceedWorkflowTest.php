@@ -65,7 +65,11 @@ test('the notice form groups editable details without a decorative banner', func
         ->withSession(['active_workspace' => 'research_head'])
         ->get(route('topics.show', $this->topic));
 
-    $response->assertOk();
+    $response->assertOk()
+        ->assertSee('Project staff')
+        ->assertSee('Add project staff')
+        ->assertDontSee('Add researcher')
+        ->assertDontSee('Researcher names');
     $document = new DOMDocument;
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
@@ -85,6 +89,14 @@ test('the notice form groups editable details without a decorative banner', func
     foreach (['campus_line', 'project_title', 'notice_date', 'resolution_number', 'resolution_year', 'approved_start_date', 'approved_end_date', 'approved_duration_months', 'approved_budget', 'issuing_officer_name', 'verifying_officer_name'] as $field) {
         expect($xpath->query('.//form[@data-notice-to-proceed-autosave-form]//*[@name="'.$field.'"]', $section)->length)->toBe(1);
     }
+
+    $previewButton = $xpath->query('.//button[@data-notice-to-proceed-preview-button]', $section)->item(0);
+    $previewPanel = $xpath->query('.//*[@id="'.$previewButton->getAttribute('aria-controls').'"]', $section)->item(0);
+    expect($previewPanel)->not->toBeNull()
+        ->and($previewPanel->getAttribute('role'))->toBe('dialog')
+        ->and($xpath->query('.//*[@data-proposal-preview-floating]', $section)->length)->toBe(1)
+        ->and($xpath->query('.//iframe[@*[name()="x-bind:srcdoc" and .="previewHtml"]]', $previewPanel)->length)->toBe(1)
+        ->and($xpath->query('.//*[@x-ref="previewSection"]', $section)->length)->toBe(0);
 
     if (getenv('ATHENA_EXPORT_NOTICE_LAYOUT') === '1') {
         file_put_contents(storage_path('framework/testing/notice-form-layout.html'), $response->getContent());
@@ -117,7 +129,9 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertSee(route('signatories.index'), false)
         ->assertSee('Preview notice')
         ->assertSee('x-ref="previewFrame"', false)
-        ->assertSee('Open preview')
+        ->assertSee('Refresh preview')
+        ->assertSee('Full screen')
+        ->assertSee('Document zoom controls')
         ->assertSee('Save notice details')
         ->assertSee('data-notice-to-proceed-autosave-form', false)
         ->assertSee('Faculty Owner')

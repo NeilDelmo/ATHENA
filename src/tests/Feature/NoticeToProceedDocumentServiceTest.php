@@ -45,6 +45,7 @@ test('it fills the official notice template with approved project details', func
     $document->loadXML((string) $xml);
     $xpath = new DOMXPath($document);
     $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+    $xpath->registerNamespace('wp', 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing');
 
     expect($xml)
         ->toContain('Asst. Prof. D. IOANNA MARIE V. SALAC')
@@ -56,6 +57,9 @@ test('it fills the official notice template with approved project details', func
         ->and($media)->not->toBeEmpty()
         ->and((int) $xpath->evaluate('count(/w:document/w:body/w:tbl)'))->toBe(2)
         ->and((int) $xpath->evaluate('count(/w:document/w:body/w:tbl[1]/w:tr)'))->toBe(2)
+        ->and($xpath->evaluate('string(/w:document/w:body/w:tbl[1]/w:tblGrid/w:gridCol[1]/@w:w)'))->toBe('1776')
+        ->and($xpath->evaluate('string(/w:document/w:body/w:tbl[1]/w:tblGrid/w:gridCol[3]/@w:w)'))->toBe('1776')
+        ->and($xpath->evaluate('string(/w:document/w:body/w:tbl[1]//wp:extent/@cx)'))->toBe('1097280')
         ->and((int) $xpath->evaluate('count(//w:r[w:t="Republic of the Philippines"]/w:rPr/w:b)'))->toBe(1)
         ->and((int) $xpath->evaluate('count(//w:r[w:t="R. Martinez St., Brgy. Bucana, Nasugbu, Batangas, Philippines 4231"]/w:rPr/w:b)'))->toBe(1)
         ->and((int) $xpath->evaluate('count(/w:document/w:body/w:tbl[1]/following-sibling::w:p[1]/w:pPr/w:pBdr/w:bottom[@w:color="000000"])'))->toBe(1)

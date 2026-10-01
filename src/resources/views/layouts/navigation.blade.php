@@ -164,7 +164,7 @@
                dark:scrollbar-thumb-slate-700"
     >
         @if (Auth::user()->isUsingWorkspace('research_head'))
-            <x-research-head-navigation :attention-counts="$sidebarAttentionCounts ?? []" />
+            <x-research-head-navigation :attention-counts="$sidebarAttentionCounts ?? []" :report-review-count="$reportReviewCount ?? 0" />
         @endif
 
 

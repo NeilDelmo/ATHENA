@@ -1022,8 +1022,8 @@ test('a cleared proposal moves to final signing without a manual approval step',
     $signingPage = $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('0/5 uploaded')
-        ->assertSee('Signed final PDF')
+        ->assertSee('data-signed-count="0"', false)
+        ->assertSee('Signed PDF for')
         ->assertSee('Signing &amp; release', false)
         ->assertSee('Need to change a submitted proposal paper?')
         ->assertSee('If only a signature or scanned signed PDF is wrong, replace that signed file above.')
@@ -1475,9 +1475,63 @@ test('the shared document list records Research Head uploads', function () {
 
     $response->assertSee('signed-work-plan.pdf')
         ->assertSee('Work Plan (signed official copy)')
-        ->assertSee('Uploaded signed copy')
-        ->assertSee('Preview signed PDF')
-        ->assertSee('Signed PDF preview')
-        ->assertSee('data-signed-copy-preview', false)
+        ->assertSee('Signed copy saved')
+        ->assertSee('Preview')
+        ->assertDontSee('data-signed-copy-preview', false)
         ->assertSee(route('topics.versions.files.view', [$this->topic, $this->version, $signedWorkPlan]));
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-signing-document and @data-upload-state="uploaded"]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-signing-document and @data-upload-state="awaiting"]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-upload-state="uploaded"]//*[@data-uploaded-badge]')->item(0)->textContent)->toContain('Uploaded');
+});
+
+test('automatic signed uploads return saved files without redirecting and preserve all papers', function () {
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    $sources = $this->version->files()->whereIn('document_type', [
+        ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        ProposalVersionFile::TYPE_WORK_PLAN,
+        ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+    ])->get();
+
+    foreach ($sources as $source) {
+        $this->actingAs($this->head)->postJson(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $source->id,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            'review_file' => UploadedFile::fake()->create('signed-'.$source->id.'.pdf', 100, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('source_file_id', $source->id)
+            ->assertJsonPath('filename', 'signed-'.$source->id.'.pdf')
+            ->assertJsonPath('complete', false)
+            ->assertJsonStructure(['view_url', 'download_url']);
+    }
+
+    expect($this->version->files()->where('source_data->purpose', 'signed')->whereNull('superseded_at')->count())->toBe(3);
+    $this->actingAs($this->head)->postJson(route('topics.head-uploads.store', $this->topic), [
+        'source_file_id' => $sources->first()->id,
+        'purpose' => 'signed',
+        'review_file' => UploadedFile::fake()->create('replacement.pdf', 100, 'application/pdf'),
+    ])->assertOk()->assertJsonPath('filename', 'replacement.pdf');
+    expect($this->version->files()->where('source_data->purpose', 'signed')->whereNull('superseded_at')->count())->toBe(3)
+        ->and($this->version->files()->where('source_data->purpose', 'signed')->whereNotNull('superseded_at')->count())->toBe(1);
+
+    $assessments = $this->version->files()->whereIn('document_type', [
+        ProposalVersionFile::TYPE_GAD_CHECKLIST,
+        ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+    ])->get();
+    foreach ($assessments as $index => $source) {
+        $this->postJson(route('topics.head-uploads.store', $this->topic), [
+            'source_file_id' => $source->id,
+            'purpose' => 'signed',
+            'review_file' => UploadedFile::fake()->create('signed-assessment.pdf', 100, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('complete', $index === 1);
+    }
+
+    $this->topic->update(['status' => 'pending']);
+    $this->postJson(route('topics.head-uploads.store', $this->topic), [
+        'source_file_id' => $sources->first()->id,
+        'purpose' => 'signed',
+        'review_file' => UploadedFile::fake()->create('blocked.pdf', 100, 'application/pdf'),
+    ])->assertUnprocessable()->assertJsonValidationErrors('purpose');
 });

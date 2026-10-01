@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="en">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Notice to Proceed Preview</title>
-        @vite('resources/css/notice-to-proceed-print.css')
-    </head>
+        <link rel="preload" as="style" href="http://localhost/athena-app/build/assets/notice-to-proceed-print-DS6HwGj3.css" /><link rel="stylesheet" href="http://localhost/athena-app/build/assets/notice-to-proceed-print-DS6HwGj3.css" data-navigate-track="reload" />    </head>
     <body class="notice-to-proceed-preview-page">
         <main data-notice-to-proceed-sheet class="notice-to-proceed-sheet" aria-label="Notice to Proceed preview">
             <header class="notice-to-proceed-letterhead">
-                <img src="{{ asset('images/batstateu-logo.png') }}" alt="Batangas State University seal">
+                <img src="http://localhost/athena-app/images/batstateu-logo.png" alt="Batangas State University seal">
                 <div>
                     <p class="notice-to-proceed-republic">Republic of the Philippines</p>
                     <p class="notice-to-proceed-university">BATANGAS STATE UNIVERSITY</p>
@@ -25,15 +24,15 @@
             <div class="notice-to-proceed-office-heading">Research Office</div>
 
             <section class="notice-to-proceed-letter-body">
-                <p class="notice-to-proceed-date">{{ $notice['NOTICE_DATE'] }}</p>
-                <p class="notice-to-proceed-recipients">{{ $notice['RESEARCHER_NAMES'] }}</p>
-                <p>{{ $notice['CAMPUS_LINE'] }}</p>
+                <p class="notice-to-proceed-date">October 1, 2026</p>
+                <p class="notice-to-proceed-recipients">Neil Carlo Delmo</p>
+                <p>Batangas State University The NEU ARASOF-Nasugbu Campus</p>
 
                 <p class="notice-to-proceed-greeting">Dear Researchers:</p>
 
-                <p>You are hereby awarded this <strong>NOTICE TO PROCEED</strong> for the institutionally approved research project entitled <strong>“{{ $notice['PROJECT_TITLE'] }}.”</strong></p>
+                <p>You are hereby awarded this <strong>NOTICE TO PROCEED</strong> for the institutionally approved research project entitled <strong>“Signature Layout Verification — Neil Carlo Delmo.”</strong></p>
 
-                <p>Based on the Local Research Evaluation Committee (LREC) Resolution No. {{ $notice['RESOLUTION_NUMBER'] }}, S. {{ $notice['RESOLUTION_YEAR'] }}, the approved duration of the project is {{ $notice['DURATION_WORDS'] }} ({{ $notice['DURATION_MONTHS'] }}) {{ $notice['DURATION_UNIT'] }} which shall commence from <strong>{{ $notice['START_DATE'] }} to {{ $notice['END_DATE'] }}</strong>, with a budget amounting to <strong>{{ $notice['BUDGET_WORDS'] }} (Php {{ $notice['BUDGET_AMOUNT'] }})</strong> only. You are required to present monthly actual accomplishments to the assigned research monitoring personnel and submit quarterly monitoring reports to the Research Office of ARASOF-Nasugbu Campus during the conduct of this project.</p>
+                <p>Based on the Local Research Evaluation Committee (LREC) Resolution No. 1, S. 2026, the approved duration of the project is nine (9) months which shall commence from <strong>September 9, 2026 to June 9, 2027</strong>, with a budget amounting to <strong>six thousand pesos (Php 6,000.00)</strong> only. You are required to present monthly actual accomplishments to the assigned research monitoring personnel and submit quarterly monitoring reports to the Research Office of ARASOF-Nasugbu Campus during the conduct of this project.</p>
 
                 <p>You are entitled to the reduction of teaching load during the approved duration of the project based on the University guidelines (please see the table below for your reference). Upon completion of the project, you shall be entitled to avail paper presentation support and publication support and incentives for the dissemination of your research outputs, and Technology Transfer support and incentives for the protection and commercialization of Intellectual Property assets that may be generated, subject to the existing policies of the University and availability of funds.</p>
 
@@ -69,16 +68,16 @@
                     <section>
                         <p>Respectfully,</p>
                         <div class="notice-to-proceed-signature-space"></div>
-                        <p class="notice-to-proceed-signatory">{{ $notice['ISSUING_OFFICER_NAME'] }}</p>
-                        <p>{{ $notice['ISSUING_OFFICER_TITLE'] }}</p>
-                        <p>{{ $notice['ISSUING_OFFICER_COMMITTEE_ROLE'] }}</p>
+                        <p class="notice-to-proceed-signatory">DR. FROILAN G. DESTREZA</p>
+                        <p>Vice Chancellor for Research, Development and Extension Services</p>
+                        <p>Member, Local Research Evaluation Committee</p>
                     </section>
                     <section>
                         <p>Checked and Verified by:</p>
                         <div class="notice-to-proceed-signature-space"></div>
-                        <p class="notice-to-proceed-signatory">{{ $notice['VERIFYING_OFFICER_NAME'] }}</p>
-                        <p>{{ $notice['VERIFYING_OFFICER_TITLE'] }}</p>
-                        <p>{{ $notice['VERIFYING_OFFICER_COMMITTEE_ROLE'] }}</p>
+                        <p class="notice-to-proceed-signatory">ASSOC. PROF. ALBERTSON D. AMANTE</p>
+                        <p>Vice President for Research, Development and Extension Services</p>
+                        <p>Chairperson, Local Research Evaluation Committee</p>
                     </section>
                 </div>
 

@@ -1135,3 +1135,50 @@ test('an unrelated user cannot download the official monitoring tool', function 
         ->get(route('project-progress.monitoring-tool', ProjectProgressReport::firstOrFail()))
         ->assertForbidden();
 });
+
+test('report reviews opens submitted quarterly reports and removes reviewed reports from the pending queue', function () {
+    $report = ProjectProgressReport::create([
+        'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
+        'reporting_date' => now(), 'progress_percentage' => 60, 'accomplishments' => 'Field work completed.',
+    ]);
+    $this->actingAs($this->head)->get(route('research_head.report-reviews.index'))
+        ->assertOk()->assertSee('Reports awaiting review')->assertSee('Approved Community Research')
+        ->assertSee(route('topics.show', $this->topic).'#monitoring-tool-'.$report->id, false)
+        ->assertSee('Review report')->assertViewHas('reports', fn ($reports) => $reports->total() === 1);
+    $this->actingAs($this->head)->patch(route('research_head.progress-reports.review', $report), ['review_status' => 'reviewed', 'research_head_remarks' => 'Accepted.'])->assertRedirect();
+    $this->get(route('research_head.report-reviews.index'))->assertOk()->assertViewHas('reports', fn ($reports) => $reports->total() === 0);
+    $this->get(route('research_head.report-reviews.index', ['status' => 'reviewed', 'type' => 'quarterly']))->assertOk()->assertSee('View report')->assertViewHas('reports', fn ($reports) => $reports->total() === 1);
+});
+
+test('completed project destination retains its scope when filters are submitted', function () {
+    $this->actingAs($this->head)->get(route('research_head.completed-projects.index', ['status' => 'ongoing']))
+        ->assertOk()->assertViewHas('status', 'completed')->assertViewHas('projects', fn ($projects) => $projects->total() === 0);
+    $this->topic->forceFill(['project_status' => 'completed'])->save();
+    $this->get(route('research_head.completed-projects.index'))->assertOk()->assertSee('Completed project records')
+        ->assertViewHas('projects', fn ($projects) => $projects->total() === 1)
+        ->assertSee('action="'.route('research_head.completed-projects.index').'"', false);
+});
+
+test('report review filters distinguish progress and latest terminal narratives and link to their project sections', function () {
+    $data = [
+        'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
+        'submission_date' => now(), 'researchers' => $this->researcher->name,
+        'implementation_start' => now()->subMonths(3), 'implementation_end' => now(),
+        'budget' => 50000, 'funding_agency' => 'Batangas State University',
+        'accomplishment_summary' => 'Completed the planned field study.', 'introduction' => 'Project background.',
+        'objectives' => 'Assess coastal conditions.', 'methodology' => 'Field survey.', 'results_discussion' => 'Study findings.', 'photos' => [],
+    ];
+    $progress = ProjectNarrativeReport::create([...$data, 'report_type' => 'progress']);
+    ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal']);
+    $terminal = ProjectNarrativeReport::create([...$data, 'report_type' => 'terminal']);
+    $this->actingAs($this->head)->get(route('research_head.report-reviews.index'))
+        ->assertOk()->assertViewHas('reports', fn ($reports) => $reports->total() === 2)
+        ->assertSee('2 reports awaiting review')
+        ->assertSee(route('topics.show', $this->topic).'#narrative-report-'.$progress->id, false)
+        ->assertSee(route('topics.show', $this->topic).'#narrative-report-'.$terminal->id, false);
+    $this->get(route('research_head.report-reviews.index', ['type' => 'terminal']))->assertOk()
+        ->assertViewHas('reports', fn ($reports) => $reports->total() === 1 && $reports->first()->id === $terminal->id);
+    $this->get(route('topics.show', $this->topic).'#narrative-report-'.$terminal->id)->assertOk()
+        ->assertSee('id="narrative-report-'.$terminal->id.'"', false)
+        ->assertSee("window.location.hash.startsWith('#narrative-report-')", false);
+});

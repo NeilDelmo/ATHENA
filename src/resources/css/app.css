@@ -4,23 +4,47 @@
 
 @layer components {
     .ntp-workspace {
-        font-family: "Segoe UI", Arial, sans-serif;
+        @apply bg-slate-100 text-base text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100;
     }
 
     .ntp-workspace label {
-        @apply font-medium leading-6;
+        @apply text-sm font-semibold leading-6 dark:text-slate-200;
     }
 
     .ntp-workspace input:not([type="hidden"]):not([type="file"]),
     .ntp-workspace textarea {
-        @apply min-h-11 rounded-lg border-gray-300 text-base font-normal shadow-none focus:border-brand focus:ring-brand;
+        @apply min-h-12 rounded-lg border-slate-300 bg-white text-base font-normal text-slate-900 shadow-none focus:border-brand focus:ring-brand dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100;
+    }
+
+    .ntp-form-section {
+        @apply rounded-xl border border-slate-200 bg-white/80 p-5 sm:p-6 dark:border-slate-700 dark:bg-slate-900;
+    }
+
+    .ntp-workspace h4 {
+        @apply text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100;
+    }
+
+    .dark .ntp-workspace :is(.text-gray-950, .text-gray-900, .text-gray-800) {
+        @apply text-slate-100;
+    }
+
+    .dark .ntp-workspace :is(.text-gray-600, .text-gray-500) {
+        @apply text-slate-400;
+    }
+
+    .dark .ntp-workspace :is(.bg-white, .bg-gray-50, .bg-gray-100) {
+        @apply bg-slate-900;
+    }
+
+    .dark .ntp-workspace .border-gray-200 {
+        @apply border-slate-700;
     }
 
     .ntp-workspace .font-black {
         @apply font-semibold;
     }
 
-    .ntp-workspace [role="dialog"] {
+    .ntp-workspace [x-data^="datePicker("] [role="dialog"] {
         @apply w-full sm:w-80;
     }
 

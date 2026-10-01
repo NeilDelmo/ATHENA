@@ -100,7 +100,7 @@
                     ? 'review'
                     : window.location.hash === '#notice-to-proceed'
                         ? 'notice'
-                    : (window.location.hash === '#project-monitoring' || window.location.hash.startsWith('#monitoring-tool-'))
+                    : (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-')))
                         ? 'monitoring'
                         : window.location.hash === '#version-history'
                         ? 'history'
@@ -116,7 +116,7 @@
                     this.activeTopicTab = 'review';
                 } else if (window.location.hash === '#notice-to-proceed') {
                     this.activeTopicTab = 'notice';
-                } else if (window.location.hash === '#project-monitoring' || window.location.hash.startsWith('#monitoring-tool-')) {
+                } else if (window.location.hash === '#project-monitoring' || (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
                     this.activeTopicTab = 'monitoring';
                 } else if (window.location.hash === '#version-history') {
                     this.activeTopicTab = 'history';
@@ -146,11 +146,11 @@
                 this.scrollToProjectMonitoring();
             },
             scrollToProjectMonitoring() {
-                if (window.location.hash !== '#project-monitoring' && ! window.location.hash.startsWith('#monitoring-tool-')) {
+                if (window.location.hash !== '#project-monitoring' && ! (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))) {
                     return;
                 }
                 this.$nextTick(() => {
-                    const targetId = window.location.hash.startsWith('#monitoring-tool-')
+                    const targetId = (window.location.hash.startsWith('#monitoring-tool-') || window.location.hash.startsWith('#narrative-report-'))
                         ? window.location.hash.slice(1)
                         : 'project-monitoring';
                     const section = document.getElementById(targetId) || document.getElementById('project-monitoring');
@@ -189,26 +189,26 @@
         <div class="space-y-3">
             <nav class="flex items-center justify-between gap-4 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal workspace sections">
                 <div class="flex shrink-0 gap-1" role="tablist" aria-label="Proposal workspace sections">
-                <button id="proposal-details-tab-button" type="button" role="tab" aria-controls="proposal-details-tab" :aria-selected="activeTopicTab === 'details'" @click="setTopicTab('details', 'proposal-details')" :class="activeTopicTab === 'details' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
+                <button id="proposal-details-tab-button" type="button" role="tab" aria-controls="proposal-details-tab" :aria-selected="activeTopicTab === 'details'" @click="setTopicTab('details', 'proposal-details')" :class="activeTopicTab === 'details' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5.25A2.25 2.25 0 0 1 6.25 3h11.5A2.25 2.25 0 0 1 20 5.25v13.5A2.25 2.25 0 0 1 17.75 21H6.25A2.25 2.25 0 0 1 4 18.75V5.25Z" /><path stroke-linecap="round" d="M8 8h8M8 12h8M8 16h5" /></svg>
                     Proposal
                 </button>
-                <button id="proposal-review-tab-button" type="button" role="tab" aria-controls="proposal-review-tab" :aria-selected="activeTopicTab === 'review'" @click="setTopicTab('review', '{{ $reviewTabHash }}')" :class="activeTopicTab === 'review' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
+                <button id="proposal-review-tab-button" type="button" role="tab" aria-controls="proposal-review-tab" :aria-selected="activeTopicTab === 'review'" @click="setTopicTab('review', '{{ $reviewTabHash }}')" :class="activeTopicTab === 'review' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3.75h10.5A2.25 2.25 0 0 1 19.5 6v14.25H4.5V6a2.25 2.25 0 0 1 2.25-2.25Z" /><path stroke-linecap="round" d="M8.25 9.5h7.5M8.25 13h5.25" /></svg>
                     {{ $isResearchHead ? (($canReturnToRevision || $topic->status === 'approved') ? 'Review history' : 'Review & decision') : ($isResearchOffice ? 'LREC comments' : 'Review status') }}
                 </button>
                 @if ($canViewNoticeToProceed)
-                    <button id="notice-to-proceed-tab-button" type="button" role="tab" aria-controls="notice-to-proceed-tab" :aria-selected="activeTopicTab === 'notice'" @click="setTopicTab('notice', 'notice-to-proceed')" :class="activeTopicTab === 'notice' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
+                    <button id="notice-to-proceed-tab-button" type="button" role="tab" aria-controls="notice-to-proceed-tab" :aria-selected="activeTopicTab === 'notice'" @click="setTopicTab('notice', 'notice-to-proceed')" :class="activeTopicTab === 'notice' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /><path stroke-linecap="round" d="M9 13.5l2 2 4-4" /></svg>
                         {{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}
                     </button>
                 @endif
-                <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
+                <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                     Versions
                 </button>
                 @if ($canViewMonitoring)
-                    <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black transition">
+                    <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V10m5.25 9.5V4.5m5.25 15v-7m5.25 7V7" /></svg>
                         Monitoring
                     </button>

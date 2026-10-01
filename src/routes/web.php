@@ -43,6 +43,7 @@ use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchCallDeadlineDismissalController;
 use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
+use App\Http\Controllers\ResearchHeadReportReviewController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
@@ -429,6 +430,9 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::get('/research-head/faculty-directory', [FacultyDirectoryController::class, 'index'])->name('research_head.faculty-directory.index');
     Route::patch('/research-head/faculty-directory/{member}/coordinator', [FacultyDirectoryController::class, 'updateCoordinator'])->name('research_head.faculty-directory.coordinator');
     Route::get('/research-head/proposal-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.proposal-submissions.index');
+    Route::get('/research-head/received-submissions', [ResearchHeadProposalSubmissionController::class, 'index'])->name('research_head.received-submissions.index');
+    Route::get('/research-head/report-reviews', [ResearchHeadReportReviewController::class, 'index'])->name('research_head.report-reviews.index');
+    Route::get('/research-head/completed-projects', [ProjectMonitoringController::class, 'index'])->name('research_head.completed-projects.index');
     Route::get('/research-head/projects', [ProjectMonitoringController::class, 'index'])->name('research_head.projects.index');
     Route::patch('/research-head/topics/{topic}/status', [ResearchHeadTopicController::class, 'updateStatus'])->name('research_head.topics.updateStatus');
     Route::patch('/research-head/topics/{topic}/finalize-approval', [ResearchHeadTopicController::class, 'finalizeApproval'])->name('research_head.topics.finalizeApproval');
