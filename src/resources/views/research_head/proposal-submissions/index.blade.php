@@ -11,32 +11,25 @@
     </x-slot>
 
     <div class="space-y-5" data-proposal-submissions>
-        <dl data-submission-summary class="grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl border border-brand bg-brand px-4 py-3 shadow-bubble-sm dark:border-red-900 dark:bg-red-950 sm:grid-cols-3 xl:grid-cols-5">
-            @foreach ([
-                ['Proposal records', $summary['proposals']],
-                ['Active queue', $summary['active']],
-                ['All submissions', $summary['total']],
-                ['Initial packages', $summary['initial']],
-                ['Revisions received', $summary['revision']],
-            ] as [$label, $count])
-                <div class="flex items-center justify-between gap-3 xl:justify-start">
-                    <dt class="text-xs text-red-100">{{ $label }}</dt>
-                    <dd class="text-lg font-bold tabular-nums text-white">{{ \Illuminate\Support\Number::format($count) }}</dd>
-                </div>
-            @endforeach
-        </dl>
+        <x-kpi-strip data-submission-summary :items="[
+            ['label' => 'Proposal records', 'value' => \Illuminate\Support\Number::format($summary['proposals']), 'icon' => 'folder'],
+            ['label' => 'Active queue', 'value' => \Illuminate\Support\Number::format($summary['active']), 'icon' => 'clock'],
+            ['label' => 'All submissions', 'value' => \Illuminate\Support\Number::format($summary['total']), 'icon' => 'layers'],
+            ['label' => 'Initial packages', 'value' => \Illuminate\Support\Number::format($summary['initial']), 'icon' => 'file-plus'],
+            ['label' => 'Revisions received', 'value' => \Illuminate\Support\Number::format($summary['revision']), 'icon' => 'refresh'],
+        ]" />
 
         <form method="GET" action="{{ route($submissionRoute) }}" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_180px_210px_auto]">
             <label class="sr-only" for="proposal-submission-search">Search proposal submissions</label>
-            <input id="proposal-submission-search" name="search" type="search" value="{{ $search }}" placeholder="Search proposal, faculty, or research call..." class="block w-full rounded-lg border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500">
+            <input id="proposal-submission-search" name="search" type="search" value="{{ $search }}" placeholder="Search proposal, faculty, or research call..." class="block w-full rounded-xl border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500">
             <label class="sr-only" for="proposal-submission-type">Submission type</label>
-            <select id="proposal-submission-type" name="type" class="block w-full rounded-lg border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <select id="proposal-submission-type" name="type" class="block w-full rounded-xl border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                 <option value="">All submission types</option>
                 <option value="initial" @selected($submissionType === 'initial')>Initial packages</option>
                 <option value="revision" @selected($submissionType === 'revision')>Revisions</option>
             </select>
             <label class="sr-only" for="proposal-submission-status">Active review stage</label>
-            <select id="proposal-submission-status" name="status" class="block w-full rounded-lg border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+            <select id="proposal-submission-status" name="status" class="block w-full rounded-xl border-gray-200 text-sm focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                 <option value="">All active review stages</option>
                 @foreach ([
                     'pending' => 'New submission / Needs review',
@@ -52,7 +45,7 @@
                 @endforeach
             </select>
             <div class="flex gap-2">
-                <button type="submit" class="min-h-11 rounded-lg bg-brand px-4 text-xs font-semibold text-white hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:bg-red-800 dark:hover:bg-red-700 dark:focus:ring-red-400 dark:focus:ring-offset-slate-900">Filter</button>
+                <button type="submit" class="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:bg-red-800 dark:hover:bg-red-700 dark:focus:ring-red-400 dark:focus:ring-offset-slate-900">Filter</button>
                 @if ($search !== '' || $submissionType !== '' || $status !== '')
                     <a href="{{ route($submissionRoute) }}" class="inline-flex min-h-11 items-center rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</a>
                 @endif
@@ -73,10 +66,10 @@
             </div>
         </div>
 
-        <section aria-labelledby="active-proposal-queue-heading">
-            <div class="mb-3 flex items-center justify-between gap-3">
-                <div class="border-l-4 border-brand pl-3 dark:border-red-400">
-                    <h3 id="active-proposal-queue-heading" class="text-base font-bold text-gray-900 dark:text-white">Active proposal queue</h3>
+        <section aria-labelledby="active-proposal-queue-heading" class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-slate-800">
+                <div>
+                    <h3 id="active-proposal-queue-heading" class="text-base font-black text-gray-900 dark:text-white">Active proposal queue</h3>
                     <p class="mt-1 text-xs text-gray-500 dark:text-slate-400">One current package per proposal. New packages are marked in red.</p>
                 </div>
                 <span class="shrink-0 text-xs tabular-nums text-gray-500 dark:text-slate-400">{{ $activeProposals->total() }} active</span>
@@ -136,7 +129,7 @@
                 </div>
             </div>
             @if ($activeProposals->hasPages())
-                <div class="mt-3">{{ $activeProposals->links() }}</div>
+                <div class="border-t border-gray-100 px-5 py-4 dark:border-slate-800">{{ $activeProposals->links() }}</div>
             @endif
         </section>
 

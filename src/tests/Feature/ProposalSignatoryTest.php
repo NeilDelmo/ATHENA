@@ -44,9 +44,13 @@ test('head manages signatories and faculty selections are private role checked a
         ->assertSee('Delete')
         ->assertSee('max-w-7xl', false)
         ->assertSee('data-add-signatory-panel', false)
+        ->assertSee('data-add-signatory-backdrop', false)
         ->assertSee('open-add-signatory-form', false)
-        ->assertSee('md:grid-cols-[14rem_minmax(0,1fr)_minmax(0,1fr)_auto]', false)
-        ->assertSee('aria-label="Signatory Directory"', false);
+        ->assertSee('role="dialog"', false)
+        ->assertSee('aria-labelledby="add-signatory-heading"', false)
+        ->assertSee('x-on:keydown.escape.window="addSignatoryOpen = false"', false)
+        ->assertSee('Signatory editor')
+        ->assertSee('aria-label="Signatory directory"', false);
     $this->actingAs($other)->get(route('signatories.edit', $draft))->assertForbidden();
     $this->actingAs($faculty)
         ->get(route('signatories.edit', $draft))

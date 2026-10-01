@@ -1,21 +1,27 @@
 @php
     $isFacultyNavigation = Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
+    $isResearchOfficeNavigation = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE);
+    $usesSimpleSidebar = $isFacultyNavigation || $isResearchOfficeNavigation;
     $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold text-slate-600 transition-all duration-200 ease-out hover:translate-x-0.5 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
     $sidebarCurrentClasses = '!bg-white !text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:!bg-slate-900 dark:!text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]';
     $researchHelpPath = parse_url(route('research-support.index'), PHP_URL_PATH);
-    if ($isFacultyNavigation) {
+    if ($usesSimpleSidebar) {
         $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
         $sidebarCurrentClasses = '!bg-red-50 !text-[#7A0019] before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-[#7A0019] dark:!bg-red-950/30 dark:!text-red-200';
+    }
+    if ($isResearchOfficeNavigation) {
+        $sidebarLinkClasses = 'relative flex min-h-[44px] w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white';
+        $sidebarCurrentClasses = '!bg-brand-wash !text-brand !font-semibold before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand dark:!bg-red-950/30 dark:!text-red-200';
     }
 @endphp
 
 <aside
     x-data
     id="app-sidebar"
-    :class="$store.sidebar.open ? '!w-[280px] {{ $isFacultyNavigation ? 'shadow-xl sm:shadow-none' : 'shadow-2xl sm:shadow-xl' }}' : '!w-[76px] {{ $isFacultyNavigation ? '' : 'shadow-lg' }}'"
-    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden {{ $isFacultyNavigation ? 'bg-white dark:bg-slate-900' : 'rounded-r-[28px] bg-white/95 shadow-slate-900/10 backdrop-blur-xl dark:bg-slate-950/95' }} border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
+    :class="$store.sidebar.open ? '!w-[280px] {{ $usesSimpleSidebar ? 'shadow-xl sm:shadow-none' : 'shadow-2xl sm:shadow-xl' }}' : '!w-[76px] {{ $usesSimpleSidebar ? '' : 'shadow-lg' }}'"
+    class="fixed inset-y-0 left-0 z-40 flex w-[76px] flex-col overflow-hidden {{ $usesSimpleSidebar ? 'bg-white dark:bg-slate-900' : 'rounded-r-[28px] bg-white/95 shadow-slate-900/10 backdrop-blur-xl dark:bg-slate-950/95' }} border-r border-slate-200/80 transition-colors duration-300 dark:border-slate-800/80 sm:w-[280px]"
 >
-    @if (! $isFacultyNavigation)
+    @if (! $usesSimpleSidebar)
     <svg
         class="pointer-events-none absolute inset-0 z-0 h-full w-full text-[#7A0019]/[0.035] dark:text-white/[0.025]"
         aria-hidden="true"
@@ -185,35 +191,49 @@
 
         @role('research_coordinator')
             @if (Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE))
-                <a
-                    wire:navigate
-                    wire:current.exact="{{ $sidebarCurrentClasses }}"
-                    @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                    href="{{ route('research_coordinator.dashboard') }}"
-                    aria-label="Dashboard"
-                    title="Dashboard"
-                    class="{{ $sidebarLinkClasses }}"
-                >
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-                    </svg>
-                    <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
-                </a>
+                <nav aria-label="Research Office navigation" class="space-y-4" data-research-office-navigation>
+                    <section aria-label="Overview">
+                        <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Overview<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+                        </h2>
+                        <a
+                            wire:navigate
+                            wire:current.exact="{{ $sidebarCurrentClasses }}"
+                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                            href="{{ route('research_coordinator.dashboard') }}"
+                            aria-label="Dashboard"
+                            title="Dashboard"
+                            class="{{ $sidebarLinkClasses }}"
+                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                        >
+                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
+                            </svg>
+                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Dashboard</span>
+                        </a>
+                    </section>
 
-                <a
-                    wire:navigate
-                    wire:current="{{ $sidebarCurrentClasses }}"
-                    @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
-                    href="{{ route('research_coordinator.members.index') }}"
-                    aria-label="Faculty Members"
-                    title="Faculty Members"
-                    class="{{ $sidebarLinkClasses }}"
-                >
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-                    </svg>
-                    <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
-                </a>
+                    <section aria-label="Research">
+                        <h2 x-show="$store.sidebar.open" class="mb-2 flex items-center gap-3 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            Research<span class="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true"></span>
+                        </h2>
+                        <a
+                            wire:navigate
+                            wire:current="{{ $sidebarCurrentClasses }}"
+                            @click="if (window.innerWidth < 640) $store.sidebar.setOpen(false)"
+                            href="{{ route('research_coordinator.members.index') }}"
+                            aria-label="Faculty Members"
+                            title="Faculty Members"
+                            class="{{ $sidebarLinkClasses }}"
+                            :class="$store.sidebar.open ? '' : '!justify-center !gap-0 !px-0'"
+                        >
+                            <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.1 9.1 0 0 0 3.74-.48 3 3 0 0 0-4.68-2.72m.94 3.2v-.01c0-1.2-.34-2.32-.94-3.19m.94 3.2v.13A11.9 11.9 0 0 1 12 20.4c-2.17 0-4.2-.58-5.94-1.6v-.12a6 6 0 0 1 11-3.17M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+                            </svg>
+                            <span x-show="$store.sidebar.open" class="whitespace-nowrap">Faculty Members</span>
+                        </a>
+                    </section>
+                </nav>
             @endif
         @endrole
 
@@ -347,7 +367,7 @@
         @endif
 
     </div>
-    @if ($isFacultyNavigation || Auth::user()->isUsingWorkspace('research_head'))
+    @if ($usesSimpleSidebar || Auth::user()->isUsingWorkspace('research_head'))
         <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
             @if (Auth::user()->isUsingWorkspace('research_head'))
                 <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>

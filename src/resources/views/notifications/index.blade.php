@@ -1,4 +1,17 @@
 <x-app-layout>
+    <x-slot name="header">
+        <x-page-header title="Notification inbox" subtitle="Find invitations, project team activity, proposal reviews, research-call reminders, and project updates in one place.">
+            @if ($unreadCount > 0)
+                <x-slot:actions>
+                    <form method="POST" action="{{ route('notifications.read-all') }}">
+                        @csrf
+                        @method('PATCH')
+                        <button type="submit" class="inline-flex h-12 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-black text-white transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950">Mark all read</button>
+                    </form>
+                </x-slot:actions>
+            @endif
+        </x-page-header>
+    </x-slot>
     <div
         x-data="{
             category: 'all',
@@ -21,11 +34,6 @@
         <section class="overflow-hidden rounded-3xl bg-gray-950 text-white shadow-xl dark:border dark:border-slate-700">
             <div class="relative px-6 py-7 sm:px-8 lg:flex lg:items-center lg:justify-between lg:gap-8">
                 <div class="absolute inset-y-0 right-0 hidden w-72 bg-gradient-to-l from-red-700/30 to-transparent lg:block"></div>
-                <div class="relative">
-                    <p class="text-xs font-black uppercase tracking-[0.22em] text-red-400">ATHENA activity center</p>
-                    <h1 class="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Notification inbox</h1>
-                    <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-300">Find invitations, project team activity, proposal reviews, research-call reminders, and project updates in one place.</p>
-                </div>
                 <div class="relative mt-6 flex flex-wrap items-center gap-3 lg:mt-0 lg:justify-end">
                     <div class="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
                         <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Unread</p>
@@ -35,13 +43,6 @@
                         <p class="text-[10px] font-black uppercase tracking-wider text-gray-400">All activity</p>
                         <p class="mt-0.5 text-2xl font-black text-white">{{ $notificationItems->count() }}</p>
                     </div>
-                    @if ($unreadCount > 0)
-                        <form method="POST" action="{{ route('notifications.read-all') }}">
-                            @csrf
-                            @method('PATCH')
-                            <button type="submit" class="inline-flex h-12 items-center justify-center rounded-xl bg-red-600 px-5 text-sm font-black text-white transition hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-gray-950">Mark all read</button>
-                        </form>
-                    @endif
                 </div>
             </div>
         </section>

@@ -16,16 +16,16 @@
         </div>
 
         <div x-data="{ activeTab: @js($errors->any() && ! old('editing_template') ? 'upload' : 'managed') }" class="space-y-5">
-            <div class="overflow-x-auto border-b border-gray-200" role="tablist" aria-label="Proposal template administration">
-                <nav class="flex min-w-max gap-6">
-                    <button id="templates-tab-upload" type="button" role="tab" :aria-selected="activeTab === 'upload'" aria-controls="templates-panel-upload" @click="activeTab = 'upload'" :class="activeTab === 'upload' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition">
+            <nav class="overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Proposal template administration">
+                <div class="flex min-w-max gap-1" role="tablist" aria-label="Proposal template administration">
+                    <button id="templates-tab-upload" type="button" role="tab" :aria-selected="activeTab === 'upload'" aria-controls="templates-panel-upload" @click="activeTab = 'upload'" :class="activeTab === 'upload' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="rounded-xl px-4 py-2.5 text-xs font-black transition">
                         Upload an additional template
                     </button>
-                    <button id="templates-tab-managed" type="button" role="tab" :aria-selected="activeTab === 'managed'" aria-controls="templates-panel-managed" @click="activeTab = 'managed'" :class="activeTab === 'managed' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:border-red-300 hover:text-red-600'" class="flex items-center gap-2 border-b-2 px-1 pb-3 text-xs font-bold transition">
+                    <button id="templates-tab-managed" type="button" role="tab" :aria-selected="activeTab === 'managed'" aria-controls="templates-panel-managed" @click="activeTab = 'managed'" :class="activeTab === 'managed' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="rounded-xl px-4 py-2.5 text-xs font-black transition">
                         Templates
                     </button>
-                </nav>
-            </div>
+                </div>
+            </nav>
 
             <div id="templates-panel-upload" x-show="activeTab === 'upload'" x-cloak role="tabpanel" aria-labelledby="templates-tab-upload">
                 <section class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">

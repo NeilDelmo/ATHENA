@@ -1,11 +1,10 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-workspace-header-banner eyebrow="Faculty workspace" title="Submitted proposals" description="Follow each proposal through review, revision, and approval.">
+        <x-page-header title="Submitted proposals" subtitle="Follow each proposal through review, revision, and approval.">
             <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">New Proposal</a></x-slot:actions>
-        </x-workspace-header-banner>
+        </x-page-header>
     </x-slot>
     <div class="space-y-5">
-    <x-faculty-proposal-navigation active="submitted" />
     <section data-faculty-submissions class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Your submitted proposals">
         <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
             <h2 class="text-sm font-semibold text-slate-900 dark:text-white">Submission history</h2>

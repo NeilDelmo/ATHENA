@@ -246,7 +246,7 @@ test('one shared workflow reference explains queue labels while review keeps pro
         ->and($xpath->query('.//*[@aria-current="step"]', $workflow->item(0))->length)->toBe(0)
         ->and($xpath->query('.//*[@data-workflow-label-key]/div', $workflow->item(0))->length)->toBe(6)
         ->and($workflow->item(0)->parentNode->hasAttribute('x-cloak'))->toBeTrue()
-        ->and($xpath->query('//article//*[@data-proposal-route]')->length)->toBe(0)
+        ->and($xpath->query('//table[@data-proposal-queue-layout]//*[@data-proposal-route]')->length)->toBe(0)
         ->and($xpath->query('//span[@data-proposal-status-label="'.$label.'"]')->length)->toBe(1)
         ->and($xpath->query('//button[@data-proposal-status-label]')->length)->toBe(0)
         ->and($topic->fresh()->research_head_viewed_version_id)->toBeNull();

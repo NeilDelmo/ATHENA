@@ -51,20 +51,12 @@
             </div>
         @endif
 
-        <dl class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                @foreach ([
-                    ['Open now', $activeCalls->count(), 'Currently accepting proposals', 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'],
-                    ['Upcoming', $upcomingCalls->count(), 'Draft or scheduled calls', 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'],
-                    ['Previous', $previousCalls->count(), 'Closed and ended calls', 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'],
-                    ['Budget ceiling', 'PHP '.number_format($institutionalBudgetCeiling, 2), 'Fixed per proposal', 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'],
-                ] as [$label, $value, $description, $valueClass])
-                    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <dt class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{{ $label }}</dt>
-                        <dd class="mt-2 inline-flex rounded-xl px-3 py-1 text-2xl font-black {{ $valueClass }}">{{ $value }}</dd>
-                        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ $description }}</p>
-                    </div>
-                @endforeach
-        </dl>
+        <x-kpi-strip :items="[
+            ['label' => 'Open now', 'value' => $activeCalls->count(), 'icon' => 'megaphone', 'hint' => 'Currently accepting proposals'],
+            ['label' => 'Upcoming', 'value' => $upcomingCalls->count(), 'icon' => 'calendar', 'hint' => 'Draft or scheduled calls'],
+            ['label' => 'Previous', 'value' => $previousCalls->count(), 'icon' => 'archive', 'hint' => 'Closed and ended calls'],
+            ['label' => 'Budget ceiling', 'value' => 'PHP '.number_format($institutionalBudgetCeiling, 2), 'icon' => 'wallet', 'hint' => 'Fixed per proposal'],
+        ]" />
 
         <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Research call records">
             <div class="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
