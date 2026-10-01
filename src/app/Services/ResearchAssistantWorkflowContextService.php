@@ -11,6 +11,7 @@ use App\Models\TopicProposal;
 use App\Models\TopicReview;
 use App\Models\TopicReviewFileRevision;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 
@@ -86,7 +87,7 @@ ATHENA retrieved only the saved workflow sections relevant to the current page a
 
 {$contextJson}
 
-Use only the included sections when describing saved ATHENA records. Distinguish saved private drafts from submitted reports and unsaved browser form values. The project_completion.remaining_record_items list is derived from saved statuses and record availability; do not describe it as an institutional requirement unless an approved ATHENA knowledge excerpt separately establishes that rule.
+Use only the included sections when describing saved ATHENA records. Distinguish saved private drafts from submitted reports and unsaved browser form values. For delay questions, lead with the relevant calculated calendar-day count and its comparison dates. Separate activity slippage, the approved project end, and report submission lateness. The reporting period end and submission opening date are NOT submission deadlines. A revision request is NOT proof of late submission. If no report deadline is recorded, say briefly that report lateness cannot be established, then give the available activity calculation. Milestone counts describe incomplete work as of the latest submitted report, not verified completion status today. Cite this saved packet as [Project record]; field guides do not substantiate project-specific dates. The project_completion.remaining_record_items list is derived from saved statuses and record availability; do not describe it as an institutional requirement unless an approved ATHENA knowledge excerpt separately establishes that rule.
 PROMPT;
     }
 
@@ -299,7 +300,9 @@ PROMPT;
         $progressReports = ProjectProgressReport::query()
             ->submitted()
             ->whereBelongsTo($topic, 'topic')
+            ->whereDoesntHave('nextVersion', fn ($query) => $query->submitted())
             ->latest('reporting_date')
+            ->latest('version_number')
             ->limit(self::REPORT_LIMIT)
             ->get();
         $narrativeReports = ProjectNarrativeReport::query()
@@ -310,6 +313,7 @@ PROMPT;
             ->get();
 
         return [
+            'delay_assessment' => $this->delayAssessment($topic, $progressReports->first()),
             'private_saved_drafts' => [
                 'monitoring' => $monitoringDrafts->map(fn (ProjectMonitoringDraft $draft): array => [
                     'source' => $draft->source_key,
@@ -330,6 +334,68 @@ PROMPT;
                 ->values()
                 ->all(),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function delayAssessment(TopicProposal $topic, ?ProjectProgressReport $report): array
+    {
+        $today = CarbonImmutable::today(config('app.timezone'));
+        $approvedEnd = $this->recordedDate(data_get($topic->notice_to_proceed_data, 'approved_end_date'));
+        $reportDate = $report?->reporting_date
+            ? CarbonImmutable::instance($report->reporting_date)->startOfDay()
+            : null;
+        $milestones = collect($report?->work_plan ?? [])
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->map(function (array $row) use ($today, $reportDate): ?array {
+                $target = $this->recordedDate($row['target_completion_date'] ?? null);
+                $weight = $row['percent_weight'] ?? null;
+                $accomplished = $row['accomplished_percentage'] ?? null;
+
+                if (! $target || ! is_numeric($weight) || ! is_numeric($accomplished)
+                    || (float) $accomplished + 0.005 >= (float) $weight) {
+                    return null;
+                }
+
+                return [
+                    'activity' => $this->plainValue($row['activity'] ?? null, 350),
+                    'target_completion_date' => $target->toDateString(),
+                    'incomplete_as_of_report_date' => $reportDate?->toDateString(),
+                    'calendar_days_past_target_at_report' => $reportDate ? $this->daysPast($target, $reportDate) : null,
+                    'calendar_days_since_target_today' => $this->daysPast($target, $today),
+                ];
+            })->filter()->values()->all();
+
+        return [
+            'as_of_date' => $today->toDateString(),
+            'timezone' => config('app.timezone'),
+            'approved_project_end' => $approvedEnd?->toDateString(),
+            'calendar_days_past_approved_end' => $approvedEnd && ! $topic->isCompletedProject()
+                ? $this->daysPast($approvedEnd, $today) : null,
+            'incomplete_milestones_in_latest_report' => $milestones,
+            'report_submission_deadline' => null,
+            'report_days_late' => null,
+            'report_lateness_explanation' => 'No report submission deadline is recorded. Period closure, submission opening, and revision requests alone do not establish late submission.',
+        ];
+    }
+
+    private function recordedDate(mixed $value): ?CarbonImmutable
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return null;
+        }
+
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value, config('app.timezone'));
+
+            return $date && $date->toDateString() === $value ? $date : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function daysPast(CarbonImmutable $target, CarbonImmutable $asOf): int
+    {
+        return max(0, (int) $target->diffInDays($asOf, false));
     }
 
     /** @param array<string, mixed> $monitoringContext @return array<string, mixed> */
@@ -426,6 +492,10 @@ PROMPT;
     {
         return $this->sanitizeContextValue([
             'reporting_date' => $report->reporting_date?->toDateString(),
+            'submitted_at' => $report->submitted_at?->toISOString(),
+            'reporting_period_start' => $report->period_start?->toDateString(),
+            'reporting_period_end' => $report->period_end?->toDateString(),
+            'submission_opens_on' => $report->period_end?->copy()->addDay()->toDateString(),
             'tracking_number' => $report->tracking_number,
             'version' => $report->version_number,
             'progress_percentage' => $report->progress_percentage,
@@ -443,6 +513,7 @@ PROMPT;
     {
         return $this->sanitizeContextValue([
             'submission_date' => $report->submission_date?->toDateString(),
+            'submitted_at' => $report->submitted_at?->toISOString(),
             'tracking_number' => $report->tracking_number,
             'implementation_start' => $report->implementation_start?->toDateString(),
             'implementation_end' => $report->implementation_end?->toDateString(),

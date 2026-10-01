@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'terminalDefaults' => [], 'terminalEvidence' => []])
+@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => []])
 @php
     $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
     $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
@@ -12,7 +12,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <p class="text-sm font-black text-gray-950 dark:text-white">{{ $reportLabel }} PDF prepared</p>
-                <p class="mt-1 max-w-2xl text-xs leading-5 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
+                <p class="mt-1 max-w-2xl text-sm leading-6 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
             </div>
             <x-monitoring-action-dock :fixed="$standalone">
@@ -46,13 +46,30 @@
         ->implode("\n");
     $approvedStart = $proposalDraft?->planned_start ?? $topic->notice_to_proceed_issued_at?->copy()->startOfDay();
     $approvedEnd = $proposalDraft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
-    $maxAccomplishments = (int) config('progress_report.max_accomplishments');
-    $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => ''];
-    $accomplishmentRows = collect(old('accomplishments', $draftData['accomplishments'] ?? array_fill(0, 4, $blankAccomplishment)))
-        ->map(fn ($row) => array_merge($blankAccomplishment, is_array($row) ? $row : []))
-        ->pad($maxAccomplishments, $blankAccomplishment)
-        ->take($maxAccomplishments);
-    $maxFigures = (int) config('progress_report.max_figures');
+    $draftData = array_replace($progressDefaults, $draftData);
+    $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => '', 'activities' => ''];
+    $approvedActivities = collect($progressDefaults['accomplishments'] ?? [])->pluck('activities', 'objective');
+    $accomplishmentRows = collect(old('accomplishments', $draftData['accomplishments'] ?? []))
+        ->map(function ($row) use ($blankAccomplishment, $approvedActivities) {
+            $row = array_merge($blankAccomplishment, is_array($row) ? $row : []);
+            $row['activities'] = $row['activities'] ?: $approvedActivities->get($row['objective'], '');
+
+            return $row;
+        })
+        ->values()->all();
+    if ($accomplishmentRows === []) {
+        $accomplishmentRows = [$blankAccomplishment];
+    }
+    $figureRows = old('figures', $draftData['figures'] ?? []);
+    if ($figureRows === []) {
+        foreach (array_keys($draftData) as $key) {
+            if (preg_match('/^photo_caption_(\d+)$/', $key, $matches) === 1) {
+                $index = (int) $matches[1];
+                $figureRows[] = ['caption' => $draftData[$key] ?? '', 'section' => $draftData['photo_section_'.$index] ?? 'results_discussion', 'after_paragraph' => $draftData['photo_after_paragraph_'.$index] ?? 0];
+            }
+        }
+    }
+    $figureRows = collect($figureRows)->map(fn ($row) => is_array($row) ? \Illuminate\Support\Arr::only($row, ['caption', 'section', 'after_paragraph']) : [])->values()->all();
     $defaultSubmissionDate = array_key_exists('submission_date', $draftData) ? $draftData['submission_date'] : now()->toDateString();
     $defaultTrackingNumber = array_key_exists('tracking_number', $draftData) ? $draftData['tracking_number'] : '';
     $defaultResearchers = array_key_exists('researchers', $draftData) ? $draftData['researchers'] : $researcherNames;
@@ -62,11 +79,12 @@
     $defaultPreparedByDate = array_key_exists('prepared_by_date_signed', $draftData) ? $draftData['prepared_by_date_signed'] : '';
 @endphp
 
-<details
+<section
     class="overflow-hidden rounded-2xl border border-red-200 bg-red-50/50 dark:border-red-950 dark:bg-slate-950"
-    @if ($standalone || $errors->narrativeProgress->any() || $narrativeReportDraft) open @endif
     data-narrative-progress-autosave="true"
     x-data="narrativeProgressReportForm({
+        initialAccomplishments: @js($accomplishmentRows),
+        initialFigures: @js($figureRows),
         previewUrl: @js(route('project-narrative-reports.preview', $topic)),
         draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
         initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
@@ -74,13 +92,12 @@
     })"
 >
     @if (! $standalone)
-    <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-black text-gray-950 dark:text-white">
+    <header class="flex items-center justify-between gap-3 px-5 py-4 text-lg font-bold text-gray-950 dark:text-white">
         <span>
             Submit {{ strtolower($reportLabel) }}
             <span class="mt-1 block text-xs font-normal text-red-700 dark:text-red-300">BatStateU-REC-RES-02 · Revision 02</span>
         </span>
-        <span class="rounded-full bg-gray-950 px-3 py-1 text-[10px] font-black uppercase text-white shadow-sm dark:bg-white dark:text-gray-950">Open form</span>
-    </summary>
+    </header>
     @endif
 
     <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}" @submit="submitting = true">
@@ -101,77 +118,88 @@
 
         <x-proposal-autosave-status />
 
-        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes save privately as a draft. Add photos immediately before preparing the official PDF; preparation and submission remain manual.</p>
+        <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes save privately as a draft. Review the reused proposal content and write this period’s accomplishments and results. Select figure files before preparing the PDF; uploads are not kept in text drafts.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="sm:col-span-2">
-                <p class="text-[10px] font-black uppercase tracking-wide text-gray-400">Research project title</p>
-                <p class="mt-1 text-xs font-bold text-gray-800">{{ $topic->title }}</p>
+                <p class="text-sm font-medium text-gray-400">Research project title</p>
+                <p class="mt-1 text-base font-bold text-gray-800">{{ $topic->title }}</p>
             </div>
             <div>
-                <p class="text-[10px] font-black uppercase tracking-wide text-gray-400">Project leader</p>
-                <p class="mt-1 text-xs font-bold text-gray-800">{{ $topic->user->name }}</p>
+                <p class="text-sm font-medium text-gray-400">Project leader</p>
+                <p class="mt-1 text-base font-bold text-gray-800">{{ $topic->user->name }}</p>
             </div>
             <div>
-                <p class="text-[10px] font-black uppercase tracking-wide text-gray-400">Approved budget</p>
-                <p class="mt-1 text-xs font-bold text-gray-800">₱{{ number_format((float) $topic->estimated_budget, 2) }}</p>
+                <p class="text-sm font-medium text-gray-400">Approved budget</p>
+                <p class="mt-1 text-base font-bold text-gray-800">₱{{ number_format((float) $topic->estimated_budget, 2) }}</p>
             </div>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2">
             <div>
-                <label for="progress_submission_date" class="text-[11px] font-bold text-gray-600">Submission date</label>
+                <label for="progress_submission_date" class="text-sm font-semibold text-gray-600">Submission date</label>
                 <x-date-picker id="progress_submission_date" name="submission_date" :value="old('submission_date', $defaultSubmissionDate)" :max="now()->toDateString()" required class="mt-1" />
             </div>
-            <label class="text-[11px] font-bold text-gray-600">Tracking number <span class="font-normal text-gray-400">(optional)</span>
-                <input type="text" name="tracking_number" value="{{ old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter the official tracking number">
+            <label class="text-sm font-semibold text-gray-600">Tracking number <span class="font-normal text-gray-400">(optional)</span>
+                <input type="text" name="tracking_number" value="{{ old('tracking_number', $defaultTrackingNumber) }}" maxlength="100" class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter the official tracking number">
             </label>
         </div>
 
         <section class="grid gap-4 md:grid-cols-2">
-            <label class="text-[11px] font-bold text-gray-600 md:col-span-2">II. Researchers
-                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Enter one researcher per line">{{ old('researchers', $defaultResearchers) }}</textarea>
+            <label class="text-sm font-semibold text-gray-600 md:col-span-2">II. Researchers
+                <textarea name="researchers" rows="3" maxlength="1000" required class="mt-1 block w-full rounded-xl border-gray-200 text-base" placeholder="Enter one researcher per line">{{ old('researchers', $defaultResearchers) }}</textarea>
             </label>
             <div>
-                <label for="implementation_start" class="text-[11px] font-bold text-gray-600">III. Approved implementation start</label>
+                <label for="implementation_start" class="text-sm font-semibold text-gray-600">III. Approved implementation start</label>
                 <x-date-picker id="implementation_start" name="implementation_start" :value="old('implementation_start', $defaultImplementationStart)" required class="mt-1" />
             </div>
             <div>
-                <label for="implementation_end" class="text-[11px] font-bold text-gray-600">III. Approved implementation end</label>
+                <label for="implementation_end" class="text-sm font-semibold text-gray-600">III. Approved implementation end</label>
                 <x-date-picker id="implementation_end" name="implementation_end" :value="old('implementation_end', $defaultImplementationEnd)" required class="mt-1" />
             </div>
-            <label class="text-[11px] font-bold text-gray-600 md:col-span-2">V. Funding agency
-                <input type="text" name="funding_agency" value="{{ old('funding_agency', $defaultFundingAgency) }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">
+            <label class="text-sm font-semibold text-gray-600 md:col-span-2">V. Funding agency
+                <input type="text" name="funding_agency" value="{{ old('funding_agency', $defaultFundingAgency) }}" maxlength="255" required class="mt-1 block w-full rounded-xl border-gray-200 text-base">
             </label>
         </section>
 
         <section class="space-y-4">
             <div>
-                <p class="text-sm font-black text-gray-900">VI. Summary of Accomplishment for the Monitoring Period</p>
-                <p class="mt-1 text-xs text-gray-500">Match each approved objective with its target and the work actually completed during this period.</p>
+                <p class="text-lg font-bold text-gray-900">VI. Summary of Accomplishment for the Monitoring Period</p>
+                <p class="mt-1 text-sm text-gray-600">Compare the planned outputs with what was completed during this monitoring period.</p>
             </div>
 
-            <div class="space-y-3">
-                @foreach ($accomplishmentRows as $index => $accomplishment)
-                    <div class="grid gap-3 rounded-xl border border-gray-200 p-3 lg:grid-cols-3">
-                        <label class="text-[11px] font-bold text-gray-600">Objective {{ $index + 1 }}
-                            <textarea name="accomplishments[{{ $index }}][objective]" rows="3" maxlength="1000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" @required($index === 0)>{{ $accomplishment['objective'] }}</textarea>
-                        </label>
-                        <label class="text-[11px] font-bold text-gray-600">Target accomplishment
-                            <textarea name="accomplishments[{{ $index }}][target]" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" @required($index === 0)>{{ $accomplishment['target'] }}</textarea>
-                        </label>
-                        <label class="text-[11px] font-bold text-gray-600">Actual accomplishment
-                            <textarea name="accomplishments[{{ $index }}][actual]" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border-gray-200 text-xs" @required($index === 0)>{{ $accomplishment['actual'] }}</textarea>
-                        </label>
+            @if ($progressDefaults['objectives_from_work_plan'] ?? false)
+                <p class="rounded-lg bg-red-50 px-4 py-3 text-sm leading-6 text-red-900 dark:bg-red-950/40 dark:text-red-100">Objectives and target outputs come from the approved work plan. Update the actual accomplishments for this period, including any work not yet started.</p>
+            @endif
+            <div class="space-y-4">
+                <template x-for="(row, index) in accomplishmentRows" :key="row.id">
+                    <div class="space-y-3 rounded-xl border border-red-200 p-4 dark:border-red-900">
+                        <div class="flex items-center justify-between gap-3">
+                            <h4 class="text-base font-semibold text-brand dark:text-red-200" x-text="'Objective ' + (index + 1)"></h4>
+                            <button type="button" @click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300">Remove row</button>
+                        </div>
+                        <p x-show="row.activities" x-text="'Planned activities: ' + row.activities" class="whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300"></p>
+                        <div class="grid gap-4 lg:grid-cols-3">
+                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Approved objective
+                                <textarea :name="'accomplishments[' + index + '][objective]'" x-model="row.objective" rows="4" maxlength="1000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                            </label>
+                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Target accomplishment
+                                <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
+                            </label>
+                            <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
+                                <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
+                            </label>
+                        </div>
                     </div>
-                @endforeach
+                </template>
             </div>
+            <button type="button" @click="addAccomplishment" class="inline-flex min-h-11 items-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-brand hover:bg-red-50 dark:border-red-900 dark:text-red-200">Add accomplishment row</button>
         </section>
 
         <section class="space-y-4">
             <div>
-                <p class="text-sm font-black text-gray-900">Narrative sections</p>
-                <p class="mt-1 text-xs text-gray-500">The generated document follows the same continuous report layout as the client template.</p>
+                <p class="text-lg font-bold text-gray-900">Narrative sections</p>
+                <p class="mt-1 text-sm text-gray-600">Introduction, rationale, objectives, and methodology start from the approved detailed proposal. Review the methods used this period and write new results. This progress-report format has no separate RRL section.</p>
             </div>
             @foreach ([
                 'introduction' => 'VII. Introduction',
@@ -180,49 +208,56 @@
                 'methodology' => 'IX. Methodology',
                 'results_discussion' => 'X. Results and Discussion',
             ] as $field => $label)
-                <label class="block text-[11px] font-bold text-gray-600">{{ $label }}
-                    <textarea name="{{ $field }}" rows="4" maxlength="5000" required class="mt-1 block w-full rounded-xl border-gray-200 text-xs">{{ old($field, $draftData[$field] ?? '') }}</textarea>
+                <label class="block text-sm font-semibold text-gray-600">{{ $label }}
+                    <textarea name="{{ $field }}" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old($field, $draftData[$field] ?? '') }}</textarea>
                 </label>
             @endforeach
         </section>
 
-        <section class="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div>
-                <p class="text-xs font-black text-amber-900">Figures and photo documentation required</p>
-                <p class="mt-1 text-[11px] text-amber-700">Attach at least one high-resolution JPG or PNG. Each figure will be placed under Methodology or Results and Discussion with its caption.</p>
+        <section class="space-y-4 rounded-xl border border-red-200 bg-red-50/40 p-4 dark:border-red-900 dark:bg-red-950/20" data-progress-report-figures>
+            <div class="space-y-2">
+                <h3 class="text-xl font-bold text-brand dark:text-red-200">Figures</h3>
+                <p class="text-base leading-7 text-gray-600 dark:text-slate-300">Add diagrams, charts, screenshots, or research photos that support your methods and results. Use a caption for each figure. JPG or PNG, up to 10 MB per file.</p>
+                <p class="text-sm text-gray-600 dark:text-slate-300">Add as many figures as the report needs. Figures are optional; files must fit the server’s upload limits.</p>
             </div>
-            @foreach (range(1, $maxFigures) as $photoIndex)
-                @if ($photoIndex === 6)
-                    <details class="rounded-xl border border-amber-200 bg-white/60">
-                        <summary class="cursor-pointer px-4 py-3 text-[11px] font-black text-amber-900">Add more figures (6-{{ $maxFigures }})</summary>
-                        <div class="space-y-3 border-t border-amber-100 p-3">
-                @endif
-
-                <div class="grid gap-3 rounded-xl border border-amber-100 bg-white p-3 sm:grid-cols-3">
-                    <label class="text-[11px] font-bold text-gray-600">Figure {{ $photoIndex }} {{ $photoIndex === 1 ? '(required)' : '(optional)' }}
-                        <input type="file" name="photo_{{ $photoIndex }}" accept=".jpg,.jpeg,.png" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border border-gray-200 bg-white p-2 text-xs">
-                    </label>
-                    <label class="text-[11px] font-bold text-gray-600">Place under
-                        <select name="photo_section_{{ $photoIndex }}" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border-gray-200 text-xs">
-                            <option value="results_discussion" @selected(old('photo_section_'.$photoIndex, $draftData['photo_section_'.$photoIndex] ?? 'results_discussion') === 'results_discussion')>Results and Discussion</option>
-                            <option value="methodology" @selected(old('photo_section_'.$photoIndex, $draftData['photo_section_'.$photoIndex] ?? '') === 'methodology')>Methodology</option>
-                        </select>
-                    </label>
-                    <label class="text-[11px] font-bold text-gray-600">Caption {{ $photoIndex }}
-                        <input type="text" name="photo_caption_{{ $photoIndex }}" value="{{ old('photo_caption_'.$photoIndex, $draftData['photo_caption_'.$photoIndex] ?? '') }}" maxlength="200" @required($photoIndex === 1) class="mt-1 block w-full rounded-xl border-gray-200 text-xs" placeholder="Describe what the photo shows">
-                    </label>
-                </div>
-
-                @if ($photoIndex === $maxFigures && $maxFigures >= 6)
+            <p x-show="figureRows.length === 0" class="text-base text-gray-600 dark:text-slate-300">No figures added.</p>
+            <template x-for="(figure, index) in figureRows" :key="figure.id">
+                <div class="space-y-4 rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <h4 class="text-base font-bold text-brand dark:text-red-200" x-text="'Figure entry ' + (index + 1)"></h4>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="moveFigure(index, -1)" :disabled="index === 0" aria-label="Move figure earlier" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move up</button>
+                            <button type="button" @click="moveFigure(index, 1)" :disabled="index === figureRows.length - 1" aria-label="Move figure later" class="rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold disabled:opacity-40 dark:border-slate-700 dark:text-white">Move down</button>
+                            <button type="button" @click="removeFigure(index)" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:text-red-300">Remove</button>
                         </div>
-                    </details>
-                @endif
-            @endforeach
+                    </div>
+                    <img x-show="figure.previewUrl" :src="figure.previewUrl" :alt="figure.caption || 'Selected figure preview'" class="max-h-64 max-w-full rounded-lg object-contain">
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Figure image
+                            <input type="file" :name="'figures[' + index + '][image]'" accept=".jpg,.jpeg,.png" @change="selectFigureFile(figure, $event)" class="mt-2 block w-full rounded-xl border border-gray-200 p-3 text-sm dark:border-slate-700">
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Caption
+                            <input type="text" :name="'figures[' + index + '][caption]'" x-model="figure.caption" :required="!!figure.previewUrl" maxlength="1000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Describe what this figure demonstrates">
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Place in section
+                            <select :name="'figures[' + index + '][section]'" x-model="figure.section" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                                <option value="methodology">Methodology</option>
+                                <option value="results_discussion">Results and Discussion</option>
+                            </select>
+                        </label>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Insert after paragraph
+                            <input type="number" :name="'figures[' + index + '][after_paragraph]'" x-model="figure.after_paragraph" min="0" max="100000" class="mt-2 block w-full rounded-xl border-gray-200 text-base dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                            <span class="mt-2 block text-sm font-normal text-gray-600 dark:text-slate-300">Use 0 for the end of the section. Separate paragraphs with a blank line. Figures are numbered in document order.</span>
+                        </label>
+                    </div>
+                </div>
+            </template>
+            <button type="button" @click="addFigure" class="inline-flex min-h-11 items-center rounded-lg bg-brand px-5 py-2.5 text-base font-semibold text-white hover:bg-brand-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">Add figure</button>
         </section>
 
         <div class="rounded-xl bg-gray-50 p-4">
             <div>
-                <label for="progress_prepared_by_date_signed" class="text-[11px] font-bold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
+                <label for="progress_prepared_by_date_signed" class="text-sm font-semibold text-gray-600">Prepared-by date signed <span class="font-normal text-gray-400">(optional)</span></label>
                 <x-date-picker id="progress_prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
             </div>
         </div>
@@ -246,14 +281,14 @@
         <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3 rounded-2xl border border-gray-200 bg-gray-100 p-3 sm:p-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <p class="text-sm font-black text-gray-900">{{ $reportLabel }} preview</p>
-                    <p class="text-xs text-gray-500">This preview is generated from the current form values and has not been submitted.</p>
+                    <p class="text-lg font-bold text-gray-900">{{ $reportLabel }} preview</p>
+                    <p class="text-sm text-gray-600">This preview is generated from the current form values and has not been submitted.</p>
                 </div>
                 <button type="button" @click="printPreview" :disabled="!previewReady" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 shadow-sm disabled:opacity-50">Print preview</button>
             </div>
             <iframe x-ref="previewFrame" :srcdoc="previewHtml" @load="hydratePreview" title="Progress report document preview" class="h-[75vh] w-full rounded-xl border border-gray-300 bg-white shadow-inner"></iframe>
         </section>
     </form>
-</details>
+</section>
 @endif
 @endif

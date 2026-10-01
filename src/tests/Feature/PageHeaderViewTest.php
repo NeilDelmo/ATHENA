@@ -101,8 +101,6 @@ test('regular workspace pages use the shared page header', function () {
         'research_head/proposal-submissions/index.blade.php',
         'research_head/projects/index.blade.php',
         'research_head/faculty-directory.blade.php',
-        'research_head/proposal_templates/index.blade.php',
-        'research_head/assistant_knowledge/index.blade.php',
         'research_head/topics/files.blade.php',
         'research_head/analytics.blade.php',
         'research_head/calendar.blade.php',

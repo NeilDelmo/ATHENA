@@ -130,11 +130,11 @@ test('research heads can view every initial proposal submission and revision', f
             'aria-label="Faculty directory"',
             'aria-label="Resources"',
             'aria-label="Signatories"',
-            'aria-label="Templates"',
-            'aria-label="Administration"',
-            'aria-label="Knowledge base"',
         ], false)
         ->assertDontSee('Similarity Checks')
+        ->assertDontSee('aria-label="Templates"', false)
+        ->assertDontSee('aria-label="Knowledge base"', false)
+        ->assertDontSee('aria-label="Administration"', false)
         ->assertDontSee('aria-label="Proposal Templates"', false)
         ->assertDontSee('aria-label="Athena Knowledge"', false);
 

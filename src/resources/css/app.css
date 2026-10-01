@@ -167,6 +167,145 @@
     .rh-table tbody tr:hover {
         @apply bg-slate-50/70 dark:bg-slate-800/40;
     }
+
+    /* Analytics has a reading scale of its own; overview queues stay compact. */
+    .athena-page-header:has(.rh-analytics-header)::before,
+    .athena-page-header:has(.rh-analytics-header)::after {
+        display: none;
+    }
+
+    .dark .athena-page-header:has(.rh-analytics-header) {
+        background-color: #0f172a !important;
+        border-color: #334155;
+    }
+
+    .rh-analytics-header h1 {
+        font-size: 1.875rem;
+        font-weight: 700;
+    }
+
+    .rh-analytics-header p {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .rh-analytics {
+        @apply gap-7;
+        --analytics-ink: #162235;
+        --analytics-muted: #536278;
+        --analytics-line: #dee3ea;
+    }
+
+    .rh-analytics .rh-panel {
+        @apply rounded-xl shadow-none;
+        border-color: var(--analytics-line);
+    }
+
+    .rh-analytics .rh-title {
+        font-size: 1.375rem;
+        line-height: 1.4;
+        font-weight: 700;
+    }
+
+    .rh-analytics .text-xs {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .rh-analytics .text-sm {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .rh-analytics .rh-muted {
+        color: var(--analytics-muted);
+    }
+
+    .rh-analytics .rh-control {
+        @apply min-h-12 rounded-lg;
+        font-size: 1rem;
+    }
+
+    .rh-analytics .rh-button,
+    .rh-analytics .rh-button-secondary {
+        @apply min-h-12 gap-2 rounded-lg;
+        font-size: 1rem;
+    }
+
+    .rh-analytics .rh-panel-heading {
+        @apply bg-slate-50/60 px-6 py-5;
+    }
+
+    .rh-analytics-kpis > a,
+    .rh-analytics-kpis > button {
+        border-bottom: 1px solid var(--analytics-line);
+        @apply min-w-0;
+    }
+
+    .rh-analytics-kpis > :last-child {
+        border-bottom: 0;
+    }
+
+    .rh-analytics-kpis .rh-muted {
+        color: var(--analytics-ink);
+    }
+
+    .rh-analytics-kpis strong {
+        font-size: 2.5rem;
+        line-height: 1.1;
+    }
+
+    .rh-analytics-review {
+        @apply bg-brand-wash;
+        box-shadow: inset 4px 0 0 #800020;
+    }
+
+    .rh-analytics .rh-table {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .rh-analytics .rh-table th {
+        @apply px-6 py-3;
+        font-size: 0.875rem;
+    }
+
+    .rh-analytics .rh-table td {
+        @apply px-6 py-4;
+        overflow-wrap: anywhere;
+    }
+
+    .dark .rh-analytics {
+        --analytics-ink: #e2e8f0;
+        --analytics-muted: #cbd5e1;
+        --analytics-line: #334155;
+    }
+
+    .dark .rh-analytics .rh-panel-heading,
+    .dark .rh-analytics-review {
+        @apply bg-slate-800/60;
+    }
+
+    @screen sm {
+        .rh-analytics-kpis > :nth-child(odd) {
+            border-right: 1px solid var(--analytics-line);
+        }
+        .rh-analytics-kpis > :nth-last-child(-n+2) {
+            border-bottom: 0;
+        }
+    }
+
+    @screen lg {
+        .rh-analytics-kpis > :nth-child(odd) {
+            border-right: 0;
+        }
+        .rh-analytics-kpis > :not(:nth-child(3n)) {
+            border-right: 1px solid var(--analytics-line);
+        }
+        .rh-analytics-kpis > :nth-last-child(-n+3) {
+            border-bottom: 0;
+        }
+    }
 }
 
 @media (min-width: 640px) {
@@ -547,6 +686,26 @@
     .athena-readable .text-base {
         font-size: 1.0625rem;
     }
+
+    .athena-readable .athena-chat-panel {
+        font-size: 1rem;
+    }
+
+    .athena-readable .athena-chat-panel .text-sm,
+    .athena-readable .athena-chat-panel .text-xs,
+    .athena-readable .athena-chat-panel .text-\[10px\],
+    .athena-readable .athena-chat-panel .text-\[11px\] {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .athena-readable .athena-chat-panel [data-assistant-user-message],
+    .athena-readable .athena-chat-panel [data-assistant-response],
+    .athena-readable .athena-chat-panel [data-assistant-composer] {
+        font-size: 1rem;
+        line-height: 1.75;
+    }
+
 }
 
 /*

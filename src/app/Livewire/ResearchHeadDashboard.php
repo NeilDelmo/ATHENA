@@ -2,12 +2,15 @@
 
 namespace App\Livewire;
 
+use App\Models\ProposalVersion;
 use App\Models\ResearchAnnualTarget;
 use App\Models\ResearchCall;
+use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\DashboardCalendar;
 use App\Services\ResearchDashboardAnalytics;
 use App\Services\ResearchHeadAnalytics;
+use App\Services\ResearchHeadReportQueue;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -165,6 +168,7 @@ class ResearchHeadDashboard extends Component
         $this->resetPage();
         $this->resetPage('attentionPage');
         $this->resetPage('projectPage');
+        $this->resetPage('reportPage');
     }
 
     public function setPipeline(string $pipeline): void
@@ -213,12 +217,15 @@ class ResearchHeadDashboard extends Component
             $this->resetPage('attentionPage');
             $this->resetPage('projectPage');
         }
+        if (in_array($property, ['academicYear', 'fromDate', 'toDate'], true)) {
+            $this->resetPage('reportPage');
+        }
         if ($property === 'projectStatus') {
             $this->resetPage('projectPage');
         }
     }
 
-    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar): View
+    public function render(ResearchHeadAnalytics $analytics, DashboardCalendar $calendar, ResearchHeadReportQueue $reportQueue): View
     {
         abort_unless(auth()->user()?->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
         $callId = null;
@@ -253,15 +260,29 @@ class ResearchHeadDashboard extends Component
                     $search->where('title', 'like', '%'.$this->search.'%')->orWhere('description', 'like', '%'.$this->search.'%')
                         ->orWhereHas('user', fn (Builder $users) => $users->where('name', 'like', '%'.$this->search.'%'));
                 });
-            })->latest()->paginate($this->overview ? 4 : 5)->withQueryString();
+            });
+        if ($this->overview) {
+            $latestSubmission = ProposalVersion::select('created_at')->whereColumn('topic_id', (new TopicProposal)->getTable().'.id')->orderByDesc('id')->limit(1);
+            $topics->orderByRaw('COALESCE(status_started_at, ('.$latestSubmission->toSql().'), created_at) ASC', $latestSubmission->getBindings())->orderBy('id');
+        } else {
+            $topics->latest();
+        }
+        $topics = $topics->paginate($this->overview ? 4 : 5)->withQueryString();
+
+        $reportItems = $this->overview ? $reportQueue->query(status: 'pending')
+            ->whereIn('topic_id', (clone $base)->withIssuedNotice()
+                ->where(fn (Builder $query) => $query->whereNull('project_status')->orWhere('project_status', '!=', 'completed'))->select('id'))
+            ->orderBy('received_at')->orderBy('report_type')->orderBy('id')
+            ->paginate(4, ['*'], 'reportPage') : null;
 
         $projectRows = $data['projects']->when($this->projectStatus !== '', fn (Collection $rows) => $this->projectStatus === 'active' ? $rows->where('status', '!=', 'completed') : $rows->where('status', $this->projectStatus))->values();
         $attentionRows = $this->overview
-            ? $data['attention']->reject(fn (array $issue): bool => $issue['type'] === 'head_review')->values()
+            ? $data['attention']->reject(fn (array $issue): bool => $issue['type'] === 'head_review' || ($issue['review_status'] ?? null) === 'pending')->values()
             : $data['attention'];
 
         return view($this->overview ? 'livewire.research-head-overview' : 'livewire.research-head-dashboard', [
             'topics' => $topics, 'deadlines' => $deadlines,
+            'reportItems' => $reportItems,
             'analytics' => $data, 'stageLabels' => ResearchDashboardAnalytics::STAGES,
             'attentionItems' => $this->paginateRows($attentionRows, 'attentionPage', $this->overview ? 4 : 5),
             'projectItems' => $this->paginateRows($projectRows, 'projectPage', 6),

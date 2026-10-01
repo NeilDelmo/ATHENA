@@ -50,7 +50,7 @@ class MonitoringToolDocumentService
             }
 
             if (! $archive->addFromString('word/document.xml', $this->renderDocumentXml($documentXml, $report))
-                || ! $archive->addFromString('word/footer1.xml', $this->renderFooterXml($footerXml, $report))) {
+                || ! $archive->addFromString('word/footer1.xml', $this->renderFooterXml($footerXml, $documentXml))) {
                 throw new RuntimeException('The generated Monitoring Tool could not be written.');
             }
 
@@ -106,7 +106,7 @@ class MonitoringToolDocumentService
 
         $projectCells = $this->cells($xpath, $rows[3], 2);
         $this->replaceCellText($xpath, $projectCells[0], 'Research Project Title: '.$topic->title);
-        $this->replaceCellText($xpath, $projectCells[1], 'Project Leader: '.$leader);
+        $this->replaceCellText($xpath, $projectCells[1], 'Project Leader: '.Str::upper($leader));
 
         $costCells = $this->cells($xpath, $rows[4], 2);
         $this->replaceCellText($xpath, $costCells[0], 'Total Project Cost: '.$this->money((float) $topic->estimated_budget));
@@ -169,7 +169,7 @@ class MonitoringToolDocumentService
             $cells = $this->cells($xpath, $rows[$index + 22], 6);
 
             $this->replaceCellText($xpath, $cells[0], $type);
-            $this->replaceCellText($xpath, $cells[1], (string) ($entry['details'] ?? ''));
+            $this->replaceCellText($xpath, $cells[1], (string) ($entry['details'] ?? ''), fontSize: 12);
             $this->replaceCellText($xpath, $cells[2], $this->money($requested));
             $this->replaceCellText($xpath, $cells[3], $this->money($actual));
             $this->replaceCellText($xpath, $cells[4], $this->percentage($projectCost > 0 ? ($actual / $projectCost) * 100 : 0));
@@ -202,21 +202,60 @@ class MonitoringToolDocumentService
         $this->replaceParagraphText($xpath, $paragraphs[7], 'Date Signed: '.$dateSigned);
     }
 
-    private function renderFooterXml(string $xml, ProjectProgressReport $report): string
+    private function renderFooterXml(string $xml, string $documentXml): string
     {
         [$document, $xpath] = $this->documentAndXPath($xml, 'footer');
-        $replacement = 'Tracking No. '.($report->tracking_number ?: '__________________________').' ';
+        $paragraph = $xpath->query('/w:ftr/w:p[1]')->item(0);
+        $properties = $xpath->query('./w:pPr', $paragraph)->item(0);
+
+        if (! $paragraph instanceof DOMElement || ! $properties instanceof DOMElement) {
+            throw new RuntimeException('The Monitoring Tool footer paragraph is missing.');
+        }
+
+        $tabs = $document->createElementNS(self::W, 'w:tabs');
+
+        foreach ([4680, 9360, $this->footerPageNumberPosition($documentXml)] as $index => $position) {
+            $tab = $document->createElementNS(self::W, 'w:tab');
+            $tab->setAttributeNS(self::W, 'w:val', $index < 2 ? 'clear' : 'right');
+            $tab->setAttributeNS(self::W, 'w:pos', (string) $position);
+            $tabs->appendChild($tab);
+        }
+
+        $properties->insertBefore($tabs, $xpath->query('./w:ind', $properties)->item(0));
+
+        foreach (array_slice($this->elements($xpath, './w:r/w:tab', $paragraph), 1) as $tab) {
+            $tab->parentNode->removeChild($tab);
+        }
 
         foreach ($xpath->query('//w:t') as $text) {
             if ($text instanceof DOMElement && str_contains($text->textContent, 'Tracking No.')) {
                 $text->setAttributeNS(self::XML, 'xml:space', 'preserve');
-                $text->nodeValue = $replacement;
+                $text->nodeValue = 'Tracking No. __________________________ ';
 
                 return $this->serialized($document, 'footer');
             }
         }
 
         throw new RuntimeException('The Monitoring Tool tracking number slot is missing.');
+    }
+
+    private function footerPageNumberPosition(string $documentXml): int
+    {
+        [, $xpath] = $this->documentAndXPath($documentXml, 'document');
+        $table = $xpath->query('/w:document/w:body/w:tbl[1]')->item(0);
+        $section = $xpath->query('/w:document/w:body/w:sectPr')->item(0);
+
+        if (! $table instanceof DOMElement || ! $section instanceof DOMElement) {
+            throw new RuntimeException('The Monitoring Tool page layout is missing.');
+        }
+
+        $width = (int) $xpath->evaluate('string(./w:tblPr/w:tblW/@w:w)', $table);
+        $pageWidth = (int) $xpath->evaluate('string(./w:pgSz/@w:w)', $section);
+        $leftMargin = (int) $xpath->evaluate('string(./w:pgMar/@w:left)', $section);
+        $rightMargin = (int) $xpath->evaluate('string(./w:pgMar/@w:right)', $section);
+        $accomplishmentEdge = (int) $xpath->evaluate('sum(./w:tr[7]/w:tc[position() <= 5]/w:tcPr/w:tcW/@w:w)', $table);
+
+        return (int) round(($pageWidth - $leftMargin - $rightMargin - $width) / 2 + $accomplishmentEdge);
     }
 
     /** @return array{DOMDocument, DOMXPath} */
@@ -247,7 +286,7 @@ class MonitoringToolDocumentService
         return $cells;
     }
 
-    private function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text): void
+    private function replaceCellText(DOMXPath $xpath, DOMElement $cell, string $text, ?int $fontSize = null): void
     {
         $paragraphs = $this->elements($xpath, './w:p', $cell);
 
@@ -255,14 +294,14 @@ class MonitoringToolDocumentService
             throw new RuntimeException('A Monitoring Tool table cell has no paragraph.');
         }
 
-        $this->replaceParagraphText($xpath, $paragraphs[0], $text);
+        $this->replaceParagraphText($xpath, $paragraphs[0], $text, $fontSize);
 
         foreach (array_slice($paragraphs, 1) as $paragraph) {
             $this->replaceParagraphText($xpath, $paragraph, '');
         }
     }
 
-    private function replaceParagraphText(DOMXPath $xpath, DOMElement $paragraph, string $text): void
+    private function replaceParagraphText(DOMXPath $xpath, DOMElement $paragraph, string $text, ?int $fontSize = null): void
     {
         $runProperties = $xpath->query('./w:r[1]/w:rPr', $paragraph)->item(0)
             ?? $xpath->query('./w:pPr/w:rPr', $paragraph)->item(0);
@@ -282,6 +321,21 @@ class MonitoringToolDocumentService
         }
 
         $run = $paragraph->ownerDocument->createElementNS(self::W, 'w:r');
+
+        if ($fontSize !== null) {
+            $runProperties ??= $paragraph->ownerDocument->createElementNS(self::W, 'w:rPr');
+
+            foreach (['sz', 'szCs'] as $property) {
+                $size = $xpath->query('./w:'.$property, $runProperties)->item(0);
+
+                if (! $size instanceof DOMElement) {
+                    $size = $paragraph->ownerDocument->createElementNS(self::W, 'w:'.$property);
+                    $runProperties->appendChild($size);
+                }
+
+                $size->setAttributeNS(self::W, 'w:val', (string) ($fontSize * 2));
+            }
+        }
 
         if ($runProperties instanceof DOMNode) {
             $run->appendChild($runProperties);

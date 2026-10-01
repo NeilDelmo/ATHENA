@@ -167,7 +167,9 @@ class ResearchHeadAnalytics
                 foreach ($reviewRows as $row) {
                     if ($row['report'] && in_array($row['report']->review_status, ['pending', 'revision_requested'], true)) {
                         $awaiting = true;
-                        $attention->push($this->issue($topic, 'report_review', $row['label'].' report '.($row['report']->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $row['report']->submitted_at ?? $row['report']->created_at, 'waiting', 'project-monitoring'));
+                        $attention->push([...$this->issue($topic, 'report_review', $row['label'].' report '.($row['report']->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $row['report']->submitted_at ?? $row['report']->created_at, 'waiting', 'project-monitoring'),
+                            'review_status' => $row['report']->review_status, 'report_id' => $row['report']->id,
+                            'url' => route('topics.show', $topic).'#monitoring-tool-'.$row['report']->id]);
                     }
                 }
                 $terminal = $topic->narrativeReports->where('report_type', 'terminal')->sortByDesc('id')->first();
@@ -177,12 +179,15 @@ class ResearchHeadAnalytics
                 }
                 if ($terminal && $terminal->review_status !== 'reviewed') {
                     $awaiting = true;
-                    $attention->push($this->issue($topic, 'terminal_review', 'Terminal report '.($terminal->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $terminal->submitted_at ?? $terminal->created_at, 'waiting', 'project-monitoring'));
+                    $attention->push([...$this->issue($topic, 'terminal_review', 'Terminal report '.($terminal->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $terminal->submitted_at ?? $terminal->created_at, 'waiting', 'project-monitoring'),
+                        'review_status' => $terminal->review_status, 'report_id' => $terminal->id,
+                        'url' => route('topics.show', $topic).'#narrative-report-'.$terminal->id]);
                 }
-                $narrative = $topic->narrativeReports->where('report_type', '!=', 'terminal')->sortByDesc('id')->first();
-                if ($narrative && $narrative->review_status !== 'reviewed') {
+                foreach ($topic->narrativeReports->where('report_type', 'progress')->where('review_status', '!=', 'reviewed') as $narrative) {
                     $awaiting = true;
-                    $attention->push($this->issue($topic, 'narrative_review', 'Narrative progress report '.($narrative->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $narrative->submitted_at ?? $narrative->created_at, 'waiting', 'project-monitoring'));
+                    $attention->push([...$this->issue($topic, 'narrative_review', 'Progress report '.($narrative->review_status === 'pending' ? 'awaiting review' : 'needs corrections'), $narrative->submitted_at ?? $narrative->created_at, 'waiting', 'project-monitoring'),
+                        'review_status' => $narrative->review_status, 'report_id' => $narrative->id,
+                        'url' => route('topics.show', $topic).'#narrative-report-'.$narrative->id]);
                 }
                 if ((int) $latest?->progress_percentage >= 100) {
                     $attention->push($this->issue($topic, 'completion', 'Reported 100% — completion decision needed', $latest->submitted_at ?? $latest->created_at, 'waiting', 'project-monitoring'));

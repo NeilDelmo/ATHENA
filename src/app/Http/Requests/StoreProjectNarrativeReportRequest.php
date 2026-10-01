@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
+use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Illuminate\Foundation\Http\FormRequest;
@@ -56,31 +57,31 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             'implementation_start' => ['required', 'date'],
             'implementation_end' => ['required', 'date', 'after_or_equal:implementation_start'],
             'funding_agency' => ['required', 'string', 'max:255'],
-            'accomplishments' => ['required', 'array', 'min:1', 'max:'.config('progress_report.max_accomplishments')],
+            'accomplishments' => ['required', 'array', 'min:1', 'max:1000'],
             'accomplishments.*.objective' => ['required', 'string', 'max:1000'],
             'accomplishments.*.target' => ['required', 'string', 'max:2000'],
             'accomplishments.*.actual' => ['required', 'string', 'max:2000'],
-            'introduction' => ['required', 'string', 'max:5000'],
-            'rationale' => ['required', 'string', 'max:5000'],
-            'objectives' => ['required', 'string', 'max:5000'],
-            'methodology' => ['required', 'string', 'max:5000'],
-            'results_discussion' => ['required', 'string', 'max:5000'],
+            'introduction' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'rationale' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'objectives' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'methodology' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'results_discussion' => ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'prepared_by_date_signed' => ['nullable', 'date', 'before_or_equal:today'],
         ];
 
-        foreach (range(1, (int) config('progress_report.max_figures')) as $index) {
-            $required = $index === 1 ? 'required' : 'nullable';
-            $captionRules = [$required, 'string', 'max:200'];
-            $sectionRules = [$required, Rule::in(['methodology', 'results_discussion'])];
-
-            if ($index > 1) {
-                $captionRules[] = 'required_with:photo_'.$index;
-                $sectionRules[] = 'required_with:photo_'.$index;
-            }
-
-            $rules['photo_'.$index] = [$required, 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
-            $rules['photo_caption_'.$index] = $captionRules;
-            $rules['photo_section_'.$index] = $sectionRules;
+        if ($this->input('report_type') !== 'terminal') {
+            $rules['figures'] = ['nullable', 'array'];
+            $rules['figures.*'] = ['array:image,caption,section,after_paragraph'];
+            $rules['figures.*.image'] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
+            $rules['figures.*.caption'] = ['nullable', 'string', 'max:1000', 'required_with:figures.*.image'];
+            $rules['figures.*.section'] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:figures.*.image'];
+            $rules['figures.*.after_paragraph'] = ['nullable', 'integer', 'min:0', 'max:100000'];
+        }
+        foreach (app(ProgressReportData::class)->legacyFigureIndexes($this->all()) as $index) {
+            $rules['photo_'.$index] = ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:10240'];
+            $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:1000', 'required_with:photo_'.$index];
+            $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion']), 'required_with:photo_'.$index];
+            $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:100000'];
         }
 
         if ($this->input('report_type') === 'terminal') {

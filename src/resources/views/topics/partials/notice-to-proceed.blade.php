@@ -254,7 +254,7 @@
                                 @error('signed_notice_to_proceed')<p class="mt-2 text-base font-semibold text-red-700">{{ $message }}</p>@enderror
                             </div>
                             <div class="flex justify-end border-t border-slate-200 pt-5 dark:border-slate-700">
-                            <button type="submit" class="rh-button !min-h-12 !text-base shrink-0 gap-2"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5" stroke-linecap="round" stroke-linejoin="round" /></svg><span>Release papers and Notice to Proceed</span></button>
+                            <button type="submit" class="rh-button !min-h-12 !text-base w-full min-w-0 gap-2 !whitespace-normal sm:w-auto"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5" stroke-linecap="round" stroke-linejoin="round" /></svg><span>Release papers and Notice to Proceed</span></button>
                             </div>
                         </div>
                     </form>

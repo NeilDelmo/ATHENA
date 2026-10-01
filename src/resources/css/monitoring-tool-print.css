@@ -156,6 +156,10 @@ body {
     white-space: nowrap;
 }
 
+.monitoring-request-details {
+    font-size: 12pt;
+}
+
 .monitoring-total-row th,
 .monitoring-total-row td {
     background: #f3f4f6;

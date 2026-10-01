@@ -18,6 +18,7 @@ use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use App\Services\ProjectMonitoringFormDataService;
 use App\Services\SidebarAttentionService;
+use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -51,7 +52,7 @@ class ProjectNarrativeReportController extends Controller
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
         $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
-        $figureIndexes = range(1, ($validated['report_type'] ?? 'progress') === 'terminal' ? 30 : (int) config('progress_report.max_figures'));
+        $figureIndexes = (($validated['report_type'] ?? 'progress') === 'terminal' ? range(1, 30) : []);
         $photoFields = collect($figureIndexes)
             ->flatMap(fn (int $index): array => [
                 'photo_'.$index,
@@ -60,24 +61,17 @@ class ProjectNarrativeReportController extends Controller
                 'reuse_photo_'.$index,
                 'photo_after_paragraph_'.$index,
             ])
+            ->prepend('figures')
             ->prepend('cover_image_caption')
             ->prepend('reuse_cover_image')
             ->prepend('cover_image')
             ->all();
         $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
             ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), true)
-            : collect($figureIndexes)
-                ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
-                ->map(fn (int $index): array => [
-                    'preview_file_input' => "photo_{$index}",
-                    'caption' => $validated["photo_caption_{$index}"],
-                    'section' => $validated["photo_section_{$index}"],
-                ])
-                ->values()
-                ->all();
+            : app(ProgressReportData::class)->photos($topic, $validated, $request->allFiles(), true);
 
         $report = new ProjectNarrativeReport([
-            ...collect($validated)->except($photoFields)->all(),
+            ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
             'topic_id' => $topic->id,
             'submitted_by' => $request->user()->id,
             'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
@@ -237,27 +231,10 @@ class ProjectNarrativeReportController extends Controller
         $storedPaths = [];
 
         try {
-            $figureIndexes = range(1, ($validated['report_type'] ?? 'progress') === 'terminal' ? 30 : (int) config('progress_report.max_figures'));
+            $figureIndexes = (($validated['report_type'] ?? 'progress') === 'terminal' ? range(1, 30) : []);
             $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
             ? app(TerminalReportData::class)->photos($topic, $validated, $request->allFiles(), false, $storedPaths)
-            : collect($figureIndexes)
-                ->filter(fn (int $index): bool => $request->hasFile("photo_{$index}"))
-                ->map(function (int $index) use ($request, $topic, $validated, &$storedPaths): array {
-                    $file = $request->file("photo_{$index}");
-                    $path = $file->store("narrative-progress-reports/{$topic->id}", 'local');
-                    $storedPaths[] = $path;
-
-                    return [
-                        'path' => $path,
-                        'original_name' => $file->getClientOriginalName(),
-                        'mime_type' => $file->getMimeType(),
-                        'size' => $file->getSize(),
-                        'caption' => $validated["photo_caption_{$index}"],
-                        'section' => $validated["photo_section_{$index}"],
-                    ];
-                })
-                ->values()
-                ->all();
+            : app(ProgressReportData::class)->photos($topic, $validated, $request->allFiles(), false, $storedPaths);
 
             $photoFields = collect($figureIndexes)
                 ->flatMap(fn (int $index): array => [
@@ -267,13 +244,14 @@ class ProjectNarrativeReportController extends Controller
                     'reuse_photo_'.$index,
                     'photo_after_paragraph_'.$index,
                 ])
+                ->prepend('figures')
                 ->prepend('cover_image_caption')
                 ->prepend('reuse_cover_image')
                 ->prepend('cover_image')
                 ->all();
 
             $report = ProjectNarrativeReport::create([
-                ...collect($validated)->except($photoFields)->all(),
+                ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $request->user()->id,
                 'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,
@@ -368,14 +346,16 @@ class ProjectNarrativeReportController extends Controller
         DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         $this->authorizeViewer($request, $report);
+        $disposition = $request->routeIs('project-narrative-reports.view') ? 'inline' : 'attachment';
 
         if (filled($report->official_pdf_path)
             && filled($report->official_pdf_filename)
             && Storage::disk('local')->exists($report->official_pdf_path)) {
-            return Storage::disk('local')->download(
+            return Storage::disk('local')->response(
                 $report->official_pdf_path,
                 $report->official_pdf_filename,
                 ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
+                $disposition,
             );
         }
 
@@ -387,6 +367,7 @@ class ProjectNarrativeReportController extends Controller
             static fn () => print $pdf,
             Str::slug($report->terminal_data['project_title'] ?? $report->topic->title).'-'.Str::slug($report->report_label).'.pdf',
             ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
+            $disposition,
         );
     }
 
@@ -396,7 +377,19 @@ class ProjectNarrativeReportController extends Controller
         $photo = ($report->photos ?? [])[$photoIndex] ?? null;
         abort_unless(is_array($photo) && Storage::disk('local')->exists($photo['path'] ?? ''), 404);
 
-        return Storage::disk('local')->download($photo['path'], $photo['original_name']);
+        $filename = $photo['original_name'] ?? basename($photo['path']);
+
+        if ($request->routeIs('project-narrative-reports.photos.view')) {
+            $mimeType = Storage::disk('local')->mimeType($photo['path']);
+            abort_unless(in_array($mimeType, ['image/jpeg', 'image/png', 'image/webp'], true), 415);
+
+            return Storage::disk('local')->response($photo['path'], $filename, [
+                'Content-Type' => $mimeType,
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return Storage::disk('local')->download($photo['path'], $filename);
     }
 
     public function storeSignedCopy(

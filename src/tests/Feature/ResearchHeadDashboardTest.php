@@ -228,7 +228,7 @@ test('monitoring page shows approved projects only with latest progress and coun
     $this->actingAs($this->head)
         ->get(route('research_head.projects.index'))
         ->assertOk()
-        ->assertSee('Research Projects Under Monitoring')
+        ->assertSee('Research projects under monitoring')
         ->assertDontSee('Projects with a Notice to Proceed')
         ->assertSee('Approved Monitoring Project')
         ->assertSee('45%')
@@ -238,15 +238,18 @@ test('monitoring page shows approved projects only with latest progress and coun
         ->assertDontSee('text-sm font-black text-gray-900">Unapproved Proposal', false);
 });
 
-test('monitoring KPI cards use the brand border and reserve red for delayed projects', function () {
+test('monitoring KPI strip shows accurate counts for every project state', function () {
     $response = $this->actingAs($this->head)
         ->get(route('research_head.projects.index'))
-        ->assertOk()
-        ->assertSee('border-t-[3px] border-t-brand', false)
-        ->assertSee('dark:border-t-brand-soft dark:bg-slate-900', false)
-        ->assertSee('text-2xl font-black bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-slate-200">0</p>', false);
-
-    expect(substr_count($response->getContent(), 'border-t-[3px] border-t-brand'))->toBe(5);
+        ->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $values = $xpath->query('//*[@data-kpi-strip]//dd');
+    expect($values->length)->toBe(5);
+    foreach ($values as $value) {
+        expect(trim($value->textContent))->toBe('0');
+    }
 
     createDashboardTopic($this->researcher, $this->call, [
         'title' => 'Delayed KPI Project',
@@ -254,10 +257,13 @@ test('monitoring KPI cards use the brand border and reserve red for delayed proj
         'project_status' => 'delayed',
     ]);
 
-    $this->actingAs($this->head)
+    $response = $this->actingAs($this->head)
         ->get(route('research_head.projects.index'))
-        ->assertOk()
-        ->assertSee('text-2xl font-black bg-red-50 text-red-700">1</p>', false);
+        ->assertOk();
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect(trim($xpath->evaluate('string(//*[@data-kpi-strip]//div[dt/span="Delayed"]/dd)')))->toBe('1')
+        ->and(trim($xpath->evaluate('string(//*[@data-kpi-strip]//div[dt/span="Ongoing"]/dd)')))->toBe('0');
 });
 
 test('monitoring page presents active projects at 100 percent as completion pending', function () {
@@ -395,11 +401,12 @@ test('dashboard shows the proposal status overview and budget utilization analyt
         ->assertSee('30.0%')
         ->assertSee('Latest report');
 });
-test('the proposal dashboard shows the six research analytics KPIs', function () {
+test('the dashboard distinguishes proposal and report review priorities from research totals', function () {
     $this->actingAs($this->head)
         ->get(route('research_head.dashboard'))
         ->assertOk()
-        ->assertSee('Awaiting your review')
+        ->assertSee('Proposals awaiting review')
+        ->assertSee('Reports awaiting review')
         ->assertSee('Delayed / overdue')
         ->assertSee('Completed projects')
         ->assertSee('Faculty in research')

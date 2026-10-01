@@ -36,7 +36,7 @@
         x-transition:leave-end="opacity-0 translate-y-4 scale-95"
         role="dialog"
         aria-labelledby="research-assistant-drawer-title"
-        class="pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[38rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[26rem]"
+        class="athena-chat-panel pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[42rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[30rem]"
     >
         <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
             <div class="flex min-w-0 items-center gap-3">
@@ -44,7 +44,7 @@
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
                 </div>
                 <div class="min-w-0">
-                    <h2 id="research-assistant-drawer-title" class="truncate text-sm font-black text-gray-900 dark:text-white">Athena</h2>
+                    <h2 id="research-assistant-drawer-title" class="truncate text-lg font-bold text-gray-900 dark:text-white">Athena</h2>
                     <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite"><span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span><span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Research assistant'"></span></p>
                 </div>
             </div>
@@ -61,9 +61,14 @@
             </div>
         </header>
 
-        <div class="shrink-0 border-b border-blue-100 bg-blue-50 px-4 py-2.5 text-[10px] leading-4 text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200 sm:px-5">
-            <span class="font-black">Context-aware assistance:</span> A page action states which saved ATHENA record it uses. On proposal forms, a limited focused-field snapshot may also be included; contact and sensitive profile fields are redacted. Chats are saved to your ATHENA account. Avoid sharing confidential participant data.
-        </div>
+        <details class="group shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 sm:px-5">
+            <summary class="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <svg class="h-4 w-4 shrink-0 text-red-700 dark:text-red-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6"/></svg>
+                <span class="flex-1">Chats are saved to your account.</span>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white font-semibold dark:border-slate-600 dark:bg-slate-900" aria-label="Privacy details">i</span>
+            </summary>
+            <p class="mt-3 leading-6">With context enabled, Athena uses the selected project’s saved records. On proposal forms, it can also use the focused field’s unsaved values. Contact details are redacted. Avoid sharing confidential participant data.</p>
+        </details>
 
         <div data-assistant-messages class="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
             <div x-show="!$store.researchAssistant.hasConversation()" class="flex min-h-full flex-col items-center justify-center px-5 py-10 text-center">
@@ -86,10 +91,10 @@
             <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="px-4 py-6 sm:px-6">
                 <template x-for="message in $store.researchAssistant.messages" :key="message.id">
                     <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-6 flex">
-                        <div x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
+                        <div data-assistant-user-message x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
                         <div x-show="message.role === 'assistant'" class="flex w-full gap-3">
                             <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
-                            <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                            <div data-assistant-response class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
                                 <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
                                 <div x-html="$store.researchAssistant.renderMessage(message)"></div>
                                 <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
@@ -110,7 +115,10 @@
                                         </template>
                                     </div>
                                 </details>
-                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy'"></button>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                                    <span x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></span>
+                                </button>
                             </div>
                         </div>
                     </article>
@@ -135,7 +143,7 @@
             </div>
 
             <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2">
-                <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                <label class="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-gray-600 dark:text-slate-300"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">Project</label>
                 <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                     <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
                 </select>
@@ -149,11 +157,14 @@
                 <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg></button>
                 <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
             </form>
-            <div class="mt-2 flex items-center justify-between gap-3 px-1">
-                <p class="text-[10px] text-gray-400">AI can make mistakes. Avoid confidential data.</p>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p class="text-sm text-gray-500 dark:text-slate-400">Check important answers.</p>
                 <div class="flex shrink-0 items-center gap-2">
-                    <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="text-[10px] font-bold text-gray-400 hover:text-gray-700 disabled:opacity-40 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
-                    <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="text-[10px] font-bold text-gray-400 hover:text-gray-700 disabled:opacity-40 dark:hover:text-white">Export</button>
+                    <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                        <span x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></span>
+                    </button>
+                    <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>Export</button>
                 </div>
             </div>
         </footer>

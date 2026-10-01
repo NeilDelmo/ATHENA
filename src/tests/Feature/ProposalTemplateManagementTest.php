@@ -2,7 +2,7 @@
 
 use App\Models\ProposalTemplate;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -17,104 +17,36 @@ beforeEach(function () {
     $this->faculty->assignRole('faculty');
 });
 
-test('only a research head can manage proposal templates', function () {
-    $this->withoutVite();
-
-    $this->actingAs($this->head)
-        ->get(route('research_head.proposal-templates.index'))
-        ->assertOk()
-        ->assertSee('Proposal Template Administration')
-        ->assertSee('templates-tab-upload', false)
-        ->assertSee('templates-tab-managed', false)
-        ->assertSee('templates-panel-upload', false)
-        ->assertSee('templates-panel-managed', false)
-        ->assertSee("activeTab === 'upload'", false)
-        ->assertSee("activeTab === 'managed'", false)
-        ->assertSee('overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900', false)
-        ->assertSee('rounded-xl px-4 py-2.5 text-xs font-black transition', false)
-        ->assertSee('bg-gray-900 text-white shadow-sm', false)
-        ->assertSee('dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white', false)
-        ->assertDontSee('border-b-2 px-1 pb-3 text-xs font-bold transition', false)
-        ->assertSee('data-proposal-template-dropzone', false)
-        ->assertSee('Drop or paste a template file')
-        ->assertSee('fileDropzone', false)
-        ->assertSee('maxBytes: 25600 * 1024', false);
-
-    $this->actingAs($this->faculty)
-        ->get(route('research_head.proposal-templates.index'))
-        ->assertForbidden();
+test('template administration routes have been removed', function () {
+    foreach (['index', 'store', 'update', 'status'] as $action) {
+        expect(Route::has('research_head.proposal-templates.'.$action))->toBeFalse();
+    }
+    $this->actingAs($this->head)->get('/research-head/proposal-templates')->assertNotFound();
+    $this->post('/research-head/proposal-templates', [])->assertNotFound();
+    $this->put('/research-head/proposal-templates/example', [])->assertNotFound();
+    $this->patch('/research-head/proposal-templates/example/status', [])->assertNotFound();
+    $this->actingAs($this->faculty)->get('/research-head/proposal-templates')->assertNotFound();
 });
 
-test('a research head can upload replace and archive a proposal template', function () {
-    $this->withoutVite();
+test('official template downloads still work and archived files remain restricted', function () {
+    $template = ProposalTemplate::create([
+        'slug' => 'test-official-form',
+        'name' => 'Official Proposal Form',
+        'workflow_stage' => ProposalTemplate::STAGE_INITIAL_SUBMISSION,
+        'file_path' => 'proposals/templates/official-form.pdf',
+        'original_filename' => 'official-form.pdf',
+        'is_active' => true,
+        'uploaded_by' => $this->head->id,
+    ]);
+    Storage::disk('local')->put($template->file_path, '%PDF-1.4 test form');
+    $this->actingAs($this->faculty)->get(route('proposal-templates.download', $template))
+        ->assertDownload('official-form.pdf');
 
-    $this->actingAs($this->head)
-        ->post(route('research_head.proposal-templates.store'), [
-            'name' => 'Ethics Clearance Guide',
-            'description' => 'Official ethics preparation form.',
-            'instructions' => 'Complete this when human participants are involved.',
-            'revision_label' => 'Revision 01',
-            'workflow_stage' => ProposalTemplate::STAGE_INITIAL_SUBMISSION,
-            'document' => UploadedFile::fake()->create('ethics-guide.docx', 50, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-        ])
-        ->assertRedirect();
+    $template->update(['is_active' => false]);
+    $this->get(route('proposal-templates.download', $template))->assertNotFound();
+    $this->actingAs($this->head)->get(route('proposal-templates.download', $template))
+        ->assertDownload('official-form.pdf');
 
-    $template = ProposalTemplate::where('slug', 'ethics-clearance-guide')->firstOrFail();
-    $originalPath = $template->file_path;
-
-    $this->actingAs($this->head)
-        ->get(route('research_head.proposal-templates.index'))
-        ->assertOk()
-        ->assertSee('data-proposal-template-replacement-dropzone', false)
-        ->assertSee('replacement_document_ethics-clearance-guide', false)
-        ->assertSee('Drop or paste a replacement file');
-
-    Storage::disk('local')->assertExists($originalPath);
-    expect($template->is_active)->toBeTrue()
-        ->and($template->file_path)->toStartWith('proposals/templates/')
-        ->and($template->instructions)->toContain('human participants');
-
-    $this->actingAs($this->faculty)
-        ->get(route('faculty.topics.create'))
-        ->assertRedirect(route('faculty.proposal-drafts.index'));
-
-    $this->actingAs($this->faculty)
-        ->get(route('faculty.proposal-drafts.index'))
-        ->assertOk()
-        ->assertDontSee('Ethics Clearance Guide');
-
-    $this->actingAs($this->faculty)
-        ->get(route('proposal-templates.download', $template))
-        ->assertDownload('ethics-guide.docx');
-
-    $this->actingAs($this->head)
-        ->put(route('research_head.proposal-templates.update', $template), [
-            'name' => 'Ethics Clearance Guide',
-            'description' => 'Updated ethics preparation form.',
-            'instructions' => 'Use the current institutional ethics process.',
-            'revision_label' => 'Revision 02',
-            'workflow_stage' => ProposalTemplate::STAGE_INITIAL_SCREENING,
-            'document' => UploadedFile::fake()->create('ethics-guide-v2.pdf', 60, 'application/pdf'),
-        ])
-        ->assertRedirect();
-
-    $template->refresh();
-    Storage::disk('local')->assertMissing($originalPath);
-    Storage::disk('local')->assertExists($template->file_path);
-    expect($template->revision_label)->toBe('Revision 02')
-        ->and($template->workflow_stage)->toBe(ProposalTemplate::STAGE_INITIAL_SCREENING);
-
-    $this->actingAs($this->head)
-        ->patch(route('research_head.proposal-templates.status', $template), ['is_active' => false])
-        ->assertRedirect();
-
-    expect($template->fresh()->is_active)->toBeFalse();
-
-    $this->actingAs($this->faculty)
-        ->get(route('proposal-templates.download', $template))
-        ->assertNotFound();
-
-    $this->actingAs($this->head)
-        ->get(route('proposal-templates.download', $template))
-        ->assertDownload('ethics-guide-v2.pdf');
+    Storage::disk('local')->delete($template->file_path);
+    $this->get(route('proposal-templates.download', $template))->assertNotFound();
 });

@@ -6,12 +6,15 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\FacultyProjectCapacityService;
+use App\Services\ProposalSignatureWorkflow;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'research_head'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -155,7 +158,9 @@ test('collaborator acceptance recalculates a newly conflicting workload without 
     expect($membership->fresh()->accepted_at)->not->toBeNull();
 });
 
-test('final approval is blocked when an accepted collaborator is already at capacity', function () {
+test('signed notice release enforces collaborator capacity only when enabled', function (bool $enforceCapacity, int $limit) {
+    config(['faculty_projects.enforce_capacity' => $enforceCapacity]);
+    $this->call->update(['max_active_research_per_faculty' => $limit]);
     Storage::fake('local');
 
     capacityTopic($this->faculty, $this->call, 'approved');
@@ -177,41 +182,95 @@ test('final approval is blocked when an accepted collaborator is already at capa
         'title' => $finalizingTopic->title,
         'estimated_duration_months' => 6,
     ]);
-    $sourceFile = $version->files()->create([
-        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
-        'position' => 0,
-        'file_path' => 'proposals/finalizing.pdf',
-        'original_filename' => 'finalizing.pdf',
-        'mime_type' => 'application/pdf',
-        'file_size' => 10,
-        'checksum' => hash('sha256', 'finalizing'),
-    ]);
-    $finalizingTopic->reviews()->create([
-        'reviewer_id' => $this->head->id,
-        'decision' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-        'required_signature_file_ids' => [$sourceFile->id],
-        'signature_proposal_version_id' => $version->id,
-    ]);
-    Storage::disk('local')->put('proposals/signed-finalizing.pdf', 'signed');
-    $version->files()->create([
-        'source_version_file_id' => $sourceFile->id,
-        'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
-        'position' => 0,
-        'file_path' => 'proposals/signed-finalizing.pdf',
-        'original_filename' => 'signed-finalizing.pdf',
-        'mime_type' => 'application/pdf',
-        'file_size' => 6,
-        'checksum' => hash('sha256', 'signed'),
-        'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED],
-        'uploaded_by' => $this->head->id,
-    ]);
-
-    $this->actingAs($this->head)
-        ->patch(route('research_head.topics.finalizeApproval', $finalizingTopic))
-        ->assertSessionHasErrors('status')
-        ->assertSessionHasErrors([
-            'status' => 'Approval cannot continue. Faculty B is already participating in the maximum of 2 active approved research projects.',
+    foreach (ProposalSignatureWorkflow::REQUIRED_DOCUMENT_TYPES as $position => $documentType) {
+        $sourcePath = 'proposals/'.$documentType.'.pdf';
+        $signedPath = 'proposals/signed-'.$documentType.'.pdf';
+        Storage::disk('local')->put($sourcePath, 'original');
+        Storage::disk('local')->put($signedPath, 'signed');
+        $sourceFile = $version->files()->create([
+            'document_type' => $documentType,
+            'position' => $position,
+            'file_path' => $sourcePath,
+            'original_filename' => $documentType.'.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 8,
+            'checksum' => hash('sha256', 'original'),
         ]);
+        $version->files()->create([
+            'source_version_file_id' => $sourceFile->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 100 + $position,
+            'file_path' => $signedPath,
+            'original_filename' => 'signed-'.$documentType.'.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 6,
+            'checksum' => hash('sha256', 'signed'),
+            'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED],
+            'uploaded_by' => $this->head->id,
+        ]);
+    }
 
-    expect($finalizingTopic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE);
+    $finalizingTopic->update(['notice_to_proceed_data' => ['project_title' => $finalizingTopic->title]]);
+
+    $response = $this->actingAs($this->head)
+        ->withSession(['active_workspace' => User::WORKSPACE_RESEARCH_HEAD])
+        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $finalizingTopic), [
+            'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+        ]);
+    $finalizingTopic->refresh();
+
+    if ($enforceCapacity) {
+        $response->assertSessionHasErrors([
+            'status' => 'Approval cannot continue. Faculty B is already participating in the maximum of '.$limit.' active approved '.str('research project')->plural($limit).'.',
+        ]);
+        expect($finalizingTopic->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
+            ->and($finalizingTopic->notice_to_proceed_issued_at)->toBeNull();
+    } else {
+        $response->assertSessionHasNoErrors();
+        expect($finalizingTopic->status)->toBe('approved')
+            ->and($finalizingTopic->notice_to_proceed_issued_at)->not->toBeNull();
+    }
+})->with([
+    'one project limit' => [true, 1],
+    'two project limit' => [true, 2],
+    'demo bypasses one project limit' => [false, 1],
+    'demo bypasses two project limit' => [false, 2],
+]);
+
+test('demo switch allows draft submission beyond owner and collaborator capacity', function (bool $enforceCapacity) {
+    config(['faculty_projects.enforce_capacity' => $enforceCapacity]);
+    capacityTopic($this->owner, $this->call, 'approved');
+    capacityTopic($this->owner, $this->call, 'pending');
+    capacityTopic($this->faculty, $this->call, 'approved');
+    capacityTopic($this->faculty, $this->call, 'approved');
+
+    $draft = ProposalDraft::create([
+        'user_id' => $this->owner->id,
+        'research_call_id' => $this->call->id,
+        'project_title' => 'Demo beyond project capacity',
+        'duration_months' => 6,
+        'project_leader' => $this->owner->name,
+    ]);
+    $draft->members()->create([
+        'user_id' => $this->faculty->id,
+        'name' => $this->faculty->name,
+        'email' => $this->faculty->email,
+        'accepted_at' => now(),
+    ]);
+
+    $submit = fn () => app(FacultyProjectCapacityService::class)->ensureSubmissionAvailableFor($draft);
+    if ($enforceCapacity) {
+        expect($submit)->toThrow(ValidationException::class);
+    } else {
+        expect($submit)->not->toThrow(ValidationException::class);
+    }
+})->with(['enforced' => true, 'demo bypass' => false]);
+
+test('demo switch suppresses workload conflict warnings', function () {
+    capacityTopic($this->faculty, $this->call, 'approved');
+    capacityTopic($this->faculty, $this->call, 'approved');
+    config(['faculty_projects.enforce_capacity' => false]);
+
+    expect(app(FacultyProjectCapacityService::class)->warningForAdditionalParticipation($this->faculty, $this->call))
+        ->toBeNull();
 });

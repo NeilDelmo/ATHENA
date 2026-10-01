@@ -160,8 +160,8 @@ class ProgressReportDocumentService
         $this->fillNarrativeBelowHeading($xpath, $rows[16], $report->rationale ?? '');
 
         $figureNumber = 1;
-        $this->appendFigures($xpath, $rows[20], $figures, 'methodology', $figureNumber);
-        $this->appendFigures($xpath, $rows[22], $figures, 'results_discussion', $figureNumber);
+        $this->appendFigures($xpath, $rows[20], $figures, 'methodology', $figureNumber, $report->methodology);
+        $this->appendFigures($xpath, $rows[22], $figures, 'results_discussion', $figureNumber, $report->results_discussion);
         $this->fillPreparedBy($xpath, $rows[24], $report);
         $this->splitSignOffPage($xpath, $table, $rows);
 
@@ -285,20 +285,33 @@ class ProgressReportDocumentService
         array $figures,
         string $section,
         int &$figureNumber,
+        string $narrative,
     ): void {
         $cell = $this->cells($xpath, $row, 1)[0];
-
-        foreach ($figures as $figure) {
-            if ($figure['section'] !== $section) {
-                continue;
+        $paragraphs = preg_split('/\n\s*\n/u', str_replace(["\r\n", "\r"], "\n", $narrative)) ?: [$narrative];
+        $template = $xpath->query('./w:p[1]', $cell)->item(0)?->cloneNode(true);
+        foreach ($this->elements($xpath, './w:p', $cell) as $paragraph) {
+            $cell->removeChild($paragraph);
+        }
+        foreach ($paragraphs as $index => $value) {
+            $paragraph = $template?->cloneNode(true);
+            if (! $paragraph instanceof DOMElement) {
+                throw new RuntimeException('The Progress Report narrative paragraph is missing.');
             }
-
-            $cell->appendChild($this->figureParagraph($cell->ownerDocument, $figure, $figureNumber));
-            $cell->appendChild($this->captionParagraph(
-                $cell->ownerDocument,
-                'Figure '.$figureNumber.'. '.$figure['caption'],
-            ));
-            $figureNumber++;
+            $this->replaceParagraphText($xpath, $paragraph, $value);
+            $cell->appendChild($paragraph);
+            foreach ($figures as $figure) {
+                $position = (int) ($figure['after_paragraph'] ?? 0);
+                $position = $position === 0 ? count($paragraphs) : min($position, count($paragraphs));
+                if ($figure['section'] !== $section || $position !== $index + 1) {
+                    continue;
+                }
+                $cell->appendChild($this->figureParagraph($cell->ownerDocument, $figure, $figureNumber));
+                $cell->appendChild($this->captionParagraph(
+                    $cell->ownerDocument, 'Figure '.$figureNumber.'. '.$figure['caption'],
+                ));
+                $figureNumber++;
+            }
         }
     }
 

@@ -5031,6 +5031,57 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
     autoSaveRevision: 0,
     lastSavedNarrativeDraft: '',
 
+    accomplishmentRows: (config.initialAccomplishments || []).map((row, id) => ({ ...row, id })),
+    figureRows: (config.initialFigures || []).map((row, id) => ({ caption: '', section: 'results_discussion', after_paragraph: 0, ...row, id, previewUrl: '' })),
+    nextRowId: Math.max((config.initialAccomplishments || []).length, (config.initialFigures || []).length),
+
+    addAccomplishment() {
+        this.accomplishmentRows.push({ id: this.nextRowId++, objective: '', target: '', actual: '', activities: '' });
+        this.rowsChanged();
+    },
+    removeAccomplishment(index) {
+        if (this.accomplishmentRows.length <= 1) return;
+        this.accomplishmentRows.splice(index, 1);
+        this.rowsChanged();
+    },
+    addFigure() {
+        this.figureRows.push({ id: this.nextRowId++, caption: '', section: 'results_discussion', after_paragraph: 0, previewUrl: '' });
+        this.rowsChanged();
+    },
+    removeFigure(index) {
+        const figure = this.figureRows[index];
+        if (figure?.previewUrl) URL.revokeObjectURL(figure.previewUrl);
+        this.figureRows.splice(index, 1);
+        this.rowsChanged();
+    },
+    moveFigure(index, offset) {
+        const target = index + offset;
+        if (target < 0 || target >= this.figureRows.length) return;
+        const [figure] = this.figureRows.splice(index, 1);
+        this.figureRows.splice(target, 0, figure);
+        this.rowsChanged();
+    },
+    selectFigureFile(figure, event) {
+        if (figure.previewUrl) URL.revokeObjectURL(figure.previewUrl);
+        const file = event.target.files?.[0];
+        figure.previewUrl = file ? URL.createObjectURL(file) : '';
+        this.invalidateNarrativePreview();
+    },
+    invalidateNarrativePreview() {
+        this.clearPreviewObjectUrls();
+        this.previewHtml = '';
+        this.previewReady = false;
+    },
+    rowsChanged() {
+        this.invalidateNarrativePreview();
+        this.$nextTick(() => this.triggerNarrativeDraftAutoSave());
+    },
+    destroy() {
+        this.figureRows.forEach((figure) => { if (figure.previewUrl) URL.revokeObjectURL(figure.previewUrl); });
+        this.clearPreviewObjectUrls();
+        window.clearTimeout(this.autoSaveTimer);
+    },
+
     init() {
         this.$nextTick(() => this.startNarrativeDraftAutoSave());
     },
@@ -5041,8 +5092,14 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         if (!(form instanceof HTMLFormElement)) return;
 
         this.lastSavedNarrativeDraft = this.narrativeDraftFingerprint(form);
-        form.addEventListener('input', () => this.triggerNarrativeDraftAutoSave());
-        form.addEventListener('change', () => this.triggerNarrativeDraftAutoSave());
+        form.addEventListener('input', () => {
+            this.invalidateNarrativePreview();
+            this.triggerNarrativeDraftAutoSave();
+        });
+        form.addEventListener('change', () => {
+            this.invalidateNarrativePreview();
+            this.triggerNarrativeDraftAutoSave();
+        });
     },
 
     narrativeDraftAutoSaveForm() {
@@ -5053,7 +5110,7 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         const formData = new FormData(form);
 
         [...formData.keys()]
-            .filter((name) => name === 'cover_image' || /^photo_\d+$/.test(name))
+            .filter((name) => name === 'cover_image' || /^photo_\d+$/.test(name) || /^figures\[\d+\]\[image\]$/.test(name))
             .forEach((name) => formData.delete(name));
 
         return formData;

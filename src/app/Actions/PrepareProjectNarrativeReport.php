@@ -7,8 +7,8 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ProgressReportDocumentService;
+use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -50,28 +50,10 @@ class PrepareProjectNarrativeReport
         $storedPaths = [];
 
         try {
-            $figureIndexes = range(1, ($validated['report_type'] ?? 'progress') === 'terminal' ? 30 : (int) config('progress_report.max_figures'));
+            $figureIndexes = (($validated['report_type'] ?? 'progress') === 'terminal' ? range(1, 30) : []);
             $photos = ($validated['report_type'] ?? 'progress') === 'terminal'
                 ? app(TerminalReportData::class)->photos($topic, $validated, $files, false, $storedPaths)
-                : collect($figureIndexes)
-                    ->filter(fn (int $index): bool => ($files["photo_{$index}"] ?? null) instanceof UploadedFile)
-                    ->map(function (int $index) use ($files, $validated, $topic, &$storedPaths): array {
-                        /** @var UploadedFile $file */
-                        $file = $files["photo_{$index}"];
-                        $path = $file->store("narrative-progress-reports/{$topic->id}", 'local');
-                        $storedPaths[] = $path;
-
-                        return [
-                            'path' => $path,
-                            'original_name' => $file->getClientOriginalName(),
-                            'mime_type' => $file->getMimeType(),
-                            'size' => $file->getSize(),
-                            'caption' => $validated["photo_caption_{$index}"],
-                            'section' => $validated["photo_section_{$index}"],
-                        ];
-                    })
-                    ->values()
-                    ->all();
+                : app(ProgressReportData::class)->photos($topic, $validated, $files, false, $storedPaths);
             $photoFields = collect($figureIndexes)
                 ->flatMap(fn (int $index): array => [
                     'photo_'.$index,
@@ -80,12 +62,13 @@ class PrepareProjectNarrativeReport
                     'reuse_photo_'.$index,
                     'photo_after_paragraph_'.$index,
                 ])
+                ->prepend('figures')
                 ->prepend('cover_image_caption')
                 ->prepend('reuse_cover_image')
                 ->prepend('cover_image')
                 ->all();
             $report = new ProjectNarrativeReport([
-                ...collect($validated)->except($photoFields)->all(),
+                ...collect($validated)->except($photoFields)->reject(fn (mixed $value, string $key): bool => str_starts_with($key, 'photo_'))->all(),
                 'topic_id' => $topic->id,
                 'submitted_by' => $user->id,
                 'budget' => $validated['terminal_data']['approved_budget'] ?? $topic->estimated_budget,

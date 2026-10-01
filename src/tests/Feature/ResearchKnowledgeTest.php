@@ -4,6 +4,7 @@ use App\Models\ResearchKnowledgeEntry;
 use App\Models\User;
 use App\Services\ResearchKnowledgeService;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -11,39 +12,26 @@ beforeEach(function () {
     Role::firstOrCreate(['name' => 'faculty']);
 });
 
-test('research heads can feed approved guidance into the athena knowledge base', function () {
+test('knowledge base management routes have been removed', function () {
     $researchHead = User::factory()->create();
     $researchHead->assignRole('research_head');
 
-    $this->actingAs($researchHead)
-        ->post(route('research_head.assistant-knowledge.store'), [
-            'title' => 'Institutional ethics clearance process',
-            'category' => 'ethics',
-            'content' => 'Faculty researchers must secure ethics clearance before collecting identifiable participant data.',
-            'source_url' => 'https://example.edu/research-ethics',
-        ])
-        ->assertRedirect()
-        ->assertSessionHas('success');
-
-    $entry = ResearchKnowledgeEntry::query()->sole();
-
-    expect($entry->title)->toBe('Institutional ethics clearance process')
-        ->and($entry->is_active)->toBeTrue()
-        ->and($entry->created_by)->toBe($researchHead->id);
-
-    $this->actingAs($researchHead)
-        ->get(route('research_head.assistant-knowledge.index'))
-        ->assertOk()
-        ->assertSee('Built-in proposal paper field guidance');
+    foreach (['index', 'store', 'update', 'status'] as $action) {
+        expect(Route::has('research_head.assistant-knowledge.'.$action))->toBeFalse();
+    }
+    $this->actingAs($researchHead)->get('/research-head/assistant-knowledge')->assertNotFound();
+    $this->post('/research-head/assistant-knowledge', [])->assertNotFound();
+    $this->put('/research-head/assistant-knowledge/1', [])->assertNotFound();
+    $this->patch('/research-head/assistant-knowledge/1/status', [])->assertNotFound();
 });
 
-test('faculty cannot manage the athena knowledge base', function () {
+test('removed knowledge base page is unavailable to faculty', function () {
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
 
     $this->actingAs($faculty)
-        ->get(route('research_head.assistant-knowledge.index'))
-        ->assertForbidden();
+        ->get('/research-head/assistant-knowledge')
+        ->assertNotFound();
 });
 
 test('athena retrieves matching approved knowledge and discloses its sources', function () {

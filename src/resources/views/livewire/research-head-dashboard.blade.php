@@ -1,11 +1,11 @@
-<div class="flex flex-col gap-6 text-base text-slate-900 dark:text-slate-100" wire:key="research-head-dashboard" data-analytics-layout="workbench">
+<div class="rh-analytics flex flex-col gap-6 text-base text-slate-900 dark:text-slate-100" wire:key="research-head-dashboard" data-analytics-layout="workbench">
     @php
         $chartAxisMax = max(4, (int) ceil($analytics['trendMax'] / 4) * 4);
         $pipelineMax = max(1, (int) $analytics['pipeline']->max('count'));
         $projectTotal = $analytics['projects']->count();
     @endphp
 
-    <section class="rh-panel p-4" aria-label="Analytics filters">
+    <section class="rh-panel rh-analytics-filters p-5 sm:p-6" aria-label="Analytics filters">
         <form wire:submit="applyFilters" class="flex flex-wrap items-end gap-3">
             <div class="min-w-40 flex-1">
                 <label for="analytics-year" class="block text-sm font-semibold">Academic year</label>
@@ -16,8 +16,8 @@
             </div>
             <div class="min-w-40 flex-1"><label for="analytics-from" class="block text-sm font-semibold">First submitted from</label><input id="analytics-from" type="date" wire:model="fromDate" class="rh-control mt-1.5 w-full"></div>
             <div class="min-w-40 flex-1"><label for="analytics-to" class="block text-sm font-semibold">First submitted through</label><input id="analytics-to" type="date" wire:model="toDate" class="rh-control mt-1.5 w-full"></div>
-            <button class="rh-button" wire:loading.attr="disabled">Apply</button>
-            <button type="button" wire:click="resetAnalyticsFilters" class="rh-button-secondary">Reset</button>
+            <button class="rh-button" wire:loading.attr="disabled"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M7 12h10M10 17h4"/></svg>Apply filters</button>
+            <button type="button" wire:click="resetAnalyticsFilters" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg>Reset</button>
         </form>
         @foreach (['academicYear', 'fromDate', 'toDate', 'submissionMonth'] as $field)
             @error($field)<p role="alert" class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
@@ -25,19 +25,19 @@
         @if ($academicYear && ! $analytics['target'])<p class="mt-3 text-sm text-amber-800 dark:text-amber-300">Set this academic year's dates and targets below to complete the annual comparison.</p>@endif
     </section>
 
-    <section class="rh-panel grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" aria-label="Research analytics KPIs" data-dashboard-kpi-band>
+    <section class="rh-panel rh-analytics-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" aria-label="Research analytics KPIs" data-dashboard-kpi-band>
         @foreach ([['review', 'Awaiting your review', 'awaiting_review'], ['active', 'Active projects', ''], ['delayed', 'Delayed / overdue', ''], ['completed', 'Completed projects', ''], ['faculty', 'Faculty in research', '']] as [$key, $label, $filter])
             @if ($filter)
-                <button type="button" wire:click="setPipeline('{{ $filter }}')" aria-pressed="{{ $pipeline === $filter ? 'true' : 'false' }}" class="flex flex-col justify-between gap-3 border-r border-slate-100 p-5 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:border-slate-800 dark:hover:bg-slate-800">
+                <button type="button" wire:click="setPipeline('{{ $filter }}')" aria-pressed="{{ $pipeline === $filter ? 'true' : 'false' }}" class="rh-analytics-review flex flex-col justify-between gap-3 p-6 text-left hover:bg-brand-wash focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand dark:hover:bg-slate-800">
             @else
-                <a href="{{ $key === 'faculty' ? route('research_head.faculty-directory.index') : '#active-projects' }}" @if ($key !== 'faculty') wire:click="showProjects('{{ in_array($key, ['active', 'faculty'], true) ? 'active' : $key }}')" @endif class="flex flex-col justify-between gap-3 border-r border-slate-100 p-5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
+                <a href="{{ $key === 'faculty' ? route('research_head.faculty-directory.index') : '#active-projects' }}" @if ($key !== 'faculty') wire:click="showProjects('{{ in_array($key, ['active', 'faculty'], true) ? 'active' : $key }}')" @endif class="flex flex-col justify-between gap-3 p-6 hover:bg-slate-50 dark:hover:bg-slate-800">
             @endif
                 <span class="text-sm font-semibold rh-muted">{{ $label }}</span>
-                <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-amber-700 dark:text-amber-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
+                <strong class="text-4xl font-bold tracking-tight tabular-nums {{ $key === 'review' ? 'text-brand dark:text-rose-300' : ($key === 'delayed' && $analytics['kpis'][$key] ? 'text-red-700 dark:text-red-300' : '') }}">{{ $analytics['kpis'][$key] }}</strong>
                 <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">{{ $filter ? 'Filter review queue' : ($key === 'faculty' ? 'View faculty directory' : 'View projects') }} <span aria-hidden="true">&rarr;</span></span>
             @if ($filter)</button>@else</a>@endif
         @endforeach
-        <a href="#reported-budget" class="flex flex-col justify-between gap-3 p-5 hover:bg-slate-50 dark:hover:bg-slate-800">
+        <a href="#reported-budget" class="flex flex-col justify-between gap-3 p-6 hover:bg-slate-50 dark:hover:bg-slate-800">
             <span class="text-sm font-semibold rh-muted">Reported budget utilization</span>
             <strong class="text-4xl font-bold tracking-tight tabular-nums">{{ $analytics['budget']['percentage'] !== null ? number_format($analytics['budget']['percentage'], 1).'%' : '—' }}</strong>
             <span class="inline-flex items-center gap-2 text-xs font-semibold text-brand dark:text-rose-300">View budget breakdown <span aria-hidden="true">&rarr;</span></span>
@@ -106,10 +106,10 @@
 
 
     <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]" data-dashboard-performance-grid>
-    <section id="annual-targets" class="rh-panel scroll-mt-40 border-t-4 border-t-brand dark:border-t-brand-soft" aria-labelledby="targets-heading">
+    <section id="annual-targets" class="rh-panel scroll-mt-40" aria-labelledby="targets-heading">
         <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
             <div><h3 id="targets-heading" class="rh-title">Annual research targets</h3><p class="mt-1 text-sm rh-muted">{{ $academicYear ?: 'Select an academic year to compare achievement with its targets.' }}</p></div>
-            <button type="button" wire:click="editTargets" aria-expanded="{{ $editingTargets ? 'true' : 'false' }}" aria-controls="annual-target-editor" class="rh-button">{{ $editingTargets ? 'Close target settings' : ($analytics['target'] ? 'Edit annual targets' : 'Set annual targets') }}</button>
+            <button type="button" wire:click="editTargets" aria-expanded="{{ $editingTargets ? 'true' : 'false' }}" aria-controls="annual-target-editor" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>{{ $editingTargets ? 'Close target settings' : ($analytics['target'] ? 'Edit annual targets' : 'Set annual targets') }}</button>
         </div>
         <div class="grid divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0" data-annual-achievements>
             @foreach ($analytics['targets'] as $metric)
@@ -159,7 +159,7 @@
                         </div>
                     @endforeach
                     <div class="flex flex-wrap items-center gap-4 sm:col-span-3">
-                        <button wire:loading.attr="disabled" class="rh-button">Save year and targets</button>
+                        <button wire:loading.attr="disabled" class="rh-button"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3h12l4 4v14H3V3h2Zm2 0v6h10V3M7 21v-8h10v8"/></svg>Save year and targets</button>
                         <p class="text-sm rh-muted">Leave unknown targets blank. Use 0 for an intentional zero target.</p>
                     </div>
                 </form>
@@ -197,7 +197,7 @@
                     class="grid w-full gap-2 rounded-lg border p-3 text-left hover:border-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:grid-cols-[15rem_minmax(0,1fr)_5rem] sm:items-center {{ $projectStatus === $stage['key'] ? 'border-brand bg-brand-wash dark:border-rose-400 dark:bg-rose-950/40' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800' }}">
                     <span class="text-sm font-medium">{{ $stage['label'] }} @if ($projectStatus === $stage['key'])<span class="block text-xs font-semibold text-brand dark:text-rose-300">Selected filter</span>@endif</span>
                     <span class="block h-5 overflow-hidden rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true">
-                        <span class="block h-full rounded {{ $stage['key'] === 'delayed' ? 'bg-amber-500' : ($stage['key'] === 'completed' ? 'bg-emerald-600' : 'bg-brand dark:bg-rose-400') }}" style="width: {{ $share }}%"></span>
+                        <span class="block h-full rounded {{ $stage['key'] === 'delayed' ? 'bg-red-600 dark:bg-red-400' : ($stage['key'] === 'completed' ? 'bg-emerald-600 dark:bg-emerald-400' : ($stage['key'] === 'awaiting' ? 'bg-slate-500 dark:bg-slate-400' : 'bg-brand dark:bg-rose-400')) }}" style="width: {{ $share }}%"></span>
                     </span>
                     <span class="text-sm font-semibold tabular-nums sm:text-right">{{ $stage['count'] }} <span class="text-xs font-normal rh-muted">({{ $share }}%)</span></span>
                 </button>
@@ -220,7 +220,7 @@
                         @forelse ($attentionItems as $item)
                             <tr>
                                 <td>
-                                    <a href="{{ $item['url'] }}" aria-label="Open {{ $item['title'] }}: {{ $item['issue'] }}" class="block truncate font-semibold hover:text-brand dark:hover:text-rose-300" title="{{ $item['title'] }}">{{ $item['title'] }}</a>
+                                    <a href="{{ $item['url'] }}" aria-label="Open {{ $item['title'] }}: {{ $item['issue'] }}" class="line-clamp-2 break-words font-semibold hover:text-brand dark:hover:text-rose-300" title="{{ $item['title'] }}">{{ $item['title'] }}</a>
                                     <span class="mt-1 block text-sm text-brand dark:text-rose-300">{{ $item['issue'] }}</span>
                                     <span class="rh-muted block text-sm">{{ $item['status'] }}</span>
                                 </td>
@@ -276,13 +276,13 @@
                             @endphp
                             <tr wire:key="proposal-row-{{ $topic->id }}">
                                 <td>
-                                    <a href="{{ $proposalUrl }}" class="block truncate font-semibold hover:text-brand dark:hover:text-rose-300" title="{{ $topic->title }}">{{ $topic->title }}</a>
+                                    <a href="{{ $proposalUrl }}" class="line-clamp-2 break-words font-semibold hover:text-brand dark:hover:text-rose-300" title="{{ $topic->title }}">{{ $topic->title }}</a>
                                     <span class="rh-muted block truncate">{{ $topic->user?->name }}</span>
                                     <span class="rh-muted mt-1 block truncate text-sm" title="{{ $topic->researchCall?->title ?? 'Independent submission' }}">{{ $version ? 'v'.$version->version_number.' · '.$version->files_count.' files' : 'No submitted version' }}{{ $version?->created_at ? ' · '.$version->created_at->format('M d, Y') : '' }}</span>
                                 </td>
                                 <td>
                                     <span class="rh-muted block text-sm">{{ $topic->researchHeadQueueStatusLabel($version) }}</span>
-                                    <a href="{{ $proposalUrl }}" aria-label="Open {{ $topic->title }}" class="mt-2 inline-flex min-h-[44px] items-center rounded-lg bg-brand-wash px-3 text-sm font-semibold text-brand hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300">{{ $topic->status === 'ready_for_signature' ? 'Sign' : 'Open' }}</a>
+                                    <a href="{{ $proposalUrl }}" aria-label="Open {{ $topic->title }}" class="mt-2 inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-brand-wash px-3 text-sm font-semibold text-brand hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300">{{ $topic->status === 'ready_for_signature' ? 'Sign' : 'Open' }}<svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
                                 </td>
                             </tr>
                         @empty
@@ -303,20 +303,20 @@
     <section id="active-projects" class="rh-panel scroll-mt-40 p-5" aria-labelledby="projects-heading">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 id="projects-heading" class="rh-title">Project completion</h3>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto">
                 <label for="project-status" class="sr-only">Project status filter</label>
-                <select id="project-status" wire:model.live="projectStatus" class="rh-control">
+                <select id="project-status" wire:model.live="projectStatus" class="rh-control w-full sm:w-auto sm:max-w-xs">
                     <option value="">All issued projects</option><option value="active">Active projects</option>
                     @foreach ($analytics['projectStatuses'] as $stage)<option value="{{ $stage['key'] }}">{{ $stage['label'] }}</option>@endforeach
                 </select>
-                <a href="{{ route('research_head.projects.index') }}" class="rh-button-secondary">Open monitoring</a>
+                <a href="{{ route('research_head.projects.index') }}" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7h6l2 2h10v11H3V7Zm0 0V4h6l2 3h10v2"/></svg>Open monitoring</a>
             </div>
         </div>
         <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             @forelse ($projectItems as $project)
                 <a href="{{ route('topics.show', $project['id']) }}#project-monitoring" class="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 hover:border-brand dark:border-slate-800 dark:hover:border-brand-soft">
                     <div class="flex items-start justify-between gap-2">
-                        <strong class="min-w-0 truncate text-base" title="{{ $project['title'] }}">{{ $project['title'] }}</strong>
+                        <strong class="min-w-0 line-clamp-2 break-words text-base" title="{{ $project['title'] }}">{{ $project['title'] }}</strong>
                         <span class="shrink-0 text-sm font-semibold text-brand dark:text-rose-300">{{ $project['progress'] !== null ? $project['progress'].'%' : '—' }}</span>
                     </div>
                     <span class="rh-muted truncate text-sm">{{ $project['lead'] }}</span>
@@ -336,7 +336,7 @@
     </section>
 
     <details data-analytics-methodology class="rh-panel p-5 text-sm leading-6 rh-muted">
-        <summary class="cursor-pointer font-semibold">How these numbers are calculated</summary>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold [&::-webkit-details-marker]:hidden">How these numbers are calculated<svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 11v6m0-10h.01"/></svg></summary>
         <div class="mt-4 grid gap-5 md:grid-cols-2">
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Filters and submissions</h4><p>KPIs and the pipeline show current status of the first-submission cohort. Revisions do not start a new cohort. Academic year uses the research call or saved year dates for independent submissions. Monthly charts count recorded events, including revisions of older proposals; missing legacy events are not invented. Calendar deadlines remain institution-wide.</p></div>
             <div><h4 class="font-semibold text-slate-900 dark:text-slate-100">Workflow and completion</h4><p>Submitted means unopened pending proposals. Approval without an issued Notice to Proceed stays in final signing. Rejected proposals are excluded from the pipeline. Completed projects stay completed; reported 100% awaits a completion decision. Other projects are checked for recorded delays or incomplete weighted milestones, missing reports/review, then ongoing status.</p></div>

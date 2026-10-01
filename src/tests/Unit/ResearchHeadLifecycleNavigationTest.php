@@ -10,14 +10,15 @@ uses(TestCase::class);
 
 test('Research Head sidebar separates lifecycle destinations and exposes a report review badge', function () {
     $html = Blade::render('<x-research-head-navigation :report-review-count="4" />');
-    $labels = ['Overview', 'Dashboard', 'Calendar', 'Analytics', 'Submission', 'Research calls', 'Received submissions', 'Review', 'Proposal reviews', 'Report reviews', 'Monitoring', 'Research projects', 'Completed projects', 'Faculty directory', 'Resources', 'Signatories', 'Templates', 'Administration', 'Knowledge base'];
+    $labels = ['Overview', 'Dashboard', 'Calendar', 'Analytics', 'Submission', 'Research calls', 'Received submissions', 'Review', 'Proposal reviews', 'Report reviews', 'Monitoring', 'Research projects', 'Completed projects', 'Faculty directory', 'Resources', 'Signatories'];
     $offset = 0;
     foreach ($labels as $label) {
         $position = strpos($html, $label, $offset);
         expect($position)->not->toBeFalse();
         $offset = $position + strlen($label);
     }
-    expect($html)->toContain('4 reports awaiting review', 'wire:current.exact', 'whitespace-nowrap');
+    expect($html)->toContain('4 reports awaiting review', 'wire:current.exact', 'whitespace-nowrap')
+        ->not->toContain('Knowledge base', 'Administration', 'assistant-knowledge', 'Templates', 'research-head/proposal-templates');
     foreach (['received-submissions', 'report-reviews', 'completed-projects'] as $destination) {
         $route = Route::getRoutes()->getByName('research_head.'.$destination.'.index');
         expect($route)->not->toBeNull()->and($route->gatherMiddleware())->toContain('auth', 'workspace:research_head');

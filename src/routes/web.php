@@ -45,7 +45,6 @@ use App\Http\Controllers\ResearchCoordinatorController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadReportReviewController;
 use App\Http\Controllers\ResearchHeadTopicController;
-use App\Http\Controllers\ResearchKnowledgeController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
 use App\Http\Controllers\RoleSelectionController;
@@ -314,6 +313,9 @@ Route::get('/progress-reports/{report}/attachment', [ProjectMonitoringController
 Route::get('/progress-reports/{report}/monitoring-tool', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
     ->middleware('auth')
     ->name('project-progress.monitoring-tool');
+Route::get('/progress-reports/{report}/monitoring-tool/pdf', [ProjectMonitoringController::class, 'downloadMonitoringTool'])
+    ->middleware('auth')
+    ->name('project-progress.monitoring-tool.view');
 Route::middleware('auth')->group(function () {
     Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('project-budget.edit');
     Route::put('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'update'])->name('project-budget.update');
@@ -327,6 +329,9 @@ Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-se
 Route::get('/narrative-progress-reports/{report}/document', [ProjectNarrativeReportController::class, 'download'])
     ->middleware('auth')
     ->name('project-narrative-reports.download');
+Route::get('/narrative-progress-reports/{report}/preview', [ProjectNarrativeReportController::class, 'download'])
+    ->middleware('auth')
+    ->name('project-narrative-reports.view');
 Route::get('/narrative-progress-reports/{report}/signed-copy', [ProjectNarrativeReportController::class, 'downloadSignedCopy'])
     ->middleware('auth')
     ->name('project-narrative-reports.signed-copy.download');
@@ -334,6 +339,10 @@ Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}', [ProjectN
     ->middleware('auth')
     ->whereNumber('photoIndex')
     ->name('project-narrative-reports.photos.download');
+Route::get('/narrative-progress-reports/{report}/photos/{photoIndex}/preview', [ProjectNarrativeReportController::class, 'downloadPhoto'])
+    ->middleware('auth')
+    ->whereNumber('photoIndex')
+    ->name('project-narrative-reports.photos.view');
 
 Route::middleware('auth')->group(function () {
     Route::get('/research-support', [ResearchSupportController::class, 'index'])->name('research-support.index');
@@ -448,14 +457,6 @@ Route::middleware(['auth', 'workspace:research_head'])->group(function () {
     Route::post('/research-calls', [ResearchCallController::class, 'store'])->name('research-calls.store');
     Route::put('/research-calls/{researchCall}', [ResearchCallController::class, 'update'])->name('research-calls.update');
     Route::patch('/research-calls/{researchCall}/status', [ResearchCallController::class, 'updateStatus'])->name('research-calls.update-status');
-    Route::get('/research-head/proposal-templates', [ProposalTemplateController::class, 'index'])->name('research_head.proposal-templates.index');
-    Route::post('/research-head/proposal-templates', [ProposalTemplateController::class, 'store'])->name('research_head.proposal-templates.store');
-    Route::put('/research-head/proposal-templates/{proposalTemplate}', [ProposalTemplateController::class, 'update'])->name('research_head.proposal-templates.update');
-    Route::patch('/research-head/proposal-templates/{proposalTemplate}/status', [ProposalTemplateController::class, 'updateStatus'])->name('research_head.proposal-templates.status');
-    Route::get('/research-head/assistant-knowledge', [ResearchKnowledgeController::class, 'index'])->name('research_head.assistant-knowledge.index');
-    Route::post('/research-head/assistant-knowledge', [ResearchKnowledgeController::class, 'store'])->name('research_head.assistant-knowledge.store');
-    Route::put('/research-head/assistant-knowledge/{researchKnowledgeEntry}', [ResearchKnowledgeController::class, 'update'])->name('research_head.assistant-knowledge.update');
-    Route::patch('/research-head/assistant-knowledge/{researchKnowledgeEntry}/status', [ResearchKnowledgeController::class, 'updateStatus'])->name('research_head.assistant-knowledge.status');
 });
 
 Route::middleware(['auth', 'workspace:research_office'])->prefix('research-coordinator')->name('research_coordinator.')->group(function () {

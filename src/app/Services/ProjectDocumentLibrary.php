@@ -344,7 +344,7 @@ class ProjectDocumentLibrary
                 'uploaded_by' => $report->submitter?->name,
                 'uploaded_at' => $report->submitted_at ?? $report->created_at,
                 'file_size' => $report->official_pdf_size,
-                'view_url' => null,
+                'view_url' => route('project-progress.monitoring-tool.view', $report),
                 'download_url' => route('project-progress.monitoring-tool', $report),
                 'official' => true,
             ]);

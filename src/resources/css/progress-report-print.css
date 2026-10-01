@@ -103,8 +103,8 @@ body {
 
 .progress-report-section {
     margin-top: 12pt;
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: auto;
+    page-break-inside: auto;
 }
 
 .progress-report-section h2 {
@@ -189,4 +189,8 @@ body {
         padding: 0;
         box-shadow: none;
     }
+}
+
+.progress-report-narrative + .progress-report-narrative {
+    margin-top: 8pt;
 }

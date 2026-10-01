@@ -522,20 +522,30 @@ class ProjectMonitoringController extends Controller
         DocumentPdfConverter $pdfConverter,
     ): StreamedResponse {
         $this->authorizeViewer($request, $report);
+        $inline = $request->routeIs('project-progress.monitoring-tool.view');
 
         if (filled($report->official_pdf_path)
             && filled($report->official_pdf_filename)
             && Storage::disk('local')->exists($report->official_pdf_path)) {
-            return Storage::disk('local')->download(
+            return Storage::disk('local')->response(
                 $report->official_pdf_path,
                 $report->official_pdf_filename,
                 ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff'],
+                $inline ? 'inline' : 'attachment',
             );
         }
 
         abort_unless($report->isSubmitted() && is_array($report->work_plan) && is_array($report->budget_utilization), 404);
         $report->loadMissing(['topic.user', 'submitter', 'reviewer']);
         $pdf = $pdfConverter->convertDocx($documentService->generate($report));
+
+        if ($inline) {
+            return response()->stream(
+                static fn () => print $pdf,
+                200,
+                ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline', 'X-Content-Type-Options' => 'nosniff'],
+            );
+        }
 
         return response()->streamDownload(
             static fn () => print $pdf,

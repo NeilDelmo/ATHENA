@@ -9,6 +9,8 @@ use App\Models\ResearchCall;
 use App\Models\ResearchCategory;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ResearchAssistantWorkflowContextService;
+use Carbon\CarbonImmutable;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -117,6 +119,103 @@ function assistantDocxContents(string $text): string
     return $contents;
 }
 
+test('assistant distinguishes activity delay from project end and report submission lateness', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', config('app.timezone')));
+    $owner = User::factory()->create();
+    $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
+    $topic->update(['notice_to_proceed_data' => ['approved_end_date' => '2026-11-30']]);
+    $previous = $topic->progressReports()->create([
+        'submitted_by' => $owner->id,
+        'reporting_date' => '2026-08-31',
+        'version_number' => 1,
+        'tracking_number' => 'SUPERSEDED-REPORT',
+        'progress_percentage' => 50,
+        'accomplishments' => 'Earlier progress record.',
+    ]);
+    $topic->progressReports()->create([
+        'submitted_by' => $owner->id,
+        'reporting_date' => '2026-08-31',
+        'period_start' => '2026-06-01',
+        'period_end' => '2026-08-31',
+        'submitted_at' => '2026-09-01 00:00:00',
+        'version_number' => 2,
+        'supersedes_report_id' => $previous->id,
+        'tracking_number' => 'LATEST-Q3',
+        'progress_percentage' => 65,
+        'accomplishments' => 'Validation is still incomplete.',
+        'review_status' => 'revision_requested',
+        'work_plan' => [
+            ['activity' => 'Validation', 'target_completion_date' => '2026-05-31', 'percent_weight' => 33.34, 'accomplished_percentage' => 21.67],
+            ['activity' => 'Completed work', 'target_completion_date' => '2026-01-31', 'percent_weight' => 20, 'accomplished_percentage' => 20],
+            ['activity' => 'Undated work', 'target_completion_date' => 'not-a-date', 'percent_weight' => 10, 'accomplished_percentage' => 0],
+        ],
+    ]);
+
+    $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext(
+        $owner, $topic, ['workflow_scope' => 'monitoring'], 'How many days is their report delayed?',
+    );
+    preg_match('/\{.*\}/s', $packet, $matches);
+    $context = json_decode($matches[0], true, flags: JSON_THROW_ON_ERROR);
+    $delay = $context['monitoring']['delay_assessment'];
+
+    expect($delay['as_of_date'])->toBe('2026-10-01')
+        ->and($delay['approved_project_end'])->toBe('2026-11-30')
+        ->and($delay['calendar_days_past_approved_end'])->toBe(0)
+        ->and($delay['report_days_late'])->toBeNull()
+        ->and($delay['incomplete_milestones_in_latest_report'])->toHaveCount(1)
+        ->and($delay['incomplete_milestones_in_latest_report'][0]['calendar_days_past_target_at_report'])->toBe(92)
+        ->and($delay['incomplete_milestones_in_latest_report'][0]['calendar_days_since_target_today'])->toBe(123)
+        ->and($context['monitoring']['latest_submitted_monitoring_reports'][0]['submission_opens_on'])->toBe('2026-09-01')
+        ->and($packet)->toContain('LATEST-Q3', 'submitted_at', 'NOT submission deadlines', '[Project record]')
+        ->not->toContain('SUPERSEDED-REPORT');
+
+    $topic->update(['notice_to_proceed_data' => ['approved_end_date' => '2026-02-30']]);
+    $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext($owner, $topic->fresh(), ['workflow_scope' => 'monitoring'], 'Delay?');
+    expect($packet)->toContain('"approved_project_end": null');
+});
+
+test('assistant cites saved project records instead of unrelated field guides for a delay answer', function () {
+    config(['services.openrouter.key' => 'test-key']);
+    Http::fake(['openrouter.ai/*' => Http::response([
+        'choices' => [['message' => ['content' => 'Validation was 92 days past its target as of August 31. [Project record]']]],
+    ])]);
+    $owner = User::factory()->create();
+    $owner->assignRole('faculty_researcher');
+    $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
+
+    $this->actingAs($owner)->postJson(route('research-support.chat'), [
+        'context' => ['topic_id' => $topic->id, 'workflow_scope' => 'monitoring'],
+        'messages' => [['role' => 'user', 'content' => 'How many days is this project delayed?']],
+    ])->assertOk()
+        ->assertJsonCount(1, 'sources')
+        ->assertJsonPath('sources.0.reference', 'Project record')
+        ->assertJsonPath('sources.0.url', route('topics.show', $topic).'#project-monitoring');
+
+    Http::assertSent(fn ($request): bool => collect($request['messages'])->contains(
+        fn (array $message): bool => str_contains($message['content'], 'delay_assessment'),
+    ));
+});
+
+test('assistant does not invent a project delay when completion or schedule is unknown', function (?string $end, bool $completed, ?int $expectedDays) {
+    $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', config('app.timezone')));
+    $owner = User::factory()->create();
+    $topic = createAssistantTopicFor($owner, ['status' => 'approved']);
+    $topic->update([
+        'notice_to_proceed_data' => ['approved_end_date' => $end],
+        'project_status' => $completed ? TopicProposal::PROJECT_STATUS_COMPLETED : TopicProposal::PROJECT_STATUS_ONGOING,
+    ]);
+    $packet = app(ResearchAssistantWorkflowContextService::class)->promptContext($owner, $topic, ['workflow_scope' => 'monitoring'], 'How many days delayed?');
+    preg_match('/\{.*\}/s', $packet, $matches);
+    $context = json_decode($matches[0], true, flags: JSON_THROW_ON_ERROR);
+
+    expect($context['monitoring']['delay_assessment']['calendar_days_past_approved_end'])->toBe($expectedDays)
+        ->and($context['monitoring']['delay_assessment']['incomplete_milestones_in_latest_report'])->toBe([]);
+})->with([
+    'active past end' => ['2026-09-30', false, 1],
+    'completed project' => ['2026-09-30', true, null],
+    'no approved end' => [null, false, null],
+]);
+
 test('faculty and faculty researchers can open the research help facility', function (string $role) {
     $researcher = User::factory()->create();
     $researcher->assignRole($role);
@@ -152,8 +251,10 @@ test('faculty and faculty researchers can open the research help facility', func
         ->assertSee('data-rrl-results-table', false)
         ->assertSee('data-rrl-paper-details', false)
         ->assertSee('Analyze results')
-        ->assertSee('Context-aware assistance:')
-        ->assertSee('A page action states which saved ATHENA record it uses.')
+        ->assertSee('Chats are saved to your account.')
+        ->assertSee('Privacy details')
+        ->assertSee('athena-chat-panel')
+        ->assertDontSee('Context-aware assistance:')
         ->assertSee('Sources')
         ->assertSee('<details x-show="Array.isArray(message.sources)', false)
         ->assertDontSee('Grounded with ATHENA knowledge')

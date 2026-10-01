@@ -47,15 +47,16 @@ beforeEach(function () {
 
 test('overview prioritizes reviews and preserves compact independently paginated lists', function () {
     foreach (range(1, 9) as $index) {
-        ($this->topic)(['title' => 'Priority proposal '.$index]);
+        $priorityProposal = ($this->topic)(['title' => 'Priority proposal '.$index]);
+        ($this->version)($priorityProposal, 1, 'initial', '2026-09-01');
         ($this->project)(['title' => 'Delayed project '.$index, 'project_status' => 'delayed']);
     }
     ($this->topic)(['title' => 'Committee review', 'status' => 'lrec_queued']);
 
     $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
         ->assertSet('overview', true)->assertSet('pipeline', 'awaiting_review')
-        ->assertSee('Review queue')->assertSee('View all proposals')
-        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="needs-attention"', 'Upcoming deadlines'], false)
+        ->assertSee('Proposal reviews')->assertSee('View all proposals')->assertSee('9 / 0')
+        ->assertSeeInOrder(['data-dashboard-priority-kpis', 'Overview filters', 'id="received-proposals"', 'id="dashboard-report-reviews"', 'id="needs-attention"', 'Upcoming deadlines', 'data-dashboard-visual-summary'], false)
         ->assertDontSeeHtml('<table')->assertDontSee('Monthly submission trend')
         ->assertViewHas('topics', fn ($items): bool => $items->total() === 9 && $items->count() === 4)
         ->assertViewHas('attentionItems', fn ($items): bool => $items->total() === 9 && $items->count() === 4);
@@ -90,6 +91,73 @@ test('overview prioritizes reviews and preserves compact independently paginated
         ->call('showReviewQueue')->assertSet('pipeline', 'awaiting_review');
 });
 
+test('dashboard report reviews include older progress submissions and keep pagination and scope independent', function () {
+    $project = ($this->project)(['title' => 'Reports requiring attention']);
+    $monitoring = ($this->report)($project, ['review_status' => 'pending']);
+    $narrativeData = [
+        'topic_id' => $project->id, 'submitted_by' => $this->faculty->id,
+        'report_type' => 'progress', 'submission_date' => '2026-08-20',
+        'researchers' => $this->faculty->name, 'implementation_start' => '2026-08-01', 'implementation_end' => '2027-07-31',
+        'budget' => 100000, 'funding_agency' => 'Institution', 'accomplishment_summary' => 'Reported accomplishments',
+        'introduction' => 'Background', 'objectives' => 'Objectives',
+        'methodology' => 'Methodology', 'results_discussion' => 'Results', 'photos' => [],
+        'review_status' => 'pending', 'submitted_at' => '2026-08-20',
+    ];
+    $olderReports = collect(range(1, 3))->map(fn ($index) => ProjectNarrativeReport::create([
+        ...$narrativeData, 'submitted_at' => '2026-08-2'.$index,
+    ]));
+    ProjectNarrativeReport::create([...$narrativeData, 'review_status' => 'reviewed', 'submitted_at' => '2026-09-01']);
+    ProjectNarrativeReport::create([...$narrativeData, 'submission_status' => 'prepared']);
+    $correctionReport = ProjectNarrativeReport::create([...$narrativeData, 'review_status' => 'revision_requested']);
+    ProjectNarrativeReport::create([...$narrativeData, 'report_type' => 'terminal', 'submitted_at' => '2026-09-02']);
+    $latestTerminal = ProjectNarrativeReport::create([...$narrativeData, 'report_type' => 'terminal', 'submitted_at' => '2026-09-03']);
+    $completed = ($this->project)(['project_status' => 'completed']);
+    ProjectNarrativeReport::create([...$narrativeData, 'topic_id' => $completed->id]);
+    $unissued = ($this->project)(['notice_to_proceed_issued_at' => null]);
+    ProjectNarrativeReport::create([...$narrativeData, 'topic_id' => $unissued->id]);
+
+    $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->assertSee('Proposals awaiting review')->assertSee('Reports awaiting review')
+        ->assertViewHas('reportItems', fn ($reports) => $reports->total() === 5 && $reports->count() === 4
+            && $reports->first()->id === $olderReports->first()->id && $reports->first()->report_type === 'progress')
+        ->assertSeeHtml('href="'.route('topics.show', $project).'#narrative-report-'.$olderReports->first()->id.'"')
+        ->assertSeeHtml('href="'.route('topics.show', $project).'#narrative-report-'.$latestTerminal->id.'"');
+    $component->assertViewHas('attentionItems', fn ($issues) => $issues->contains(fn ($issue) => ($issue['report_id'] ?? null) === $correctionReport->id)
+        && ! $issues->contains(fn ($issue) => ($issue['review_status'] ?? null) === 'pending'));
+
+    if (getenv('ATHENA_EXPORT_DASHBOARD_LAYOUT') === '1') {
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        File::put(storage_path('framework/testing/head-dashboard-review-work.html'), $component->html());
+    }
+
+    $component->call('nextPage', 'reportPage')
+        ->assertViewHas('reportItems', fn ($reports) => $reports->currentPage() === 2 && $reports->count() === 1
+            && $reports->first()->id === $monitoring->id && $reports->first()->report_type === 'quarterly')
+        ->assertViewHas('topics', fn ($topics) => $topics->currentPage() === 1)
+        ->set('search', 'Unrelated proposal search')
+        ->assertViewHas('reportItems', fn ($reports) => $reports->currentPage() === 2 && $reports->total() === 5)
+        ->set('academicYear', '2026-2027')
+        ->assertViewHas('reportItems', fn ($reports) => $reports->currentPage() === 1 && $reports->total() === 5)
+        ->set('academicYear', '2025-2026')
+        ->assertViewHas('reportItems', fn ($reports) => $reports->total() === 0);
+
+    $alerts = app(ResearchHeadAnalytics::class)->summarize()['attention']->where('id', $project->id)->where('type', 'narrative_review');
+    expect($alerts->pluck('report_id')->all())->toEqualCanonicalizing($olderReports->pluck('id')->push($correctionReport->id)->all())
+        ->and($alerts->firstWhere('report_id', $olderReports->first()->id)['url'])->toBe(route('topics.show', $project).'#narrative-report-'.$olderReports->first()->id);
+});
+
+test('dashboard orders proposals by their current waiting period and displays its duration', function () {
+    $recentRecord = ($this->topic)(['title' => 'Longest waiting proposal']);
+    $recentRecord->forceFill(['status_started_at' => '2026-09-01', 'created_at' => '2026-09-29'])->saveQuietly();
+    $olderRecord = ($this->topic)(['title' => 'Recently returned proposal', 'status' => 'resubmitted']);
+    $olderRecord->forceFill(['status_started_at' => '2026-09-28', 'created_at' => '2026-08-01'])->saveQuietly();
+
+    Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class, ['overview' => true])
+        ->assertViewHas('topics', fn ($topics) => $topics->pluck('id')->all() === [$recentRecord->id, $olderRecord->id])
+        ->assertSee('29 days in this stage')->assertSee('2 days in this stage')
+        ->assertSeeInOrder(['Longest waiting proposal', 'Recently returned proposal']);
+});
+
 test('calendar and analytics have separate protected routes and grouped functional navigation', function () {
     $this->actingAs($this->head)->get(route('research_head.calendar'))->assertOk()
         ->assertSeeHtml('data-research-head-calendar')->assertSee('Research calendar')
@@ -99,7 +167,7 @@ test('calendar and analytics have separate protected routes and grouped function
         ->assertSee('Monthly submission trend')->assertDontSeeHtml('id="research-calendar"');
 
     $response = $this->get(route('research_head.dashboard'))->assertOk()
-        ->assertSeeInOrder(['aria-label="Overview"', 'aria-label="Research"', 'aria-label="Planning"', 'aria-label="Resources"'], false)
+        ->assertSeeInOrder(['aria-label="Overview"', 'aria-label="Submission"', 'aria-label="Review"', 'aria-label="Monitoring"', 'aria-label="Resources"'], false)
         ->assertSeeHtml('data-sidebar-account')->assertSee('Account Profile')
         ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_submissions').'"')
         ->assertSeeHtml('data-sidebar-attention-url="'.route('sidebar-attention.open', 'project_monitoring').'"')
@@ -109,7 +177,12 @@ test('calendar and analytics have separate protected routes and grouped function
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
     $links = $xpath->query('//nav[@data-research-head-navigation]//a');
-    expect($links->length)->toBe(10);
+    foreach (['research_head.dashboard', 'research_head.calendar', 'research_head.analytics', 'research-calls.index',
+        'research_head.received-submissions.index', 'research_head.proposal-submissions.index', 'research_head.report-reviews.index',
+        'research_head.projects.index', 'research_head.completed-projects.index', 'research_head.faculty-directory.index',
+        'signatories.index'] as $destination) {
+        expect($xpath->query('//nav[@data-research-head-navigation]//a[@href="'.route($destination).'"]'))->toHaveCount(1);
+    }
     foreach ($links as $link) {
         $this->get($link->getAttribute('href'))->assertOk();
     }
@@ -310,6 +383,24 @@ test('annual targets are prominent and editable without crowding the dashboard',
         ->call('editTargets')->assertDontSeeHtml('id="target-projects_target"');
 
     expect(ResearchAnnualTarget::sole()->projects_target)->toBe(5);
+});
+
+test('analytics presents readable project titles and accessible icon actions', function () {
+    $title = 'Community-based monitoring of coastal habitats and long-term environmental recovery';
+    ($this->project)(['title' => $title]);
+    $component = Livewire::actingAs($this->head)->test(ResearchHeadDashboard::class)
+        ->assertSee('Apply filters')->assertSee($title)->assertSee('Open monitoring')
+        ->assertSeeHtml('rh-analytics-kpis')->assertSeeHtml('rh-analytics-review');
+
+    $document = new DOMDocument;
+    @$document->loadHTML($component->html());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-dashboard-kpi-band]/*[self::a or self::button]'))->toHaveCount(6)
+        ->and($xpath->query('//form[@*[name()="wire:submit"]="applyFilters"]/button[1]/svg[@aria-hidden="true"]'))->toHaveCount(1)
+        ->and($xpath->query('//button[@*[name()="wire:click"]="resetAnalyticsFilters"]/svg'))->toHaveCount(1)
+        ->and($xpath->query('//*[@id="active-projects"]//strong[@title="'.$title.'" and contains(@class,"line-clamp-2")]'))->toHaveCount(1)
+        ->and($xpath->query('//details[@data-analytics-methodology]/summary/svg'))->toHaveCount(1);
+
 });
 
 test('annual achievement retains actual overachievement while clamping the visual bar', function () {

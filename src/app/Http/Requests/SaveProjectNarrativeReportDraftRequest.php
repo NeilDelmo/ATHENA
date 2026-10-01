@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,21 +35,29 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
             'implementation_start' => ['nullable', 'date'],
             'implementation_end' => ['nullable', 'date', 'after_or_equal:implementation_start'],
             'funding_agency' => ['nullable', 'string', 'max:255'],
-            'accomplishments' => ['nullable', 'array', 'max:'.config('progress_report.max_accomplishments')],
+            'accomplishments' => ['nullable', 'array', 'max:1000'],
             'accomplishments.*.objective' => ['nullable', 'string', 'max:1000'],
             'accomplishments.*.target' => ['nullable', 'string', 'max:2000'],
             'accomplishments.*.actual' => ['nullable', 'string', 'max:2000'],
-            'introduction' => ['nullable', 'string', 'max:5000'],
-            'rationale' => ['nullable', 'string', 'max:5000'],
-            'objectives' => ['nullable', 'string', 'max:5000'],
-            'methodology' => ['nullable', 'string', 'max:5000'],
-            'results_discussion' => ['nullable', 'string', 'max:5000'],
+            'introduction' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'rationale' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'objectives' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'methodology' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
+            'results_discussion' => ['nullable', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')],
             'prepared_by_date_signed' => ['nullable', 'date', 'before_or_equal:today'],
         ];
 
-        foreach (range(1, (int) config('progress_report.max_figures')) as $index) {
-            $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:200'];
+        if ($this->input('report_type') !== 'terminal') {
+            $rules['figures'] = ['nullable', 'array'];
+            $rules['figures.*'] = ['array:caption,section,after_paragraph'];
+            $rules['figures.*.caption'] = ['nullable', 'string', 'max:1000'];
+            $rules['figures.*.section'] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
+            $rules['figures.*.after_paragraph'] = ['nullable', 'integer', 'min:0', 'max:100000'];
+        }
+        foreach (app(ProgressReportData::class)->legacyFigureIndexes($this->all()) as $index) {
+            $rules['photo_caption_'.$index] = ['nullable', 'string', 'max:1000'];
             $rules['photo_section_'.$index] = ['nullable', Rule::in(['methodology', 'results_discussion'])];
+            $rules['photo_after_paragraph_'.$index] = ['nullable', 'integer', 'min:0', 'max:100000'];
         }
 
         if ($this->input('report_type') === 'terminal') {

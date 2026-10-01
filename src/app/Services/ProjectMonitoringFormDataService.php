@@ -8,6 +8,7 @@ use App\Models\ProjectNarrativeReportDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 
 class ProjectMonitoringFormDataService
@@ -63,6 +64,7 @@ class ProjectMonitoringFormDataService
         $topic->loadMissing(['user', 'revisionDraft.members']);
 
         return [
+            'progressDefaults' => $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic) : [],
             'terminalDefaults' => $reportType === 'terminal' ? app(TerminalReportData::class)->defaults($topic) : [],
             'terminalEvidence' => $reportType === 'terminal' ? app(TerminalReportData::class)->evidence($topic) : [],
             'preparedReport' => ProjectNarrativeReport::query()

@@ -7,6 +7,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Support\ProgressReportData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -103,6 +104,12 @@ test('a project owner prepares an official progress-report PDF before submitting
     Storage::disk('local')->assertExists($report->photos[0]['path']);
     Storage::disk('local')->assertExists($report->official_pdf_path);
     expect($this->pdfConverter->conversionCount)->toBe(1);
+    $previewResponse = $this->get(route('project-narrative-reports.view', $report))
+        ->assertSuccessful()
+        ->assertHeader('Content-Type', 'application/pdf')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+    expect($previewResponse->headers->get('Content-Disposition'))->toStartWith('inline')
+        ->and($previewResponse->streamedContent())->toBe(Storage::disk('local')->get($report->official_pdf_path));
     Notification::assertNothingSent();
 
     $this->actingAs($this->researcher)
@@ -124,7 +131,7 @@ test('a project owner prepares an official progress-report PDF before submitting
         ->assertForbidden();
 });
 
-test('the progress report requires structured accomplishments and a captioned figure', function () {
+test('the progress report requires structured accomplishments', function () {
     $payload = ($this->progressReportPayload)([
         'accomplishments' => [],
         'photo_1' => null,
@@ -136,9 +143,6 @@ test('the progress report requires structured accomplishments and a captioned fi
         ->post(route('project-narrative-reports.store', $this->topic), $payload)
         ->assertSessionHasErrorsIn('narrativeProgress', [
             'accomplishments',
-            'photo_1',
-            'photo_caption_1',
-            'photo_section_1',
         ]);
 
     expect(ProjectNarrativeReport::count())->toBe(0);
@@ -181,7 +185,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->assertSee('Target accomplishment')
         ->assertSee('VIII. Rationale')
         ->assertSee('X. Results and Discussion')
-        ->assertSee('Figures and photo documentation required')
+        ->assertSee('Add figure')
         ->assertSee('Changes save privately as a draft.')
         ->assertSee('data-narrative-progress-autosave-form', false);
 });
@@ -256,9 +260,17 @@ test('the owner and Research Head can download the official report as a PDF and 
     expect($documentResponse->streamedContent())->toStartWith('%PDF-');
     $sourceDocument = $this->pdfConverter->sourceDocument;
     expect($this->pdfConverter->conversionCount)->toBe(1);
+    $ownerPhoto = $this->get(route('project-narrative-reports.photos.view', [$report, 0]))
+        ->assertSuccessful()
+        ->assertHeader('Content-Type', 'image/jpeg')
+        ->assertHeader('X-Content-Type-Options', 'nosniff');
+    expect($ownerPhoto->headers->get('Content-Disposition'))->toStartWith('inline')
+        ->and($ownerPhoto->streamedContent())->toBe(Storage::disk('local')->get($report->photos[0]['path']));
     $this->actingAs($this->head)
         ->get(route('project-narrative-reports.download', $report))
         ->assertForbidden();
+    $this->get(route('project-narrative-reports.photos.view', [$report, 0]))->assertForbidden();
+    $this->get(route('project-narrative-reports.view', $report))->assertForbidden();
 
     $this->actingAs($this->researcher)
         ->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))
@@ -273,6 +285,26 @@ test('the owner and Research Head can download the official report as a PDF and 
         ->assertOk()
         ->assertDownload('coastal-survey.jpg');
     expect($this->pdfConverter->conversionCount)->toBe(1);
+
+    foreach ([$this->researcher, $this->head] as $viewer) {
+        $pdfPreview = $this->actingAs($viewer)->get(route('project-narrative-reports.view', $report))
+            ->assertSuccessful()->assertHeader('Content-Type', 'application/pdf');
+        expect($pdfPreview->headers->get('Content-Disposition'))->toStartWith('inline')
+            ->and($pdfPreview->streamedContent())->toStartWith('%PDF-');
+        $photoResponse = $this->actingAs($viewer)->get(route('project-narrative-reports.photos.view', [$report, 0]))
+            ->assertSuccessful()->assertHeader('Content-Type', 'image/jpeg');
+        expect($photoResponse->headers->get('Content-Disposition'))->toStartWith('inline')
+            ->and($photoResponse->streamedContent())->toBe(Storage::disk('local')->get($report->photos[0]['path']));
+    }
+    $this->get(route('project-narrative-reports.photos.view', [$report, 999]))->assertNotFound();
+    $photos = $report->photos;
+    unset($photos[0]['original_name']);
+    $report->update(['photos' => $photos]);
+    $this->get(route('project-narrative-reports.photos.download', [$report, 0]))
+        ->assertSuccessful()->assertDownload(basename($photos[0]['path']));
+    Storage::disk('local')->put('progress-reports/not-an-image.html', '<html>Not an image</html>');
+    $report->update(['photos' => [...$photos, ['path' => 'progress-reports/not-an-image.html', 'caption' => 'Invalid attachment']]]);
+    $this->get(route('project-narrative-reports.photos.view', [$report, 1]))->assertUnsupportedMediaType();
 
     $generatedPath = tempnam(sys_get_temp_dir(), 'progress-report-test-');
     expect($generatedPath)->not->toBeFalse();
@@ -334,7 +366,12 @@ test('an unrelated faculty researcher cannot download progress report files', fu
     $report = ProjectNarrativeReport::firstOrFail();
 
     $this->actingAs($other)->get(route('project-narrative-reports.download', $report))->assertForbidden();
+    $this->get(route('project-narrative-reports.view', $report))->assertForbidden();
     $this->actingAs($other)->get(route('project-narrative-reports.photos.download', [$report, 0]))->assertForbidden();
+    $this->get(route('project-narrative-reports.photos.view', [$report, 0]))->assertForbidden();
+    auth()->logout();
+    $this->get(route('project-narrative-reports.view', $report))->assertRedirect(route('login'));
+    $this->get(route('project-narrative-reports.photos.view', [$report, 0]))->assertRedirect(route('login'));
 });
 
 test('a researcher can discard a prepared progress report and its stored files', function () {
@@ -397,7 +434,7 @@ test('the Research Head can request progress report corrections only with remark
         ->assertRedirect();
 
     expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
-        ->and($report->fresh()->review_status_label)->toBe('Corrections requested')
+        ->and($report->fresh()->review_status_label)->toBe('Corrections requested by Research Head')
         ->and($report->fresh()->reviewed_by)->toBe($this->head->id)
         ->and($notification->fresh()->read_at)->not->toBeNull();
     Notification::assertSentTo(
@@ -405,4 +442,127 @@ test('the Research Head can request progress report corrections only with remark
         ProposalActivityNotification::class,
         fn (ProposalActivityNotification $notification): bool => $notification->title === 'Progress report corrections requested',
     );
+});
+
+test('progress defaults reuse approved proposal narratives and work plan outputs without truncating objectives', function () {
+    $version = $this->topic->versions()->create([
+        'submitted_by' => $this->researcher->id, 'version_number' => 1, 'submission_type' => 'initial',
+        'file_path' => 'proposal.pdf', 'original_filename' => 'proposal.pdf', 'mime_type' => 'application/pdf',
+        'file_size' => 100, 'checksum' => hash('sha256', 'proposal'), 'title' => $this->topic->title,
+        'estimated_budget' => 150000, 'estimated_duration_months' => 12,
+    ]);
+    $sources = [
+        'detailed_proposal' => [
+            'project_leader_display' => 'Dr. Approved Leader', 'staff' => [['display_name' => 'Approved Staff']],
+            'introduction' => '<p>Approved introduction.</p><p>Second background paragraph.</p>',
+            'rationale' => '<p>Approved rationale.</p>', 'general_objective' => '<p>General project objective.</p>',
+            'specific_objectives' => [['description' => 'Specific proposal objective.']],
+            'related_literature' => 'RRL must stay out of the progress report.',
+            'methodology' => ['research_design' => '<p>Approved research design.</p>', 'specific_methods' => '<p>Approved method.</p>', 'data_analysis' => '<p>Approved analysis.</p>'],
+        ],
+        'work_plan' => [
+            'planned_start' => '2026-01-01', 'planned_end' => '2026-12-31',
+            'entries' => collect(range(1, 9))->map(fn ($index) => [
+                'objective' => 'Approved objective '.$index, 'activity' => 'Planned activity '.$index,
+                'expected_output' => 'Expected output '.$index, 'months' => [1, 2, 3],
+            ])->push(['objective' => 'Approved objective 1', 'activity' => 'Second activity', 'expected_output' => 'Second expected output', 'months' => [4]])->all(),
+        ],
+    ];
+    foreach ($sources as $type => $source) {
+        $version->files()->create([
+            'document_type' => $type, 'position' => 1, 'file_path' => $type.'.pdf',
+            'original_filename' => $type.'.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+            'checksum' => hash('sha256', $type), 'source_data' => $source,
+        ]);
+    }
+    $defaults = app(ProgressReportData::class)->defaults($this->topic->fresh());
+    expect($defaults['accomplishments'])->toHaveCount(9)
+        ->and($defaults['accomplishments'][0]['target'])->toBe("Expected output 1\nSecond expected output")
+        ->and($defaults['accomplishments'][0]['activities'])->toBe("Planned activity 1\nSecond activity")
+        ->and($defaults['accomplishments'][0]['actual'])->toBe('')
+        ->and($defaults['introduction'])->toBe("Approved introduction.\n\nSecond background paragraph.")
+        ->and($defaults['objectives'])->toContain('General project objective.', 'Specific proposal objective.')
+        ->and($defaults['methodology'])->toContain('Approved research design.', 'Approved method.', 'Approved analysis.')
+        ->and($defaults['researchers'])->toBe("Dr. Approved Leader\nApproved Staff")
+        ->and($defaults['implementation_end'])->toBe('2026-12-31')
+        ->and($defaults['results_discussion'])->toBe('');
+
+    $formResponse = $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic));
+    $formResponse->assertSuccessful()->assertSee('Approved objective 9')->assertSee('Approved introduction.')
+        ->assertSee('Second expected output')->assertDontSee('RRL must stay out');
+    ProjectNarrativeReportDraft::create([
+        'topic_id' => $this->topic->id, 'user_id' => $this->researcher->id, 'report_type' => 'progress', 'lock_version' => 1,
+        'source_data' => ['introduction' => 'My revised period introduction.', 'methodology' => null, 'results_discussion' => 'Period-specific results.',
+            'accomplishments' => [['objective' => 'Approved objective 1', 'target' => 'Edited expected output', 'actual' => 'Period progress.']],
+        ],
+    ]);
+    $this->get(route('project-narrative-reports.create', $this->topic))
+        ->assertSuccessful()->assertSee('My revised period introduction.')->assertSee('Period-specific results.')
+        ->assertDontSee('Approved research design.')->assertSee('Planned activity 1')->assertSee('Edited expected output');
+});
+
+test('progress reports allow no figures but validate each supplied figure and its caption', function () {
+    $payload = ($this->progressReportPayload)(['photo_1' => null, 'photo_caption_1' => null, 'photo_section_1' => null]);
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertDontSee('Figure 1.');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)
+        ->assertSessionHasNoErrors();
+    expect(ProjectNarrativeReport::sole()->photos)->toBe([]);
+    $this->post(route('project-narrative-reports.preview', $this->topic), [
+        ...$payload, 'figures' => [['image' => UploadedFile::fake()->image('diagram.png'), 'section' => 'methodology', 'caption' => '']],
+    ])->assertSessionHasErrorsIn('narrativeProgress', ['figures.0.caption']);
+    $this->post(route('project-narrative-reports.preview', $this->topic), [
+        ...$payload, 'figures' => [['image' => UploadedFile::fake()->create('bad.pdf', 10, 'application/pdf'), 'section' => 'methodology', 'caption' => 'Invalid']],
+    ])->assertSessionHasErrorsIn('narrativeProgress', ['figures.0.image']);
+});
+
+test('repeatable figures preserve more than ten images and paragraph placement in preview and generated document', function () {
+    $payload = ($this->progressReportPayload)([
+        'photo_1' => null, 'photo_caption_1' => null, 'photo_section_1' => null,
+        'methodology' => "First methods paragraph.\n\nSecond methods paragraph.",
+        'results_discussion' => "First results paragraph.\n\nSecond results paragraph.",
+        'figures' => collect(range(1, 12))->map(fn ($number) => [
+            'image' => UploadedFile::fake()->image('figure-'.$number.'.png', 800, 600),
+            'caption' => 'Evidence '.$number, 'section' => $number === 1 ? 'methodology' : 'results_discussion',
+            'after_paragraph' => $number < 3 ? 1 : 0,
+        ])->all(),
+    ]);
+    $response = $this->actingAs($this->researcher)->post(route('project-narrative-reports.preview', $this->topic), $payload)
+        ->assertSuccessful()->assertSee('Figure 12. Evidence 12')->assertSee('data-preview-file-input="figures[11][image]"', false);
+    $html = $response->getContent();
+    expect(strpos($html, 'First methods paragraph.'))->toBeLessThan(strpos($html, 'Figure 1. Evidence 1'))
+        ->and(strpos($html, 'Figure 1. Evidence 1'))->toBeLessThan(strpos($html, 'Second methods paragraph.'));
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    expect($report->photos)->toHaveCount(12)
+        ->and($report->photos[0]['after_paragraph'])->toBe(1)
+        ->and($report->photos[11]['caption'])->toBe('Evidence 12');
+    $path = tempnam(sys_get_temp_dir(), 'progress-figures-');
+    file_put_contents($path, $this->pdfConverter->sourceDocument);
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $xml = $archive->getFromName('word/document.xml');
+        $plain = html_entity_decode(strip_tags($xml));
+        expect($plain)->toContain('Figure 12. Evidence 12')
+            ->and(strpos($plain, 'Figure 1. Evidence 1'))->toBeLessThan(strpos($plain, 'Second methods paragraph.'))
+            ->and($archive->getFromName('word/media/progress-figure-12.png'))->not->toBeFalse();
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+});
+
+test('progress draft retains arbitrary figure captions and long reused narratives without saving file uploads', function () {
+    $payload = ($this->progressReportPayload)([
+        'photo_1' => null, 'methodology' => str_repeat('Approved methodology text. ', 300),
+        'figures' => collect(range(1, 14))->map(fn ($index) => ['caption' => 'Diagram '.$index, 'section' => 'methodology', 'after_paragraph' => $index])->all(),
+    ]);
+    $this->actingAs($this->researcher)->postJson(route('project-narrative-reports.draft', $this->topic), [...$payload, 'draft_version' => 0])
+        ->assertSuccessful();
+    $draft = ProjectNarrativeReportDraft::sole();
+    expect($draft->source_data['figures'])->toHaveCount(14)
+        ->and($draft->source_data['figures'][13]['caption'])->toBe('Diagram 14')
+        ->and($draft->source_data['methodology'])->toBe(trim($payload['methodology']));
+    $this->get(route('project-narrative-reports.create', $this->topic))->assertSuccessful()->assertSee('Diagram 14');
 });

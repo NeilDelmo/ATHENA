@@ -34,7 +34,7 @@
                         <th scope="row">Reporting Date</th>
                         <td>{{ $report->reporting_date?->format('F j, Y') }}</td>
                         <th scope="row">Tracking No.</th>
-                        <td>{{ $report->tracking_number ?: '—' }}</td>
+                        <td>__________________________</td>
                     </tr>
                     <tr>
                         <th scope="row">Research Project Title</th>
@@ -42,7 +42,7 @@
                     </tr>
                     <tr>
                         <th scope="row">Project Leader</th>
-                        <td>{{ $report->topic->user->name }}</td>
+                        <td>{{ \Illuminate\Support\Str::upper($report->topic->user->name) }}</td>
                         <th scope="row">Project Duration</th>
                         <td>{{ $report->topic->estimated_duration_months }} months</td>
                     </tr>
@@ -130,7 +130,7 @@
                             @endphp
                             <tr>
                                 <th scope="row">{{ $type }}</th>
-                                <td>{{ ($entry['details'] ?? '') ?: '—' }}</td>
+                                <td class="monitoring-request-details">{{ $entry['details'] ?? '' }}</td>
                                 <td class="monitoring-money">{{ $money($amountRequested) }}</td>
                                 <td class="monitoring-money">{{ $money($actualAmount) }}</td>
                                 <td class="monitoring-number">{{ $percentage($utilization) }}</td>

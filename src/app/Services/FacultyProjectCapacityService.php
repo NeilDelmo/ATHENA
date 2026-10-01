@@ -28,6 +28,10 @@ class FacultyProjectCapacityService
 
     public function warningForAdditionalParticipation(User $faculty, ?ResearchCall $researchCall = null): ?string
     {
+        if (! config('faculty_projects.enforce_capacity', true)) {
+            return null;
+        }
+
         $workload = $this->workloadFor($faculty, $researchCall);
 
         if (($workload['approved'] + $workload['pending']) < $workload['limit']) {
@@ -45,6 +49,10 @@ class FacultyProjectCapacityService
 
     public function ensureAvailableFor(TopicProposal $topic): void
     {
+        if (! config('faculty_projects.enforce_capacity', true)) {
+            return;
+        }
+
         $participants = $this->participantsFor($topic, lockForUpdate: true);
         $researchCall = $topic->researchCall()->first();
         $limit = $this->limitFor($researchCall);
@@ -69,6 +77,10 @@ class FacultyProjectCapacityService
 
     public function ensureSubmissionAvailableFor(ProposalDraft $draft): void
     {
+        if (! config('faculty_projects.enforce_capacity', true)) {
+            return;
+        }
+
         $draft->loadMissing(['members', 'researchCall']);
         $participants = $this->participantsForDraft($draft, lockForUpdate: true);
         $limit = $this->limitFor($draft->researchCall);

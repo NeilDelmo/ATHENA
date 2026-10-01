@@ -133,9 +133,9 @@ class ProjectNarrativeReport extends Model
     public function getReviewStatusLabelAttribute(): string
     {
         return match ($this->review_status) {
-            self::STATUS_REVISION_REQUESTED => 'Corrections requested',
-            self::STATUS_REVIEWED => 'Reviewed',
-            default => 'Awaiting review',
+            self::STATUS_REVISION_REQUESTED => 'Corrections requested by Research Head',
+            self::STATUS_REVIEWED => 'Reviewed by Research Head',
+            default => 'Pending Research Head review',
         };
     }
 }

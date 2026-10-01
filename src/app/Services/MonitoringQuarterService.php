@@ -233,7 +233,7 @@ class MonitoringQuarterService
 
         return match ($report->review_status) {
             'reviewed' => ['reviewed', 'Reviewed'],
-            'revision_requested' => ['revision_required', 'Revision required'],
+            'revision_requested' => ['revision_required', 'Report corrections requested'],
             default => [
                 $report->version_number > 1 ? 'resubmitted' : 'submitted',
                 $report->version_number > 1 ? 'Resubmitted – awaiting review' : 'Submitted – awaiting review',

@@ -385,7 +385,24 @@ class ResearchAssistantController extends Controller
         return response()->json([
             'reply' => $reply,
             'model' => $response->json('model', config('services.gemini.model')),
-            'sources' => $this->researchKnowledge->publicSources($knowledgeSources),
+            'sources' => [
+                ...($contextTopicId ? [[
+                    'reference' => 'Project record',
+                    'title' => 'Saved workflow records: '.$topic->title,
+                    'type' => 'project_record',
+                    'category' => 'Saved ATHENA records',
+                    'url' => route('topics.show', $topic).'#'.match ($validated['context']['workflow_scope'] ?? null) {
+                        'monitoring', 'completion' => 'project-monitoring',
+                        'notice' => 'notice-to-proceed',
+                        default => 'project-details',
+                    },
+                ]] : []),
+                ...$this->researchKnowledge->publicSources(
+                    str_contains($reply, '[Project record]')
+                        ? array_values(array_filter($knowledgeSources, fn (array $source): bool => str_contains($reply, '['.$source['reference'].']')))
+                        : $knowledgeSources,
+                ),
+            ],
             'usage' => [
                 'prompt_tokens' => $response->json('usage.prompt_tokens'),
                 'completion_tokens' => $response->json('usage.completion_tokens'),
@@ -428,6 +445,7 @@ For proposal-paper help:
 Ask a focused clarifying question only when essential information is missing. Prefer practical steps, short examples, and clear headings when useful.
 
 Response style:
+- For questions about how many days something is delayed, answer with a short dated calculation from the workflow packet before explaining ambiguity. Do not refuse a calculation merely because ATHENA does not store a separate delay-duration field. Never confuse an activity target with the approved project end or a report submission deadline. Use [Project record] for saved workflow facts, rather than citing unrelated field guides.
 - For a simple question about one field, answer directly in two to four short paragraphs or a brief list. Do not add generic "Guidelines for this field" or "Current Status" sections unless they materially improve a complex answer.
 - Use Markdown naturally when structure is useful, but keep headings descriptive and lists properly formatted.
 - Do not repeat the user's current values unless they help answer the question or explain a problem.

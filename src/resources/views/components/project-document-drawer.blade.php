@@ -17,7 +17,7 @@
         x-ref="trigger"
         type="button"
         @click="openDrawer()"
-        class="{{ $floating ? 'fixed bottom-5 right-4 z-40 rounded-full shadow-lg shadow-red-950/20 sm:bottom-auto sm:right-5 sm:top-[7.625rem]' : 'rounded-xl whitespace-nowrap' }} inline-flex min-h-12 items-center gap-2 bg-red-700 px-3.5 py-2.5 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 motion-reduce:transition-none"
+        class="{{ $floating ? 'fixed top-[7.625rem] right-4 z-40 rounded-full shadow-lg shadow-red-950/20 sm:right-5' : 'rounded-xl whitespace-nowrap' }} inline-flex min-h-12 items-center gap-2 bg-red-700 px-3.5 py-2.5 text-sm font-black text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 motion-reduce:transition-none"
         aria-label="Open project files"
         title="Open project files"
         @if ($floating) data-project-documents-floating-trigger @else data-project-documents-inline-trigger @endif

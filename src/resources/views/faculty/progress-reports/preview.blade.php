@@ -65,8 +65,8 @@
                         @foreach ($report->accomplishments ?? [] as $accomplishment)
                             <tr>
                                 <td>{{ $accomplishment['objective'] }}</td>
-                                <td>{{ $accomplishment['target'] }}</td>
-                                <td>{{ $accomplishment['actual'] }}</td>
+                                <td class="progress-report-pre-line">{{ $accomplishment['target'] }}</td>
+                                <td class="progress-report-pre-line">{{ $accomplishment['actual'] }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -88,27 +88,29 @@
                 <p class="progress-report-narrative">{{ $report->objectives }}</p>
             </section>
 
-            <section class="progress-report-section">
-                <h2>IX. METHODOLOGY</h2>
-                <p class="progress-report-narrative">{{ $report->methodology }}</p>
-                @foreach ($figures->where('section', 'methodology') as $photo)
-                    <figure hidden>
-                        <img data-preview-file-input="{{ $photo['preview_file_input'] }}" alt="{{ $photo['caption'] }}">
-                        <figcaption>Figure {{ $figureNumber++ }}. {{ $photo['caption'] }}</figcaption>
-                    </figure>
-                @endforeach
-            </section>
-
-            <section class="progress-report-section">
-                <h2>X. RESULTS AND DISCUSSION</h2>
-                <p class="progress-report-narrative">{{ $report->results_discussion }}</p>
-                @foreach ($figures->where('section', 'results_discussion') as $photo)
-                    <figure hidden>
-                        <img data-preview-file-input="{{ $photo['preview_file_input'] }}" alt="{{ $photo['caption'] }}">
-                        <figcaption>Figure {{ $figureNumber++ }}. {{ $photo['caption'] }}</figcaption>
-                    </figure>
-                @endforeach
-            </section>
+            @foreach (['methodology' => 'IX. METHODOLOGY', 'results_discussion' => 'X. RESULTS AND DISCUSSION'] as $field => $heading)
+                @php
+                    $paragraphs = preg_split('/\n\s*\n/u', str_replace(["\r\n", "\r"], "\n", $report->$field ?? '')) ?: [''];
+                @endphp
+                <section class="progress-report-section">
+                    <h2>{{ $heading }}</h2>
+                    @foreach ($paragraphs as $paragraphIndex => $paragraph)
+                        <p class="progress-report-narrative">{{ $paragraph }}</p>
+                        @foreach ($figures->where('section', $field) as $photo)
+                            @php
+                                $position = (int) ($photo['after_paragraph'] ?? 0);
+                                $position = $position === 0 ? count($paragraphs) : min($position, count($paragraphs));
+                            @endphp
+                            @if ($position === $paragraphIndex + 1)
+                                <figure hidden>
+                                    <img data-preview-file-input="{{ $photo['preview_file_input'] }}" alt="{{ $photo['caption'] }}">
+                                    <figcaption>Figure {{ $figureNumber++ }}. {{ $photo['caption'] }}</figcaption>
+                                </figure>
+                            @endif
+                        @endforeach
+                    @endforeach
+                </section>
+            @endforeach
 
             <footer class="progress-report-signature">
                 <p>Prepared by:</p>
