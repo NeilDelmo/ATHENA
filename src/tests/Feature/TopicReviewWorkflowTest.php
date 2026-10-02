@@ -1199,7 +1199,7 @@ test('faculty researchers can browse and open only their own approved research r
         ->assertOk()
         ->assertSee('Approved - awaiting notice')
         ->assertSee('PHP 14,500.00')
-        ->assertSee('Proposal package')
+        ->assertSee('Project')
         ->assertSee('Decision history')
         ->assertSee('id="notice-to-proceed-tab-button"', false)
         ->assertSee('id="notice-to-proceed-tab"', false)
@@ -1244,12 +1244,12 @@ test('research support is available to authenticated users', function () {
     $this->actingAs($researcher)
         ->get('/research-support')
         ->assertOk()
-        ->assertSee('Research Help Facility');
+        ->assertSee('Resources');
 
     $this->actingAs($faculty)
         ->get('/research-support')
         ->assertOk()
-        ->assertSee('Research Help Facility');
+        ->assertSee('Resources');
 
     $this->actingAs($head)
         ->get('/research-support')
@@ -1517,7 +1517,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Proposal package')
+        ->assertSee('Project')
         ->assertSee('Research details')
         ->assertSee('Decision history')
         ->assertDontSee('Research Head documents')
@@ -1528,7 +1528,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->actingAs($head)
         ->get(route('topics.show', $topic))
         ->assertOk()
-        ->assertSee('Proposal package')
+        ->assertSee('Project')
         ->assertSee('7/7 files available')
         ->assertDontSee('id="notice-to-proceed-tab-button"', false)
         ->assertSee('Detailed Research Proposal')

@@ -81,12 +81,14 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">VII. Executive Brief:</p>
+                            <x-proposal-figures :proposal="$detailedProposal" section="executive_brief" />
                             {!! $richText->sanitize($detailedProposal['executive_brief']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p><span class="detailed-proposal-section-heading">VIII. Rationale:</span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
+                            <x-proposal-figures :proposal="$detailedProposal" section="rationale" />
                             {!! $richText->sanitize($detailedProposal['rationale']) !!}
                         </td>
                     </tr>
@@ -120,29 +122,22 @@
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XI. Introduction:</p>
+                            <x-proposal-figures :proposal="$detailedProposal" section="introduction" />
                             {!! $richText->sanitize($detailedProposal['introduction']) !!}
                             <p><span class="detailed-proposal-section-heading">Related Studies and Literature:</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
+                            <x-proposal-figures :proposal="$detailedProposal" section="related_literature" />
                             {!! $richText->sanitize($detailedProposal['related_literature']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
                             <p class="detailed-proposal-section-heading">XII. Methodology:</p>
-                            @php($figureNumber = 0)
                             <ul class="detailed-proposal-methodology-list">
                                 @foreach (config('detailed_proposal.methodology') as $key => $label)
-                                    @continue(blank($detailedProposal['methodology'][$key]))
+                                    @continue(blank($detailedProposal['methodology'][$key]) && ! collect($detailedProposal['methodology_images'])->contains('section', $key))
                                     <li>
                                         <p class="detailed-proposal-methodology-heading">{{ $label }}</p>
-                                        @if ($key === 'research_design')
-                                            @foreach (collect($detailedProposal['methodology_images'])->where('section', 'research_design') as $image)
-                                                @php($figureNumber++)
-                                                <p class="detailed-proposal-methodology-visual is-{{ $image['alignment'] }} is-{{ $image['size'] }}">
-                                                    <img src="{{ $image['data_url'] }}" alt="{{ $image['caption'] ?: 'Research Design visual' }}">
-                                                </p>
-                                                <p class="detailed-proposal-methodology-caption is-{{ $image['alignment'] }}">{{ 'Figure '.$figureNumber.'.'.($image['caption'] ? ' '.$image['caption'] : '') }}</p>
-                                            @endforeach
-                                        @endif
+                                        <x-proposal-figures :proposal="$detailedProposal" :section="$key" />
                                         {!! $richText->sanitize($detailedProposal['methodology'][$key]) !!}
                                     </li>
                                 @endforeach
@@ -209,19 +204,19 @@
                     <tr>
                         <td colspan="2" class="detailed-proposal-checklist">
                             <p>Checklist:</p>
-                            <p>☐ Complete Documents</p>
+                            <p>{{ ($detailedProposal['document_checklist']['complete_documents'] ?? false) ? '☒' : '☐' }} Complete Documents</p>
                             <div class="detailed-proposal-sub-items">
                                 <p>Detailed Proposal</p>
                                 <p>LIB</p>
                                 <p>Work Plan</p>
                             </div>
-                            <p>☐ Initial Screening Form</p>
+                            <p>{{ ($detailedProposal['document_checklist']['initial_screening_form'] ?? false) ? '☒' : '☐' }} Initial Screening Form</p>
                             <p>Score: _______</p>
                         </td>
                         <td colspan="2" class="detailed-proposal-checklist">
                             <p>Level of Call</p>
-                            <p>☐ Central Agency (VPRDES, President)</p>
-                            <p>☐ Constituent Campus (VCRDES, Chancellor)</p>
+                    <p>{{ ($detailedProposal['level_of_call'] ?? null) === 'central_agency' ? '☒' : '☐' }} Central Agency (VPRDES, President)</p>
+                    <p>{{ ($detailedProposal['level_of_call'] ?? null) === 'constituent_campus' ? '☒' : '☐' }} Constituent Campus (VCRDES, Chancellor)</p>
                         </td>
                     </tr>
                     <tr><td colspan="4" class="detailed-proposal-office-heading">To be accomplished by the Researcher/s</td></tr>

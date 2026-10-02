@@ -6,6 +6,7 @@ use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -34,6 +35,12 @@ class SaveProjectMonitoringDraft
                 throw ValidationException::withMessages([
                     'draft_version' => 'A newer saved monitoring draft is available. Reload the page before saving again.',
                 ]);
+            }
+
+            $savedDate = data_get($draft?->source_data, 'reporting_date');
+            $newDate = $normalizedSourceData['reporting_date'] ?? null;
+            if ($savedDate && $newDate && app(MonitoringQuarterService::class)->forDate($savedDate, $topic)['start']->ne(app(MonitoringQuarterService::class)->forDate($newDate, $topic)['start'])) {
+                throw ValidationException::withMessages(['reporting_date' => 'Finish your saved Monitoring Tool draft before starting another quarter.']);
             }
 
             if ($draft === null) {

@@ -8,6 +8,7 @@ return [
         'maximum_docx_xml_bytes' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_MAX_DOCX_XML_BYTES', 12 * 1024 * 1024),
         'extraction_timeout' => (int) env('RESEARCH_ASSISTANT_DOCUMENT_EXTRACTION_TIMEOUT', 20),
         'pdftotext_binary' => env('PDFTOTEXT_BINARY', 'pdftotext'),
+        'pdftoppm_binary' => env('PDFTOPPM_BINARY', 'pdftoppm'),
     ],
 
     'conversation_memory' => [

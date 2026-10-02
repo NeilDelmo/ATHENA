@@ -42,7 +42,7 @@
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14.25 3.75 9 12 3.75 20.25 9 12 14.25Zm0 0v6m-5.25-8.25v4.5c2.9 2.3 7.6 2.3 10.5 0V12" /></svg>
                             </span>
                             <span class="mt-4 break-words text-lg font-black leading-tight text-slate-900 dark:text-white">Continue as Faculty</span>
-                            <span class="mt-2 grow text-xs leading-5 text-slate-500 dark:text-slate-400">Create proposal packages and track your research submissions.</span>
+                            <span class="mt-2 grow text-xs leading-5 text-slate-500 dark:text-slate-400">Create projects and track your research submissions.</span>
                             <span class="mt-4 inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-red-700 dark:text-red-300">Open workspace <span aria-hidden="true" class="transition group-hover:translate-x-1">&rarr;</span></span>
                         </button>
                     </form>

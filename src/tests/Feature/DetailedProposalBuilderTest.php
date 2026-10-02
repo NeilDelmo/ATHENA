@@ -6,6 +6,7 @@ use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
+use App\Support\DetailedProposalData;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -136,7 +137,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Connection preview')
         ->assertSee('Keep standalone')
         ->assertSee('data-literature-connection-preview', false)
-        ->assertSee('Insert connected paragraph')
+        ->assertSee('Insert connected RRL + reference')
         ->assertDontSee('Literature Assistant')
         ->assertDontSee('Proposal-aware search')
         ->assertSee('Add output')
@@ -150,8 +151,10 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('III. Sustainable Development Goal')
         ->assertSee('SDG17:')
         ->assertSee('XIII. Duties and Responsibilities of Each Member')
-        ->assertSee('Add Research Design visual')
-        ->assertSee('Images belong to Research Design only')
+        ->assertSee('Choose images')
+        ->assertSee('Add figures to any methodology part')
+        ->assertSee('data-proposal-figure-section="rationale"', false)
+        ->assertSee('data-proposal-figure-section="data_analysis"', false)
         ->assertSee('Write each method heading in your own words')
         ->assertSee('Write this method heading')
         ->assertSee('Add method group')
@@ -170,7 +173,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Asst Prof.')
         ->assertSee('Enter the external staff member&rsquo;s optional professional title, name, email, and 11-digit contact number manually.', false)
         ->assertSee('Signature names')
-        ->assertSee('Choose signatories')
+        ->assertSee('Other signatories')
         ->assertSee(route('signatories.edit', ['proposalDraft' => $this->draft, 'paper' => 'detailed_proposal']), false)
         ->assertDontSee('Preview content')
         ->assertDontSee('Download exact Word file')
@@ -773,8 +776,8 @@ test('the preview mirrors the official bordered form layout', function () {
         ->assertSee('To be accomplished by the Researcher/s')
         ->assertSee('Head, Research Office')
         ->assertSee('Vice Chancellor for Research Development and Extension Services')
-        ->assertSee('JUAN DELA CRUZ')
-        ->assertSee('MARIA SANTOS')
+        ->assertSee('ASST. PROF. DJOANNA MARIE V. SALAC')
+        ->assertSee('DR. FROILAN G. DESTREZA')
         ->assertSee('PEDRO REYES')
         ->assertSee('Tracking No.________________')
         ->assertSee('Page 1 of 1')
@@ -782,8 +785,8 @@ test('the preview mirrors the official bordered form layout', function () {
 
     $content = $response->getContent();
 
-    expect(substr_count($content, '☒'))->toBe(3)
-        ->and(substr_count($content, '☐'))->toBe(18)
+    expect(substr_count($content, '☒'))->toBe(4)
+        ->and(substr_count($content, '☐'))->toBe(17)
         ->and(substr_count($content, 'Php 0.00'))->toBe(2)
         ->and($content)->not->toContain('Batangas State University, The National Engineering University')
         ->and($content)->not->toContain('Vice President/Vice Chancellor for Research Development and Extension Services')
@@ -830,8 +833,8 @@ test('structured detailed proposal data saves, resumes, and observes optimistic 
         ->and($document->source_data['leader_title'])->toBe('Asst Prof.')
         ->and($document->source_data['staff'][0]['title'])->toBe('Dr.')
         ->and($document->source_data['staff'][0]['email'])->toBe('staff@g.batstate-u.edu.ph')
-        ->and($document->source_data['checked_verified_by_name'])->toBe('Juan Dela Cruz')
-        ->and($document->source_data['recommending_approval_name'])->toBe('Maria Santos')
+        ->and($document->source_data['checked_verified_by_name'])->toBe('ASST. PROF. DJOANNA MARIE V. SALAC')
+        ->and($document->source_data['recommending_approval_name'])->toBe('DR. FROILAN G. DESTREZA')
         ->and($document->source_data['approved_by_name'])->toBe('Pedro Reyes')
         ->and($document->source_data)->not->toHaveKeys(['project_title', 'project_leader']);
 
@@ -1180,6 +1183,66 @@ test('methodology visuals can be saved, positioned, previewed, and included in t
     }
 });
 
+test('removed figures stay out of the preview even before the detailed proposal is saved', function () {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'methodology_images_present' => '1',
+            'methodology_images' => [
+                [
+                    'section' => 'research_design',
+                    'alignment' => 'center',
+                    'size' => 'medium',
+                    'caption' => 'Removed workflow figure',
+                    'image' => UploadedFile::fake()->image('workflow.png'),
+                ],
+                [
+                    'section' => 'data_analysis',
+                    'alignment' => 'center',
+                    'size' => 'medium',
+                    'caption' => 'Retained analysis figure',
+                    'image' => UploadedFile::fake()->image('analysis.png'),
+                ],
+            ],
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $document = $this->draft->documents()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
+        ->sole();
+    $images = $document->source_data['methodology_images'];
+
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)([
+        'methodology_images_present' => '1',
+        'methodology_images' => [$images[1]],
+    ]))
+        ->assertOk()
+        ->assertDontSee('Removed workflow figure')
+        ->assertSee('Figure 1. Retained analysis figure');
+
+    $clearedPayload = ($this->payload)([
+        'document_version' => $document->lock_version,
+        'methodology_images_present' => '1',
+        'methodology_images' => [],
+    ]);
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $clearedPayload)
+        ->assertOk()
+        ->assertDontSee('Removed workflow figure')
+        ->assertDontSee('Retained analysis figure')
+        ->assertDontSee('data:image/png;base64,', false);
+
+    expect($document->fresh()->source_data['methodology_images'])->toHaveCount(2);
+
+    $this->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $clearedPayload)
+        ->assertSessionHasNoErrors();
+
+    expect($document->fresh()->source_data['methodology_images'])->toBe([]);
+
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
+        ->assertOk()
+        ->assertDontSee('Removed workflow figure')
+        ->assertDontSee('Retained analysis figure');
+});
+
 test('the generated Word file preserves every unrelated official package part and fills the exact form', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), ($this->payload)())
@@ -1233,8 +1296,8 @@ test('the generated Word file preserves every unrelated official package part an
         $preparedDepartmentParagraph = $xpath->query('./w:tc[2]/w:p', $rows->item(31))->item(0);
         $sdgNoteRun = $xpath->query('.//w:r[w:t[contains(., "Check all applicable SDG")]]', $rows->item(4))->item(0);
         $expectedOutputNoteRun = $xpath->query('.//w:r[w:t[contains(., "based on expanded 6Ps")]]', $rows->item(20))->item(0);
-        $checkedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "JUAN DELA CRUZ"]', $rows->item(38))->item(0);
-        $recommendingNameParagraph = $xpath->query('./w:tc[2]/w:p[normalize-space(.) = "MARIA SANTOS"]', $rows->item(38))->item(0);
+        $checkedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "ASST. PROF. DJOANNA MARIE V. SALAC"]', $rows->item(38))->item(0);
+        $recommendingNameParagraph = $xpath->query('./w:tc[2]/w:p[normalize-space(.) = "DR. FROILAN G. DESTREZA"]', $rows->item(38))->item(0);
         $approvedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "PEDRO REYES"]', $rows->item(39))->item(0);
         $notesHeadingParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Notes: The Signatories funded by:"]')->item(0);
         $researchCouncilParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Approval through Research Council"]')->item(0);
@@ -1280,8 +1343,8 @@ test('the generated Word file preserves every unrelated official package part an
             ->and($rowText(35))->toContain('To be accomplished by the Research Office')
             ->and($rowText(38))->toContain('Head, Research Office')
             ->and($rowText(38))->toContain('Vice Chancellor for Research Development and Extension Services')
-            ->and($rowText(38))->toContain('JUAN DELA CRUZ')
-            ->and($rowText(38))->toContain('MARIA SANTOS')
+            ->and($rowText(38))->toContain('ASST. PROF. DJOANNA MARIE V. SALAC')
+            ->and($rowText(38))->toContain('DR. FROILAN G. DESTREZA')
             ->and($rowText(39))->toContain('PEDRO REYES')
             ->and($rowText(38))->not->toContain('Vice President/Vice Chancellor')
             ->and($xpath->query('./w:trPr/w:cantSplit', $rows->item(39))->length)->toBe(1)
@@ -1453,7 +1516,7 @@ test('detailed proposal validation requires an SDG, introduction, essential meth
         ],
         'methodology_images_present' => '1',
         'methodology_images' => [[
-            'section' => 'specific_methods',
+            'section' => 'references',
             'alignment' => 'center',
             'size' => 'medium',
             'caption' => '',
@@ -1485,3 +1548,220 @@ test('detailed proposal validation requires an SDG, introduction, essential meth
 
     expect(array_keys($errors))->not->toContain('methodology.data_analysis');
 });
+
+test('draft saves explain missing requirements and show them when the editor is reopened', function () {
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'save_as_draft' => true,
+            'specific_objectives' => [],
+            'methodology' => ['research_design' => '', 'specific_methods' => 'Survey the residents.'],
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true)
+        ->assertJsonStructure(['completion_errors' => ['specific_objectives', 'methodology.research_design']]);
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('data-proposal-completion-checklist', false)
+        ->assertSee('focusProposalRequirement(field)', false)
+        ->assertViewHas('completionErrors', fn (array $errors): bool => isset($errors['specific_objectives'], $errors['methodology.research_design']));
+});
+
+test('filled specific objectives survive saving and reopening without a missing-field error', function () {
+    $objectives = [['description' => 'Measure habitat recovery.'], ['description' => 'Validate community monitoring.']];
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'specific_objectives_present' => 1,
+            'specific_objectives' => $objectives,
+        ]))
+        ->assertOk()->assertJsonPath('saved_as_draft', false)->assertJsonPath('completion_errors', []);
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()->assertViewHas('completionErrors', [])
+        ->assertViewHas('sourceData', fn (array $source): bool => $source['specific_objectives'] === $objectives);
+});
+
+test('a general objective alone explains the separate specific objective requirement and filling it clears the warning', function (array $objectives, string $field, string $message) {
+    $response = $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'save_as_draft' => true,
+            'general_objective' => '<p>samplee</p>',
+            'specific_objectives_present' => 1,
+            'specific_objectives' => $objectives,
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true);
+    expect($response->json('completion_errors')[$field])->toBe([$message]);
+
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertSee('data-specific-objectives-fields', false)
+        ->assertSee('Required — at least one')
+        ->assertViewHas('sourceData', fn (array $source): bool => $source['general_objective'] === '<p>samplee</p>');
+
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+        'document_version' => $response->json('document_version'),
+        'general_objective' => '<p>samplee</p>',
+        'specific_objectives_present' => 1,
+        'specific_objectives' => [['description' => 'Measure habitat recovery.']],
+    ]))->assertOk()->assertJsonPath('completion_errors', [])->assertJsonPath('saved_as_draft', false);
+})->with([
+    'no specific objectives' => [[], 'specific_objectives', 'Add at least one Specific Objective below the optional General Objective.'],
+    'blank specific objective' => [[['description' => '']], 'specific_objectives.0.description', 'Enter text for Specific Objective 1.'],
+]);
+
+test('older saved objectives are recognized by the completion check before resaving', function () {
+    $source = ($this->payload)();
+    $source['expected_outputs'] = DetailedProposalData::fromValidated($source)['expected_outputs'];
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => $source,
+    ]);
+
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()->assertViewHas('detailedProposalComplete', true)->assertViewHas('completionErrors', []);
+});
+
+test('removing all specific objectives clears the saved rows instead of reusing them', function () {
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'specific_objectives' => [['description' => 'Measure habitat recovery.']],
+        ]))->assertOk();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), [
+        'document_version' => $document->lock_version,
+        'save_as_draft' => true,
+        'specific_objectives_present' => 1,
+    ])->assertOk()->assertJsonPath('saved_as_draft', true)
+        ->assertJsonStructure(['completion_errors' => ['specific_objectives']]);
+    expect($document->fresh()->source_data['specific_objectives'])->toBe([]);
+});
+
+test('a staff professional title is optional for proposal completion', function () {
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'staff' => [['name' => 'Research Staff Member', 'email' => 'staff@example.test', 'contact' => '09187654321']],
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', false)
+        ->assertJsonPath('completion_errors', []);
+});
+
+test('empty rich text and unfinished method groups are identified as incomplete', function () {
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
+            'save_as_draft' => true,
+            'rationale' => '<p><br></p>',
+            'specific_method_objectives' => [['heading' => '', 'methods' => [['description' => 'Interview residents.']]]],
+        ]))
+        ->assertOk()
+        ->assertJsonPath('saved_as_draft', true)
+        ->assertJsonStructure(['completion_errors' => ['rationale', 'specific_method_objectives.0.heading']]);
+});
+
+test('figures survive save preview and Word export in their selected sections', function () {
+    $sections = array_keys(config('detailed_proposal.image_sections'));
+    $payload = ($this->payload)([
+        'methodology_images_present' => '1',
+        'methodology_images' => collect(array_reverse($sections))->map(fn (string $section): array => [
+            'section' => $section,
+            'alignment' => 'center',
+            'size' => 'small',
+            'caption' => 'Visual for '.$section,
+            'image' => UploadedFile::fake()->image($section.'.png', 100, 100),
+        ])->all(),
+    ]);
+
+    $this->actingAs($this->faculty)->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), $payload)
+        ->assertSessionHasNoErrors();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    expect(collect($document->source_data['methodology_images'])->pluck('section')->all())->toEqualCanonicalizing($sections);
+
+    $previewPayload = [...$document->source_data, 'methodology_images_present' => 1, 'document_version' => $document->lock_version];
+    $preview = $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), $previewPayload)->assertOk();
+    foreach ($sections as $index => $section) {
+        $preview->assertSee('Figure '.($index + 1).'. Visual for '.$section);
+    }
+
+    $download = $this->post(route('faculty.proposal-drafts.detailed-proposal.download', $this->draft), $previewPayload)->assertOk();
+    $path = tempnam(sys_get_temp_dir(), 'proposal-figures-');
+    file_put_contents($path, $download->streamedContent());
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $xml = new DOMDocument;
+        $xml->loadXML($archive->getFromName('word/document.xml'));
+        $xpath = new DOMXPath($xml);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        foreach ([17 => 'executive_brief', 18 => 'rationale', 21 => 'introduction', 22 => 'research_design'] as $row => $section) {
+            expect($xpath->evaluate('string(//w:body/w:tbl[1]/w:tr['.($row + 1).'])'))->toContain('Visual for '.$section);
+        }
+        expect($xml->textContent)->toContain('Figure 7. Visual for data_analysis');
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+});
+
+test('the saved budget call level drives the proposal and screening previews', function (?string $level) {
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_LINE_ITEM_BUDGET,
+        'position' => 0,
+        'source_data' => ['level_of_call' => $level, 'amounts' => []],
+        'lock_version' => 1,
+    ]);
+    $expectedLevel = $level ?? 'constituent_campus';
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()
+        ->assertDontSee('data-proposal-call-level', false)
+        ->assertDontSee('Set Level of Call in the Line-Item Budget')
+        ->assertDontSee('Level of Call:');
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
+        ->assertOk()
+        ->assertSeeText(($expectedLevel === 'constituent_campus' ? '☒' : '☐').' Constituent Campus')
+        ->assertSeeText(($expectedLevel === 'central_agency' ? '☒' : '☐').' Central Agency');
+    $converter = new class implements DocumentPdfConverter
+    {
+        public string $document = '';
+
+        public function convertDocx(string $contents): string
+        {
+            $this->document = $contents;
+
+            return '%PDF-screening-preview';
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return '%PDF-budget-preview';
+        }
+    };
+    app()->instance(DocumentPdfConverter::class, $converter);
+    $screening = $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.initial-screening-form.preview', $this->draft))
+        ->assertOk();
+    if ($screening->headers->get('Content-Type') === 'application/pdf') {
+        $path = tempnam(sys_get_temp_dir(), 'screening-call-level-');
+        file_put_contents($path, $converter->document);
+        $archive = new ZipArchive;
+        try {
+            expect($archive->open($path))->toBeTrue();
+            $document = new DOMDocument;
+            $document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET);
+            $xpath = new DOMXPath($document);
+            $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            foreach (['central_agency', 'constituent_campus'] as $index => $value) {
+                $checkbox = $xpath->query('//w:checkBox')->item(3 + $index);
+                expect($xpath->evaluate('string(./w:checked/@w:val)', $checkbox))->toBe($expectedLevel === $value ? '1' : '0');
+            }
+        } finally {
+            $archive->close();
+            unlink($path);
+        }
+    } else {
+        $screening->assertSee('data-screening-level="'.$expectedLevel.'"', false);
+    }
+})->with(['Central Agency' => ['central_agency'], 'Constituent Campus' => ['constituent_campus'], 'Unselected' => [null]]);

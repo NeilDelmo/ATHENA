@@ -571,7 +571,7 @@ test('sending a revision request publishes highlights for the faculty', function
         ->assertSee('Back to proposal')
         ->assertSee('data-fixed-back-link', false)
         ->assertSee('fixed bottom-4 right-4 z-40', false)
-        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('Prepare the corrected project')
         ->assertDontSee('Focus this field')
         ->assertSee('data-revision-pdf-frame', false)
         ->assertSee('data-annotation-id="'.$annotation->id.'"', false);
@@ -662,7 +662,7 @@ test('the revision notification deep-links the faculty to the first highlighted 
         ->get(route('faculty.topics.revision', $this->topic))
         ->assertOk()
         ->assertSee('data-annotation-id="'.$firstAnnotation->id.'"', false)
-        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('Prepare the corrected project')
         ->assertSee('data-revision-pdf-frame', false)
         ->assertDontSee('Focus editor');
 });
@@ -845,9 +845,11 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         ->assertDontSee('Revise requested papers')
         ->assertDontSee('Confirm proposal details')
         ->assertDontSee('Review and send')
-        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('Prepare the corrected project')
         ->assertSee('2. Revise papers')
         ->assertSee('Revise paper')
+        ->assertSee('Preview revised paper')
+        ->assertSee('Back to revision')
         ->assertDontSee('Open for review')
         ->assertDontSee('Changes detected')
         ->assertSee('data-revision-dialog', false)
@@ -901,6 +903,9 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
         ->and($xpath->query($card.'//dialog//section[contains(@class, "revision-feedback")]//iframe[@data-revision-pdf-frame]')->length)->toBe(1)
         ->and($xpath->query($card.'//a[contains(@href, "proposal-drafts")]')->length)->toBe(0)
         ->and($xpath->query($card.'//button[@data-revision-open]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//button[@data-revision-preview-open][@aria-expanded="false"]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//section[@data-revision-preview-panel][@hidden]//iframe[@data-revision-preview-frame]')->length)->toBe(1)
+        ->and($xpath->query($card.'//dialog//*[@data-revision-editor-content]//iframe[@data-revision-editor-frame]')->length)->toBe(1)
         ->and($xpath->query('//details[@data-other-revision-files]')->length)->toBe(0)
         ->and($xpath->query('//input[@name="expense_breakdown"]')->length)->toBe(0)
         ->and($xpath->query('//section[@data-revision-proposal-details][@data-initially-open="true"]//button[@data-revision-proposal-details-button]')->length)->toBe(1)
@@ -912,6 +917,47 @@ test('faculty revision workspace keeps requested feedback and replacement inputs
 
     $this->actingAs($this->head)->get(route('topics.show', $this->topic))
         ->assertOk()->assertDontSee('id="submit-revision"', false);
+});
+
+test('an uploaded Word revision can be previewed without saving or resubmitting the paper', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()->andReturn("%PDF-1.7\nPreview only");
+    $originalFiles = Storage::disk('local')->allFiles();
+    $this->actingAs($this->faculty)->post(route('faculty.topics.revision.preview', $this->topic), [
+        'paper' => UploadedFile::fake()->create('revised.docx', 10, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])->assertOk()->assertHeader('Content-Type', 'application/pdf')
+        ->assertHeader('Content-Disposition', 'inline; filename="revision-preview.pdf"')
+        ->assertContent("%PDF-1.7\nPreview only");
+    expect($this->topic->fresh()->status)->toBe('revision_requested')
+        ->and($this->topic->versions()->count())->toBe(1)
+        ->and($this->topic->revisionDraft)->toBeNull()
+        ->and(Storage::disk('local')->allFiles())->toBe($originalFiles);
+});
+
+test('replacement previews reject another owner inactive revisions and unsupported files', function () {
+    $this->mock(DocumentPdfConverter::class)->shouldNotReceive('convertDocx');
+    $this->actingAs($this->faculty)->postJson(route('faculty.topics.revision.preview', $this->topic), [])
+        ->assertForbidden();
+    $this->topic->update(['status' => 'revision_requested']);
+    $other = User::factory()->create();
+    $other->assignRole('faculty');
+    $this->actingAs($other)->postJson(route('faculty.topics.revision.preview', $this->topic), [])
+        ->assertForbidden();
+    $this->actingAs($this->faculty)->postJson(route('faculty.topics.revision.preview', $this->topic), [
+        'paper' => UploadedFile::fake()->create('invalid.txt', 1, 'text/plain'),
+    ])->assertUnprocessable()->assertJsonValidationErrors('paper');
+    $this->postJson(route('faculty.topics.revision.preview', $this->topic), [
+        'paper' => UploadedFile::fake()->create('oversized.docx', 25601, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])->assertUnprocessable()->assertJsonValidationErrors('paper');
+});
+
+test('unavailable Word conversion gives a recoverable preview error', function () {
+    $this->topic->update(['status' => 'revision_requested']);
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()->andThrow(new RuntimeException('Conversion unavailable'));
+    $this->actingAs($this->faculty)->postJson(route('faculty.topics.revision.preview', $this->topic), [
+        'paper' => UploadedFile::fake()->create('revised.docx', 10, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+    ])->assertStatus(503)->assertJsonPath('message', 'The Word preview could not be created. Try a PDF replacement, or return to your revision.');
+    expect($this->topic->fresh()->status)->toBe('revision_requested');
 });
 
 test('a successful revision return shows a clear server-confirmed receipt', function () {

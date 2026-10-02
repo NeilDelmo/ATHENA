@@ -10,7 +10,7 @@
     @endphp
 
     <x-slot name="header">
-        <x-page-header title="Submit a Research Proposal" subtitle="Enter the project information once. ATHENA will generate Attachment A and include it in your proposal package." />
+        <x-page-header title="Submit a Research Proposal" subtitle="Enter the project information once. ATHENA will generate Attachment A and include it in your project." />
     </x-slot>
 
     <div
@@ -324,7 +324,7 @@
                         <button x-show="step === 4" x-cloak type="button" @click="generatePreview()" :disabled="previewLoading" class="rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-600 transition hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60">Refresh preview</button>
                         <button x-show="step === 4" x-cloak type="button" @click="downloadDocument()" :disabled="downloadLoading" class="rounded-xl border border-red-200 px-5 py-3 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-wait disabled:opacity-60" x-text="downloadLoading ? 'Preparing Word file…' : 'Download Word file'"></button>
                         <button x-show="step === 4" x-cloak type="button" @click="printPreview()" :disabled="!previewReady || previewLoading" class="rounded-xl border border-gray-200 px-5 py-3 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">Print / Save PDF</button>
-                        <button x-show="step === 4" x-cloak type="submit" class="rounded-xl bg-red-600 px-6 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-700">Submit proposal package</button>
+                        <button x-show="step === 4" x-cloak type="submit" class="rounded-xl bg-red-600 px-6 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-red-700">Submit project</button>
                     </div>
                 </div>
             </form>

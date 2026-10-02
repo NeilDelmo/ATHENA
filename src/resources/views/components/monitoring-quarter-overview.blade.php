@@ -24,6 +24,7 @@
                     @php
                         $report = $row['report'];
                         $canSubmit = $topic && ! auth()->user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(auth()->user()) && $row['reporting_date'];
+                        $canDraft = $topic && ! auth()->user()->isUsingWorkspace('research_head') && $topic->isMonitoringAvailable() && $topic->isAccessibleTo(auth()->user()) && ($row['drafting_date'] ?? null);
                         $statusClass = match (true) {
                             $report?->review_status === 'reviewed' => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900',
                             $report?->review_status === 'revision_requested' => 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900',
@@ -65,8 +66,8 @@
                                     @elseif ($canSubmit && $report->review_status === 'revision_requested' && ! $report->nextVersion)
                                         <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'revise_monitoring_report' => $report->id]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Revise tool</a>
                                     @endif
-                                @elseif ($canSubmit)
-                                    <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $row['reporting_date']]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">Start tool</a>
+                                @elseif ($canDraft)
+                                    <a data-monitoring-action href="{{ route('project-progress.create', ['topic' => $topic, 'reporting_date' => $row['drafting_date']]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg bg-red-700 px-3 py-2 text-sm font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">{{ $canSubmit ? 'Start tool' : 'Fill draft' }}</a>
                                 @elseif (! $row['reporting_date'])
                                     <button type="button" disabled class="inline-flex min-h-11 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-bold text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-500">Not open yet</button>
                                 @else

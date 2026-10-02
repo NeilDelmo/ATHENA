@@ -47,6 +47,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'topics.versions.files.annotations.destroy',
                     'faculty.proposal-drafts.details.update',
                     'faculty.proposal-drafts.revision-files.store',
+                    'faculty.topics.revision.preview',
                     'faculty.proposal-drafts.detailed-proposal.download',
                     'faculty.proposal-drafts.curriculum-vitae.download',
                     'faculty.proposal-drafts.detailed-proposal.update',

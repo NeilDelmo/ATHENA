@@ -6,6 +6,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Services\InitialScreeningFormDocumentService;
 use App\Support\InitialScreeningSubmissionOrder;
+use App\Support\LineItemBudgetData;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\Response;
@@ -65,7 +66,7 @@ class ProposalDraftInitialScreeningFormController extends Controller
         );
     }
 
-    /** @return array{project_title: string, project_leader: string, order_of_submission: string} */
+    /** @return array{project_title: string, project_leader: string, order_of_submission: string, level_of_call: string|null} */
     private function screeningFormData(ProposalDraft $proposalDraft): array
     {
         return [
@@ -73,6 +74,10 @@ class ProposalDraftInitialScreeningFormController extends Controller
             'project_title' => (string) $proposalDraft->project_title,
             'project_leader' => (string) $proposalDraft->project_leader,
             'order_of_submission' => app(InitialScreeningSubmissionOrder::class)->forDraft($proposalDraft),
+            'level_of_call' => $proposalDraft->documents()
+                ->where('document_type', config('proposal_papers.line-item-budget.document_type'))
+                ->where('position', 0)
+                ->first()?->source_data['level_of_call'] ?? LineItemBudgetData::DEFAULT_LEVEL_OF_CALL,
         ];
     }
 }

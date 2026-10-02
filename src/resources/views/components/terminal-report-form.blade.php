@@ -17,12 +17,15 @@
     $objectivesFromWorkPlan = (bool) ($defaults['objectives_from_work_plan'] ?? false);
     $objectiveCount = count($accomplishments);
     $evidenceCount = count($evidence);
+    $schedule = app(\App\Services\MonitoringQuarterService::class);
+    $submissionOpen = $schedule->canSubmitTerminal($topic);
+    $submissionOpensAt = $schedule->terminalOpensAt($topic)->format('M j, Y');
 @endphp
 
 <section
     class="bg-slate-50/70 p-4 sm:p-6 lg:p-8"
     data-narrative-progress-autosave="true"
-    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token())})"
+    x-data="narrativeProgressReportForm({previewUrl: @js(route('project-narrative-reports.preview', $topic)), draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)), initialDraftVersion: @js((int) ($draft?->lock_version ?? 0)), csrfToken: @js(csrf_token()), submissionOpen: @js($submissionOpen), submissionOpensAt: @js($submissionOpensAt)})"
 >
     <form
         x-ref="form"
@@ -31,12 +34,13 @@
         action="{{ route('project-narrative-reports.prepare', $topic) }}"
         enctype="multipart/form-data"
         class="mx-auto max-w-6xl space-y-8 text-base leading-7 text-gray-800 dark:text-slate-200 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
-        @submit="submitting = true"
+        @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }"
     >
         @csrf
         <input type="hidden" name="report_type" value="terminal">
         <input type="hidden" name="draft_version" value="{{ $draft?->lock_version ?? 0 }}">
         <x-proposal-autosave-status />
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open {{ $submissionOpensAt }}.</p>
 
         <header class="overflow-hidden rounded-3xl border border-red-100 bg-gradient-to-br from-red-50 via-white to-amber-50 shadow-sm dark:border-red-950 dark:from-slate-900 dark:via-slate-900 dark:to-red-950/30">
             <div class="grid gap-6 px-6 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -355,7 +359,8 @@
             </div>
             @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])
                 <div class="grid gap-4 rounded-2xl border border-gray-200 p-5 sm:grid-cols-2 dark:border-slate-700">
-                    <label class="font-bold">{{ $group }} — {{ $role }}<input name="terminal_data[signatories][{{ $key }}][name]" value="{{ $value('terminal_data.signatories.'.$key.'.name') }}" list="terminal-signatories" maxlength="255" required class="{{ $input }}"></label>
+                    @php($defaultName = \App\Support\TerminalReportData::defaultSignatoryNames()[$key] ?? null)
+                    <label class="font-bold">{{ $group }} — {{ $role }}<input name="terminal_data[signatories][{{ $key }}][name]" value="{{ $defaultName ?? $value('terminal_data.signatories.'.$key.'.name') }}" @if ($defaultName) readonly @else list="terminal-signatories" @endif maxlength="255" required class="{{ $input }}"></label>
                     <label class="font-bold">Date signed <span class="font-normal text-gray-500">(optional)</span><input type="date" name="terminal_data[signatories][{{ $key }}][date_signed]" value="{{ $value('terminal_data.signatories.'.$key.'.date_signed') }}" max="{{ now()->toDateString() }}" class="{{ $input }}"></label>
                 </div>
             @endforeach
@@ -366,8 +371,9 @@
             @if ($standalone)
                 <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
             @endif
-            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 px-6 py-3 font-bold text-gray-900 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50 dark:border-slate-600 dark:text-white dark:hover:bg-slate-800">Preview terminal report</button>
-            <button type="submit" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl bg-red-700 px-6 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50">Prepare official PDF</button>
+            <button type="button" @click="saveNarrativeDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
+            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 px-6 py-3 font-bold text-gray-900 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-50 dark:border-slate-600 dark:text-white dark:hover:bg-slate-800">Preview terminal report</button>
+            <button type="submit" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl bg-red-700 px-6 py-3 font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:opacity-50">Prepare official PDF</button>
         </x-monitoring-action-dock>
         <p x-show="previewError" x-text="previewError" role="alert" class="rounded-xl bg-red-50 p-4 font-semibold text-red-700"></p>
         <section x-show="previewHtml" x-cloak x-ref="previewSection" class="space-y-3">

@@ -1,7 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header variant="hero"
-            class="!border-l-0 !bg-transparent !px-0 !pt-0 [&_p:first-child]:!text-sm [&_p:first-child]:!normal-case [&_p:first-child]:!tracking-normal [&_h2]:!text-3xl dark:[&_h2]:text-slate-100 dark:[&_p]:text-slate-400"
             eyebrow="Research Head"
             title="Dashboard"
             subtitle="Your review queue, project priorities, and upcoming deadlines."

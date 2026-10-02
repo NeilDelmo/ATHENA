@@ -144,6 +144,7 @@ class ProjectDocumentLibrary
         $routePrefix = match (true) {
             $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) => 'research_head',
             $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_OFFICE) => 'research_coordinator',
+            $viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) => 'research_secretary',
             default => 'faculty',
         };
 
@@ -207,7 +208,7 @@ class ProjectDocumentLibrary
         User $viewer,
         ProposalVersionFile $file,
     ): bool {
-        if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+        if ($viewer->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) || $viewer->can('viewSigningDocuments', $topic)) {
             return true;
         }
 
@@ -264,7 +265,7 @@ class ProjectDocumentLibrary
     private function sourceForVersionFile(ProposalVersionFile $file, ProposalVersion $version): string
     {
         if ($file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD) {
-            return 'Proposal package · Version '.$version->version_number;
+            return 'Project · Version '.$version->version_number;
         }
 
         return match ($file->source_data['purpose'] ?? null) {

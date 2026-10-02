@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftLiteratureSource;
+use App\Support\DetailedProposalData;
 use App\Support\DetailedProposalRules;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -49,6 +50,12 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
         $merged = is_array($savedSource)
             ? array_replace($savedSource, $this->all())
             : $this->all();
+
+        if ($this->boolean('specific_objectives_present')) {
+            $merged['specific_objectives'] = $this->input('specific_objectives', []);
+        } elseif ($this->has('objectives') && ! $this->has('specific_objectives')) {
+            unset($merged['specific_objectives']);
+        }
 
         $methodologyImages = $this->has('methodology_images_present')
             ? ($this->all()['methodology_images'] ?? [])
@@ -119,6 +126,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
             'change_note' => ['nullable', 'string', 'max:500'],
             'save_as_draft' => ['sometimes', 'boolean'],
             'methodology_images_present' => ['sometimes', 'boolean'],
+            'specific_objectives_present' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -132,6 +140,12 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
     public function attributes(): array
     {
         return DetailedProposalRules::attributes();
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return DetailedProposalRules::messages();
     }
 
     private function matchingLeaderEmail(ProposalDraft $draft): string
@@ -164,14 +178,7 @@ class UpdateProposalDraftDetailedProposalRequest extends FormRequest
      */
     private function normalizeStructuredProposalFields(array $data): array
     {
-        if (! is_array($data['specific_objectives'] ?? null)) {
-            $data['specific_objectives'] = collect(preg_split('/\R+/u', (string) ($data['objectives'] ?? '')) ?: [])
-                ->map(fn (string $objective): string => preg_replace('/^\s*(?:\d+[.)]|[-•])\s*/u', '', $objective) ?: '')
-                ->filter()
-                ->map(fn (string $description): array => ['description' => $description])
-                ->values()
-                ->all();
-        }
+        $data = DetailedProposalData::normalizeObjectiveFields($data);
 
         $data['expected_outputs'] = collect(config('detailed_proposal.expected_outputs'))
             ->mapWithKeys(function (string $label, string $key) use ($data): array {

@@ -11,6 +11,7 @@ use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalPaperCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -100,7 +101,8 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('New packages are marked in red.')
         ->assertSee('data-proposal-state="new"', false)
         ->assertSee('Revised package · Version 2')
-        ->assertSee('Open for review')
+        ->assertSee('Review: Community Flood Resilience')
+        ->assertDontSee('Open for review')
         ->assertSee('inline-flex min-h-11 w-48 whitespace-nowrap', false)
         ->assertSee('Submission history')
         ->assertSee('Initial submission')
@@ -472,8 +474,13 @@ test('proposal submissions are restricted to research heads', function () {
 });
 
 test('signing automatically requires five papers and exempts CV and expense breakdown', function (bool $sendOldSelection) {
+    Process::fake();
     Notification::fake();
     Storage::fake('local');
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $staff = User::factory()->create(['college' => 'CICS']);
+    $staff->assignRole('research_coordinator');
+    $this->faculty->update(['college' => 'CICS']);
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id,
         'title' => 'Fixed signature requirements',
@@ -505,7 +512,9 @@ test('signing automatically requires five papers and exempts CV and expense brea
     expect($required)->toHaveCount(5)
         ->and($required->pluck('document_type')->all())->not->toContain('curriculum_vitae', 'expense_breakdown')
         ->and($topic->reviews()->latest('id')->firstOrFail()->required_signature_file_ids)->toHaveCount(5);
-    $signingResponse = $this->get(route('topics.show', $topic))
+    Notification::assertSentTo($staff, ProposalActivityNotification::class, fn (ProposalActivityNotification $notification): bool => $notification->title === 'Project ready for document release');
+    $this->get(route('topics.show', $topic))->assertOk()->assertDontSee('data-signed-paper-input', false);
+    $signingResponse = $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('Upload the required signed PDFs')
         ->assertSee('Awaiting signed copy')
@@ -527,10 +536,12 @@ test('signing automatically requires five papers and exempts CV and expense brea
         ])->assertSessionHasErrors('source_file_id', null, 'headUpload');
     }
     foreach ($required as $index => $file) {
-        $this->patch(route('research_head.topics.finalizeApproval', $topic))->assertSessionHasErrors('status');
+        $this->actingAs($this->researchHead)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->patch(route('research_head.topics.finalizeApproval', $topic))->assertSessionHasErrors('status');
+        $this->actingAs($staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
         $this->post(route('topics.head-uploads.store', $topic), [
             'source_file_id' => $file->id, 'purpose' => 'signed',
             'review_file' => UploadedFile::fake()->create('signed-'.$index.'.pdf', 10, 'application/pdf'),
+            'signed_form_manually_confirmed' => true,
         ])->assertRedirect();
         expect($workflow->isComplete($version->fresh()))->toBe($index === 4);
     }
@@ -542,7 +553,7 @@ test('signing automatically requires five papers and exempts CV and expense brea
         ->assertSee('Signed papers ready')
         ->assertDontSee('Prepare Notice to Proceed')
         ->assertDontSee('data-signing-continue', false);
-    $this->patch(route('research_head.topics.finalizeApproval', $topic))
+    $this->actingAs($this->researchHead)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])->patch(route('research_head.topics.finalizeApproval', $topic))
         ->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $topic).'#notice-to-proceed');
     expect($topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
 

@@ -32,6 +32,7 @@
             recheckCompletion: @js($detailedProposalDocument !== null && $detailedProposalDocument->completed_at === null),
             detailedProposalStarted: @js($detailedProposalDocument !== null),
             detailedProposalComplete: @js($detailedProposalComplete),
+            completionErrors: @js($completionErrors),
             literatureSources: @js($literatureSources),
             initialLiteratureSourceId: @js($initialLiteratureSourceId),
             initialLiteratureAction: @js($initialLiteratureAction),
@@ -41,6 +42,7 @@
             expectedOutputKeys: @js(array_keys($expectedOutputs)),
             methodologyKeys: @js(array_keys($methodologyFields)),
             methodologySections: @js($methodologyFields),
+            figureSections: @js(config('detailed_proposal.image_sections')),
             methodologyImageUrlTemplate: @js(route('faculty.proposal-drafts.detailed-proposal.methodology-images.show', [$proposalDraft, '__image_id__'])),
             literatureSearchUrl: @js(route('research-support.literature-search')),
             literatureLibrarySearchUrl: @js(route('research-support.literature-library.index')),
@@ -74,6 +76,15 @@
         <x-paper-editor-submit-status />
         <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
         <x-proposal-autosave-status />
+        <section x-show="Object.keys(completionErrors).length" data-proposal-completion-checklist class="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30" aria-labelledby="proposal-completion-heading">
+            <h3 id="proposal-completion-heading" class="text-sm font-black text-amber-900 dark:text-amber-200">What’s missing from this proposal</h3>
+            <p class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-300">Select an item to jump to the field that needs attention. This list updates after autosave.</p>
+            <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+                <template x-for="(messages, field) in completionErrors" :key="field">
+                    <li><button type="button" x-on:click="focusProposalRequirement(field)" class="w-full rounded-lg bg-white px-3 py-2 text-left text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-700 dark:bg-slate-900 dark:text-amber-200" x-text="messages.join(' ')"></button></li>
+                </template>
+            </ul>
+        </section>
         <x-proposal-collaboration-monitor
             :loaded-version="(int) old('document_version', $detailedProposalDocument?->lock_version ?? 0)"
             :state-url="route('faculty.proposal-drafts.edit-state', [$proposalDraft, $paper['document_type'], 0])"
@@ -123,6 +134,8 @@
             <input type="hidden" name="document_version" value="{{ old('document_version', $detailedProposalDocument?->lock_version ?? 0) }}">
             <input type="hidden" name="draft_version" value="{{ old('draft_version', $proposalDraft->lock_version) }}">
             <input type="hidden" name="save_as_draft" value="0" data-paper-save-mode>
+            <input x-ref="methodologyImagePicker" type="file" accept="image/jpeg,image/png,image/gif,image/bmp" multiple class="sr-only" x-on:change="addMethodologyImages($event.target.files, methodologyImageTarget)">
+            <input type="hidden" name="methodology_images_present" value="1">
             <input type="hidden" name="staff" value="">
             <input type="hidden" name="literature_research_history" x-bind:value="JSON.stringify(literatureSearchHistory)">
             <input id="literature-citations" type="hidden" name="literature_citations" x-bind:value="JSON.stringify(literatureCitations)">
@@ -259,21 +272,26 @@
                 <section data-revision-section="section-{{ str_replace('_', '-', $field) }}" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <label for="{{ str_replace('_', '-', $field) }}" class="block text-base font-black text-gray-900">{{ $label }}</label>
                     <p class="mt-1 text-xs text-gray-500">{{ $help }}</p>
+                    <x-proposal-figure-input :section="$field" />
                     <textarea id="{{ str_replace('_', '-', $field) }}" name="{{ $field }}" rows="{{ $field === 'rationale' ? 14 : 9 }}" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="{{ \Illuminate\Support\Str::camel($field) }}" data-semantic-editor class="mt-4 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                 </section>
             @endforeach
 
             <section data-revision-section="section-objectives" id="specific-objectives" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+                <input type="hidden" name="specific_objectives_present" value="1">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">IX. Objectives of the Project</h3>
-                        <p class="mt-1 text-xs text-gray-500">Add one optional general objective, then list the specific objectives. Numbering is generated automatically.</p>
+                        <p class="mt-1 text-xs text-gray-500">Enter at least one specific objective in the required fields below. The general objective is optional. Numbering is generated automatically.</p>
                     </div>
                     <button type="button" x-on:click="addSpecificObjective" class="inline-flex shrink-0 rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Add specific objective</button>
                 </div>
                 <label for="general-objective" class="mt-5 block text-xs font-black uppercase tracking-wider text-gray-600">General objective <span class="font-normal normal-case text-gray-400">Optional</span></label>
                 <textarea id="general-objective" name="general_objective" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="generalObjective" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                <div class="mt-5 space-y-3">
+                <div class="mt-5 space-y-3" data-specific-objectives-fields>
+                    <h4 class="text-xs font-black uppercase tracking-wider text-gray-600">Specific objectives <span class="font-normal normal-case text-red-700">Required — at least one</span></h4>
+                    <p class="text-xs leading-5 text-gray-500">Describe the concrete results or tasks your project will achieve. Text in General objective does not fill these fields.</p>
+                    <p x-show="completionErrors.specific_objectives" x-cloak class="text-xs font-semibold text-red-700" x-text="(completionErrors.specific_objectives || []).join(' ')"></p>
                     <template x-for="(objective, index) in specificObjectives" :key="objective.id">
                         <article class="rounded-xl border border-gray-200 p-4">
                             <div class="flex items-center justify-between gap-3">
@@ -284,7 +302,8 @@
                                     <button type="button" x-on:click="removeSpecificObjective(index)" class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
                                 </div>
                             </div>
-                            <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" :aria-describedby="`specific-objective-error-${objective.id}`" placeholder="e.g. Identify the needs of the target community." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                            <p :id="`specific-objective-error-${objective.id}`" x-show="completionErrors[`specific_objectives.${index}.description`]" x-cloak class="mt-2 text-xs font-semibold text-red-700" x-text="(completionErrors[`specific_objectives.${index}.description`] || []).join(' ')"></p>
                         </article>
                     </template>
                 </div>
@@ -599,6 +618,7 @@
                 <div class="mt-5 grid gap-5">
                     <div>
                         <label for="introduction" class="block text-xs font-black uppercase tracking-wider text-gray-600">Introduction</label>
+                        <x-proposal-figure-input section="introduction" />
                         <textarea id="introduction" name="introduction" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                     <aside class="rounded-2xl border border-red-100 bg-red-50/60 p-4 dark:border-red-900/60 dark:bg-red-950/20" aria-labelledby="proposal-sources-heading">
@@ -617,6 +637,7 @@
                     <div>
                         <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
                         <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Highlight a supported claim, then choose <span class="font-black text-red-800">Support with source</span>.</p>
+                        <x-proposal-figure-input section="related_literature" />
                         <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                 </div>
@@ -626,12 +647,9 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 class="text-base font-black text-gray-900">XII. Methodology</h3>
-                        <p class="mt-1 text-xs leading-5 text-gray-500">The three methodology parts are shown as bullets. Images belong to Research Design only; Data Analysis is optional and is omitted from the output when blank.</p>
+                        <p class="mt-1 text-xs leading-5 text-gray-500">Add figures to any methodology part. Data Analysis is optional and is omitted from the output when blank.</p>
                     </div>
-                    <button type="button" x-on:click="openMethodologyImagePicker('research_design')" class="inline-flex shrink-0 items-center justify-center rounded-xl border border-red-200 px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50">Add Research Design visual</button>
-                    <input x-ref="methodologyImagePicker" type="file" accept="image/jpeg,image/png,image/gif,image/bmp" multiple class="sr-only" x-on:change="addMethodologyImages($event.target.files, methodologyImageTarget)">
                 </div>
-                <input type="hidden" name="methodology_images_present" value="1">
                 <div class="mt-5 space-y-5">
                     @foreach ($methodologyFields as $key => $label)
                         <div>
@@ -640,42 +658,7 @@
                             @else
                                 <label for="methodology-{{ $key }}" class="block text-xs font-black uppercase tracking-wider text-gray-600">&bull; {{ $label }} @if ($key === 'data_analysis')<span class="font-normal normal-case text-gray-400">Optional</span>@endif</label>
                             @endif
-                            @if ($key === 'research_design')
-                            <div class="mt-3 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-3 transition hover:border-red-300 hover:bg-red-50/30" x-on:dragover.prevent x-on:drop.prevent="handleMethodologyDrop($event, '{{ $key }}')">
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    <p class="text-xs font-semibold text-gray-600">Drop a visual here to place it under Research Design.</p>
-                                    <button type="button" x-on:click="openMethodologyImagePicker('{{ $key }}')" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-100">Choose image</button>
-                                </div>
-                                <p x-show="methodologyImagesFor('{{ $key }}').length === 0" class="mt-3 text-xs text-gray-500">PNG, JPG, GIF, or BMP up to 10 MB.</p>
-                                <div class="mt-3 space-y-3">
-                                    <template x-for="image in methodologyImagesFor('{{ $key }}')" :key="image.clientId">
-                                        <article class="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                                            <div class="flex flex-col gap-3 sm:flex-row">
-                                                <a x-bind:href="image.previewUrl" target="_blank" rel="noopener" class="flex min-h-64 w-full items-center justify-center rounded-lg border border-gray-300 bg-gray-50 p-2 sm:w-96" title="Open full-size preview">
-                                                    <img x-bind:src="image.previewUrl" x-bind:alt="image.caption || 'Methodology visual'" class="max-h-80 w-full object-contain">
-                                                </a>
-                                                <div class="min-w-0 flex-1 space-y-3">
-                                                    <div class="flex items-start justify-between gap-3"><p class="truncate text-xs font-bold text-gray-800" x-text="image.originalFilename || 'Methodology visual'"></p><a x-bind:href="image.previewUrl" target="_blank" rel="noopener" class="shrink-0 text-xs font-bold text-red-700 hover:underline">Full preview</a></div>
-                                                    <div class="grid gap-3 sm:grid-cols-2">
-                                                        <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Alignment</label><div class="mt-1 grid grid-cols-3 overflow-hidden rounded-lg border border-gray-300"><template x-for="alignment in ['left', 'center', 'right']" :key="alignment"><button type="button" x-on:click="image.alignment = alignment; scheduleDetailedProposalAutoSave()" x-bind:class="image.alignment === alignment ? 'bg-red-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'" class="px-2 py-1.5 text-xs font-bold" x-text="alignment.charAt(0).toUpperCase() + alignment.slice(1)"></button></template></div></div>
-                                                        <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500">Size</label><select x-model="image.size" class="mt-1 block w-full rounded-lg border-gray-300 py-1.5 text-xs focus:border-red-600 focus:ring-red-600"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></div>
-                                                    </div>
-                                                    <div><label class="block text-[10px] font-black uppercase tracking-wider text-gray-500" :for="`methodology-image-caption-${image.clientId}`"><span x-text="`Figure ${methodologyImageFigureNumber(image)} title`"></span></label><input :id="`methodology-image-caption-${image.clientId}`" type="text" required maxlength="500" x-model="image.caption" placeholder="e.g., Proposed data-collection workflow" class="mt-1 block w-full rounded-lg border-gray-300 py-1.5 text-xs focus:border-red-600 focus:ring-red-600"></div>
-                                                    <div class="flex flex-wrap items-center gap-2"><label :for="`methodology-image-file-${image.clientId}`" class="cursor-pointer rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Replace image</label><button type="button" x-on:click="moveMethodologyImage(image, -1)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Move up</button><button type="button" x-on:click="moveMethodologyImage(image, 1)" class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Move down</button><button type="button" x-on:click="removeMethodologyImage(image)" class="rounded-lg px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button></div>
-                                                </div>
-                                            </div>
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][id]`" :value="image.id">
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][client_id]`" :value="image.clientId">
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][section]`" value="research_design">
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][alignment]`" :value="image.alignment">
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][size]`" :value="image.size">
-                                            <input type="hidden" :name="`methodology_images[${methodologyImageIndex(image)}][caption]`" :value="image.caption">
-                                            <input :id="`methodology-image-file-${image.clientId}`" :name="`methodology_images[${methodologyImageIndex(image)}][image]`" type="file" accept="image/jpeg,image/png,image/gif,image/bmp" class="sr-only" x-on:change="replaceMethodologyImage(image, $event.target.files)">
-                                        </article>
-                                    </template>
-                                </div>
-                            </div>
-                            @endif
+                            <x-proposal-figure-input :section="$key" />
                             @if ($key === 'specific_methods')
                                 <div id="methodology-specific-methods" class="mt-3">
                                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -730,7 +713,7 @@
             </section>
 
             <section data-revision-section="section-responsibilities" id="responsibilities" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="flex items-end justify-between gap-3"><div><h3 class="text-base font-black text-gray-900">XIII. Duties and Responsibilities of Each Member</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 class="text-base font-black text-gray-900">XIII. Duties and Responsibilities of Each Member</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="self-start shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
                 <div class="mt-5 space-y-4">
                     <template x-for="(responsibility, index) in responsibilities" :key="responsibility.id">
                         <div class="rounded-xl border border-gray-200 p-4">
@@ -768,7 +751,7 @@
         <x-proposal-document-preview
             panel-id="proposal-preview-panel"
             title="Detailed proposal content preview"
-            description="Review the generated official-form content before turning in the proposal package."
+            description="Review the generated official-form content before turning in the project."
             frame-title="Detailed Research Proposal content preview"
         />
     </div>

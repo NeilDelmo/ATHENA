@@ -1,6 +1,34 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { chromium } from '@playwright/test';
 import registerPdfAnnotationWorkspace, { consolidateTextRectangles, pdfScaleToFit } from '../../resources/js/pdf-annotation-workspace.js';
+
+test('draft review comments expose Edit and Delete directly while sent comments stay locked', async () => {
+    const source = await readFile(new URL('../../resources/views/topics/file-annotations.blade.php', import.meta.url), 'utf8');
+    const actions = source.match(/<div data-annotation-actions[\s\S]*?<\/div>/)[0];
+    const alpine = await readFile(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        const page = await browser.newPage();
+        await page.setContent(`<style>[x-cloak]{display:none!important}</style><div x-data="{ canAnnotate: true, annotation: {canEdit: true, state: 'draft'}, index: 0, draftSelection: null, saving: false, deletingAnnotationId: null, editAnnotation() { window.lastAction = 'edit' }, deleteAnnotation() { window.lastAction = 'delete' } }">${actions}</div>`);
+        await page.addScriptTag({ content: alpine });
+        const edit = page.getByRole('button', { name: 'Edit comment 1', exact: true });
+        const remove = page.getByRole('button', { name: 'Delete comment 1', exact: true });
+        await edit.click();
+        assert.equal(await page.evaluate(() => window.lastAction), 'edit');
+        await remove.click();
+        assert.equal(await page.evaluate(() => window.lastAction), 'delete');
+        await page.evaluate(() => {
+            window.Alpine.$data(document.querySelector('[x-data]')).annotation.state = 'requested';
+        });
+        await page.waitForFunction(() => document.querySelector('[data-annotation-actions]').style.display === 'none');
+        assert.equal(await edit.isVisible(), false);
+        assert.equal(await remove.isVisible(), false);
+    } finally {
+        await browser.close();
+    }
+});
 
 test('duplicate PDF text-layer rectangles keep the tighter highlight', () => {
     const rectangles = consolidateTextRectangles([

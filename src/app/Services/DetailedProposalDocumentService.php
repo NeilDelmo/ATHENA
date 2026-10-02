@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\ProposalRichText;
+use App\Support\WordCheckbox;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -149,11 +150,14 @@ class DetailedProposalDocumentService
         $this->appendValueOnNewLineToFirstParagraph($xpath, $rows[2], $proposal['project_title']);
         $this->appendValueToFirstParagraph($xpath, $rows[3], $proposal['research_agenda']);
         $this->setSdgCheckboxes($xpath, $rows, $proposal['sdgs']);
+        $this->setCallLevelCheckboxes($xpath, $proposal['level_of_call'] ?? null);
+        $this->setDocumentChecklistCheckboxes($xpath, $proposal['document_checklist'] ?? []);
         $this->fillPeople($xpath, $rows[14], $proposal);
         $this->fillAgency($xpath, $rows[15], $proposal);
         $this->appendValueToFirstParagraph($xpath, $rows[16], $proposal['cooperating_agency'] ?: 'None', false);
-        $this->fillNarrativeRow($xpath, $rows[17], $proposal['executive_brief']);
-        $this->fillNarrativeRow($xpath, $rows[18], $proposal['rationale']);
+        $nextImageDocumentPropertyId = $this->nextImageDocumentPropertyId($xpath);
+        $this->fillNarrativeRow($xpath, $rows[17], $proposal['executive_brief'], $methodologyImages, 'executive_brief', $nextImageDocumentPropertyId);
+        $this->fillNarrativeRow($xpath, $rows[18], $proposal['rationale'], $methodologyImages, 'rationale', $nextImageDocumentPropertyId);
         $this->fillObjectives(
             $xpath,
             $rows[19],
@@ -166,13 +170,14 @@ class DetailedProposalDocumentService
             $rows[21],
             $proposal['introduction'],
             $proposal['related_literature'],
+            $methodologyImages,
+            $nextImageDocumentPropertyId,
         );
-        $nextImageDocumentPropertyId = $this->nextImageDocumentPropertyId($xpath);
         $this->fillMethodology($xpath, $rows[22], $proposal['methodology'], $methodologyImages, $nextImageDocumentPropertyId);
         $this->fillResponsibilities($xpath, $rows[23], $proposal['responsibilities']);
         $this->fillBudget($xpath, $rows[26], (float) $proposal['mooe_total']);
         $this->fillBudget($xpath, $rows[27], (float) $proposal['co_total']);
-        $this->fillNarrativeRow($xpath, $rows[28], $proposal['references']);
+        $this->fillNarrativeRow($xpath, $rows[28], $proposal['references'], [], 'references', $nextImageDocumentPropertyId);
         $this->fillPreparedBy($xpath, $rows, $proposal);
         $this->fillApprovalSignatories($xpath, $rows, $proposal);
         $this->formatSignatoryNotes($xpath);
@@ -437,23 +442,31 @@ class DetailedProposalDocumentService
         foreach ($checkboxes as $index => $checkbox) {
             $sdg = $sdgOrder[$index];
             $isSelected = in_array($sdg, $selectedSdgs, true);
-            $checked = $this->elements($xpath, './w14:checked', $checkbox)[0] ?? null;
+            WordCheckbox::setModern($xpath, $checkbox, $isSelected);
+        }
+    }
 
-            if ($checked instanceof DOMElement) {
-                $checked->setAttributeNS(self::W14, 'w14:val', $isSelected ? '1' : '0');
+    private function setCallLevelCheckboxes(DOMXPath $xpath, ?string $level): void
+    {
+        foreach (['Central Agency' => 'central_agency', 'Constituent Campus' => 'constituent_campus'] as $label => $value) {
+            $checkbox = $xpath->query('//w:p[.//w:t[contains(., "'.$label.'")]]//w14:checkbox')->item(0);
+            if (! $checkbox instanceof DOMElement) {
+                throw new RuntimeException('The Detailed Research Proposal call level checkbox is missing.');
+            }
+            WordCheckbox::setModern($xpath, $checkbox, $level === $value);
+        }
+    }
+
+    /** @param array<string, bool> $checklist */
+    private function setDocumentChecklistCheckboxes(DOMXPath $xpath, array $checklist): void
+    {
+        foreach (['Complete Documents' => 'complete_documents', 'Initial Screening Form' => 'initial_screening_form'] as $label => $key) {
+            $checkbox = $xpath->query('//w:p[.//w:t[contains(., "'.$label.'")]]//w14:checkbox')->item(0);
+            if (! $checkbox instanceof DOMElement) {
+                throw new RuntimeException('The Detailed Research Proposal document checklist checkbox is missing.');
             }
 
-            $checkedState = $this->elements($xpath, './w14:checkedState', $checkbox)[0] ?? null;
-
-            if ($checkedState instanceof DOMElement) {
-                $checkedState->setAttributeNS(self::W14, 'w14:val', '2612');
-            }
-
-            $displayText = $xpath->query('ancestor::w:sdt[1]/w:sdtContent//w:t', $checkbox)->item(0);
-
-            if ($displayText instanceof DOMElement) {
-                $displayText->nodeValue = $isSelected ? "\u{2612}" : "\u{2610}";
-            }
+            WordCheckbox::setModern($xpath, $checkbox, ($checklist[$key] ?? false) === true);
         }
     }
 
@@ -498,12 +511,14 @@ class DetailedProposalDocumentService
         $this->replaceWithLabelValue($paragraphs[3], '        Campus:', $proposal['proponent_campus']);
     }
 
-    private function fillNarrativeRow(DOMXPath $xpath, DOMElement $row, string $value): void
+    /** @param list<array<string, mixed>> $images */
+    private function fillNarrativeRow(DOMXPath $xpath, DOMElement $row, string $value, array $images, string $section, int &$nextImageDocumentPropertyId): void
     {
         $cell = $this->onlyCell($xpath, $row);
         $paragraphs = $this->paragraphs($xpath, $cell);
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
 
+        $this->appendSectionImages($cell, $images, $section, $nextImageDocumentPropertyId);
         $this->appendRichTextBlocks($cell, $value);
     }
 
@@ -554,6 +569,8 @@ class DetailedProposalDocumentService
         DOMElement $row,
         string $introduction,
         string $relatedLiterature,
+        array $images,
+        int &$nextImageDocumentPropertyId,
     ): void {
         $cell = $this->onlyCell($xpath, $row);
         $paragraphs = $this->paragraphs($xpath, $cell);
@@ -566,6 +583,7 @@ class DetailedProposalDocumentService
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
         $this->replaceParagraphText($heading, 'XI. Introduction:', true);
 
+        $this->appendSectionImages($cell, $images, 'introduction', $nextImageDocumentPropertyId);
         $this->appendRichTextBlocks($cell, $introduction);
 
         $literatureHeading = $this->simpleParagraph($cell->ownerDocument, '');
@@ -573,6 +591,7 @@ class DetailedProposalDocumentService
         $this->appendRun($literatureHeading, ' (minimum of ten literature/studies reviewed)', italic: true);
         $cell->appendChild($literatureHeading);
 
+        $this->appendSectionImages($cell, $images, 'related_literature', $nextImageDocumentPropertyId);
         $this->appendRichTextBlocks($cell, $relatedLiterature);
     }
 
@@ -631,16 +650,10 @@ class DetailedProposalDocumentService
         $headingTemplate = $paragraphs[1];
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
         $this->setParagraphKeepNext($sectionParagraph);
-        $figureNumber = 1;
 
         foreach (config('detailed_proposal.methodology') as $key => $label) {
             $value = (string) ($methodology[$key] ?? '');
-            $sectionImages = $key === 'research_design'
-                ? collect($images)
-                    ->filter(fn (array $image): bool => ($image['section'] ?? null) === 'research_design')
-                    ->values()
-                    ->all()
-                : [];
+            $sectionImages = collect($images)->where('section', $key)->all();
 
             if (blank($value) && $sectionImages === []) {
                 continue;
@@ -656,28 +669,27 @@ class DetailedProposalDocumentService
             $this->setParagraphKeepNext($heading);
             $cell->appendChild($heading);
 
-            foreach ($sectionImages as $image) {
-                $cell->appendChild($this->methodologyImageParagraph(
-                    $sectionParagraph->ownerDocument,
-                    $image,
-                    $nextImageDocumentPropertyId++,
-                ));
-
-                $figureTitle = 'Figure '.$figureNumber++.'.';
-
-                if (filled($image['caption'] ?? null)) {
-                    $figureTitle .= ' '.$image['caption'];
-                }
-
-                $cell->appendChild($this->simpleParagraph(
-                    $sectionParagraph->ownerDocument,
-                    $figureTitle,
-                    false,
-                    $image['alignment'],
-                ));
-            }
+            $this->appendSectionImages($cell, $images, $key, $nextImageDocumentPropertyId);
 
             $this->appendRichTextBlocks($cell, $value);
+        }
+    }
+
+    /** @param list<array<string, mixed>> $images */
+    private function appendSectionImages(DOMElement $cell, array $images, string $section, int &$nextImageDocumentPropertyId): void
+    {
+        foreach ($images as $image) {
+            if ($image['section'] !== $section) {
+                continue;
+            }
+
+            $cell->appendChild($this->methodologyImageParagraph($cell->ownerDocument, $image, $nextImageDocumentPropertyId++));
+            $cell->appendChild($this->simpleParagraph(
+                $cell->ownerDocument,
+                'Figure '.$image['figure_number'].'.'.(filled($image['caption'] ?? null) ? ' '.$image['caption'] : ''),
+                false,
+                $image['alignment'],
+            ));
         }
     }
 

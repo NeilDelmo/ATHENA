@@ -52,6 +52,7 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         'planned_start' => '2026-08-01',
         'planned_end' => '2027-07-31',
         'project_leader' => 'Faculty Project Leader',
+        'signatory_selections' => ['verified_by' => ['name' => 'DJOANNA MARIE V. SALAC', 'position' => 'Head, Research']],
     ]);
 
     $this->actingAs($this->faculty)
@@ -63,7 +64,9 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertOk()
         ->assertSee('Attachment A: Work Plan')
         ->assertSee('Objectives and Gantt schedule')
-        ->assertSee('Add another objective')
+        ->assertSee('Edit objectives in Detailed Proposal')
+        ->assertSee('Save your specific objectives in the Detailed Proposal first.')
+        ->assertDontSee('Add another objective')
         ->assertSee('data-repeatable-entry', false)
         ->assertSee('data-work-plan-objective-input', false)
         ->assertSee('entrySummary(entry)', false)
@@ -71,11 +74,10 @@ test('faculty members see the proposal workflow with an automatic Work Plan requ
         ->assertSee('isEntryExpanded(entry)', false)
         ->assertSee('Collapse')
         ->assertSee('>Edit<', false)
-        ->assertSee('border-dashed border-gray-300', false)
         ->assertSee('Each month can belong to only one objective.')
         ->assertSee('automatically expands each row')
         ->assertSee('DJOANNA MARIE V. SALAC')
-        ->assertSee('Head, Research')
+        ->assertSee('Signature names')
         ->assertSee('work-plan-preview-panel')
         ->assertSee('data-proposal-preview-drag-handle', false)
         ->assertDontSee('Preview paper')
@@ -150,7 +152,7 @@ test('the Work Plan auto-save returns the current version without duplicating un
         ->and($document->file_path)->toBe('proposal-drafts/revision/work-plan.docx');
 });
 
-test('an incomplete Work Plan can be previewed but not downloaded', function () {
+test('a Work Plan cannot be prepared before proposal objectives are saved', function () {
     $call = ResearchCall::create([
         'title' => 'Preview Work Plan Call',
         'academic_year' => '2026-2027',
@@ -173,8 +175,8 @@ test('an incomplete Work Plan can be previewed but not downloaded', function () 
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.proposal-drafts.work-plan.preview', $draft), [])
-        ->assertOk()
-        ->assertSee('MAJOR ACTIVITIES/WORK PLAN');
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('entries');
 
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.work-plan.download', $draft), [])

@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Choose proposal signatories" :subtitle="$proposalDraft->project_title">
+        <x-page-header title="Proposal signatories" :subtitle="$proposalDraft->project_title">
             <x-slot name="actions">
                 <x-back-link fixed href="{{ $returnUrl }}">Back to proposal paper</x-back-link>
             </x-slot>
@@ -17,8 +17,7 @@
                 @endforeach
             </x-proposal-alert>
         @endif
-        <p class="text-sm text-gray-600 dark:text-gray-300">Choose names supplied by the Research Head. Project-leader names come from Project Details. Attachment C (CV) and Estimated Expense Breakdown do not require signatures.</p>
-        <p class="text-sm text-gray-600 dark:text-gray-300">The Comment Response form requires a Research Head and Vice Chancellor before initial submission. These selections carry forward when the proposal is returned for revision.</p>
+        <p class="text-sm text-gray-600 dark:text-gray-300">Research Head and VCRDES names are filled automatically on each paper. Project-leader names come from Project Details. Other signature roles use the Research Head’s directory.</p>
         <form action="{{ route('signatories.select', $proposalDraft) }}" method="POST" class="space-y-4">@csrf @method('PUT')
             <input type="hidden" name="lock_version" value="{{ $proposalDraft->lock_version }}">
             @if ($returnPaper !== '')
@@ -30,15 +29,21 @@
                     <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     @foreach($fields as $key => $label)
                         @php
-                            $saved = $proposalDraft->signatory_selections[$key] ?? null;
+                            $saved = $proposalDraft->resolvedSignatorySelections()[$key] ?? null;
+                            $isDefault = array_key_exists($key, \App\Models\ProposalSignatory::defaultSelections());
                             $people = $options->get($key, collect());
                         @endphp
                         <label class="text-sm text-gray-700 dark:text-gray-200">{{ $label }}
+                            @if ($isDefault)
+                                <span data-default-signatory="{{ $key }}" class="mt-1 block rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold dark:border-gray-700 dark:bg-gray-800">{{ $saved['name'] }}</span>
+                                <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">{{ $saved['position'] }} · Filled automatically</span>
+                            @else
                             <select name="signatories[{{ $key }}]" class="mt-1 block w-full rounded-lg border-gray-300 text-sm dark:bg-gray-800">
                                 <option value="">{{ $saved ? 'Keep: '.$saved['name'].' — '.($saved['position'] ?? '') : 'Select a name' }}</option>
                                 @foreach($people as $person)<option value="{{ $person->id }}" @selected((string) old('signatories.'.$key) === (string) $person->id)>{{ $person->name }} — {{ $person->position }}</option>@endforeach
                             </select>
                             @if($people->isEmpty())<span class="mt-1 block text-xs text-amber-700 dark:text-amber-300">Ask the Research Head to add a name for this role.</span>@endif
+                            @endif
                         </label>
                     @endforeach
                     </div>

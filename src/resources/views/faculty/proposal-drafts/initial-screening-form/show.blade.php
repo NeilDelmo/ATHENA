@@ -4,7 +4,7 @@
             <x-slot name="actions">
                 <span class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $projectDetailsComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800' }}">{{ $projectDetailsComplete ? 'Complete automatically' : 'Waiting for project details' }}</span>
                 <a href="{{ route('signatories.edit', ['proposalDraft' => $proposalDraft, 'paper' => 'initial_screening_form']) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Choose signatories</a>
-                <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to proposal package</x-back-link>
+                <x-back-link fixed href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Back to project</x-back-link>
             </x-slot>
         </x-page-header>
     </x-slot>
@@ -27,7 +27,7 @@
             <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-3xl">
                     <h3 class="text-base font-black text-gray-900">No faculty screening answers required</h3>
-                    <p class="mt-1 text-sm leading-6 text-gray-600">ATHENA submits this blank form with the proposal package. The Research Head handles any evaluation outside the system and later uploads the completed document with the official decision.</p>
+                    <p class="mt-1 text-sm leading-6 text-gray-600">ATHENA submits this blank form with the project. The Research Head handles any evaluation outside the system and later uploads the completed document with the official decision.</p>
                 </div>
                 <div class="flex flex-col gap-2 sm:flex-row">
                     <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">Edit shared details</a>

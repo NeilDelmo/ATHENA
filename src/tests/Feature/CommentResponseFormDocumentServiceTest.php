@@ -3,7 +3,7 @@
 use App\Models\TopicProposal;
 use App\Services\CommentResponseFormDocumentService;
 
-test('evaluation boxes use black shading beside the reference labels without added stage text', function (array $stages, array $checkedBoxes) {
+test('evaluation boxes contain crosses beside the reference labels without added stage text', function (array $stages, array $checkedBoxes) {
     $contents = app(CommentResponseFormDocumentService::class)->generate([
         'project_title' => 'Coastal Habitat Restoration', 'project_leader' => 'Dr. Aurora Reyes',
         'leader_campus' => 'Alangilan', 'leader_college' => 'CICS', 'leader_department' => '', 'staff' => [],
@@ -23,9 +23,10 @@ test('evaluation boxes use black shading beside the reference labels without add
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
         $boxes = $xpath->query('/w:document/w:body/w:tbl[1]/w:tr/w:tc/w:tcPr/w:shd');
-        expect($boxes->length)->toBe(count($checkedBoxes));
+        expect($boxes->length)->toBe(0);
         foreach ([1, 2] as $box) {
-            expect($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]/w:tcPr/w:shd[@w:fill="000000"]')->length)->toBe(in_array($box, $checkedBoxes, true) ? 1 : 0);
+            expect($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]')->item(0)->textContent)->toBe(in_array($box, $checkedBoxes, true) ? '×' : '')
+                ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]/w:p/w:pPr/w:jc[@w:val="center"]')->length)->toBe(1);
         }
         expect($document->textContent)->toContain('LEVEL OF EVALUATION DONE:', 'Initial Screening', 'Local Research Evaluation')
             ->not->toContain('PREVIOUS', 'Feedback stage:', 'Stage:', 'Evaluation by the Local Research Evaluation Committee')
@@ -33,9 +34,7 @@ test('evaluation boxes use black shading beside the reference labels without add
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tblPr/w:tblpPr')->length)->toBe(0)
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr[1]/w:tc[2]')->item(0)?->textContent)->toBe('Initial Screening')
             ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr[2]/w:tc[2]')->item(0)?->textContent)->toBe('Local Research Evaluation');
-        if ($stages === ['lrec']) {
-            expect($document->textContent)->not->toContain('Reviewer', 'LREC committee');
-        }
+        expect($document->textContent)->not->toContain('Reviewer', 'LREC committee');
         if ($stages !== []) {
             expect($document->textContent)->toContain('Revised the sampling plan.');
         }
@@ -105,6 +104,8 @@ test('generated Comment-Response Forms match the requested title and project sta
         $templateXPath->registerNamespace('w', $wordNamespace);
 
         $title = $generatedXPath->query('/w:document/w:body/w:p[.//w:t[contains(., "Coastal Habitat Restoration")]]')->item(0);
+        expect($generatedDocument->textContent)->not->toContain('Dr. Maria Santos')
+            ->and($generatedDocument->textContent)->toContain('Narrative Evaluation', 'Clarify the scope of the coastal habitat sampling.', 'The scope was revised to match the sampling plan.', 'Page 4, paragraph 2');
         expect($title?->textContent)->toBe('TITLE OF RESEARCH PROPOSAL: '.$projectTitle)
             ->and($generatedXPath->query('.//w:tab | .//w:u | .//w:pBdr', $title)->length)->toBe(0);
         expect($generatedXPath->query('./w:r[w:t[contains(., "Coastal Habitat Restoration")]]/w:rPr/w:b', $title)->length)->toBe(1);
@@ -157,7 +158,7 @@ test('generated Comment-Response Forms match the requested title and project sta
     'Long title with XML characters' => ['Coastal Habitat Restoration & Resilience: A Comparative Study of Mangrove Ecosystems <Across Batangas Province>'],
 ]);
 
-test('the revision workspace uses the same two black evaluation boxes as the paper', function (array $stages, array $selectedLevels) {
+test('the revision workspace uses the same two crossed evaluation boxes as the paper', function (array $stages, array $selectedLevels) {
     $view = $this->blade('<x-comment-response-stages :stages="$stages" />', ['stages' => $stages]);
     $view->assertSeeText('LEVEL OF EVALUATION DONE:')
         ->assertSeeText('Initial Screening')
@@ -166,7 +167,7 @@ test('the revision workspace uses the same two black evaluation boxes as the pap
 
     $document = new DOMDocument;
     $previousErrorHandling = libxml_use_internal_errors(true);
-    $document->loadHTML((string) $view);
+    $document->loadHTML('<?xml encoding="UTF-8">'.(string) $view);
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrorHandling);
     $xpath = new DOMXPath($document);
@@ -175,7 +176,8 @@ test('the revision workspace uses the same two black evaluation boxes as the pap
         $selected = in_array($level, $selectedLevels, true);
         $row = $xpath->query('//li[@data-evaluation-level="'.$level.'"]')->item(0);
         expect($row->getAttribute('data-stage-active'))->toBe($selected ? 'true' : 'false')
-            ->and($xpath->query('./span[1]', $row)->item(0)->getAttribute('class'))->toContain($selected ? 'bg-black' : 'bg-white');
+            ->and($xpath->query('./span[1]', $row)->item(0)->getAttribute('class'))->toContain('bg-white')
+            ->and(trim($xpath->query('./span[1]', $row)->item(0)->textContent))->toBe($selected ? '×' : '');
     }
 })->with([
     'Initial Screening' => [['research_head', 'gad', 'co_evaluator'], [0]],
@@ -184,14 +186,18 @@ test('the revision workspace uses the same two black evaluation boxes as the pap
     'No evaluation' => [[], []],
 ]);
 
-test('the HTML matrix preview has an inline title and bold project staff names', function () {
+test('the HTML matrix preview has an inline title and bold project staff names without commenter names', function (string $stage) {
     $this->withoutVite();
     $view = $this->view('faculty.comment-response-form.preview', [
         'topic' => (new TopicProposal)->forceFill(['id' => 1]),
         'commentResponseForm' => [
             'form_label' => 'Research Head Comment Response', 'form_source' => 'research_head', 'review_id' => null,
             'project_title' => 'Coastal Habitat Restoration', 'project_leader' => 'Dr. Aurora Reyes',
-            'staff' => [['name' => 'Bea Santos']], 'evaluation_stages' => ['lrec'], 'feedback' => [],
+            'staff' => [['name' => 'Bea Santos']], 'evaluation_stages' => ['lrec'],
+            'feedback' => [[
+                'reviewer' => 'Dr. Maria Santos', 'stage' => $stage, 'location' => 'Page 2',
+                'comment' => 'Clarify the sampling plan.', 'response' => 'Revised the sampling plan.', 'remarks' => 'Page 4',
+            ]],
         ],
     ]);
     $view->assertSeeText('MATRIX ON THE ACTIONS MADE FOR THE COMMENTS AND SUGGESTIONS')
@@ -199,7 +205,12 @@ test('the HTML matrix preview has an inline title and bold project staff names',
         ->assertSeeText('PROJECT STAFF: Dr. Aurora Reyes, Bea Santos')
         ->assertDontSeeText('PREVIOUS')
         ->assertDontSeeText('REVIEW SOURCE:')
-        ->assertDontSeeText('Feedback stage');
+        ->assertDontSeeText('Feedback stage')
+        ->assertDontSeeText('Dr. Maria Santos')
+        ->assertSeeText('Page 2')
+        ->assertSeeText('Clarify the sampling plan.')
+        ->assertSeeText('Revised the sampling plan.')
+        ->assertSeeText('Page 4');
 
     $document = new DOMDocument;
     $previousErrorHandling = libxml_use_internal_errors(true);
@@ -215,4 +226,4 @@ test('the HTML matrix preview has an inline title and bold project staff names',
         ->and($xpath->query('//table')->length)->toBe(1)
         ->and($xpath->query('//ul[@class="evaluation-levels"]/li[1]/span[contains(@class, "is-checked")]')->length)->toBe(0)
         ->and($xpath->query('//ul[@class="evaluation-levels"]/li[2]/span[contains(@class, "is-checked")]')->length)->toBe(1);
-});
+})->with(['research_head', 'gad', 'co_evaluator', 'lrec']);

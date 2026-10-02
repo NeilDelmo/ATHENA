@@ -2,6 +2,9 @@
 @php
     $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
     $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
+    $schedule = app(\App\Services\MonitoringQuarterService::class);
+    $submissionOpen = $reportType === 'terminal' ? $schedule->canSubmitTerminal($topic) : ($selectedReportingDate && $schedule->canSubmitForDate($topic, $selectedReportingDate));
+    $submissionOpensAt = $reportType === 'terminal' ? $schedule->terminalOpensAt($topic)->format('M j, Y') : ($selectedReportingDate ? $schedule->forDate($selectedReportingDate, $topic)['opens_at']->format('M j, Y') : '');
 @endphp
 
 @if ($preparedReport)
@@ -96,6 +99,8 @@
         draftSaveUrl: @js(route('project-narrative-reports.draft', $topic)),
         initialDraftVersion: @js((int) ($narrativeReportDraft?->lock_version ?? 0)),
         csrfToken: @js(csrf_token()),
+        submissionOpen: @js((bool) $submissionOpen),
+        submissionOpensAt: @js($submissionOpensAt),
     })"
 >
     @if (! $standalone)
@@ -107,17 +112,17 @@
     </header>
     @endif
 
-    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}" @submit="submitting = true">
+    <form x-ref="form" data-narrative-progress-autosave-form method="POST" action="{{ route('project-narrative-reports.prepare', $topic) }}" enctype="multipart/form-data" class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}" @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }">
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
         <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
             <label for="progress-reporting-date" class="block text-base font-semibold text-gray-950 dark:text-white">Reporting quarter</label>
             <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Use the same three-month period as the Monitoring Tool. Submission opens after the period ends; the final period may be shorter.</p>
-            <select id="progress-reporting-date" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+            <select id="progress-reporting-date" @change="submissionOpen = $event.target.selectedOptions[0]?.dataset.submissionOpen === 'true'; submissionOpensAt = $event.target.selectedOptions[0]?.dataset.opensAt || ''" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                 <option value="">Choose a quarter</option>
                 @foreach ($quarterOptions as $period)
-                    <option value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
+                    <option data-submission-open="{{ $schedule->canSubmitForDate($topic, $period['reporting_date']) ? 'true' : 'false' }}" data-opens-at="{{ $period['opens_at']->format('M j, Y') }}" value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
                 @endforeach
             </select>
             @error('reporting_date', 'narrativeProgress')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
@@ -137,6 +142,7 @@
         <x-proposal-autosave-status />
 
         <p class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Changes save privately as a draft. Review the reused proposal content and write this period’s accomplishments and results. Select figure files before preparing the PDF; uploads are not kept in text drafts.</p>
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
 
         <div class="grid gap-3 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="sm:col-span-2">
@@ -284,11 +290,12 @@
             @if ($standalone)
                 <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
             @endif
-            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
+            <button type="button" @click="saveNarrativeDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
+            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
                 <span x-show="!previewLoading">Preview {{ strtolower($reportLabel) }}</span>
                 <span x-show="previewLoading" x-cloak>Generating preview...</span>
             </button>
-            <button type="submit" :disabled="submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
                 <span x-show="!submitting">Prepare official PDF</span>
                 <span x-show="submitting" x-cloak>Preparing PDF…</span>
             </button>

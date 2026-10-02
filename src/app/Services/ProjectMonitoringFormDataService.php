@@ -31,8 +31,6 @@ class ProjectMonitoringFormDataService
 
         abort_if($revisionReport?->nextVersion !== null && ! $revisionReport->nextVersion->isPrepared(), 404);
 
-        $period = $reportingDate ? app(MonitoringQuarterService::class)->forDate($reportingDate, $topic) : null;
-
         return [
             'preparedReport' => ProjectProgressReport::query()
                 ->prepared()
@@ -43,7 +41,6 @@ class ProjectMonitoringFormDataService
                     fn ($query) => $query->where('supersedes_report_id', $revisionReport->id),
                     fn ($query) => $query->whereNull('supersedes_report_id'),
                 )
-                ->when($period !== null && $revisionReport === null, fn ($query) => $query->where('reporting_year', $period['year'])->where('reporting_quarter', $period['quarter']))
                 ->latest('prepared_at')
                 ->first(),
             'revisionReport' => $revisionReport,
@@ -62,7 +59,9 @@ class ProjectMonitoringFormDataService
     {
         $topic->loadMissing(['user', 'revisionDraft.members']);
         $quarterOptions = $reportType === 'progress'
-            ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic)->filter(fn (array $period): bool => $period['reporting_date'] !== null)->values()
+            ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic)
+                ->filter(fn (array $period): bool => $period['drafting_date'] !== null)
+                ->map(fn (array $period): array => [...$period, 'reporting_date' => $period['drafting_date']])->values()
             : collect();
         $draft = ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->where('report_type', $reportType)->whereBelongsTo($user, 'user')->first();
         $preparedReport = ProjectNarrativeReport::query()
@@ -71,7 +70,12 @@ class ProjectMonitoringFormDataService
             ->where('report_type', $reportType)
             ->latest('prepared_at')
             ->first();
-        $selectedReportingDate = $preparedReport?->reporting_date?->toDateString() ?? $reportingDate ?? data_get($draft?->source_data, 'reporting_date') ?? $quarterOptions->first()['reporting_date'] ?? null;
+        $draftDate = data_get($draft?->source_data, 'reporting_date');
+        $selectedReportingDate = $preparedReport?->reporting_date?->toDateString() ?? $draftDate ?? $reportingDate ?? $quarterOptions->first()['reporting_date'] ?? null;
+        if ($draftDate && $reportType === 'progress') {
+            $draftPeriod = app(MonitoringQuarterService::class)->forDate($draftDate, $topic);
+            $quarterOptions = $quarterOptions->filter(fn (array $period): bool => $period['start']->eq($draftPeriod['start']))->values();
+        }
 
         return [
             'quarterOptions' => $quarterOptions,

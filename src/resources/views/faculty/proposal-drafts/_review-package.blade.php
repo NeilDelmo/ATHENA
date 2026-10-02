@@ -15,7 +15,7 @@
 
 <section aria-labelledby="review-details-heading" class="rounded-2xl border {{ $projectDetailsComplete ? 'border-green-200' : 'border-amber-200' }} bg-white p-5 shadow-sm sm:p-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div><h3 id="review-details-heading" class="text-lg font-black text-gray-900">Project Details</h3><p class="mt-1 text-xs text-gray-500">Shared across the proposal package.</p></div>
+        <div><h3 id="review-details-heading" class="text-lg font-black text-gray-900">Project Details</h3><p class="mt-1 text-xs text-gray-500">Shared across the project.</p></div>
         @if ($inModal ?? false)
             <button type="button" x-on:click="$dispatch('close-modal', 'proposal-review'); window.location.hash = 'project-details'" class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 sm:w-auto">Edit details</button>
         @else
@@ -191,7 +191,7 @@
         </div>
         @can('submit', $proposalDraft)
             @if ($submissionFilesPrepared)
-                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in proposal package?" data-confirm-text="This sends five proposal papers and two auto-generated assessment forms to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
+                <form action="{{ route('faculty.proposal-drafts.submit', $proposalDraft) }}" method="POST" class="w-full shrink-0 sm:w-auto" data-proposal-confirm data-proposal-package-submit data-proposal-livewire-action="turnIn" data-confirm-title="Turn in project?" data-confirm-text="This sends five proposal papers and two auto-generated assessment forms to the Research Head." data-confirm-button="Turn in proposal" data-confirm-icon="question">
                     @csrf
                     <button type="submit" wire:loading.attr="disabled" wire:target="turnIn" @disabled(! $readyToSubmit) class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-gray-300 sm:w-auto">Turn in proposal</button>
                     <x-proposal-submission-loading-screen livewire-target="turnIn" />

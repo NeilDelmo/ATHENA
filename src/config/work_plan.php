@@ -7,7 +7,7 @@ return [
     'max_objectives' => 20,
     'gantt_fill' => 'E7E6E6',
     'verifier' => [
-        'name' => 'DJOANNA MARIE V. SALAC',
+        'name' => 'ASST. PROF. DJOANNA MARIE V. SALAC',
         'role' => 'Head, Research',
     ],
 ];

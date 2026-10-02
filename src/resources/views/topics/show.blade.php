@@ -23,13 +23,15 @@
         $isResearchOffice = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE);
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', \App\Models\TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
+        $canManageNoticeToProceed = Auth::user()->can('manageNoticeToProceed', $topic);
+        $canViewSigningDocuments = Auth::user()->can('viewSigningDocuments', $topic);
         $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
         $isFacultyWorkspace = Auth::user()->isUsingWorkspace('faculty');
         $isFacultyRevision = $isFacultyWorkspace && $topic->status === 'revision_requested' && $topic->user_id === Auth::id();
         $proposalPaperCount = $submittedFiles->reject(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm())->count();
         $assessmentFormCount = $submittedFiles->count() - $proposalPaperCount;
-          $hasProjectAccess = $isResearchHead || $topic->isAccessibleTo(Auth::user());
-          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || ($isResearchHead && $topic->status === 'ready_for_signature'))
+          $hasProjectAccess = $isResearchHead || $canViewSigningDocuments || $topic->isAccessibleTo(Auth::user());
+          $canViewNoticeToProceed = ($topic->isAwaitingNoticeToProceed() || $topic->hasIssuedNoticeToProceed() || (($isResearchHead || $canViewSigningDocuments) && $topic->status === 'ready_for_signature'))
               && $hasProjectAccess;
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
               && $hasProjectAccess;
@@ -71,7 +73,10 @@
         <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')">
             <x-slot name="actions">
                     @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo(Auth::user()))
-                        <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300">Find journals</a>
+                        <a data-find-journals href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path stroke-linecap="round" d="m16 16 4 4"/></svg>
+                            Find journals
+                        </a>
                     @endif
                     @if ($draftHistoryCount > 0 && ($isFacultyWorkspace || $isResearchHead))
                         <a href="{{ route('topics.draft-history.index', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50">Draft history ({{ $draftHistoryCount }})</a>
@@ -84,7 +89,7 @@
                             Ask Athena about this proposal
                         </button>
                     @endif
-                    @unless ($isFacultyRevision)
+                    @unless ($isFacultyRevision || ($topic->status === 'approved' && $topic->hasIssuedNoticeToProceed() && ! $topic->isCompletedProject()))
                         <span class="rounded-full px-3 py-1.5 text-sm font-black {{ $statusClass }}">{{ $statusLabel }}</span>
                     @endunless
             </x-slot>
@@ -205,16 +210,16 @@
                         {{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}
                     </button>
                 @endif
-                <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                    Versions
-                </button>
                 @if ($canViewMonitoring)
                     <button id="project-monitoring-tab-button" type="button" role="tab" aria-controls="project-monitoring-tab" :aria-selected="activeTopicTab === 'monitoring'" @click="setTopicTab('monitoring', 'project-monitoring')" :class="activeTopicTab === 'monitoring' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19.5V10m5.25 9.5V4.5m5.25 15v-7m5.25 7V7" /></svg>
                         Monitoring
                     </button>
                 @endif
+                <button id="version-history-tab-button" type="button" role="tab" aria-controls="version-history-tab" :aria-selected="activeTopicTab === 'history'" @click="setTopicTab('history', 'version-history')" :class="activeTopicTab === 'history' ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'" class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                    Versions
+                </button>
                 </div>
                 <div x-show="activeTopicTab === 'history' || @js(! $canViewMonitoring)" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
                     <button
@@ -271,7 +276,7 @@
                     <div class="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                         <div>
                             <p class="text-xs font-black uppercase tracking-wider text-red-600">Latest faculty submission</p>
-                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Proposal package</h3>
+                            <h3 id="submitted-files-heading" class="mt-1 text-lg font-black text-gray-900">Project</h3>
                             <p class="mt-1 text-sm text-gray-600">
                                 @if ($latestVersion)
                                     Version {{ $latestVersion->version_number }} submitted by {{ $latestVersion->submitter?->name ?? $topic->user->name }} on {{ $latestVersion->created_at->format('M j, Y g:i A') }}.
@@ -367,6 +372,11 @@
             }
         @endphp
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
+            @if ($isResearchHead && $latestVersion)
+                <div class="flex flex-wrap justify-end gap-2">
+                    <a data-research-head-screening-form href="{{ route('research_head.topics.initial-screening-form.edit', [$topic, $latestVersion]) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">{{ Auth::user()->can('fillInitialScreeningForm', [$topic, $latestVersion]) ? 'Fill Initial Screening Form' : 'View Initial Screening Form' }}</a>
+                </div>
+            @endif
             @if ($canDecide || ($isResearchHead && $topic->status === 'revision_requested'))
                 <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
                     <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Proposal papers for review <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
@@ -484,7 +494,7 @@
                                     <h3 id="lrec-waiting-heading" class="text-xl font-bold tracking-tight text-gray-950 dark:text-white">Awaiting LREC presentation</h3>
                                     <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">Initial review is complete and this proposal has been sent to LREC. The next decision can be recorded after the presentation.</p>
                                     @if ($latestVersion)
-                                        <p class="mt-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Proposal package · Version {{ $latestVersion->version_number }} · {{ $proposalPaperCount }} proposal {{ \Illuminate\Support\Str::plural('paper', $proposalPaperCount) }}{{ $assessmentFormCount > 0 ? ' + '.$assessmentFormCount.' assessment '.\Illuminate\Support\Str::plural('form', $assessmentFormCount) : '' }}</p>
+                                        <p class="mt-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Project · Version {{ $latestVersion->version_number }} · {{ $proposalPaperCount }} proposal {{ \Illuminate\Support\Str::plural('paper', $proposalPaperCount) }}{{ $assessmentFormCount > 0 ? ' + '.$assessmentFormCount.' assessment '.\Illuminate\Support\Str::plural('form', $assessmentFormCount) : '' }}</p>
                                     @endif
                                 </div>
                             </div>
@@ -694,13 +704,10 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">{{ $topic->hasIssuedNoticeToProceed() ? 'Released documents' : 'Signing & release' }}</h3>
-                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the package.' }}</p>
+                        <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $topic->hasIssuedNoticeToProceed() ? 'The signed proposal papers and Notice to Proceed are ready for faculty.' : ($canManageNoticeToProceed ? 'Upload the signed proposal papers, then prepare and upload the signed Notice to Proceed below to release the project.' : 'Review is complete. Research office staff or the secretary will prepare the Notice to Proceed and upload the signed documents for release.') }}</p>
                     </div>
-                    @if ($isResearchHead)
-                        <a href="{{ route('signatories.index') }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 dark:focus-visible:ring-offset-slate-900"><svg class="mr-2 h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M20 21v-2a4 4 0 0 0-3-3.87" stroke-linecap="round"/><circle cx="9" cy="7" r="4"/></svg><span>Manage signatory names</span></a>
-                    @endif
                 </div>
-                @if ($isResearchHead && $headUploadWorkspace)
+                @if (($isResearchHead || $canViewSigningDocuments) && $headUploadWorkspace)
                     <x-research-head-file-workspace :topic="$topic" :workspace="$headUploadWorkspace" />
                 @endif
                 @include('topics.partials.notice-to-proceed')
@@ -790,7 +797,7 @@
                                                         <h3 id="history-comment-response-heading-{{ $review->id }}" class="text-base font-bold text-gray-950 dark:text-white">Comment Response paper · {{ $review->created_at->format('M j, Y') }}</h3>
                                                         <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 items-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
                                                     </header>
-                                                     <x-proposal-revision-pdf :configuration="['pdfUrl' => route(($isResearchHead ? 'research_head' : ($isResearchOffice ? 'research_coordinator' : 'faculty')).'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
+                                                     <x-proposal-revision-pdf :configuration="['pdfUrl' => route(($isResearchHead ? 'research_head' : ($isResearchOffice ? 'research_coordinator' : (Auth::user()->isUsingWorkspace('research_secretary') ? 'research_secretary' : 'faculty'))).'.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review->id]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading Comment Response paper…" viewer-label="Comment Response paper" class="!h-[75dvh]" />
                                                 </section>
                                             </template>
                                         </x-modal>

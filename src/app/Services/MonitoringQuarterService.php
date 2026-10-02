@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\ProjectProgressReport;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectProgressReport;
 use App\Models\TopicProposal;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -68,7 +68,9 @@ class MonitoringQuarterService
                 $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
                 [$state, $status] = $this->statusFor($report, $period);
 
-                return [...$period, 'report' => $report, 'state' => $report || $open ? $state : 'not_yet_due', 'status' => $report || $open ? $status : 'Upcoming', 'reporting_date' => $open ? $period['end']->toDateString() : null, 'applicable' => true];
+                $canDraft = CarbonImmutable::now()->greaterThanOrEqualTo($period['start']);
+
+                return [...$period, 'report' => $report, 'state' => $report || $open ? $state : 'not_yet_due', 'status' => $report || $open ? $status : 'Upcoming', 'reporting_date' => $open ? $period['end']->toDateString() : null, 'drafting_date' => $canDraft ? $period['end']->toDateString() : null, 'applicable' => true];
             });
         }
 
@@ -157,22 +159,38 @@ class MonitoringQuarterService
         return $this->projectPeriods($topic)->contains(fn (array $period): bool => $date->betweenIncluded($period['start'], $period['end']) && CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']));
     }
 
+    public function canDraftForDate(TopicProposal $topic, DateTimeInterface|string $date): bool
+    {
+        $date = $date instanceof DateTimeInterface ? CarbonImmutable::instance($date) : CarbonImmutable::parse($date);
+
+        return $this->projectPeriods($topic)->contains(fn (array $period): bool => $date->betweenIncluded($period['start'], $period['end']) && CarbonImmutable::now()->greaterThanOrEqualTo($period['start']));
+    }
+
     public function terminalOpensAt(TopicProposal $topic): CarbonImmutable
     {
         return $this->reportingWindow($topic)['end']->addDay()->startOfDay();
     }
 
     /** @return Collection<int, array<string, mixed>> */
-    public function narrativeProgressPeriods(TopicProposal $topic): Collection
+    public function narrativeProgressPeriods(TopicProposal $topic, ?Collection $reports = null): Collection
     {
-        $reports = $topic->narrativeReports()->where('report_type', 'progress')->latest('id')->get();
+        $reports = ($reports ?? $topic->narrativeReports()->where('report_type', 'progress')->get())
+            ->where('report_type', 'progress')->sortByDesc('id');
 
         return $this->projectPeriods($topic)->map(function (array $period) use ($reports): array {
             $report = $reports->first(fn (ProjectNarrativeReport $report): bool => $report->reporting_quarter === $period['quarter']);
             $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
             $editable = $report === null || $report->isPrepared() || $report->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED;
+            $status = match (true) {
+                $report?->isPrepared() => 'PDF prepared',
+                $report?->review_status === ProjectNarrativeReport::STATUS_REVIEWED => 'Reviewed',
+                $report?->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED => 'Corrections requested',
+                $report !== null => 'Submitted – awaiting review',
+                $open => 'Not submitted',
+                default => 'Upcoming',
+            };
 
-            return [...$period, 'report' => $report, 'reporting_date' => $open && $editable ? $period['end']->toDateString() : null];
+            return [...$period, 'report' => $report, 'status' => $status, 'submission_open' => $open, 'reporting_date' => $open && $editable ? $period['end']->toDateString() : null, 'drafting_date' => $editable && CarbonImmutable::now()->greaterThanOrEqualTo($period['start']) ? $period['end']->toDateString() : null];
         });
     }
 

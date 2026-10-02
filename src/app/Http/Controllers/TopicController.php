@@ -7,6 +7,7 @@ use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreResearchHeadFileRequest;
 use App\Http\Requests\StoreTopicProposalRequest;
 use App\Models\AnnouncementImage;
+use App\Models\ProjectNarrativeReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileReviewCheck;
 use App\Models\ProposalSignatory;
@@ -24,6 +25,7 @@ use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProjectDocumentLibrary;
+use App\Services\ProposalFormVerifier;
 use App\Services\ProposalPackageService;
 use App\Services\ProposalRevisionSectionMap;
 use App\Services\ProposalSignatureWorkflow;
@@ -199,6 +201,12 @@ class TopicController extends Controller
         $monitoringReports = $topic->progressReports->values();
 
         $monitoringQuarterRows = $this->monitoringQuarterService->summaryRows($monitoringReports, $topic);
+        $progressReports = $topic->narrativeReports;
+        if (! $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD) && $topic->isAccessibleTo($request->user())) {
+            $progressReports = $progressReports->merge(ProjectNarrativeReport::query()
+                ->prepared()->whereBelongsTo($topic, 'topic')->where('report_type', 'progress')->get());
+        }
+        $progressQuarterRows = $this->monitoringQuarterService->narrativeProgressPeriods($topic, $progressReports);
 
         $latestVersion = $topic->versions->sortByDesc('version_number')->first();
         $previousVersion = $topic->versions
@@ -236,7 +244,7 @@ class TopicController extends Controller
         $reviewDocuments = ($latestVersion?->files ?? collect())
             ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD);
 
-        if (! $request->user()->isUsingWorkspace('research_head')) {
+        if (! $request->user()->isUsingWorkspace('research_head') && ! $request->user()->can('viewSigningDocuments', $topic)) {
             $reviewDocuments = $reviewDocuments
                 ->reject(fn (ProposalVersionFile $file): bool => ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED
                     && (! $topic->hasIssuedNoticeToProceed() || $file->isSuperseded()));
@@ -274,10 +282,10 @@ class TopicController extends Controller
             ->filter(fn ($document): bool => filled($document->file_path))
             ->keyBy('document_type');
         $draftHistoryCount = $topic->documentHistory()->count();
-        $headUploadWorkspace = $request->user()->isUsingWorkspace('research_head')
+        $headUploadWorkspace = ($request->user()->isUsingWorkspace('research_head') || $request->user()->can('viewSigningDocuments', $topic))
             ? $this->headUploadWorkspaceData($topic, $latestVersion)
             : null;
-        $noticeToProceedForm = $request->user()->isUsingWorkspace('research_head') && in_array($topic->status, ['approved', TopicProposal::STATUS_READY_FOR_SIGNATURE], true)
+        $noticeToProceedForm = $request->user()->can('manageNoticeToProceed', $topic)
             ? $this->noticeToProceedDataService->defaults($topic)
             : null;
 
@@ -338,6 +346,7 @@ class TopicController extends Controller
             'headUploadWorkspace',
             'noticeToProceedForm',
             'monitoringQuarterRows',
+            'progressQuarterRows',
             'projectDocumentLibrary',
         ));
     }
@@ -423,7 +432,7 @@ class TopicController extends Controller
 
             return back()
                 ->withInput()
-                ->withErrors(['work_plan' => 'The proposal package or generated Work Plan could not be prepared. Please try again.'], 'submission');
+                ->withErrors(['work_plan' => 'The project or generated Work Plan could not be prepared. Please try again.'], 'submission');
         }
 
         $proposalTitle = $validated['project_title'] ?? $validated['title'];
@@ -582,7 +591,7 @@ class TopicController extends Controller
 
             return back()
                 ->withInput()
-                ->withErrors(['detailed_proposal' => 'The revised proposal package could not be uploaded. Please try again.'], 'resubmission');
+                ->withErrors(['detailed_proposal' => 'The revised project could not be uploaded. Please try again.'], 'resubmission');
         }
 
         $unchangedReplacementErrors = $revisionFileScope->unchangedReplacementErrors(
@@ -632,7 +641,7 @@ class TopicController extends Controller
                             $snapshotFile['source_data'] = [
                                 ...($snapshotFile['source_data'] ?? []),
                                 'comment_response_signatory_selections' => array_intersect_key(
-                                    $revisionDraft->signatory_selections ?? [],
+                                    $revisionDraft->resolvedSignatorySelections(),
                                     ProposalSignatory::FIELDS['comment_response_form'],
                                 ),
                             ];
@@ -912,6 +921,7 @@ class TopicController extends Controller
         ProposalPackageService $packageService,
         GADChecklistScoreExtractor $gadScoreExtractor,
         InitialScreeningNarrativeExtractor $narrativeExtractor,
+        ProposalFormVerifier $formVerifier,
     ): RedirectResponse|JsonResponse {
         $validated = $request->validated();
         $isSupplemental = $validated['purpose'] === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SUPPLEMENTAL;
@@ -984,6 +994,47 @@ class TopicController extends Controller
         $narrativeEnteredManually = $isEvaluation && filled($validated['narrative_evaluation'] ?? null);
         $gadAssessment = null;
         $gadScoreEnteredManually = false;
+        $signedFormVerification = null;
+        $assessmentFormVerification = null;
+
+        if ($isInitialReviewUpload || ($isSignedCopy && in_array($sourceFile->document_type, [ProposalVersionFile::TYPE_DETAILED_PROPOSAL, ProposalVersionFile::TYPE_WORK_PLAN, ProposalVersionFile::TYPE_LINE_ITEM_BUDGET], true))) {
+            $projectTitle = (string) ($sourceFile->source_data['project_title'] ?? $latestVersion->title ?? $topic->title);
+            try {
+                $check = $formVerifier->check($file, $sourceFile, $projectTitle);
+            } catch (RuntimeException $exception) {
+                return $this->headUploadErrorResponse($topic, $isInitialReviewUpload, ['review_file' => $exception->getMessage()]);
+            }
+
+            $needsManualReview = $check['status'] === 'manual_review_required';
+            $confirmationField = $isInitialReviewUpload ? 'assessment_form_manually_confirmed' : 'signed_form_manually_confirmed';
+            if ($check['status'] === 'rejected' || ($needsManualReview && ! $request->boolean($confirmationField))) {
+                $errors = [($needsManualReview ? $confirmationField : 'review_file') => [$check['message']]];
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => $check['message'],
+                        'errors' => $errors,
+                        'requires_manual_review' => $needsManualReview,
+                    ], 422);
+                }
+
+                return $this->headUploadErrorResponse($topic, $isInitialReviewUpload, $errors);
+            }
+
+            $verification = [
+                'status' => $needsManualReview ? 'manually_confirmed' : 'matched',
+                'method' => $check['method'],
+                'document_type' => $sourceFile->document_type,
+                'project_title' => $projectTitle,
+                'checked_by' => $request->user()->id,
+                'checked_at' => now()->toIso8601String(),
+                'reason' => $check['reason'],
+            ];
+            if ($isInitialReviewUpload) {
+                $assessmentFormVerification = $verification;
+            } else {
+                $signedFormVerification = $verification;
+            }
+        }
 
         if ($isGadAssessment) {
             try {
@@ -994,6 +1045,7 @@ class TopicController extends Controller
                         $topic,
                         true,
                         ['review_file' => $exception->getMessage().' If this is a phone-scanned PDF, enter the final GAD score shown on the checklist and upload it again.'],
+                        ($assessmentFormVerification['status'] ?? null) === 'manually_confirmed',
                     );
                 }
 
@@ -1019,6 +1071,7 @@ class TopicController extends Controller
                         $topic,
                         true,
                         ['review_file' => $exception->getMessage().' You can enter the full Narrative Evaluation below, confirm it matches the completed form, and select the file again.'],
+                        ($assessmentFormVerification['status'] ?? null) === 'manually_confirmed',
                     );
                 }
             }
@@ -1052,6 +1105,8 @@ class TopicController extends Controller
                     'gad_signature_detected' => $gadAssessment['gad_signature_detected'] ?? false,
                     'gad_signature_confirmed' => $isGadAssessment && $request->boolean('gad_signature_confirmed'),
                     'gad_signature_detection_method' => $gadAssessment['gad_signature_detection_method'] ?? null,
+                    'signed_form_verification' => $signedFormVerification,
+                    'assessment_form_verification' => $assessmentFormVerification,
                 ],
             );
             $storedPath = $attributes['file_path'];
@@ -1135,7 +1190,7 @@ class TopicController extends Controller
             return $this->headUploadErrorResponse(
                 $topic,
                 $isInitialReviewUpload,
-                ['review_file' => 'The Research Head file could not be stored. Please try again.'],
+                ['review_file' => 'The document could not be stored. Please try again.'],
             );
         }
 
@@ -1149,6 +1204,7 @@ class TopicController extends Controller
                 'view_url' => route('topics.versions.files.view', [$topic, $version, $signedCopy]),
                 'download_url' => route('topics.versions.files.download', [$topic, $version, $signedCopy]),
                 'complete' => $this->signatureWorkflow->isComplete($version),
+                'verification_status' => $signedCopy->source_data['signed_form_verification']['status'] ?? null,
             ]);
         }
 
@@ -1172,7 +1228,7 @@ class TopicController extends Controller
                 ? 'Supplemental paper uploaded by the Research Head.'
                 : ($replacedSignedCopy
                     ? 'Replacement signed PDF uploaded. The previous signed copy was preserved as superseded audit history.'
-                    : 'Research Head file attached to the faculty submission.'));
+                    : ($isSignedCopy ? 'Signed paper saved for document release.' : 'Research Head file attached to the faculty submission.')));
     }
 
     /**
@@ -1290,6 +1346,7 @@ class TopicController extends Controller
         TopicProposal $topic,
         bool $isInitialReviewUpload,
         array $errors,
+        bool $manualFormReviewRequired = false,
     ): RedirectResponse|JsonResponse {
         if (request()->expectsJson()) {
             return response()->json(['message' => collect($errors)->flatten()->first(), 'errors' => $errors], 422);
@@ -1301,7 +1358,8 @@ class TopicController extends Controller
 
         return $response
             ->withInput()
-            ->withErrors($errors, 'headUpload');
+            ->withErrors($errors, 'headUpload')
+            ->with('assessment_form_manual_review', ($manualFormReviewRequired || isset($errors['assessment_form_manually_confirmed'])) ? request()->input('purpose') : null);
     }
 
     private function ensureCanViewTopic(Request $request, TopicProposal $topic): void
@@ -1381,7 +1439,7 @@ class TopicController extends Controller
         TopicProposal $topic,
         ProposalVersionFile $file,
     ): void {
-        if ($request->user()->isUsingWorkspace('research_head')) {
+        if ($request->user()->isUsingWorkspace('research_head') || $request->user()->can('viewSigningDocuments', $topic)) {
             return;
         }
 

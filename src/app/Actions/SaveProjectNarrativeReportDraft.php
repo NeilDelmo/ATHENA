@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\ProjectNarrativeReportDraft;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\MonitoringQuarterService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -32,6 +33,12 @@ class SaveProjectNarrativeReportDraft
                 throw ValidationException::withMessages([
                     'draft_version' => 'A newer saved progress-report draft is available. Reload the page before saving again.',
                 ]);
+            }
+
+            $savedDate = data_get($draft?->source_data, 'reporting_date');
+            $newDate = $normalizedSourceData['reporting_date'] ?? null;
+            if (($normalizedSourceData['report_type'] ?? 'progress') === 'progress' && $savedDate && $newDate && app(MonitoringQuarterService::class)->forDate($savedDate, $topic)['start']->ne(app(MonitoringQuarterService::class)->forDate($newDate, $topic)['start'])) {
+                throw ValidationException::withMessages(['reporting_date' => 'Finish your saved Progress Report draft before starting another quarter.']);
             }
 
             if ($draft === null) {

@@ -11,6 +11,15 @@
     </x-slot>
 
     <div x-data="{ addSignatoryOpen: @js($errors->any()) }" x-on:open-add-signatory-form.window="addSignatoryOpen = true" x-on:keydown.escape.window="addSignatoryOpen = false" class="mx-auto max-w-7xl space-y-4" data-signatory-directory>
+        <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900" aria-label="Default paper signatories">
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Default paper signatories</h3>
+            <dl class="mt-3 grid gap-4 sm:grid-cols-2">
+                @foreach ($defaultSignatories as $signatory)
+                    <div><dt class="text-xs text-gray-500 dark:text-slate-400">{{ $signatory['position'] }}</dt><dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-white">{{ $signatory['name'] }}</dd></div>
+                @endforeach
+            </dl>
+            <p class="mt-3 text-xs text-gray-500 dark:text-slate-400">These names appear automatically wherever the Research Head and VCRDES sign. Faculty do not need to select them.</p>
+        </section>
         <div x-show="addSignatoryOpen" x-cloak class="pointer-events-none fixed inset-0 z-[80]" role="presentation">
             <button type="button" x-on:click="addSignatoryOpen = false" data-add-signatory-backdrop class="pointer-events-auto absolute inset-0 bg-slate-950/60 backdrop-blur-sm xl:hidden" aria-label="Close add signatory editor"></button>
             <section

@@ -14,10 +14,10 @@
                         @endif.
                         {{ $topic->isCompletedProject() ? 'This notice remains part of the completed project archive.' : 'Project monitoring is now open.' }}
                     </p>
-                @elseif ($noticePreparedForSigning)
+                @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
                     <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Review the saved details below, then download the unsigned PDF for signatures and upload the signed copy at the bottom.</p>
                 @else
-                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Review the details and prepare the unsigned PDF for signature.</p>
+                    <p class="mt-2 max-w-3xl text-base leading-6 text-gray-600">Research office staff or the secretary prepare the unsigned PDF, obtain signatures, and upload the signed copy.</p>
                 @endif
             </div>
 
@@ -31,8 +31,8 @@
                         <a href="{{ route('workspace.select') }}" class="rh-button-secondary !min-h-12 !text-base gap-2"><svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Open researcher workspace</span></a>
                     @endif
                 </div>
-            @elseif ($noticePreparedForSigning && $isResearchHead)
-                <a href="{{ route('research_head.topics.notice-to-proceed.download-unsigned', $topic) }}" class="rh-button-secondary !min-h-12 !text-base shrink-0 gap-2">
+            @elseif ($noticePreparedForSigning && $canManageNoticeToProceed)
+                <a href="{{ route('topics.notice-to-proceed.download-unsigned', $topic) }}" class="rh-button-secondary !min-h-12 !text-base shrink-0 gap-2">
                     <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
                     <span>Download unsigned PDF</span>
                 </a>
@@ -59,16 +59,16 @@
         </div>
     @endif
 
-    @if ($isResearchHead && $noticeToProceedForm && ! $topic->isCompletedProject() && ! $topic->hasIssuedNoticeToProceed())
+    @if ($canManageNoticeToProceed && $noticeToProceedForm && ! $topic->isCompletedProject() && ! $topic->hasIssuedNoticeToProceed())
         <div
             class="p-5 sm:p-7"
             x-data="noticeToProceedForm({
-                previewUrl: @js(route('research_head.topics.notice-to-proceed.preview', $topic)),
+                previewUrl: @js(route('topics.notice-to-proceed.preview', $topic)),
                 csrfToken: @js(csrf_token()),
             })"
             data-notice-to-proceed-autosave="true"
         >
-            <form x-ref="form" data-notice-to-proceed-autosave-form method="POST" action="{{ route('research_head.topics.notice-to-proceed.store', $topic) }}" class="space-y-6" @submit="submitNoticeDetails">
+            <form x-ref="form" data-notice-to-proceed-autosave-form method="POST" action="{{ route('topics.notice-to-proceed.store', $topic) }}" class="space-y-6" @submit="submitNoticeDetails">
                 @csrf
 
                 @error('notice_to_proceed')
@@ -239,7 +239,7 @@
                         <h4 class="text-lg font-semibold text-slate-900 dark:text-white">Signed notice and release</h4>
                         <p class="mt-1 text-base text-slate-600 dark:text-slate-300">After reviewing and saving the details above, download the unsigned PDF, obtain signatures, and upload the signed copy here.</p>
                     </div>
-                    <form method="POST" action="{{ route('research_head.topics.notice-to-proceed.upload-signed', $topic) }}" enctype="multipart/form-data" class="p-5">
+                    <form method="POST" action="{{ route('topics.notice-to-proceed.upload-signed', $topic) }}" enctype="multipart/form-data" class="p-5">
                         @csrf
                         <div class="space-y-5">
                             <div class="min-w-0 flex-1">
@@ -263,7 +263,7 @@
         </div>
     @elseif (! $topic->hasIssuedNoticeToProceed())
         <div class="px-5 py-5 text-base text-gray-600 sm:px-7">
-            The final signing package is waiting for the Research Head to prepare, sign, and release its official Notice to Proceed.
+            Research office staff or the secretary will prepare the Notice to Proceed, obtain signatures, and upload the signed copy for release.
         </div>
     @endif
 </section>

@@ -336,6 +336,9 @@ test('the proposal package keeps recovery history behind an unobtrusive control'
     $this->actingAs($this->owner)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
+        ->assertSee('Project progress')
+        ->assertDontSee('Proposal package')
+        ->assertDontSee('proposal package')
         ->assertSee('Recovery history')
         ->assertSee(route('faculty.proposal-drafts.history.index', $this->draft));
 
@@ -345,6 +348,7 @@ test('the proposal package keeps recovery history behind an unobtrusive control'
             'paper' => 'expense-breakdown',
         ]))
         ->assertOk()
+        ->assertSee('Back to project')
         ->assertSee('No recovery points yet');
 });
 

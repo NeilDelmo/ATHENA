@@ -8,6 +8,8 @@ use Illuminate\Support\Str;
 
 class LineItemBudgetData
 {
+    public const DEFAULT_LEVEL_OF_CALL = 'constituent_campus';
+
     /**
      * Convert saved Estimated Expense Breakdown rows into the matching
      * standard Line-Item Budget amounts.
@@ -138,7 +140,7 @@ class LineItemBudgetData
             'computed_project_total' => $computedProjectTotal,
             'project_total' => $projectOverride ?? $computedProjectTotal,
             'project_total_overridden' => $projectOverride !== null,
-            'level_of_call' => $validated['level_of_call'] ?? null,
+            'level_of_call' => $validated['level_of_call'] ?? self::DEFAULT_LEVEL_OF_CALL,
             'approval_body' => $validated['approval_body'] ?? null,
             'resolution_number' => trim((string) ($validated['resolution_number'] ?? '')),
             'resolution_year' => trim((string) ($validated['resolution_year'] ?? '')),

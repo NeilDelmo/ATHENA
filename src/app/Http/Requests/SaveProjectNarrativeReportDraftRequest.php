@@ -3,11 +3,13 @@
 namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
+use App\Services\MonitoringQuarterService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SaveProjectNarrativeReportDraftRequest extends FormRequest
 {
@@ -99,5 +101,14 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
         return [
             'terminal_data.total_expenditure.max' => 'The final total expenditure may not exceed the approved project budget.',
         ];
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($this->input('report_type', 'progress') === 'progress' && filled($this->input('reporting_date')) && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canDraftForDate($this->route('topic'), $this->input('reporting_date'))) {
+                $validator->errors()->add('reporting_date', 'Draft one active reporting quarter at a time. This quarter has not started yet.');
+            }
+        }];
     }
 }

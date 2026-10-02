@@ -91,7 +91,7 @@
                 @endif
                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $gadPassed ? 'The signed checklist and passing score are recorded. Continue with co-evaluator review below.' : 'Upload the completed, signed GAD Checklist to read its score.' }}</p>
             @if ($gadChecklistFile)
-                <div x-data="{ replacing: @js(! $gadAssessment) }" class="mt-4">
+                <div x-data="{ replacing: @js(! $gadAssessment || ($errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT)) }" class="mt-4">
                     @if ($gadAssessment)
                         <div data-gad-score-summary role="status" class="grid gap-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60 md:grid-cols-[9rem_minmax(0,1fr)]">
                             <div>
@@ -132,6 +132,9 @@
                                     </div>
                                 </div>
                                 <p class="mt-1 truncate text-sm font-semibold text-gray-500 dark:text-gray-400">{{ $gadAssessment->original_filename }}</p>
+                                @if ($verificationStatus = $gadAssessment->source_data['assessment_form_verification']['status'] ?? null)
+                                    <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $verificationStatus === 'matched' ? 'Form and project title matched' : 'Form manually checked by uploader' }}</p>
+                                @endif
                             </div>
                             <div class="flex flex-wrap justify-end gap-2 md:col-span-2">
                                 @if ($gadAssessmentViewable)
@@ -179,6 +182,7 @@
                                     </span>
                                 </label>
                                 <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
+                                <x-assessment-form-verification form-name="GAD Generic Checklist" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT" />
                             </div>
                             <label for="gad_score_{{ $topic->id }}" class="block rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                                 <strong class="block text-gray-950 dark:text-white">Enter score only if automatic reading fails</strong>
@@ -219,7 +223,7 @@
                     <div data-screening-docx-workflow class="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/20">
                         <div class="min-w-0 flex-1">
                             <p class="text-base font-bold text-gray-950 dark:text-white">Recommended: complete the DOCX in Word</p>
-                            <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-200">Download the form, type the Narrative Evaluation in Word, then upload the completed DOCX. ATHENA reads the typed comments automatically.</p>
+                            <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-200">Download the form, type the Narrative Evaluation in Word, then upload the completed DOCX or PDF. ATHENA reads the typed comments automatically. For the required wet signature, print and sign the completed form, then upload a scanned PDF.</p>
                         </div>
                         <a href="{{ route('topics.versions.files.editable-docx', [$topic, $latestVersion, $initialScreeningFile]) }}" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-base font-bold text-white hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 sm:w-auto">Download editable DOCX</a>
                     </div>
@@ -236,6 +240,9 @@
                                     </div>
                                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ ($coEvaluatorEvaluation->source_data['narrative_evaluation_entry_method'] ?? 'automatic') === 'manual' ? 'Transcribed from the uploaded form and verified by the Research Head.' : 'Read automatically from the uploaded form.' }}</p>
                                     <p class="mt-1 truncate text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $coEvaluatorEvaluation->original_filename }}</p>
+                                    @if ($verificationStatus = $coEvaluatorEvaluation->source_data['assessment_form_verification']['status'] ?? null)
+                                        <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $verificationStatus === 'matched' ? 'Form and project title matched' : 'Form manually checked by uploader' }}</p>
+                                    @endif
                                     @if ($coEvaluatorEvaluation->source_data['narrative_evaluation'] ?? null)
                                         <p class="mt-2 max-h-24 overflow-y-auto whitespace-pre-line text-sm leading-6 text-gray-800 dark:text-gray-200">{{ $coEvaluatorEvaluation->source_data['narrative_evaluation'] }}</p>
                                     @endif
@@ -298,12 +305,13 @@
                                         </span>
                                     </label>
                                     <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
+                                    <x-assessment-form-verification form-name="Initial Screening Form" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION" />
                                 </div>
                                 <div data-screening-narrative-transcription x-data="{ narrative: @js($manualNarrativeInput) }" class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                                     <div>
-                                        <p class="mb-3 text-base font-bold text-gray-950 dark:text-white">Handwritten or scanned form (alternative)</p>
+                                        <p class="mb-3 text-base font-bold text-gray-950 dark:text-white">Scanned signed form (alternative)</p>
                                         <label for="narrative_evaluation_{{ $topic->id }}" class="block text-base font-bold text-gray-950 dark:text-white">Transcribe the Narrative Evaluation</label>
-                                        <p id="narrative-evaluation-help-{{ $topic->id }}" class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload the completed scan, then copy all comments here and confirm they match. You can also use this field if automatic reading is incomplete. Leave it blank for a readable typed DOCX or PDF.</p>
+                                        <p id="narrative-evaluation-help-{{ $topic->id }}" class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload the scanned PDF of the completed form with its wet signature, then copy the typed comments here and confirm they match. You can also use this field if automatic reading is incomplete. Leave it blank for a readable DOCX or PDF.</p>
                                     </div>
                                     <textarea id="narrative_evaluation_{{ $topic->id }}" name="narrative_evaluation" x-model="narrative" rows="6" minlength="3" maxlength="5000" aria-describedby="narrative-evaluation-help-{{ $topic->id }}" placeholder="Copy the evaluator’s comments exactly as written…" class="block w-full rounded-xl border-gray-300 text-base leading-7 focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">{{ $manualNarrativeInput }}</textarea>
                                     <label for="narrative_evaluation_confirmed_{{ $topic->id }}" class="flex items-start gap-3 text-sm leading-6 text-gray-800 dark:text-gray-200">

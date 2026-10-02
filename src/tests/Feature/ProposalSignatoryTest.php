@@ -13,8 +13,26 @@ use App\Services\WorkPlanDocumentService;
 use App\Support\DetailedProposalData;
 use App\Support\GADChecklistData;
 use App\Support\LineItemBudgetData;
+use App\Support\ProposalDraftReadiness;
+use App\Support\TerminalReportData;
 use App\Support\WorkPlanData;
 use Spatie\Permission\Models\Role;
+
+test('every Research Head and VCRDES signature uses the default without a directory selection', function () {
+    $draft = new ProposalDraft(['signatory_selections' => [
+        'checked_verified_by_name' => ['name' => 'Previously selected head', 'position' => 'Head'],
+        'recommending_approval_name' => ['name' => 'Previously selected VCRDES', 'position' => 'VCRDES'],
+    ]]);
+    foreach (ProposalSignatory::FIELDS as $paper => $fields) {
+        foreach (array_intersect_key(ProposalSignatory::defaultSelections(), $fields) as $key => $default) {
+            expect($draft->signatoryFields($paper)[$key])->toBe($default['name']);
+        }
+    }
+    expect(TerminalReportData::defaultSignatoryNames())->toBe([
+        'reviewed_head' => 'ASST. PROF. DJOANNA MARIE V. SALAC',
+        'verified_chancellor' => 'DR. FROILAN G. DESTREZA',
+    ]);
+});
 
 test('head manages signatories and faculty selections are private role checked and frozen', function () {
     $this->withoutVite();
@@ -28,8 +46,8 @@ test('head manages signatories and faculty selections are private role checked a
     $other = User::factory()->create();
     $other->assignRole('faculty');
     $draft = ProposalDraft::create(['user_id' => $faculty->id, 'project_title' => 'Signatory test', 'status' => 'draft', 'lock_version' => 0]);
-    $paper = $draft->documents()->create(['document_type' => 'work_plan', 'position' => 0, 'file_path' => 'old-prepared-paper.pdf', 'lock_version' => 0]);
-    $input = ['role_key' => 'verified_by', 'name' => 'Original Name', 'position' => 'Research Head', 'active' => 1];
+    $paper = $draft->documents()->create(['document_type' => 'line_item_budget', 'position' => 0, 'file_path' => 'old-prepared-paper.pdf', 'lock_version' => 0]);
+    $input = ['role_key' => 'certified_by', 'name' => 'Original Name', 'position' => 'Budget Officer', 'active' => 1];
     $this->actingAs($faculty)->post(route('signatories.store'), $input)->assertForbidden();
     $this->actingAs($head)->post(route('signatories.store'), $input)->assertSessionHasNoErrors();
     $person = ProposalSignatory::firstOrFail();
@@ -57,12 +75,12 @@ test('head manages signatories and faculty selections are private role checked a
         ->assertOk()
         ->assertSee('data-proposal-signatories-workspace', false)
         ->assertSee('Original Name');
-    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['certified_by' => $person->id]])->assertSessionHasErrors('signatories.certified_by');
-    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['verified_by' => $person->id]])
+    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['approved_by_name' => $person->id]])->assertSessionHasErrors('signatories.approved_by_name');
+    $this->put(route('signatories.select', $draft), ['lock_version' => 0, 'signatories' => ['certified_by' => $person->id]])
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('faculty.proposal-drafts.show', $draft))
         ->assertSessionHas('success', 'Signatories saved. Preview your papers and prepare the PDFs again before submitting.');
-    expect($draft->fresh()->signatoryFields('work_plan'))->toBe(['verified_by' => 'Original Name', 'verified_role' => 'Research Head']);
+    expect($draft->fresh()->signatoryFields('line_item_budget'))->toBe(['certified_by' => 'Original Name', 'certified_role' => 'Budget Officer']);
     expect($paper->fresh()->file_path)->toBeNull()->and($paper->fresh()->lock_version)->toBe(1);
     $this->actingAs($head)
         ->from(route('signatories.index', ['edit' => $person]))
@@ -70,8 +88,8 @@ test('head manages signatories and faculty selections are private role checked a
         ->assertSessionHasNoErrors()
         ->assertRedirect(route('signatories.index').'#signatory-'.$person->id)
         ->assertSessionHas('success', 'Directory updated. Previously selected names remain unchanged.');
-    expect($draft->fresh()->signatoryFields('work_plan')['verified_by'])->toBe('Original Name');
-    $this->actingAs($faculty)->put(route('signatories.select', $draft), ['lock_version' => 1, 'signatories' => ['verified_by' => $person->id]])->assertSessionHasErrors('signatories.verified_by');
+    expect($draft->fresh()->signatoryFields('line_item_budget')['certified_by'])->toBe('Original Name');
+    $this->actingAs($faculty)->put(route('signatories.select', $draft), ['lock_version' => 1, 'signatories' => ['certified_by' => $person->id]])->assertSessionHasErrors('signatories.certified_by');
     expect($draft->fresh()->signatoryFields('curriculum_vitae'))->toBe([])->and($draft->signatoryFields('expense_breakdown'))->toBe([]);
 });
 
@@ -208,7 +226,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($draft->fresh()->signatoryFields('detailed_proposal'))
         ->toMatchArray([
             'approved_by_name' => 'Mary Jhezl Baldos',
-            'recommending_approval_name' => 'Mary Jhezl Baldos',
+            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
         ]);
 
     $this->actingAs($faculty)->put(route('signatories.select', $draft), [
@@ -225,7 +243,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($draft->fresh()->signatoryFields('detailed_proposal'))
         ->toMatchArray([
             'approved_by_name' => 'Akira Soriano',
-            'recommending_approval_name' => 'Quey Baldos',
+            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
         ])
         ->and($draft->fresh()->lock_version)->toBe(2);
 
@@ -234,7 +252,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($response->viewData('sourceData'))
         ->toMatchArray([
             'approved_by_name' => 'Akira Soriano',
-            'recommending_approval_name' => 'Quey Baldos',
+            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
         ]);
 });
 
@@ -263,7 +281,7 @@ test('all six generated papers contain the selected signatory names', function (
             $xml->loadXML($zip->getFromName('word/document.xml'));
             $zip->close();
             foreach (array_keys(ProposalSignatory::FIELDS[$paper]) as $key) {
-                expect(mb_strtoupper($xml->textContent))->toContain(mb_strtoupper($selections[$key]['name']));
+                expect(mb_strtoupper($xml->textContent))->toContain(mb_strtoupper($draft->resolvedSignatorySelections()[$key]['name']));
             }
         } finally {
             unlink($path);
@@ -271,39 +289,25 @@ test('all six generated papers contain the selected signatory names', function (
     }
 });
 
-test('research head supplies both comments form roles and faculty can select them by the correct role', function () {
+test('comment form signatories are automatic and cannot be replaced by faculty', function () {
     $this->withoutVite();
-    foreach (['faculty', 'research_head'] as $role) {
-        Role::firstOrCreate(['name' => $role]);
-    }
-    $head = User::factory()->create();
-    $head->assignRole('research_head');
+    Role::firstOrCreate(['name' => 'faculty']);
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
-    $draft = ProposalDraft::create(['user_id' => $faculty->id, 'project_title' => 'Comments Form Selection', 'lock_version' => 0]);
-    $preparedPaper = $draft->documents()->create(['document_type' => 'work_plan', 'position' => 0, 'file_path' => 'prepared-work-plan.pdf', 'lock_version' => 0]);
-    $selectedIds = [];
-    foreach (ProposalSignatory::FIELDS['comment_response_form'] as $key => $label) {
-        $this->actingAs($head)->post(route('signatories.store'), [
-            'role_key' => $key, 'name' => 'Signer for '.$key, 'position' => $label, 'active' => 1,
-        ])->assertSessionHasNoErrors();
-        $selectedIds[$key] = ProposalSignatory::where('role_key', $key)->where('name', 'Signer for '.$key)->sole()->id;
-    }
+    $draft = ProposalDraft::create(['user_id' => $faculty->id, 'project_title' => 'Default comments signatories', 'lock_version' => 0]);
     $this->actingAs($faculty)->get(route('signatories.edit', [$draft, 'paper' => 'comment_response_form']))
-        ->assertOk()->assertSee('Comment Response Form')->assertSee('Signer for comment_response_head')
-        ->assertSee('Signer for comment_response_vice_chancellor');
+        ->assertOk()->assertSee('ASST. PROF. DJOANNA MARIE V. SALAC')->assertSee('DR. FROILAN G. DESTREZA')
+        ->assertDontSee('name="signatories[comment_response_head]"', false)
+        ->assertDontSee('name="signatories[comment_response_vice_chancellor]"', false);
     $this->put(route('signatories.select', $draft), [
         'lock_version' => 0, 'return_paper' => 'comment_response_form',
-        'signatories' => ['comment_response_head' => $selectedIds['comment_response_vice_chancellor']],
-    ])->assertSessionHasErrors('signatories.comment_response_head');
-    $this->put(route('signatories.select', $draft), [
-        'lock_version' => 0, 'return_paper' => 'comment_response_form', 'signatories' => $selectedIds,
+        'signatories' => ['comment_response_head' => 999999, 'comment_response_vice_chancellor' => 999999],
     ])->assertSessionHasNoErrors()->assertRedirectToRoute('faculty.proposal-drafts.show', $draft);
     expect($draft->fresh()->signatoryFields('comment_response_form'))->toBe([
-        'comment_response_head' => 'Signer for comment_response_head',
-        'comment_response_vice_chancellor' => 'Signer for comment_response_vice_chancellor',
+        'comment_response_head' => 'ASST. PROF. DJOANNA MARIE V. SALAC',
+        'comment_response_vice_chancellor' => 'DR. FROILAN G. DESTREZA',
     ]);
-    expect($preparedPaper->fresh()->file_path)->toBe('prepared-work-plan.pdf');
+    expect(app(ProposalDraftReadiness::class)->commentResponseSignatoriesAreComplete($draft))->toBeTrue();
 });
 
 test('faculty can open comments form signatories before starting a revision draft and return to feedback', function () {

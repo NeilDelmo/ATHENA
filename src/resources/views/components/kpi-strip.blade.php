@@ -7,8 +7,8 @@
 >
     @foreach ($items as $item)
         <div @if (isset($item['hint'])) title="{{ $item['hint'] }}" @endif class="min-w-0 px-5 [container-type:inline-size] sm:border-l sm:border-white/[0.18] sm:first:border-l-0">
-            <dt class="flex items-center gap-1.5 text-xs font-normal leading-[14px] tracking-normal text-white/80">
-                <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+            <dt class="flex items-center gap-1.5 text-sm font-normal leading-5 tracking-normal text-white/80">
+                <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
                     @switch($item['icon'])
                         @case('folder')
                             <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
@@ -56,7 +56,7 @@
                 </svg>
                 <span class="min-w-0 break-words">{{ $item['label'] }}</span>
             </dt>
-            <dd class="mt-[5px] whitespace-nowrap text-[22px] font-medium leading-[1.1] tracking-normal text-white tabular-nums" style="font-size: min(22px, calc(100cqi / {{ max(mb_strlen((string) $item['value']), 1) }} * 1.6))">{{ $item['value'] }}</dd>
+            <dd class="mt-[5px] whitespace-nowrap text-[28px] font-medium leading-[1.1] tracking-normal text-white tabular-nums" style="font-size: min(28px, calc(100cqi / {{ max(mb_strlen((string) $item['value']), 1) }} * 1.6))">{{ $item['value'] }}</dd>
         </div>
     @endforeach
 </dl>

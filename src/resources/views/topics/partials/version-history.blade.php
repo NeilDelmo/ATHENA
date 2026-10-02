@@ -53,6 +53,10 @@
                                 <p class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"><span class="font-semibold">Revision summary:</span> {{ $version->change_summary }}</p>
                             @endif
 
+                            @if (Auth::user()->isUsingWorkspace('research_head') && $version->research_head_screening !== null)
+                                <a data-version-screening-form href="{{ route('research_head.topics.initial-screening-form.edit', [$topic, $version]) }}" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">Saved Initial Screening Form · Version {{ $version->version_number }}</a>
+                            @endif
+
                             @if ($versionFiles->isNotEmpty())
                                 @foreach (['Proposal papers' => $proposalPapers, 'Assessment forms' => $assessmentForms] as $groupLabel => $groupFiles)
                                     @if ($groupFiles->isNotEmpty())

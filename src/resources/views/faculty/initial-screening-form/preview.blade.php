@@ -12,6 +12,9 @@
             <span class="initial-screening-project-title">{{ $screeningForm['project_title'] }}</span>
             <span class="initial-screening-project-leader">{{ $screeningForm['project_leader'] }}</span>
             <span class="initial-screening-order-checkmark initial-screening-order-{{ $screeningForm['order_of_submission'] }}" data-screening-order="{{ $screeningForm['order_of_submission'] }}" aria-label="Selected order of submission">×</span>
+            @if (in_array($screeningForm['level_of_call'] ?? null, ['central_agency', 'constituent_campus'], true))
+                <span class="initial-screening-level-checkmark initial-screening-level-{{ $screeningForm['level_of_call'] }}" data-screening-level="{{ $screeningForm['level_of_call'] }}" aria-label="Selected level of call">×</span>
+            @endif
         </main>
     </body>
 </html>

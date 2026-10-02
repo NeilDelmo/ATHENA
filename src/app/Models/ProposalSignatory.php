@@ -37,4 +37,29 @@ class ProposalSignatory extends Model
     {
         return array_merge(...array_values(self::FIELDS));
     }
+
+    /** @return array<string, array{id: null, name: string, position: string}> */
+    public static function defaultSelections(): array
+    {
+        $head = [
+            'id' => null,
+            'name' => (string) config('work_plan.verifier.name'),
+            'position' => (string) config('work_plan.verifier.role'),
+        ];
+        $viceChancellor = [
+            'id' => null,
+            'name' => (string) config('notice_to_proceed.issuing_officer.name'),
+            'position' => (string) config('notice_to_proceed.issuing_officer.title'),
+        ];
+
+        return [
+            'checked_verified_by_name' => $head,
+            'verified_by' => $head,
+            'screening_head' => $head,
+            'comment_response_head' => $head,
+            'recommending_approval_name' => $viceChancellor,
+            'screening_verifier' => $viceChancellor,
+            'comment_response_vice_chancellor' => $viceChancellor,
+        ];
+    }
 }

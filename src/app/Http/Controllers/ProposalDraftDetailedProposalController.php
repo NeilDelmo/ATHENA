@@ -106,6 +106,11 @@ class ProposalDraftDetailedProposalController extends Controller
             ->values();
         $initialLiteratureSourceId = $request->integer('literature_source') ?: null;
         $initialLiteratureAction = $request->string('apply_to')->toString();
+        $completionErrors = DetailedProposalRules::completionErrors([
+            ...$sourceData,
+            'project_title' => $proposalDraft->project_title,
+            'project_leader' => $proposalDraft->project_leader,
+        ]);
 
         if (! in_array($initialLiteratureAction, ['rrl', 'reference', 'both'], true)
             || ! $literatureSources->contains(fn (array $source): bool => $source['id'] === $initialLiteratureSourceId)) {
@@ -118,6 +123,7 @@ class ProposalDraftDetailedProposalController extends Controller
             'paper',
             'detailedProposalDocument',
             'detailedProposalComplete',
+            'completionErrors',
             'sourceData',
             'workspacePeople',
             'budgetTotals',
@@ -205,6 +211,7 @@ class ProposalDraftDetailedProposalController extends Controller
                 'document_version' => $savedDocument->lock_version,
                 'draft_version' => $proposalDraft->fresh()->lock_version,
                 'saved_as_draft' => $savedAsDraft,
+                'completion_errors' => DetailedProposalRules::completionErrors($request->all()),
                 'methodology_images' => $this->methodologyImagesForAutoSave($savedDocument, $request, $proposalDraft),
             ]);
         }
@@ -231,6 +238,7 @@ class ProposalDraftDetailedProposalController extends Controller
         $detailedProposal = DetailedProposalData::fromValidated(
             $request->validated(),
             $this->budgetTotals($proposalDraft),
+            app(ProposalDraftReadiness::class)->detailedProposalChecklist($proposalDraft),
         );
         $detailedProposal['methodology_images'] = collect($detailedProposal['methodology_images'])
             ->map(function (array $image) use ($methodologyImageService): array {
@@ -255,6 +263,7 @@ class ProposalDraftDetailedProposalController extends Controller
         $detailedProposal = DetailedProposalData::fromValidated(
             $request->validated(),
             $this->budgetTotals($proposalDraft),
+            app(ProposalDraftReadiness::class)->detailedProposalChecklist($proposalDraft),
         );
         $contents = $documentService->generate($detailedProposal);
         $filenameBase = Str::slug($proposalDraft->project_title) ?: 'research-project';
@@ -337,7 +346,7 @@ class ProposalDraftDetailedProposalController extends Controller
         ];
     }
 
-    /** @return array{mooe_total: float, co_total: float} */
+    /** @return array{mooe_total: float, co_total: float, level_of_call: string|null} */
     private function budgetTotals(ProposalDraft $draft): array
     {
         $sourceData = $draft->documents()
@@ -346,7 +355,7 @@ class ProposalDraftDetailedProposalController extends Controller
             ->value('source_data');
 
         if (! is_array($sourceData) || $draft->planned_start === null || $draft->planned_end === null) {
-            return ['mooe_total' => 0, 'co_total' => 0];
+            return ['mooe_total' => 0, 'co_total' => 0, 'level_of_call' => $sourceData['level_of_call'] ?? LineItemBudgetData::DEFAULT_LEVEL_OF_CALL];
         }
 
         $budget = LineItemBudgetData::fromValidated([
@@ -360,6 +369,7 @@ class ProposalDraftDetailedProposalController extends Controller
         return [
             'mooe_total' => (float) $budget['mooe_total'],
             'co_total' => (float) $budget['co_total'],
+            'level_of_call' => $budget['level_of_call'],
         ];
     }
 

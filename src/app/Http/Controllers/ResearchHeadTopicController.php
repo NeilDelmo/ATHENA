@@ -16,6 +16,7 @@ use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -320,7 +321,7 @@ class ResearchHeadTopicController extends Controller
             TopicProposal::STATUS_LREC_REVIEW => ['LREC review started', 'The research office is recording the LREC outcome for “'.$topic->title.'”. Any revisions will be shared in one Comment-Response Form.', 'info'],
             TopicProposal::STATUS_READY_FOR_SIGNATURE => [
                 'Proposal ready for signature',
-                'The review of “'.$topic->title.'” is complete. The Research Head is preparing the required signed final copies.',
+                'The review of “'.$topic->title.'” is complete. Research office staff or the secretary will prepare the Notice to Proceed and upload the required signed documents.',
                 'info',
             ],
             'revision_requested' => [
@@ -356,11 +357,37 @@ class ResearchHeadTopicController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
         ));
 
+        if ($validated['status'] === TopicProposal::STATUS_READY_FOR_SIGNATURE) {
+            $staff = User::query()
+                ->where(function ($query) use ($topic): void {
+                    if (filled($topic->user?->college)) {
+                        $query->where('college', $topic->user->college)
+                            ->whereHas('roles', fn ($roles) => $roles->whereIn('name', ['research_coordinator', 'research_secretary']));
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+
+                    if ($topic->research_secretary_id !== null) {
+                        $query->orWhere(fn ($assigned) => $assigned->whereKey($topic->research_secretary_id)->whereHas('roles', fn ($roles) => $roles->where('name', 'research_secretary')));
+                    }
+                })
+                ->get();
+
+            Notification::send($staff, new ProposalActivityNotification(
+                'Project ready for document release',
+                'The Research Head cleared “'.$topic->title.'”. Prepare the Notice to Proceed and upload the signed documents for release.',
+                route('topics.show', $topic).'#notice-to-proceed',
+                'info',
+                $topic->id,
+                workspace: [User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY],
+            ));
+        }
+
         $message = match ($validated['status']) {
             TopicProposal::STATUS_GAD_REVIEW => 'Research Head review cleared. The proposal is now available for GAD Office assessment.',
             TopicProposal::STATUS_LREC_QUEUED => 'GAD assessment and co-evaluator review cleared. The proposal is queued for LREC presentation.',
             TopicProposal::STATUS_LREC_REVIEW => 'LREC review opened. Record committee comments or confirm clearance.',
-            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.',
+            TopicProposal::STATUS_READY_FOR_SIGNATURE => 'LREC cleared. Research office staff or the secretary will prepare and release the signed documents and Notice to Proceed.',
             'revision_requested' => $returningFromSigning
                 ? 'Revision requested. Final signing is paused and existing signed copies were retained as superseded records.'
                 : 'Revision request sent to the faculty member.',
@@ -403,7 +430,7 @@ class ResearchHeadTopicController extends Controller
         }
 
         return redirect()->to(route('topics.show', $topic).'#notice-to-proceed')
-            ->with('success', 'Signed papers are ready. Upload the signed Notice to Proceed to release the complete package to faculty.');
+            ->with('success', 'Signed papers are ready. Research office staff or the secretary will upload the signed Notice to Proceed and release the project to faculty.');
     }
 
     /**

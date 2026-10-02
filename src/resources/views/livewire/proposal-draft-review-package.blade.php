@@ -8,7 +8,7 @@
 
     @if ($errors->any())
         <div role="alert" class="mb-6 border-l-4 border-red-600 bg-red-50 px-5 py-4 text-sm text-red-950">
-            <p class="font-black">This proposal package cannot be turned in yet.</p>
+            <p class="font-black">This project cannot be turned in yet.</p>
             <ul class="mt-2 list-disc space-y-1 pl-5">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>

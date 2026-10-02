@@ -16,7 +16,7 @@
             </div>
             <div class="min-w-40 flex-1"><label for="analytics-from" class="block text-sm font-semibold">First submitted from</label><input id="analytics-from" type="date" wire:model="fromDate" class="rh-control mt-1.5 w-full"></div>
             <div class="min-w-40 flex-1"><label for="analytics-to" class="block text-sm font-semibold">First submitted through</label><input id="analytics-to" type="date" wire:model="toDate" class="rh-control mt-1.5 w-full"></div>
-            <button class="rh-button" wire:loading.attr="disabled"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M7 12h10M10 17h4"/></svg>Apply filters</button>
+            <button class="rh-button bg-red-600 hover:bg-red-700 focus-visible:outline-red-600" wire:loading.attr="disabled"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M7 12h10M10 17h4"/></svg>Apply filters</button>
             <button type="button" wire:click="resetAnalyticsFilters" class="rh-button-secondary"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/></svg>Reset</button>
         </form>
         @foreach (['academicYear', 'fromDate', 'toDate', 'submissionMonth'] as $field)

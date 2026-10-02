@@ -16,6 +16,10 @@ class StoreResearchHeadFileRequest extends FormRequest
 
     public function authorize(): bool
     {
+        if ($this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED) {
+            return $this->user()?->can('manageNoticeToProceed', $this->route('topic')) ?? false;
+        }
+
         return $this->user()?->isUsingWorkspace('research_head') ?? false;
     }
 
@@ -89,6 +93,8 @@ class StoreResearchHeadFileRequest extends FormRequest
             'document_title' => ['prohibited'],
             'issuing_office' => ['prohibited'],
             'note' => ['nullable', 'string', 'max:2000'],
+            'signed_form_manually_confirmed' => $isSignedCopy ? ['sometimes', 'boolean'] : ['prohibited'],
+            'assessment_form_manually_confirmed' => ($isEvaluation || $isGadAssessment) ? ['sometimes', 'boolean'] : ['prohibited'],
             'return_to_review' => ['sometimes', 'boolean'],
         ];
     }

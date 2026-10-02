@@ -13,7 +13,7 @@ class UploadSignedNoticeToProceedRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()?->isUsingWorkspace('research_head') ?? false;
+        return $this->user()?->can('manageNoticeToProceed', $this->route('topic')) ?? false;
     }
 
     /**

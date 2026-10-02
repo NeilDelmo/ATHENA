@@ -5,6 +5,15 @@ return [
     'proponent_agency' => '',
     'default_campus' => 'BatStateU The NEU ARASOF-Nasugbu Campus',
     'maximum_narrative_length' => 100000,
+    'image_sections' => [
+        'executive_brief' => 'Executive Brief',
+        'rationale' => 'Rationale',
+        'introduction' => 'Introduction',
+        'related_literature' => 'Related Studies and Literature',
+        'research_design' => 'Research Design',
+        'specific_methods' => 'Specific Methods',
+        'data_analysis' => 'Data Analysis',
+    ],
     'professional_titles' => [
         'Asst Prof.',
         'Assoc Prof.',

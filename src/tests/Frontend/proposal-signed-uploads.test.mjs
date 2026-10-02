@@ -91,3 +91,50 @@ test('invalid files and oversize PDFs never start an upload', async t => {
     assert.match(state.documents[0].error, /25 MB/);
     assert.equal(mock.mock.callCount(), 0);
 });
+
+test('scans stay unsaved until previewed and manually confirmed when the reader cannot identify them', async t => {
+    const bodies = [];
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        bodies.push(options.body);
+        return options.body.get('signed_form_manually_confirmed') === '1'
+            ? { ok: true, json: async () => ({ filename: 'scan.pdf', verification_status: 'manually_confirmed', complete: false }) }
+            : { ok: false, json: async () => ({ requires_manual_review: true, errors: { review_file: ['Preview and check the scan.'] } }) };
+    });
+    const state = create();
+    const document = state.documents[0];
+    const file = pdf('scan.pdf');
+    await state.upload(document, file);
+    assert.equal(document.saved, false);
+    assert.equal(document.manualRequired, true);
+    document.manuallyConfirmed = true;
+    await state.upload(document, file);
+    assert.equal(document.saved, false);
+    assert.equal(bodies[1].get('signed_form_manually_confirmed'), null);
+    state.previewSelected(document);
+    assert.equal(state.previewDocument.filename, 'scan.pdf');
+    assert.match(state.previewDocument.viewUrl, /^blob:/);
+    await state.upload(document, file);
+    assert.equal(document.saved, true);
+    assert.equal(document.verificationStatus, 'manually_confirmed');
+    assert.equal(document.manualRequired, false);
+    assert.equal(document.selectedPreviewUrl, null);
+});
+
+test('a new file clears the previous scan confirmation and wrong forms cannot offer manual override', async t => {
+    const bodies = [];
+    t.mock.method(globalThis, 'fetch', async (url, options) => {
+        bodies.push(options.body);
+        return { ok: false, json: async () => ({ requires_manual_review: false, errors: { review_file: ['Wrong form.'] } }) };
+    });
+    const state = create();
+    const document = state.documents[0];
+    Object.assign(document, { file: pdf('first.pdf'), manualRequired: true, manuallyConfirmed: true, previewed: true });
+    state.previewSelected(document);
+    await state.upload(document, pdf('different.pdf'));
+    assert.equal(bodies[0].get('signed_form_manually_confirmed'), null);
+    assert.equal(document.manuallyConfirmed, false);
+    assert.equal(document.previewed, false);
+    assert.equal(document.manualRequired, false);
+    assert.equal(document.selectedPreviewUrl, null);
+    assert.equal(document.saved, false);
+});

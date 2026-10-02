@@ -10,6 +10,7 @@ use App\Models\ProposalDraftDocument;
 use App\Services\WorkPlanDocumentService;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
+use App\Support\WorkPlanProposalObjectives;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
@@ -23,6 +24,7 @@ class ProposalDraftWorkPlanController extends Controller
     public function edit(
         ProposalDraft $proposalDraft,
         ProposalPaperCatalog $catalog,
+        WorkPlanProposalObjectives $proposalObjectives,
     ): View {
         Gate::authorize('update', $proposalDraft);
 
@@ -32,12 +34,19 @@ class ProposalDraftWorkPlanController extends Controller
         $sourceData = $workPlanDocument?->source_data ?? [
             'entries' => [],
         ];
+        $linkedObjectives = $proposalObjectives->forDraft($proposalDraft);
+        $initialEntries = old('entries', $sourceData['entries'] ?? []);
+        $sourceData['entries'] = $proposalObjectives->entries(
+            is_array($initialEntries) ? $initialEntries : [],
+            $linkedObjectives,
+        );
 
         return view('faculty.proposal-drafts.work-plan.edit', compact(
             'proposalDraft',
             'paper',
             'workPlanDocument',
             'sourceData',
+            'linkedObjectives',
         ));
     }
 

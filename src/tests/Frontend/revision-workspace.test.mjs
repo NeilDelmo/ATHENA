@@ -160,9 +160,10 @@ test('submit operates on the mounted editor without replacing the page or requir
     const submitButtonSpinner = { hidden: true };
     const submitButtonLabel = { textContent: 'Submit revision' };
     const field = { value: 'Changed activity' };
-    const documentState = { dataset: { modified: 'true', addressed: 'true' } };
+    const documentState = { dataset: { modified: 'false', addressed: 'false' } };
     const api = {
         topicId: '3', draftId: 8, documentType: 'work_plan',
+        modificationStates: () => ({ __document__: true }),
         async focus(id) { events.push('focus ' + id); return true; },
         async save() { events.push('save ' + field.value); return true; },
         async prepare() { events.push('prepare'); return { filename: 'updated.docx', draft_id: 8 }; },
@@ -420,6 +421,48 @@ test('submission identifies requested documents that still need a resolution', (
     };
 
     assert.deepEqual(revisionDocumentsWithoutResolution(form), [unresolvedWorkPlan]);
+});
+
+test('submission reads current highlighted edits even when the change notification has not arrived', () => {
+    let modified = true;
+    const status = { dataset: { addressed: 'false' } };
+    const card = {
+        dataset: { revisionDocument: 'detailed_proposal' },
+        querySelectorAll: () => [],
+        querySelector(selector) {
+            if (selector === '[data-revision-editor-frame]') return frame;
+            if (selector === '[data-revision-document-state]') return status;
+            return null;
+        },
+    };
+    const frame = {
+        closest: () => card,
+        contentWindow: { athenaRevisionEditor: {
+            topicId: '7', documentType: 'detailed_proposal',
+            modificationStates: () => ({ 13: modified, __document__: modified }),
+        } },
+    };
+    const form = { dataset: { revisionWorkspace: '7' }, querySelectorAll: () => [card] };
+    assert.deepEqual(revisionDocumentsWithoutResolution(form), []);
+    assert.equal(status.dataset.addressed, 'true');
+    modified = false;
+    assert.deepEqual(revisionDocumentsWithoutResolution(form), [card]);
+    assert.equal(status.dataset.addressed, 'false');
+});
+
+test('submission recognizes a replacement selected before its change handler runs', () => {
+    const status = { dataset: { addressed: 'false' } };
+    const card = {
+        dataset: { revisionDocument: 'gad_checklist' },
+        querySelectorAll: () => [],
+        querySelector(selector) {
+            if (selector === 'input[type="file"]') return { files: [{ name: 'revised.pdf' }] };
+            if (selector === '[data-revision-document-state]') return status;
+            return null;
+        },
+    };
+    const form = { dataset: { revisionWorkspace: '7' }, querySelectorAll: () => [card] };
+    assert.deepEqual(revisionDocumentsWithoutResolution(form), []);
 });
 
 test('workspace-only version metadata does not create a false change badge', () => {

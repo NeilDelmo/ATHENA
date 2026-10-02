@@ -13,13 +13,32 @@ class DetailedProposalRules
     /** @param array<string, mixed> $data */
     public static function passesComplete(array $data): bool
     {
-        $validator = ValidatorFacade::make($data, self::rules());
+        return self::completionErrors($data) === [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, list<string>>
+     */
+    public static function completionErrors(array $data): array
+    {
+        $validator = ValidatorFacade::make(DetailedProposalData::normalizeObjectiveFields($data), self::rules(), self::messages(), self::attributes());
 
         foreach (self::afterCallbacks() as $callback) {
             $validator->after($callback);
         }
 
-        return $validator->passes();
+        return $validator->errors()->toArray();
+    }
+
+    /** @return array<string, string> */
+    public static function messages(): array
+    {
+        return [
+            'specific_objectives.required' => 'Add at least one Specific Objective below the optional General Objective.',
+            'specific_objectives.min' => 'Add at least one Specific Objective below the optional General Objective.',
+            'specific_objectives.*.description.required' => 'Enter text for Specific Objective :position.',
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -80,7 +99,7 @@ class DetailedProposalRules
             'methodology.data_analysis' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
             'methodology_images' => ['nullable', 'array', 'max:20'],
             'methodology_images.*.id' => ['nullable', 'uuid'],
-            'methodology_images.*.section' => ['required', 'string', Rule::in(['research_design'])],
+            'methodology_images.*.section' => ['required', 'string', Rule::in(array_keys(config('detailed_proposal.image_sections')))],
             'methodology_images.*.alignment' => ['required', 'string', Rule::in(['left', 'center', 'right'])],
             'methodology_images.*.size' => ['required', 'string', Rule::in(['small', 'medium', 'large'])],
             'methodology_images.*.caption' => [$presenceRule, 'string', 'max:500'],
@@ -108,6 +127,34 @@ class DetailedProposalRules
 
         return [
             function (Validator $validator): void {
+                foreach (['executive_brief', 'rationale', 'introduction', 'related_literature', 'methodology.research_design', 'methodology.specific_methods', 'references'] as $field) {
+                    $value = data_get($validator->getData(), $field);
+
+                    if (! $validator->errors()->has($field) && is_string($value) && preg_match('/^\s*$/u', html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'))) {
+                        $validator->errors()->add($field, 'Provide text for '.(self::attributes()[$field] ?? str_replace('_', ' ', $field)).'.');
+                    }
+                }
+
+                foreach (Arr::wrap($validator->getData()['specific_method_objectives'] ?? []) as $index => $group) {
+                    if (! is_array($group)) {
+                        continue;
+                    }
+
+                    if (blank($group['heading'] ?? null)) {
+                        $validator->errors()->add('specific_method_objectives.'.$index.'.heading', 'Add a heading for method group '.($index + 1).'.');
+                    }
+
+                    if (empty($group['methods'])) {
+                        $validator->errors()->add('specific_method_objectives.'.$index.'.methods', 'Add at least one method to group '.($index + 1).'.');
+                    }
+
+                    foreach (Arr::wrap($group['methods'] ?? []) as $methodIndex => $method) {
+                        if (is_array($method) && blank($method['description'] ?? null)) {
+                            $validator->errors()->add('specific_method_objectives.'.$index.'.methods.'.$methodIndex.'.description', 'Describe method '.($methodIndex + 1).' in group '.($index + 1).'.');
+                        }
+                    }
+                }
+
                 $expectedOutputs = Arr::wrap($validator->getData()['expected_outputs'] ?? []);
 
                 $hasExpectedOutput = collect($expectedOutputs)
@@ -126,15 +173,15 @@ class DetailedProposalRules
                         continue;
                     }
 
-                    $values = collect(['title', 'name', 'email', 'contact'])
+                    $values = collect(['name', 'email', 'contact'])
                         ->map(fn (string $key): string => trim((string) ($member[$key] ?? '')));
 
-                    if ($values->contains(fn (string $value): bool => $value !== '')
-                        && $values->contains(fn (string $value): bool => $value === '')) {
-                        $validator->errors()->add(
-                            'staff.'.$index.'.name',
-                            'Each project staff row must include a name, email address, and contact number.',
-                        );
+                    if ($values->contains(fn (string $value): bool => $value !== '')) {
+                        foreach (['name' => 'name', 'email' => 'email address', 'contact' => '11-digit contact number'] as $field => $label) {
+                            if (blank($member[$field] ?? null)) {
+                                $validator->errors()->add('staff.'.$index.'.'.$field, 'Provide the '.$label.' for project staff member '.($index + 1).'.');
+                            }
+                        }
                     }
                 }
 
@@ -167,12 +214,16 @@ class DetailedProposalRules
             'leader_email' => 'project leader email address',
             'leader_contact' => 'project leader contact number',
             'staff.*.title' => 'project staff professional title',
+            'staff.*.name' => 'project staff name',
+            'staff.*.email' => 'project staff email address',
+            'staff.*.contact' => 'project staff contact number',
             'proponent_department' => 'proponent department',
             'proponent_college' => 'proponent college',
             'proponent_campus' => 'proponent campus',
             'executive_brief' => 'executive brief',
             'general_objective' => 'general objective',
             'specific_objectives' => 'specific objectives',
+            'specific_objectives.*.description' => 'specific objective',
             'introduction' => 'introduction',
             'related_literature' => 'related studies and literature',
             'methodology.research_design' => 'research design',
@@ -180,6 +231,7 @@ class DetailedProposalRules
             'specific_method_objectives.*.methods.*.description' => 'specific method',
             'methodology.data_analysis' => 'data analysis',
             'methodology_images.*.image' => 'methodology image',
+            'methodology_images.*.caption' => 'figure title',
             'responsibilities.*.name' => 'member name',
             'responsibilities.*.percentage' => 'member responsibility percentage',
             'responsibilities.*.duties' => 'member duties and responsibilities',

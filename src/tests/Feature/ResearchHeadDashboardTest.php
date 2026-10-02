@@ -235,7 +235,7 @@ test('monitoring page shows approved projects only with latest progress and coun
         ->assertSee('Monitor')
         ->assertDontSee('Open monitoring')
         ->assertSee('1 awaiting review')
-        ->assertDontSee('text-sm font-black text-gray-900">Unapproved Proposal', false);
+        ->assertViewHas('projects', fn ($projects) => ! $projects->getCollection()->contains('title', 'Unapproved Proposal'));
 });
 
 test('monitoring KPI strip shows accurate counts for every project state', function () {

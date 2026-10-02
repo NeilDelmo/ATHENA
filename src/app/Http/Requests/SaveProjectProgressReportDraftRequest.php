@@ -4,10 +4,12 @@ namespace App\Http\Requests;
 
 use App\Models\TopicProposal;
 use App\Services\ApprovedWorkPlanMonitoringService;
+use App\Services\MonitoringQuarterService;
 use DateTimeImmutable;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SaveProjectProgressReportDraftRequest extends FormRequest
 {
@@ -84,5 +86,14 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
             'budget_utilization.*.remarks' => ['nullable', 'string', 'max:300'],
             'prepared_by_date_signed' => ['nullable', 'date'],
         ];
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if (filled($this->input('reporting_date')) && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canDraftForDate($this->route('topic'), $this->input('reporting_date'))) {
+                $validator->errors()->add('reporting_date', 'Draft one active reporting quarter at a time. This quarter has not started yet.');
+            }
+        }];
     }
 }

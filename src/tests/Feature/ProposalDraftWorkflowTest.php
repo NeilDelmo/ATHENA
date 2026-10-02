@@ -11,6 +11,7 @@ use App\Models\ProjectProgressReport;
 use App\Models\ProposalDraft;
 use App\Models\ProposalDraftDocumentVersion;
 use App\Models\ProposalFileAnnotation;
+use App\Models\ProposalSignatory;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
@@ -321,7 +322,7 @@ test('faculty can track submitted proposal statuses from the proposal workspace'
     $this->get(route('faculty.topics.revision', $revisionProposal))
         ->assertOk()
         ->assertSee('data-faculty-revision-required', false)
-        ->assertSee('Prepare the corrected proposal package')
+        ->assertSee('Prepare the corrected project')
         ->assertSee('id="submit-revision"', false);
 
     $this->actingAs($this->otherFaculty)
@@ -1010,6 +1011,11 @@ test('paper uploads enforce file types and the 25 MB limit', function () {
 test('the nested Work Plan saves source data resumes previews and downloads using shared details', function () {
     $draft = ($this->createDraft)();
     $draft->update(($this->projectDetails)(['duration_months' => 3, 'planned_end' => '2026-10-31']));
+    $proposal = $draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => ['specific_objectives' => [['description' => 'Document the baseline habitat condition']]],
+    ]);
     $invalidWorkPlan = ($this->workPlan)();
     $invalidWorkPlan['entries'][0]['months'] = [4];
 
@@ -1024,12 +1030,17 @@ test('the nested Work Plan saves source data resumes previews and downloads usin
         'activity' => 'Validate the approach with community partners',
         'months' => [3],
     ];
+    $proposal->update(['source_data' => ['specific_objectives' => [
+        ['description' => 'Document the baseline habitat condition'],
+        ['description' => 'Validate the restoration approach'],
+    ]]]);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $overlappingWorkPlan)
         ->assertSessionHasErrors('entries.1.months');
 
     $workPlan = ($this->workPlan)();
+    $proposal->update(['source_data' => ['specific_objectives' => [['description' => 'Document the baseline habitat condition']]]]);
 
     $this->actingAs($this->faculty)
         ->put(route('faculty.proposal-drafts.work-plan.update', $draft), $workPlan)
@@ -1226,19 +1237,21 @@ test('generated papers can save partial source data as in-progress drafts', func
         ]);
 });
 
-test('initial submission requires both comments form signatories and keeps the draft intact', function (string $missingRole) {
+test('initial submission uses default comments form signatories when a selection is missing', function (string $missingRole) {
     $draft = ($this->completeDraft)(($this->createDraft)());
     $selections = $draft->signatory_selections;
     unset($selections[$missingRole]);
     $draft->update(['signatory_selections' => $selections]);
 
-    expect(app(ProposalDraftReadiness::class)->isReady($draft->fresh()))->toBeFalse();
+    expect(app(ProposalDraftReadiness::class)->isReady($draft->fresh()))->toBeTrue();
     $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.submit', $draft))
-        ->assertSessionHasErrors('signatories.comment_response_form');
-    $this->assertModelExists($draft);
-    expect(TopicProposal::query()->count())->toBe(0);
-    $draft->documents->pluck('file_path')->filter()->each(fn ($path) => Storage::disk('local')->assertExists($path));
+        ->assertSessionHasNoErrors();
+    expect(TopicProposal::query()->count())->toBe(1);
+    $selections = TopicProposal::query()->sole()->latestVersion->files
+        ->firstWhere('document_type', 'detailed_proposal')->source_data['comment_response_signatory_selections'];
+    expect($selections['comment_response_head']['name'])->toBe('ASST. PROF. DJOANNA MARIE V. SALAC')
+        ->and($selections['comment_response_vice_chancellor']['name'])->toBe('DR. FROILAN G. DESTREZA');
 })->with(['comment_response_head', 'comment_response_vice_chancellor']);
 
 test('incomplete drafts stay blocked but completed drafts can be submitted after a call closes', function () {
@@ -1370,6 +1383,54 @@ test('a PDF conversion failure keeps the complete draft available for another pr
     expect(ProposalDraft::find($draft->id))->not->toBeNull()
         ->and(TopicProposal::query()->count())->toBe(0);
     expect(Storage::disk('local')->allFiles($draft->storageDirectory()))->not->toBeEmpty();
+});
+
+test('prepared proposal checklist verifies its PDFs and uses the campus call default', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $proposal = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    expect($proposal->source_data['document_checklist'])->toBe([
+        'complete_documents' => true, 'initial_screening_form' => true,
+    ]);
+    $screening = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
+    expect($screening->source_data['level_of_call'])->toBe('constituent_campus');
+
+    $this->actingAs($this->faculty)
+        ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $draft), [
+            'document_version' => $proposal->lock_version,
+        ])->assertOk()->assertSeeText('☒ Complete Documents')->assertSeeText('☒ Initial Screening Form')
+        ->assertSeeText('☒ Constituent Campus');
+
+    $workPlan = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN);
+    Storage::disk('local')->delete($workPlan->file_path);
+    expect(app(ProposalDraftReadiness::class)->detailedProposalChecklist($draft))->toBe([
+        'complete_documents' => false, 'initial_screening_form' => true,
+    ]);
+    Storage::disk('local')->delete($screening->file_path);
+    expect(app(ProposalDraftReadiness::class)->detailedProposalChecklist($draft))->toBe([
+        'complete_documents' => false, 'initial_screening_form' => false,
+    ]);
+
+    app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty);
+    $topic = app(SubmitProposalDraft::class)->handle($draft->fresh(), $this->faculty);
+    $submittedProposal = $topic->versions()->sole()->files()
+        ->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    expect($submittedProposal->source_data['document_checklist'])->toBe([
+        'complete_documents' => true, 'initial_screening_form' => true,
+    ])->and(Storage::disk('local')->exists($submittedProposal->file_path))->toBeTrue();
+});
+
+test('prepared Work Plan objectives follow the latest Detailed Proposal wording', function () {
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $proposal = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $objective = str_repeat('Assess coastal habitat recovery. ', 20);
+    $proposal->update(['source_data' => [
+        ...$proposal->source_data,
+        'specific_objectives' => [['description' => trim($objective)]],
+    ]]);
+    app(SubmitProposalDraft::class)->prepare($draft->fresh(), $this->faculty);
+    $workPlan = $draft->documents()->where('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->sole();
+    expect($workPlan->source_data['entries'][0]['objective'])->toBe(trim($objective))
+        ->and($workPlan->source_data['entries'][0]['activity'])->toBe("Conduct field survey\nComplete community mapping");
 });
 
 test('submission PDFs can be prepared from expense items containing previously computed fields', function () {
@@ -1649,10 +1710,7 @@ test('a prepared third proposal remains a draft until a submission slot becomes 
 test('final submission creates one immutable package then rejects a duplicate request', function () {
     Notification::fake();
     $draft = ($this->completeDraft)(($this->createDraft)());
-    $commentsSignatories = [
-        'comment_response_head' => ['name' => 'Selected Research Head'],
-        'comment_response_vice_chancellor' => ['name' => 'Selected Vice Chancellor'],
-    ];
+    $commentsSignatories = array_intersect_key(ProposalSignatory::defaultSelections(), ProposalSignatory::FIELDS['comment_response_form']);
     $draft->update(['signatory_selections' => $commentsSignatories]);
     $draft->members()->create([
         'user_id' => $this->otherFaculty->id,

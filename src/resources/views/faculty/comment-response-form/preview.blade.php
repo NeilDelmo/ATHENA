@@ -29,7 +29,7 @@
                 <p><strong>LEVEL OF EVALUATION DONE:</strong></p>
                 <ul class="evaluation-levels">
                     @foreach ($evaluationLevels as $level)
-                        <li><span class="evaluation-box {{ $level['checked'] ? 'is-checked' : '' }}" aria-hidden="true"></span>{{ $level['label'] }}<span class="sr-only">{{ $level['checked'] ? ' — Selected' : ' — Not selected' }}</span></li>
+                        <li><span class="evaluation-box {{ $level['checked'] ? 'is-checked' : '' }}" aria-hidden="true">{{ $level['checked'] ? '×' : '' }}</span>{{ $level['label'] }}<span class="sr-only">{{ $level['checked'] ? ' — Selected' : ' — Not selected' }}</span></li>
                     @endforeach
                 </ul>
             </section>
@@ -42,7 +42,7 @@
                     @forelse ($commentResponseForm['feedback'] as $item)
                         <tr>
                             <td>{{ $loop->iteration }}.</td>
-                            <td>@if (($item['stage'] ?? null) !== 'lrec' && filled($item['reviewer'] ?? null))<strong class="reviewer">{{ $item['reviewer'] }}</strong>@endif<span class="location">{{ $item['location'] }}</span><div class="comment">{{ $item['comment'] }}</div></td>
+                            <td><span class="location">{{ $item['location'] }}</span><div class="comment">{{ $item['comment'] }}</div></td>
                             <td class="comment">{{ $item['response'] }}</td><td class="comment">{{ $item['remarks'] }}</td>
                         </tr>
                     @empty

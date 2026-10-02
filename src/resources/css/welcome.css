@@ -6,12 +6,6 @@ html {
     font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-.hero-campus {
-    background-image: url('/images/bsu_front.png');
-    background-position: center;
-    background-size: cover;
-}
-
 .hero-maroon-accent {
     background: radial-gradient(ellipse at right bottom, rgb(122 0 25 / 0.92) 0%, rgb(122 0 25 / 0.68) 26%, rgb(122 0 25 / 0.2) 52%, transparent 72%);
 }

@@ -317,6 +317,9 @@ function initializeSemanticEditors() {
         editor.className = largeEditor
             ? 'semantic-rich-text-editor min-h-48 p-4 text-base leading-7 text-gray-900 outline-none'
             : 'semantic-rich-text-editor min-h-32 p-3 text-sm leading-6 text-gray-900 outline-none';
+        if (textarea.closest('[data-detailed-proposal-autosave-form]')) {
+            editor.style.setProperty('--proposal-editor-rows', String(Math.max(4, textarea.rows)));
+        }
         editor.contentEditable = 'true';
         editor.setAttribute('role', 'textbox');
         editor.setAttribute('aria-multiline', 'true');
@@ -1211,7 +1214,7 @@ function submitPaperEditor(editor, submitterSelector) {
 function showPaperEditorSubmitStatus(editor, submitter) {
     const isSaveAndExit = submitter instanceof Element && submitter.matches('[data-paper-save-exit]');
     const message = isSaveAndExit
-        ? 'Saving and returning to the proposal package…'
+        ? 'Saving and returning to the project…'
         : 'Saving and keeping this editor open…';
     const submitStatus = editor.querySelector('[data-paper-submit-status]');
     const submitMessage = submitStatus?.querySelector('[data-paper-submit-message]');
@@ -3195,10 +3198,6 @@ Alpine.store('literatureSearch', {
     },
 
     async confirmSynthesis() {
-        if (this.synthesisBasis !== 'full_text') {
-            this.synthesisError = 'Abstract-based notes can be saved for research. Review the full paper before inserting text into the proposal.';
-            return;
-        }
         const draft = this.synthesisDraft.trim();
         const source = this.synthesisSource;
         const applyTo = this.synthesisApplyTo;
@@ -4457,7 +4456,7 @@ Alpine.data('fileDropzone', (config = {}) => ({
     message: '',
 
     init() {
-        this.syncFiles();
+        this.$nextTick(() => this.syncFiles());
     },
 
     browse() {
@@ -4725,6 +4724,8 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
         validationMessage: 'Please review the monitoring information.',
         failureMessage: 'The monitoring preview could not be generated. Please try again.',
     }),
+    submissionOpen: config.submissionOpen ?? true,
+    submissionOpensAt: config.submissionOpensAt || '',
     entries: Array.isArray(config.entries) && config.entries.length > 0
         ? config.entries.map(entry => ({ ...entry, completion: Number(entry.percent_weight) > 0 ? Number((Number(entry.accomplished_percentage || 0) / Number(entry.percent_weight) * 100).toFixed(2)) : 0 }))
         : [{
@@ -4844,7 +4845,15 @@ Alpine.data('monitoringToolForm', (config = {}) => ({
             accomplished_percentage: '',
             findings: '',
         });
-        this.$nextTick(() => this.triggerMonitoringDraftAutoSave());
+        this.$nextTick(() => {
+            this.triggerMonitoringDraftAutoSave();
+            const activity = this.$refs.activityList?.querySelector('[data-monitoring-activity]:last-child');
+            activity?.querySelector('textarea')?.focus({ preventScroll: true });
+            activity?.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+                block: 'start',
+            });
+        });
     },
 
     removeEntry(index) {
@@ -5027,6 +5036,8 @@ Alpine.data('narrativeProgressReportForm', (config = {}) => ({
         validationMessage: 'Please review the progress-report information.',
         failureMessage: 'The progress-report preview could not be generated. Please try again.',
     }),
+    submissionOpen: config.submissionOpen ?? true,
+    submissionOpensAt: config.submissionOpensAt || '',
     autoSaveTimer: null,
     autoSaveInFlight: false,
     autoSaveBlocked: false,
@@ -5799,6 +5810,7 @@ Alpine.data('proposalStaticDocumentPreview', () => ({
 
 Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     ...proposalPreviewWorkspace(),
+    objectivesLinked: Boolean(config.objectivesLinked),
     nextEntryId: 0,
     entries: [],
     expandedEntryId: null,
@@ -5828,7 +5840,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
 
         this.entries = initialEntries.length > 0
             ? initialEntries.slice(0, this.maxEntries).map((entry) => this.newEntry(entry))
-            : [this.newEntry()];
+            : (this.objectivesLinked ? [] : [this.newEntry()]);
         const revisionEntryId = Number(String(config.revisionTarget || '').match(/^(?:objective|output|activity|work-plan-editor)-(\d+)$/)?.[1]);
         this.expandedEntryId = this.entries.some((entry) => entry.id === revisionEntryId)
             ? revisionEntryId
@@ -5867,7 +5879,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     removeEntry(index) {
-        if (this.entries.length === 1) return;
+        if (this.objectivesLinked || this.entries.length === 1) return;
 
         const [removedEntry] = this.entries.splice(index, 1);
         if (this.expandedEntryId === removedEntry?.id) {
@@ -5951,6 +5963,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     },
 
     canAddEntry() {
+        if (this.objectivesLinked) return false;
         const usedMonths = new Set(this.entries.flatMap((entry) => entry.months));
 
         return this.entries.length < Math.min(this.maxEntries, this.durationMonths)
@@ -6022,7 +6035,7 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
     isComplete() {
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
-        return fields.every((field) => field.checkValidity())
+        return this.entries.length > 0 && fields.every((field) => field.checkValidity())
             && this.entries.every((entry) => entry.months.length > 0)
             && this.monthConflicts().length === 0;
     },
@@ -6071,6 +6084,11 @@ Alpine.data('proposalDraftWorkPlan', (config = {}) => ({
         const invalidField = fields.find((field) => !field.checkValidity());
 
         this.clearWorkPlanValidationHighlights();
+
+        if (this.objectivesLinked && this.entries.length === 0) {
+            this.validationMessage = 'Save the specific objectives in the Detailed Proposal before preparing the Work Plan.';
+            return false;
+        }
 
         if (invalidField) {
             this.highlightWorkPlanField(invalidField);
@@ -6527,7 +6545,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
     mooeOverride: '',
     coOverride: '',
     projectOverride: '',
-    levelOfCall: '',
+    levelOfCall: 'constituent_campus',
     approvalBody: '',
     resolutionNumber: '',
     resolutionYear: '',
@@ -6566,7 +6584,7 @@ Alpine.data('proposalDraftLineItemBudget', (config = {}) => ({
         this.overrideMooe = this.hasValue(this.mooeOverride);
         this.overrideCo = this.hasValue(this.coOverride);
         this.overrideProject = this.hasValue(this.projectOverride);
-        this.levelOfCall = String(data.level_of_call ?? '');
+        this.levelOfCall = String(data.level_of_call ?? 'constituent_campus');
         this.approvalBody = String(data.approval_body ?? '');
         this.resolutionNumber = String(data.resolution_number ?? '');
         this.resolutionYear = String(data.resolution_year ?? '');
@@ -8068,6 +8086,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     literatureReviewError: '',
     methodology: {},
     methodologyImages: [],
+    figureSections: config.figureSections || config.methodologySections || {},
     methodologySections: config.methodologySections && typeof config.methodologySections === 'object'
         ? config.methodologySections
         : {},
@@ -8094,6 +8113,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     recheckCompletion: Boolean(config.recheckCompletion),
     detailedProposalStarted: Boolean(config.detailedProposalStarted),
     detailedProposalComplete: Boolean(config.detailedProposalComplete),
+    completionErrors: config.completionErrors || {},
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -8955,10 +8975,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         this.literatureReviewPreviousContext = this.literatureReviewContextFromRrl();
         this.literatureReviewRelationship = 'standalone';
         this.literatureReviewTransition = '';
-        this.literatureReviewBasis = source.rrl_evidence_basis === 'full_text' ? 'full_text' : 'abstract';
+        this.literatureReviewBasis = 'abstract';
         this.literatureReviewFullText = '';
         this.literatureReviewFullTextError = '';
-        this.literatureReviewNotice = '';
+        this.literatureReviewNotice = source.rrl_evidence_basis === 'full_text'
+            ? 'Your saved draft is available. Load the public full text again to regenerate or confirm it from full-paper evidence.'
+            : '';
         this.literatureReviewError = '';
         this.literatureReviewOpen = true;
         this.literatureWorkspaceOpen = true;
@@ -8984,6 +9006,14 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const minimumLength = this.literatureReviewBasis === 'full_text' ? 500 : 80;
 
         return this.literatureReviewEvidence().trim().length >= minimumLength;
+    },
+
+    literatureReviewEvidenceMessage() {
+        if (this.hasLiteratureReviewEvidence()) return '';
+
+        return this.literatureReviewBasis === 'full_text'
+            ? 'Load the public full text before generating a draft from it.'
+            : 'This source has no usable abstract (at least 80 characters). Load its public full text, choose another source, or write the notes manually.';
     },
 
     literatureReviewWordCount() {
@@ -9098,9 +9128,16 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
                     connection_mode: normalizedConnectionMode,
                 }),
             });
-            const payload = await response.json();
+            const payload = await response.json().catch(() => ({}));
 
-            if (!response.ok) throw new Error(payload.message || 'ATHENA could not prepare an RRL draft right now.');
+            if (!response.ok) {
+                const message = Object.values(payload.errors || {}).flat().join(' ') || payload.message;
+                throw new Error(message || (response.status === 419
+                    ? 'Your session expired. Refresh the page, reopen this source, and try again.'
+                    : 'ATHENA could not prepare an RRL draft right now. Please try again.'));
+            }
+
+            if (!String(payload.synthesis || '').trim()) throw new Error('No RRL paragraph was returned. Please generate the draft again.');
 
             this.literatureReviewDraft = String(payload.synthesis || '');
             this.literatureReviewRelationship = ['supports', 'extends', 'contrasts', 'gap', 'related'].includes(payload.relationship)
@@ -9118,14 +9155,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     async saveLiteratureReview(addToRelatedLiterature = false) {
-        if (addToRelatedLiterature && this.literatureReviewBasis !== 'full_text') {
-            this.literatureReviewError = 'Save these abstract-based research notes for later. Review the full paper before inserting text into the proposal.';
-            return;
-        }
         const source = this.literatureReviewSource;
         const draft = this.literatureReviewDraft.trim();
 
-        if (!source?.id || draft.length < 40 || this.literatureReviewSaving) return;
+        if (!source?.id || draft.length < 40 || this.literatureReviewSaving || this.literatureReviewGenerating || this.literatureReviewLoadingFullText) return;
 
         this.literatureReviewSaving = true;
         this.literatureReviewError = '';
@@ -9150,7 +9183,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             const payload = await response.json();
 
             if (!response.ok || !payload.source?.id) {
-                throw new Error(payload.message || 'The reviewed RRL paragraph could not be confirmed.');
+                throw new Error(Object.values(payload.errors || {}).flat().join(' ') || payload.message || 'The reviewed RRL paragraph could not be confirmed.');
             }
 
             this.upsertLiteratureSource(payload.source);
@@ -9215,7 +9248,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         return {
             generalObjective,
-            specificObjectives: specificObjectives.filter((objective) => objective.description.trim()),
+            specificObjectives: specificObjectives.length ? specificObjectives : [this.newSpecificObjective()],
         };
     },
 
@@ -9240,10 +9273,13 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
     addSpecificObjective() {
         this.specificObjectives.push(this.newSpecificObjective());
+        this.triggerDetailedProposalAutoSave();
     },
 
     removeSpecificObjective(index) {
         this.specificObjectives.splice(index, 1);
+        if (!this.specificObjectives.length) this.specificObjectives.push(this.newSpecificObjective());
+        this.triggerDetailedProposalAutoSave();
     },
 
     moveSpecificObjective(index, direction) {
@@ -9255,6 +9291,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             this.specificObjectives[target],
             this.specificObjectives[index],
         ];
+        this.triggerDetailedProposalAutoSave();
     },
 
     newSpecificMethod(values = {}) {
@@ -9452,7 +9489,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     detailedProposalFingerprint(form) {
-        return proposalPaperFormFingerprint(new FormData(form).entries(), [
+        return proposalPaperFormFingerprint(this.detailedProposalFormData(form).entries(), [
             '_token',
             '_method',
             'document_version',
@@ -9511,6 +9548,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     triggerDetailedProposalAutoSave() {
+        this.markProposalPreviewStale();
         this.$el.dataset.paperDirty = 'true';
         this.autoSaveRevision += 1;
         this.$nextTick(() => this.scheduleDetailedProposalAutoSave());
@@ -9566,7 +9604,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
                     const response = await fetch(config.updateUrl || form.action, {
                         method: form.method,
-                        body: new FormData(form),
+                        body: this.detailedProposalFormData(form),
                         headers: {
                             Accept: 'application/json',
                             'X-CSRF-TOKEN': config.csrfToken,
@@ -9579,6 +9617,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             });
 
             if (response.status === 422) {
+                this.completionErrors = payload.errors || {};
                 this.validationMessage = autoSaveValidationMessage(
                     payload,
                     'Please review the Detailed Research Proposal information.',
@@ -9620,6 +9659,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             this.lastSavedDetailedProposal = this.detailedProposalFingerprint(form);
             this.$el.dataset.paperDirty = 'false';
+            this.completionErrors = payload.completion_errors || completionErrors || {};
             this.validationMessage = completionErrors
                 ? `Draft saved. It remains in progress because: ${autoSaveValidationMessage({ errors: completionErrors }, 'required information is still missing.')}`
                 : '';
@@ -9693,8 +9733,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     addLiteratureSourceToRrl(source, quiet = false) {
         const note = String(source?.rrl_note || '').trim();
 
-        if (!note || source?.rrl_draft_status !== 'confirmed' || source?.rrl_evidence_basis !== 'full_text') {
-            if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Review full-paper evidence in the literature organizer before inserting text.';
+        if (!note || source?.rrl_draft_status !== 'confirmed' || !['abstract', 'full_text'].includes(source?.rrl_evidence_basis)) {
+            if (!quiet) this.literatureSourceNotice = 'No confirmed RRL paragraph is available. Review the source evidence and confirm a paragraph in the literature organizer before inserting it.';
             return false;
         }
 
@@ -9802,7 +9842,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return {
             clientId: this.newMethodologyImageClientId(),
             id,
-            section: 'research_design',
+            section: Object.hasOwn(this.figureSections, values.section) ? values.section : 'research_design',
             alignment: ['left', 'center', 'right'].includes(values.alignment) ? values.alignment : 'center',
             size: ['small', 'medium', 'large'].includes(values.size) ? values.size : 'medium',
             caption: String(values.caption ?? ''),
@@ -9835,7 +9875,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     methodologyImageFigureNumber(image) {
         let figureNumber = 0;
 
-        for (const section of Object.keys(this.methodologySections)) {
+        for (const section of Object.keys(this.figureSections)) {
             for (const sectionImage of this.methodologyImagesFor(section)) {
                 figureNumber += 1;
 
@@ -9853,11 +9893,16 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     addMethodologyImages(files, section) {
-        const images = Array.from(files || []).filter((file) => file.type.startsWith('image/'));
+        const images = Array.from(files || []);
 
-        if (images.length === 0) {
+        if (!images.length || images.some((file) => !['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/x-ms-bmp'].includes(file.type))) {
             this.validationMessage = 'Choose an image in PNG, JPG, GIF, or BMP format.';
 
+            return;
+        }
+
+        if (images.some((file) => file.size > 10 * 1024 * 1024) || this.methodologyImages.length + images.length > 20) {
+            this.validationMessage = 'Use images up to 10 MB each, with at most 20 figures per proposal.';
             return;
         }
 
@@ -9892,8 +9937,8 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
-            this.validationMessage = 'Choose an image in PNG, JPG, GIF, or BMP format.';
+        if (!['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/x-ms-bmp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
+            this.validationMessage = 'Choose a PNG, JPG, GIF, or BMP image up to 10 MB.';
 
             return;
         }
@@ -10138,6 +10183,39 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         focusTarget.focus({ preventScroll: true });
     },
 
+    focusProposalRequirement(key) {
+        this.closeProposalPreview();
+        if (key.startsWith('specific_objectives') && !this.specificObjectives.length) {
+            this.specificObjectives.push(this.newSpecificObjective());
+            this.$nextTick(() => this.focusProposalRequirement('specific_objectives.0.description'));
+            return;
+        }
+        const name = key.split('.').map((part, index) => index === 0 ? part : `[${part}]`).join('');
+        const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
+        const exact = fields.find((field) => field.name === name && field.type !== 'hidden');
+        const nestedFields = fields.filter((field) => field.type !== 'hidden' && field.name.startsWith(`${name}[`));
+        const nested = key === 'specific_objectives'
+            ? nestedFields.find((field) => !String(field.value ?? '').trim()) || nestedFields[0]
+            : nestedFields[0];
+        let target = exact || nested;
+
+        if (!target && key.startsWith('methodology.specific_methods')) target = document.getElementById('methodology-specific-methods');
+        if (!target && key.startsWith('methodology_images.')) {
+            const image = this.methodologyImages[Number(key.split('.')[1])];
+            if (image) target = document.getElementById(`methodology-image-caption-${image.clientId}`);
+        }
+        if (!target && key.startsWith('specific_method_objectives')) target = document.getElementById('methodology-specific-methods');
+        if (!target && key.startsWith('specific_objectives')) target = document.getElementById('specific-objectives');
+        if (!target && key.startsWith('expected_outputs')) target = document.getElementById('expected-outputs');
+        if (!target && key === 'sdgs') target = this.$refs.form?.querySelector('[data-detailed-proposal-validation-group="sdgs"]');
+
+        if (target instanceof HTMLElement) {
+            if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) target.setAttribute('tabindex', '-1');
+            this.highlightDetailedProposalField(target);
+            this.focusDetailedProposalField(target);
+        }
+    },
+
     validateForm({ forExit = false } = {}) {
         this.validationMessage = '';
 
@@ -10190,8 +10268,21 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return false;
     },
 
+    detailedProposalFormData(form = this.$refs.form) {
+        const formData = new FormData(form);
+        for (const name of [...formData.keys()]) {
+            if (name.startsWith('specific_objectives[')) formData.delete(name);
+        }
+        formData.set('specific_objectives_present', '1');
+        this.specificObjectives.forEach((objective, index) => {
+            formData.set(`specific_objectives[${index}][description]`, String(objective.description ?? ''));
+        });
+
+        return formData;
+    },
+
     formData() {
-        const formData = new FormData(this.$refs.form);
+        const formData = this.detailedProposalFormData();
         formData.delete('_method');
 
         return formData;

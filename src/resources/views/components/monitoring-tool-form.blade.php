@@ -13,6 +13,11 @@
     'monitoringReportCount' => null,
     'initialWorkPlanRows' => [],
 ])
+@php
+    $schedule = app(\App\Services\MonitoringQuarterService::class);
+    $submissionOpen = $selectedReportingDate && $schedule->canSubmitForDate($topic, $selectedReportingDate);
+    $submissionOpensAt = $selectedReportingDate ? $schedule->forDate($selectedReportingDate, $topic)['opens_at']->format('M j, Y') : '';
+@endphp
 
 @if ($preparedReport)
     <section class="rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-950 dark:bg-slate-950">
@@ -108,6 +113,8 @@
         approvedWorkPlanAvailable: @js($approvedWorkPlanAvailable),
         initialPeriodKey: @js($selectedPeriodKey),
         reportCount: @js($monitoringReportCount),
+        submissionOpen: @js((bool) $submissionOpen),
+        submissionOpensAt: @js($submissionOpensAt),
     })"
 >
     @if (! $standalone)
@@ -126,8 +133,8 @@
         method="POST"
         action="{{ route('project-progress.prepare', $topic) }}"
         enctype="multipart/form-data"
-        class="space-y-6 border-t border-red-200 bg-white p-5 dark:border-red-950 dark:bg-slate-900 {{ $standalone ? 'pb-44 sm:pb-32' : '' }}"
-        @submit="submitting = true"
+        class="space-y-8 bg-white p-4 sm:p-6 dark:bg-slate-900 {{ $standalone ? 'pb-80 sm:pb-44' : 'border-t border-red-200 dark:border-red-950' }}"
+        @submit="if (!submissionOpen) { $event.preventDefault() } else { submitting = true }"
     >
         @csrf
         @if ($revisionReport)
@@ -151,12 +158,12 @@
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
             <div class="grid gap-px bg-slate-200 dark:bg-slate-700 sm:grid-cols-3">
                 <div class="bg-white p-4 dark:bg-slate-900 sm:col-span-2">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Research Project</p>
-                    <p class="mt-1 break-words text-sm font-semibold text-slate-900 dark:text-white">{{ $topic->title }}</p>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Research project</p>
+                    <p class="mt-1 break-words text-base font-semibold text-slate-900 dark:text-white">{{ $topic->title }}</p>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ $topic->user->name }} · ₱{{ number_format((float) $topic->estimated_budget, 2) }} · {{ $topic->estimated_duration_months }} months</p>
                 </div>
                 <div class="bg-white p-4 dark:bg-slate-900">
-                    <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Reporting Sequence</p>
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Reporting sequence</p>
                     <p class="mt-1 text-lg font-black tabular-nums text-slate-950 dark:text-white">
                         Report <span x-text="currentReportNumber()">{{ $selectedReportNumber }}</span>
                         <span class="text-sm font-semibold text-slate-400">of {{ $monitoringReportCount }}</span>
@@ -175,7 +182,7 @@
                             name="reporting_date"
                             required
                             autocomplete="off"
-                            @change="selectReportingPeriod($event.target.selectedOptions[0]?.dataset.planKey)"
+                            @change="selectReportingPeriod($event.target.selectedOptions[0]?.dataset.planKey); submissionOpen = $event.target.selectedOptions[0]?.dataset.submissionOpen === 'true'; submissionOpensAt = $event.target.selectedOptions[0]?.dataset.opensAt || ''"
                             class="mt-2 block w-full rounded-xl border-slate-300 bg-white text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
                         >
                             @foreach ($quarterOptions as $quarter)
@@ -183,13 +190,13 @@
                                     $periodKey = $quarter['year'].'-'.$quarter['quarter'];
                                     $selected = $periodKey === $selectedPeriodKey;
                                 @endphp
-                                <option data-plan-key="{{ $periodKey }}" value="{{ $selected ? old('reporting_date', $defaultReportingDate) : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
+                                <option data-plan-key="{{ $periodKey }}" data-submission-open="{{ $schedule->canSubmitForDate($topic, $quarter['reporting_date']) ? 'true' : 'false' }}" data-opens-at="{{ $quarter['opens_at']->format('M j, Y') }}" value="{{ $selected ? old('reporting_date', $defaultReportingDate) : $quarter['reporting_date'] }}" @selected($selected)>{{ $quarter['label'] }} · {{ $quarter['period'] }}</option>
                             @endforeach
                         </select>
                     @endif
                 </div>
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" x-show="hasApprovedEntries()">
-                    <p class="font-black">Synced From Approved Work Plan</p>
+                    <p class="font-bold">From your approved work plan</p>
                     <p>Objectives, activities, targets, weights, and dates are locked to the approved plan. Record progress in the fields below.</p>
                 </div>
             </div>
@@ -198,27 +205,27 @@
         <section class="space-y-4">
             <div class="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 class="text-base font-bold text-slate-950 dark:text-white">Approved Activities & Progress</h2>
-                    <p class="mt-1 max-w-2xl text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="hasApprovedEntries() ? 'Only progress details are editable. Planned information comes directly from the approved Work Plan.' : 'No structured Work Plan activity is available for this period. Add the activities that need to be reported.'"></p>
+                    <h2 class="text-lg font-bold text-slate-950 dark:text-white">Approved Activities & Progress</h2>
+                    <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="hasApprovedEntries() ? 'Review each planned activity and record what you accomplished this quarter.' : 'Describe each activity, its expected output, and what you accomplished this quarter.'"></p>
                 </div>
                 <button
                     type="button"
                     @click="addEntry"
                     x-show="!hasApprovedEntries()"
                     :disabled="entries.length >= 11"
-                    class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
+                    class="min-h-11 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                 >Add Activity</button>
             </div>
 
-            <div class="space-y-4">
+            <div x-ref="activityList" class="space-y-5">
                 <template x-for="(entry, index) in entries" :key="`${currentPeriodKey}-${entry.source_work_plan_index ?? index}`">
-                    <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                        <div class="border-b border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-950/70">
+                    <article data-monitoring-activity class="grid scroll-mt-40 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900 xl:grid-cols-2">
+                        <div class="border-b border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-slate-700 dark:bg-slate-950/70 xl:border-b-0 xl:border-r">
                             <div class="flex flex-wrap items-start justify-between gap-3">
                                 <div class="min-w-0 flex-1">
                                     <div class="flex flex-wrap items-center gap-2">
-                                        <span class="rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white dark:bg-white dark:text-slate-950">Activity <span x-text="index + 1"></span></span>
-                                        <span x-show="isApprovedEntry(entry)" class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">Approved Plan</span>
+                                        <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-bold text-white dark:bg-white dark:text-slate-950">Activity <span x-text="index + 1"></span></span>
+                                        <span x-show="isApprovedEntry(entry)" class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200">Approved plan</span>
                                         <span x-show="isApprovedEntry(entry)" class="text-xs font-semibold text-slate-500" x-text="monthLabel(entry.work_plan_months)"></span>
                                     </div>
                                     <template x-if="isApprovedEntry(entry)">
@@ -274,7 +281,11 @@
                             </div>
                         </div>
 
-                        <div class="grid gap-4 p-4 sm:grid-cols-2">
+                        <div class="grid content-start gap-4 p-4 sm:p-5 sm:grid-cols-2">
+                            <div class="sm:col-span-2">
+                                <h3 class="text-sm font-bold text-slate-950 dark:text-white">Progress this quarter</h3>
+                                <p class="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Record the results and completion level for this activity.</p>
+                            </div>
                             <label class="text-sm font-semibold text-slate-800 dark:text-slate-100 sm:col-span-2">Actual Accomplishment
                                 <textarea :name="`work_plan[${index}][actual_accomplishment]`" x-model="entry.actual_accomplishment" rows="3" maxlength="500" required autocomplete="off" placeholder="State the measurable result completed during this reporting period…" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
@@ -291,7 +302,12 @@
                 </template>
             </div>
 
-            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-950">
+            <div x-show="!hasApprovedEntries()" class="flex flex-wrap items-center justify-between gap-3">
+                <p role="status" aria-live="polite" class="text-sm text-slate-500 dark:text-slate-400"><span x-text="entries.length"></span> of 11 activities <span x-show="entries.length >= 11">· Activity limit reached</span></p>
+                <button type="button" @click="addEntry" :disabled="entries.length >= 11" class="min-h-11 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">Add Activity</button>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-950">
                 <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Weighted overall project progress in this report</p>
                 <p class="text-lg font-black tabular-nums text-slate-950 dark:text-white"><span x-text="totalProjectProgress().toFixed(2)"></span>%</p>
             </div>
@@ -299,7 +315,7 @@
 
         <section class="space-y-3">
             <div>
-                <p class="text-base font-semibold text-gray-900 dark:text-white">Spending this quarter</p>
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Spending this quarter</h2>
                 @if ($topic->research_secretary_id)
                     <p class="mt-1 text-xs text-gray-500">The selected project secretary gets priority for this financial section. After preparing the Monitoring Tool, any authorized project member can complete it if needed.</p>
                 @else
@@ -365,7 +381,7 @@
 
         <details class="rounded-xl border border-gray-200 p-4 dark:border-slate-700">
             <summary class="cursor-pointer rounded-lg text-sm font-semibold text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:text-slate-100">Supporting Details <span class="font-normal text-gray-500">(optional)</span></summary>
-        <div class="grid gap-4 rounded-xl bg-gray-50 p-4 dark:bg-slate-950 sm:grid-cols-2">
+        <div class="mt-4 grid gap-4 rounded-xl bg-gray-50 p-4 dark:bg-slate-950 sm:grid-cols-2">
             <div>
                 <label for="prepared_by_date_signed" class="text-sm font-medium text-gray-700 dark:text-slate-200">Date signed by project leader <span class="font-normal text-gray-400">(optional)</span></label>
                 <x-date-picker id="prepared_by_date_signed" name="prepared_by_date_signed" :value="old('prepared_by_date_signed', $defaultPreparedByDate)" :max="now()->toDateString()" class="mt-1" />
@@ -379,16 +395,18 @@
         </details>
 
         <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Your draft stays private until you prepare the PDF and submit it.</p>
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
 
         <x-monitoring-action-dock :fixed="$standalone">
             @if ($standalone)
                 <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
             @endif
-            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
+            <button type="button" @click="saveMonitoringDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
+            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
                 <span x-show="!previewLoading">Preview monitoring tool</span>
                 <span x-show="previewLoading" x-cloak>Generating preview…</span>
             </button>
-            <button type="submit" :disabled="submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
                 <span x-show="!submitting">Prepare official PDF</span>
                 <span x-show="submitting" x-cloak>Preparing PDF…</span>
             </button>

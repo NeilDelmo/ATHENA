@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { resolve } from 'node:path';
+import { chromium } from '@playwright/test';
+import postcss from 'postcss';
+import tailwindcss from 'tailwindcss';
+import loadConfig from 'tailwindcss/loadConfig.js';
 import {
     mirrorSemanticEditorHtml,
     notifySemanticEditorInput,
@@ -9,6 +14,76 @@ import {
     proposalCitationFieldIds,
     synchronizeCitationMarkerLabels,
 } from '../../resources/js/proposal-semantic-editor.js';
+
+test('detailed proposal writing areas stay open and stable while typing, pasting, and reopening saved text', async () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const helpers = readFileSync(new URL('../../resources/js/proposal-semantic-editor.js', import.meta.url), 'utf8').replaceAll('export ', '');
+    const initialization = app.slice(app.indexOf('function sanitizedSemanticHtml('), app.indexOf('\nwindow.insertProposalCitationMarker'));
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+
+    try {
+        for (const width of [1440, 390]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 } });
+                const errors = [];
+                page.on('pageerror', (error) => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body data-app-shell>
+                    <form data-detailed-proposal-autosave-form class="mx-auto max-w-3xl p-5">
+                        <textarea id="rationale" rows="14" data-semantic-editor></textarea>
+                        <div id="next-section">Next section</div>
+                        <textarea id="general-objective" rows="4" data-semantic-editor></textarea>
+                        <textarea id="methodology-research_design" rows="7" data-semantic-editor>&lt;p&gt;Saved draft.&lt;/p&gt;</textarea>
+                    </form>
+                    <textarea id="terminal" rows="9" data-semantic-editor data-semantic-editor-size="large"></textarea>
+                </body></html>`);
+                await page.addScriptTag({ content: `${helpers}\n${initialization}\ninitializeSemanticEditors();` });
+                const editor = page.locator('[data-detailed-proposal-autosave-form] .semantic-rich-text-editor').first();
+                const initialHeight = (await editor.boundingBox()).height;
+                const nextSectionTop = (await page.locator('#next-section').boundingBox()).y;
+                assert.equal(initialHeight, 360);
+                assert.equal(await page.locator('#general-objective').evaluate((field) => field._semanticEditor.offsetHeight), 128);
+                assert.equal(await page.locator('#methodology-research_design').evaluate((field) => field._semanticEditor.textContent), 'Saved draft.');
+                assert.equal(await page.locator('#terminal').evaluate((field) => field._semanticEditor.style.height), '');
+
+                await editor.fill('A new rationale.');
+                await editor.press('End');
+                await editor.press('Enter');
+                await page.keyboard.insertText('Another paragraph.');
+                await editor.evaluate((element) => {
+                    const clipboard = new DataTransfer();
+                    clipboard.setData('text/html', '<p>Long pasted paragraph.</p>'.repeat(40));
+                    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: clipboard, bubbles: true }));
+                });
+                assert.equal((await editor.boundingBox()).height, initialHeight);
+                assert.equal((await page.locator('#next-section').boundingBox()).y, nextSectionTop);
+                assert.ok(await editor.evaluate((element) => element.scrollHeight > element.clientHeight));
+                assert.match(await page.locator('#rationale').inputValue(), /Long pasted paragraph/);
+
+                await editor.press('ControlOrMeta+End');
+                await editor.press('Enter');
+                await page.keyboard.insertText('Final typed sentence.');
+                assert.ok(await editor.evaluate((element) => element.scrollTop > 0));
+                await page.locator('#next-section').click();
+                assert.equal((await editor.boundingBox()).height, initialHeight);
+                assert.match(await page.locator('#rationale').inputValue(), /Final typed sentence/);
+
+                await page.locator('#rationale').evaluate((field) => {
+                    field.value = '<p>Reopened saved paragraph.</p>'.repeat(40);
+                    field._syncSemanticEditor();
+                });
+                assert.equal((await editor.boundingBox()).height, initialHeight);
+                assert.equal((await page.locator('#next-section').boundingBox()).y, nextSectionTop);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
 
 test('numbered and bulleted lists remain visible in the live semantic editor', () => {
     const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');

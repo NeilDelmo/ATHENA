@@ -121,7 +121,9 @@ class TopicCommentResponseFormController extends Controller
         return [
             ...$this->commentResponseSignatories(
                 $detailedProposal['comment_response_signatory_selections'] ?? [],
-                $version?->id === $topic->latestVersion?->id ? ($topic->revisionDraft?->signatory_selections ?? []) : [],
+                $version?->id === $topic->latestVersion?->id
+                    ? [...($topic->revisionDraft?->resolvedSignatorySelections() ?? []), ...ProposalSignatory::defaultSelections()]
+                    : [],
             ),
             'project_title' => (string) ($version?->title ?? $topic->title),
             'project_leader' => $this->firstFilled(
@@ -184,6 +186,7 @@ class TopicCommentResponseFormController extends Controller
             $names[$role] = $this->firstFilled(
                 $draftSelections[$role]['name'] ?? null,
                 $submittedSelections[$role]['name'] ?? null,
+                ProposalSignatory::defaultSelections()[$role]['name'] ?? null,
                 $people->count() === 1 ? $people->first()->name : null,
             );
         }

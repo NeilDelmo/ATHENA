@@ -57,6 +57,7 @@ class ProposalSignatoryController extends Controller
             ?->getKey();
 
         return view('research_head.signatories', [
+            'defaultSignatories' => array_intersect_key(ProposalSignatory::defaultSelections(), array_flip(['comment_response_head', 'comment_response_vice_chancellor'])),
             'editingSignatoryId' => $editingSignatoryId,
             'roles' => $roles,
             'search' => $search,
@@ -123,9 +124,9 @@ class ProposalSignatoryController extends Controller
         DB::transaction(function () use ($proposalDraft, $data): void {
             $draft = ProposalDraft::whereKey($proposalDraft->id)->lockForUpdate()->firstOrFail();
             abort_unless($draft->status === 'draft' && $draft->lock_version === (int) $data['lock_version'], 409, 'The proposal changed. Reload before choosing signatories.');
-            $selected = $draft->signatory_selections ?? [];
+            $selected = $draft->resolvedSignatorySelections();
             foreach ($data['signatories'] as $key => $id) {
-                if (! $id) {
+                if (! $id || array_key_exists($key, ProposalSignatory::defaultSelections())) {
                     continue;
                 }
                 $person = ProposalSignatory::whereKey($id)->where('role_key', $key)->where('active', true)->firstOrFail();

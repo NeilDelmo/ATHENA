@@ -18,7 +18,7 @@ export function proposalPreviewWorkspace() {
         showProposalPreview() {
             this.previewPaneOpen = true;
             this.previewTab = 'preview';
-            if (!this.previewHtml && !this.previewLoading) this.generatePreview();
+            if ((!this.previewHtml || this.previewStale) && !this.previewLoading) this.generatePreview();
             this.$nextTick?.(() => this.applyProposalPreviewZoom());
         },
 

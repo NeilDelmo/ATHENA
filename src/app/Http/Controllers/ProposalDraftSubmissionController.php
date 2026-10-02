@@ -182,7 +182,7 @@ class ProposalDraftSubmissionController extends Controller
             report($exception);
 
             return back()->withErrors([
-                'submission' => 'The proposal package could not be finalized. Your draft and staged papers were kept so you can try again.',
+                'submission' => 'The project could not be finalized. Your draft and staged papers were kept so you can try again.',
             ]);
         }
 

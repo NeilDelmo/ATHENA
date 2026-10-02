@@ -1,9 +1,9 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-workspace-header-banner
-            eyebrow="Financial monitoring"
+        <x-page-header variant="hero"
+            eyebrow="Research Secretary"
             title="Research Secretary Workspace"
-            description="Complete budget utilization only for projects assigned to you."
+            subtitle="Prepare Notices to Proceed and signed documents, and complete assigned project budgets."
         />
     </x-slot>
 
@@ -13,6 +13,7 @@
     @endphp
 
     <div class="space-y-6">
+        <x-notice-to-proceed-queue :projects="$signingProjects" />
         <section class="grid gap-4 sm:grid-cols-3">
             <div class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white shadow-sm">
                 <p class="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Assigned portfolio</p>

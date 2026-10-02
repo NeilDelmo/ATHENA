@@ -13,7 +13,7 @@ test('page header standardizes workspace title subtitle and responsive actions',
         BLADE);
 
     expect($html)
-        ->toContain('data-page-header-variant="simple"', '<h1', 'text-2xl font-black tracking-tight text-slate-950 dark:text-white', 'Manage published schedules.', 'sm:flex-row sm:flex-wrap', 'Create new call')
+        ->toContain('data-page-header-variant="simple"', '<h1', 'text-3xl font-black tracking-tight text-slate-950 dark:text-white', 'Manage published schedules.', 'sm:flex-row sm:flex-wrap', 'Create new call')
         ->not->toContain('data-workspace-header-banner', 'border-l-4', 'uppercase');
 });
 
@@ -27,8 +27,8 @@ test('hero headers keep dashboard spacing and typography with transparent conten
         BLADE);
 
     expect($html)->toContain('data-page-header-variant="hero"', 'border-l-4 border-[#800000]',
-        '!bg-transparent', 'dark:!bg-transparent', 'px-5 py-4', 'text-[10px] font-bold uppercase tracking-[0.2em]',
-        'text-xl font-bold tracking-tight text-slate-950 sm:text-2xl', 'Welcome back.', 'href="/existing-action"');
+        '!bg-transparent', 'dark:!bg-transparent', 'px-5 py-4', 'text-sm font-bold uppercase tracking-[0.2em]',
+        'text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl', 'Welcome back.', 'href="/existing-action"');
 });
 
 test('page header container preserves padding and places all content above the decoration', function () {
@@ -58,11 +58,11 @@ test('banner headings retain their typography attributes and actions through the
         BLADE);
 
     expect($html)->toContain('data-workspace-header-banner', 'data-custom-header', '!pt-0', 'border-l-4 border-[#800000]',
-        'text-xl font-bold tracking-tight text-slate-950 sm:text-2xl', 'Research Head', 'Dashboard', 'Your review queue.',
+        'text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl', 'Research Head', 'Dashboard', 'Your review queue.',
         'href="/existing-action"', 'Existing action');
 });
 
-test('every workspace dashboard renders one decorated page header beneath the untouched topbar', function (string $workspace, string $role, string $routeName, string $title) {
+test('every workspace dashboard renders the reference hero style beneath the untouched topbar', function (string $workspace, string $role, string $routeName, string $title) {
     $this->withoutVite();
     Role::firstOrCreate(['name' => $role]);
     $user = User::factory()->create();
@@ -78,16 +78,25 @@ test('every workspace dashboard renders one decorated page header beneath the un
     @$document->loadHTML($response->getContent());
     $xpath = new DOMXPath($document);
 
+    $hero = $xpath->query('//header[@data-page-header-container]//*[@data-page-header-variant="hero"]')->item(0);
+
     expect($xpath->query('//header[@data-page-header-container]')->length)->toBe(1)
         ->and($xpath->query('//nav[@data-app-topbar][contains(@class, "athena-page-header")]')->length)->toBe(0)
         ->and($xpath->query('//header[@data-page-header-container]/preceding-sibling::nav[@data-app-topbar]')->length)->toBe(1)
         ->and($xpath->query('//header[@data-page-header-container]/div[contains(@class, "relative z-[1]")]//*[@data-page-header-variant="hero"]')->length)->toBe(1)
-        ->and($xpath->query('//header[@data-page-header-container]//*[@data-page-header-variant="simple"]')->length)->toBe(0);
+        ->and($xpath->query('//header[@data-page-header-container]//*[@data-page-header-variant="simple"]')->length)->toBe(0)
+        ->and($hero)->not->toBeNull()
+        ->and($hero->getAttribute('class'))->toContain('border-l-4 border-[#800000]', 'px-5 py-4', 'sm:items-center sm:justify-between')
+        ->and($hero->getAttribute('class'))->not->toContain('!border-l-0', '!px-0', '!pt-0', '!normal-case', '!tracking-normal')
+        ->and($xpath->query('./div/p[1]', $hero)->item(0)->getAttribute('class'))->toContain('text-sm font-bold uppercase tracking-[0.2em]')
+        ->and($xpath->query('.//h2', $hero)->item(0)->getAttribute('class'))->toContain('text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl')
+        ->and($xpath->query('./div/p[2]', $hero)->item(0)->getAttribute('class'))->toContain('text-base leading-6 text-slate-500');
 })->with([
     'Research Head' => ['research_head', 'research_head', 'research_head.dashboard', 'Dashboard'],
     'Research Office' => ['research_office', 'research_coordinator', 'research_coordinator.dashboard', 'Research Office Dashboard'],
     'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Faculty research'],
     'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard', 'Your research at a glance'],
+    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard', 'Research Secretary Workspace'],
 ]);
 
 test('regular workspace pages use the shared page header', function () {

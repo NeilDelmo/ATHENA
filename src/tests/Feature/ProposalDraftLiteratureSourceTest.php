@@ -72,7 +72,7 @@ test('manual publication details are preserved in the IEEE reference and proposa
         ->assertJsonPath('source.reference', $saved['reference']);
 });
 
-test('abstract notes can be saved but only full paper notes can be confirmed for insertion', function () {
+test('reviewed notes can be saved and confirmed from either abstracts or full text', function (string $basis) {
     $saved = $this->actingAs($this->faculty)
         ->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
         ->assertCreated()->json('source.id');
@@ -81,17 +81,19 @@ test('abstract notes can be saved but only full paper notes can be confirmed for
     $route = route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $link]);
     $notes = [
         'rrl_note' => 'This abstract describes community involvement in monitoring. Read the full paper to assess the methods and limitations.',
-        'rrl_evidence_basis' => 'abstract',
+        'rrl_evidence_basis' => $basis,
         'rrl_draft_status' => 'draft',
     ];
 
     $this->putJson($route, $notes)->assertOk();
-    $response = $this->putJson($route, [...$notes, 'rrl_draft_status' => 'confirmed']);
-    expect($response->status())->toBe(422);
-    expect($response->json('errors.rrl_evidence_basis'))->toBeArray()->not->toBeEmpty();
-    $this->putJson($route, [...$notes, 'rrl_evidence_basis' => 'full_text', 'rrl_draft_status' => 'confirmed'])
-        ->assertOk();
-});
+    $this->putJson($route, [...$notes, 'rrl_draft_status' => 'confirmed'])
+        ->assertOk()
+        ->assertJsonPath('source.rrl_evidence_basis', $basis)
+        ->assertJsonPath('source.rrl_draft_status', 'confirmed')
+        ->assertJsonPath('source.rrl_note', $notes['rrl_note']);
+
+    expect($this->draft->literatureSources()->findOrFail($link)->rrl_evidence_basis)->toBe($basis);
+})->with(['abstract', 'full_text']);
 
 test('faculty share one canonical literature record instead of creating duplicate papers', function () {
     $route = route('research-support.literature-library.store');
@@ -333,6 +335,18 @@ test('faculty can generate an abstract only rrl draft without retrieving full te
         ->not->toContain('Draft:')
         ->not->toContain('10.1234')
         ->not->toContain('http');
+
+    $sourceId = $this->postJson(route('research-support.literature-library.store'), $this->sourcePayload)
+        ->assertCreated()->json('source.id');
+    $linkId = $this->postJson(route('faculty.proposal-drafts.literature-sources.store', [$this->draft, $sourceId]))
+        ->assertCreated()->json('source.id');
+    $this->putJson(route('faculty.proposal-drafts.literature-drafts.update', [$this->draft, $linkId]), [
+        'rrl_note' => $synthesis,
+        'rrl_evidence_basis' => 'abstract',
+        'rrl_draft_status' => 'confirmed',
+    ])->assertOk()
+        ->assertJsonPath('source.rrl_note', $synthesis)
+        ->assertJsonPath('source.rrl_draft_status', 'confirmed');
 
     Http::assertSent(fn ($request) => $request->url() === 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'
         && $request['model'] === 'gemini-test-model'

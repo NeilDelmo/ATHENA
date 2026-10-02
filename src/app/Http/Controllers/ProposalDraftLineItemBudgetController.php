@@ -57,6 +57,7 @@ class ProposalDraftLineItemBudgetController extends Controller
             ->where('position', 0)
             ->first();
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
+        $sourceData['level_of_call'] ??= LineItemBudgetData::DEFAULT_LEVEL_OF_CALL;
         $expenseBreakdownItems = is_array($expenseBreakdownDocument?->source_data)
             && is_array($expenseBreakdownDocument->source_data['items'] ?? null)
             ? $expenseBreakdownDocument->source_data['items']

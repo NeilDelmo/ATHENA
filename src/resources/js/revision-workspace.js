@@ -1,5 +1,6 @@
 import { activeProposalPaperAutoSave, finishProposalPaperAutoSave } from './proposal-paper-autosave.js';
 import { findRevisionTarget, focusRevisionTarget } from './revision-target-focus.js';
+import { proposalPreviewWorkspace } from './proposal-preview-workspace.js';
 
 export function isEmbeddedRevisionEditor() {
     return Boolean(document.querySelector('[data-revision-embedded] [data-revision-editor-context]'));
@@ -43,6 +44,23 @@ function revisionEditorError(editor, messageOrError) {
     error.revisionDocumentType = editor.documentType || null;
 
     return error;
+}
+
+export async function previewRevisionEditor(editor) {
+    if (!editor?.generatePreview) throw new Error('The revision editor is still loading. Try again in a moment.');
+    if (editor.previewLoading) throw new Error('A preview is already being prepared. Try again when it finishes.');
+    await editor.generatePreview();
+    if (!editor.previewHtml) {
+        throw new Error(editor.previewError || editor.validationMessage || 'The revised paper preview could not be generated.');
+    }
+    return editor.previewHtml;
+}
+
+export function fitRevisionPaperPreview(frame) {
+    if (!frame.hasAttribute('srcdoc')) return;
+    proposalPreviewWorkspace().applyProposalPreviewZoom.call({
+        $refs: { previewFrame: frame }, previewZoom: 100,
+    });
 }
 
 // Saving source data invalidates generated files, so finish every save before preparing any file.
@@ -306,6 +324,10 @@ function initializeEmbeddedEditor() {
             if (!editor || editor.autoSaveBlocked) return null;
             return editor.downloadDocument();
         },
+        async preview() {
+            await window.Alpine.nextTick();
+            return previewRevisionEditor(state());
+        },
         async focus(annotationId, { canFocus = () => true } = {}) {
             const annotation = targets[annotationId];
             if (!annotation?.target) return false;
@@ -400,6 +422,12 @@ export function applyRevisionModificationStates(card, states = {}, replacementSe
 
 export function revisionDocumentsWithoutResolution(form) {
     return [...form.querySelectorAll('[data-revision-document]')].filter((card) => {
+        const frame = card.querySelector('[data-revision-editor-frame]');
+        const editor = frame ? revisionEditorForFrame(frame, form.dataset.revisionWorkspace) : null;
+        const replacementSelected = (card.querySelector('input[type="file"]')?.files?.length || 0) > 0;
+        if (editor?.modificationStates || replacementSelected || revisionNoChangeResolution(card).selected) {
+            applyRevisionModificationStates(card, editor?.modificationStates?.() || {}, replacementSelected);
+        }
         const status = card.querySelector('[data-revision-document-state]');
         return status && status.dataset.addressed !== 'true';
     });
@@ -448,7 +476,145 @@ export function initializeRevisionPanelResize(card) {
     });
 }
 
+export async function revisionPaperPreview(card, topicId, fileIndex = 0) {
+    const submittedUrl = card.querySelector('[data-revision-comment]')?.selectedOptions[0]?.dataset.pdfUrl;
+    if (revisionNoChangeResolution(card).selected) {
+        if (!submittedUrl) throw new Error('The submitted paper is unavailable for preview.');
+        return { url: submittedUrl, label: 'Submitted paper · No file change needed' };
+    }
+    const file = card.querySelector('input[type="file"]')?.files?.[fileIndex];
+    if (file) {
+        if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+            const data = new FormData();
+            data.append('paper', file);
+            const response = await fetch(card.dataset.revisionPreviewUploadUrl, {
+                method: 'POST', body: data,
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': card.closest('form')?.querySelector('[name="_token"]')?.value || '',
+                },
+            });
+            if (!response.ok) {
+                const payload = await response.json();
+                throw new Error(Object.values(payload.errors || {}).flat().join(' ') || payload.message || 'The replacement preview could not be created.');
+            }
+            return { url: URL.createObjectURL(await response.blob()), objectUrl: true, label: 'Replacement paper · ' + file.name };
+        }
+        return { url: URL.createObjectURL(new Blob([file], { type: 'application/pdf' })), objectUrl: true, label: 'Replacement PDF · ' + file.name };
+    }
+    const frame = card.querySelector('[data-revision-editor-frame]');
+    if (frame) {
+        const editor = revisionEditorForFrame(frame, topicId);
+        if (!editor?.preview) throw new Error('The revision editor is still loading. Try again in a moment.');
+        return { html: await waitForRevisionOperation(editor.preview(), REVISION_OPERATION_TIMEOUT_MS, 'The paper preview timed out. Return to your revision and try again.'), label: 'Current revision · Includes your latest edits' };
+    }
+    if (!submittedUrl) throw new Error('Select a replacement PDF to preview this paper.');
+    return { url: submittedUrl, label: 'Submitted paper · No replacement selected' };
+}
+
+export function initializeRevisionPreviews(form, topicId) {
+    form.querySelectorAll('[data-revision-document]').forEach((card) => {
+        const panel = card.querySelector('[data-revision-preview-panel]');
+        if (!panel) return;
+        const content = card.querySelector('[data-revision-editor-content]');
+        const frame = card.querySelector('[data-revision-preview-frame]');
+        const openButton = card.querySelector('[data-revision-preview-open]');
+        const closeButton = card.querySelector('[data-revision-preview-close]');
+        const refreshButton = card.querySelector('[data-revision-preview-refresh]');
+        const status = card.querySelector('[data-revision-preview-status]');
+        const error = card.querySelector('[data-revision-preview-error]');
+        const stale = card.querySelector('[data-revision-preview-stale]');
+        const fileSelector = card.querySelector('[data-revision-preview-file]');
+        frame.addEventListener('load', () => fitRevisionPaperPreview(frame));
+        if (typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(() => fitRevisionPaperPreview(frame)).observe(frame);
+        }
+        let objectUrl = null;
+        let request = 0;
+        const reset = () => {
+            frame.hidden = true;
+            frame.removeAttribute('src');
+            frame.removeAttribute('srcdoc');
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+        };
+        const close = () => {
+            request += 1;
+            panel.hidden = true;
+            content.hidden = false;
+            closeButton.hidden = true;
+            openButton.hidden = false;
+            openButton.setAttribute('aria-expanded', 'false');
+            refreshButton.disabled = false;
+            reset();
+        };
+        const preview = async () => {
+            const currentRequest = ++request;
+            const wasOpen = !panel.hidden;
+            panel.hidden = false;
+            content.hidden = true;
+            closeButton.hidden = false;
+            openButton.hidden = true;
+            openButton.setAttribute('aria-expanded', 'true');
+            refreshButton.disabled = true;
+            error.hidden = true;
+            stale.hidden = true;
+            status.textContent = 'Preparing paper preview…';
+            if (!wasOpen) closeButton.focus({ preventScroll: true });
+            reset();
+            try {
+                const result = await revisionPaperPreview(card, topicId, Number(fileSelector.value || 0));
+                if (currentRequest !== request) {
+                    if (result.objectUrl) URL.revokeObjectURL(result.url);
+                    return;
+                }
+                objectUrl = result.objectUrl ? result.url : null;
+                if (result.html) frame.srcdoc = result.html;
+                else frame.src = result.url;
+                frame.hidden = false;
+                status.textContent = result.label;
+            } catch (exception) {
+                if (currentRequest !== request) return;
+                error.textContent = exception instanceof Error ? exception.message : 'The preview could not be loaded. Please try again.';
+                error.hidden = false;
+                status.textContent = 'Preview unavailable';
+            } finally {
+                if (currentRequest === request) refreshButton.disabled = false;
+            }
+        };
+        openButton.addEventListener('click', () => {
+            const files = [...(card.querySelector('input[type="file"]')?.files || [])];
+            fileSelector.replaceChildren(...files.map((file, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = file.name;
+                return option;
+            }));
+            fileSelector.hidden = files.length < 2 || revisionNoChangeResolution(card).selected;
+            void preview();
+        });
+        fileSelector.addEventListener('change', preview);
+        refreshButton.addEventListener('click', preview);
+        closeButton.addEventListener('click', () => { close(); openButton.focus(); });
+        card.querySelector('[data-revision-dialog]').addEventListener('close', close);
+        const editorFrame = card.querySelector('[data-revision-editor-frame]');
+        const bindEdits = () => {
+            try {
+                const markStale = () => { if (!panel.hidden) stale.hidden = false; };
+                editorFrame?.contentDocument?.addEventListener('input', markStale);
+                editorFrame?.contentDocument?.addEventListener('change', markStale);
+            } catch { /* A loading frame may not expose its document yet. */ }
+        };
+        editorFrame?.addEventListener('load', bindEdits);
+        bindEdits();
+        card.addEventListener('change', (event) => {
+            if (event.target.matches?.('input[type="file"], [data-revision-no-change]')) close();
+        });
+    });
+}
+
 export function initializeRevisionDialogs(form, topicId) {
+    initializeRevisionPreviews(form, topicId);
     const cards = [...form.querySelectorAll('[data-revision-document]')]
         .filter((card) => card.querySelector('[data-revision-dialog]'));
     let activeCard = null;
@@ -484,6 +650,7 @@ export function initializeRevisionDialogs(form, topicId) {
     const canFocusEditor = (card) => {
         const active = document.activeElement;
         return !revisionNoChangeResolution(card).selected
+            && card.querySelector('[data-revision-preview-panel]')?.hidden !== false
             && !active?.closest?.('[data-revision-resolution-panel], .revision-upload-alternative');
     };
     const selectFeedback = (card, syncPdf = true, focusEditor = true) => {

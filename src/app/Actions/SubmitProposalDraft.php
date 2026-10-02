@@ -34,6 +34,7 @@ use App\Support\LineItemBudgetRules;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
 use App\Support\WorkPlanData;
+use App\Support\WorkPlanProposalObjectives;
 use App\Support\WorkPlanRules;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -61,6 +62,7 @@ class SubmitProposalDraft
         private readonly ArchiveProposalDraftDocumentHistory $archiveDocumentHistory,
         private readonly RecordProposalDraftDocumentVersion $recordDocumentVersion,
         private readonly SyncTopicCollaborators $syncTopicCollaborators,
+        private readonly WorkPlanProposalObjectives $workPlanProposalObjectives,
     ) {}
 
     public function prepare(ProposalDraft $draft, User $user): void
@@ -85,7 +87,7 @@ class SubmitProposalDraft
         $preparedFiles = [];
 
         try {
-            foreach ($this->catalog->all() as $paper) {
+            foreach ($this->catalog->all()->sortBy(fn (array $paper): int => $paper['slug'] === 'detailed-proposal' ? 1 : 0) as $paper) {
                 if ($paper['mode'] === 'upload') {
                     continue;
                 }
@@ -93,7 +95,7 @@ class SubmitProposalDraft
                 $document = $draft->documents->firstWhere('document_type', $paper['document_type']);
 
                 $preparedFiles[] = match ($paper['slug']) {
-                    'detailed-proposal' => $this->generateDetailedProposal($draft, $document, $preparedDirectory),
+                    'detailed-proposal' => $this->generateDetailedProposal($draft, $document, $preparedDirectory, $preparedFiles),
                     'work-plan' => $this->generateWorkPlan($draft, $document, $preparedDirectory),
                     'line-item-budget' => $this->generateLineItemBudget($draft, $document, $preparedDirectory),
                     'expense-breakdown' => $this->generateExpenseBreakdown($draft, $document, $preparedDirectory),
@@ -233,7 +235,7 @@ class SubmitProposalDraft
                             $document,
                             $paper,
                             $permanentDirectory,
-                            array_intersect_key($lockedDraft->signatory_selections ?? [], ProposalSignatory::FIELDS['comment_response_form']),
+                            array_intersect_key($lockedDraft->resolvedSignatorySelections(), ProposalSignatory::FIELDS['comment_response_form']),
                         );
                     }
                 }
@@ -332,7 +334,7 @@ class SubmitProposalDraft
 
         if (! Storage::disk('local')->copy($document->file_path, $path)) {
             throw ValidationException::withMessages([
-                'papers.'.$paper['slug'] => $paper['label'].' could not be copied into the proposal package.',
+                'papers.'.$paper['slug'] => $paper['label'].' could not be copied into the project.',
             ]);
         }
 
@@ -354,22 +356,26 @@ class SubmitProposalDraft
         ];
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * @param  list<array<string, mixed>>  $preparedFiles
+     * @return array<string, mixed>
+     */
     private function generateDetailedProposal(
         ProposalDraft $draft,
         ProposalDraftDocument $document,
         string $permanentDirectory,
+        array $preparedFiles,
     ): array {
-        $sourceData = [
+        $sourceData = DetailedProposalData::normalizeObjectiveFields([
             ...($document->source_data ?? []),
             ...$draft->signatoryFields('detailed_proposal'),
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
-        ];
+        ]);
         $validator = Validator::make(
             $sourceData,
             DetailedProposalRules::rules(),
-            [],
+            DetailedProposalRules::messages(),
             DetailedProposalRules::attributes(),
         );
         $validator->after(DetailedProposalRules::afterCallbacks());
@@ -377,17 +383,18 @@ class SubmitProposalDraft
         $detailedProposal = DetailedProposalData::fromValidated(
             $validated,
             $this->detailedProposalBudgetTotals($draft),
+            $this->readiness->detailedProposalChecklist($draft, $preparedFiles),
         );
 
         return $this->packageService->storeGeneratedDetailedProposal(
             $this->detailedProposalDocumentService->generate($detailedProposal),
             $permanentDirectory,
             $draft->project_title,
-            $validated,
+            [...$validated, 'document_checklist' => $detailedProposal['document_checklist']],
         );
     }
 
-    /** @return array{mooe_total: float, co_total: float} */
+    /** @return array{mooe_total: float, co_total: float, level_of_call: string|null} */
     private function detailedProposalBudgetTotals(ProposalDraft $draft): array
     {
         $budgetDocument = $draft->documents->firstWhere(
@@ -397,7 +404,7 @@ class SubmitProposalDraft
         $sourceData = $budgetDocument?->source_data;
 
         if (! is_array($sourceData) || $draft->planned_start === null || $draft->planned_end === null) {
-            return ['mooe_total' => 0, 'co_total' => 0];
+            return ['mooe_total' => 0, 'co_total' => 0, 'level_of_call' => $sourceData['level_of_call'] ?? LineItemBudgetData::DEFAULT_LEVEL_OF_CALL];
         }
 
         $sourceData = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown(
@@ -416,6 +423,7 @@ class SubmitProposalDraft
         return [
             'mooe_total' => (float) $budget['mooe_total'],
             'co_total' => (float) $budget['co_total'],
+            'level_of_call' => $budget['level_of_call'],
         ];
     }
 
@@ -430,16 +438,23 @@ class SubmitProposalDraft
             'total_duration_months' => $draft->duration_months,
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
-            'entries' => $document->source_data['entries'] ?? null,
+            'entries' => $this->workPlanProposalObjectives->entries(
+                $document->source_data['entries'] ?? [],
+                $this->workPlanProposalObjectives->forDraft($draft),
+            ),
             ...$draft->signatoryFields('work_plan'),
             'prepared_by' => $draft->project_leader,
         ];
-        $validated = Validator::make(
+        $rules = WorkPlanRules::rules();
+        $rules['entries.*.objective'] = ['required', 'string', 'max:'.config('detailed_proposal.maximum_narrative_length')];
+        $validator = Validator::make(
             $sourceData,
-            WorkPlanRules::rules(),
+            $rules,
             [],
             WorkPlanRules::attributes(),
-        )->validate();
+        );
+        $validator->after(WorkPlanRules::afterCallbacks($sourceData['entries'], $draft->duration_months));
+        $validated = $validator->validate();
         $workPlan = WorkPlanData::fromValidated($validated);
 
         return $this->packageService->storeGeneratedWorkPlan(
@@ -587,6 +602,7 @@ class SubmitProposalDraft
             'project_title' => $draft->project_title,
             'project_leader' => $draft->project_leader,
             'order_of_submission' => $this->initialScreeningSubmissionOrder->forDraft($draft),
+            'level_of_call' => $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)?->source_data['level_of_call'] ?? LineItemBudgetData::DEFAULT_LEVEL_OF_CALL,
         ];
 
         $sourceData = [...$sourceData, ...$draft->signatoryFields('initial_screening_form')];

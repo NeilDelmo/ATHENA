@@ -20,6 +20,12 @@ class ProjectBudgetUtilizationController extends Controller
 {
     public function index(Request $request): View
     {
+        $signingProjects = TopicProposal::query()
+            ->accessibleForDocumentRelease($request->user())
+            ->awaitingDocumentRelease()
+            ->with('user:id,name,college')
+            ->latest('updated_at')
+            ->paginate(10, ['*'], 'signing_page');
         $projects = TopicProposal::query()
             ->whereBelongsTo($request->user(), 'researchSecretary')
             ->with(['user', 'preparedProgressReports.submitter'])
@@ -27,7 +33,7 @@ class ProjectBudgetUtilizationController extends Controller
             ->latest('updated_at')
             ->get();
 
-        return view('research_secretary.projects.index', compact('projects'));
+        return view('research_secretary.projects.index', compact('projects', 'signingProjects'));
     }
 
     public function edit(Request $request, TopicProposal $topic, ProjectProgressReport $report): View

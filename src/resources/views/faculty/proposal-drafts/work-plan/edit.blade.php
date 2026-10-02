@@ -10,7 +10,7 @@
 
     @php
         $projectDetailsComplete = app(\App\Support\ProposalDraftReadiness::class)->projectDetailsAreComplete($proposalDraft);
-        $initialEntries = old('entries', $sourceData['entries'] ?? []);
+        $initialEntries = $sourceData['entries'] ?? [];
         $sampleDefinition = config('proposal_samples.'.$paper['sample_slug']);
         $sampleAvailable = is_array($sampleDefinition)
             && isset($sampleDefinition['path'])
@@ -28,6 +28,7 @@
         data-paper-exit-url="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments"
         x-data="proposalDraftWorkPlan({
             initialEntries: @js($initialEntries),
+            objectivesLinked: true,
             maxEntries: @js(config('work_plan.max_objectives')),
             durationMonths: @js($proposalDraft->duration_months ?: 12),
             previewUrl: @js(route('faculty.proposal-drafts.work-plan.preview', $proposalDraft)),
@@ -104,11 +105,15 @@
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h3 id="work-plan-objectives-heading" class="text-lg font-black text-gray-900">Objectives and Gantt schedule</h3>
-                        <p class="mt-1 text-sm text-gray-500">Add one row per objective and select its active months. Each month can belong to only one objective.</p>
+                        <p class="mt-1 text-sm text-gray-500">Specific objectives come from your Detailed Proposal. Add activities, expected outputs, and active months for each one. Each month can belong to only one objective.</p>
+                        <a href="{{ route('faculty.proposal-drafts.detailed-proposal.edit', $proposalDraft) }}" class="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-red-700 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">Edit objectives in Detailed Proposal</a>
                         <p class="mt-1 text-xs text-gray-400">The generated paper automatically expands each row to fit the longest objective, output, or activity text.</p>
                     </div>
-                    <button type="button" x-on:click="addEntry" x-bind:disabled="!canAddEntry()" x-bind:title="canAddEntry() ? 'Add another objective' : 'No unassigned project month is available for another objective.'" class="inline-flex w-full items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Add another objective</button>
                 </div>
+
+                @if ($linkedObjectives === [])
+                    <p class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">Save your specific objectives in the Detailed Proposal first. They will appear here automatically.</p>
+                @endif
 
                 <template x-for="(entry, index) in entries" :key="entry.id">
                     <article x-bind:data-repeatable-entry="`work-plan-entry-${entry.id}`" x-bind:class="isEntryExpanded(entry) ? 'border-red-200 bg-white' : 'border-gray-200 bg-gray-50'" class="rounded-2xl border p-5 shadow-sm transition-colors sm:p-6">
@@ -123,15 +128,14 @@
                                     <span x-show="isEntryExpanded(entry)">Collapse</span>
                                     <span x-show="!isEntryExpanded(entry)" x-cloak>Edit</span>
                                 </button>
-                                <button type="button" x-on:click="removeEntry(index)" x-bind:disabled="entries.length === 1" class="rounded-lg px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
                             </div>
                         </div>
 
                         <div x-bind:id="`work-plan-editor-${entry.id}`" x-show="isEntryExpanded(entry)" x-cloak x-transition class="mt-5">
                             <div class="grid gap-5 lg:grid-cols-3">
                                 <div>
-                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective <span class="text-red-600">Required</span></label>
-                                    <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" maxlength="500" required class="mt-2 block w-full rounded-xl border-gray-300 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                                    <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`objective-${entry.id}`">Objective from Detailed Proposal</label>
+                                    <textarea x-bind:id="`objective-${entry.id}`" x-bind:name="`entries[${index}][objective]`" x-bind:data-work-plan-objective-input="entry.id" x-model="entry.objective" rows="4" readonly required class="mt-2 block w-full rounded-xl border-gray-200 bg-gray-50 text-sm text-gray-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-800 dark:text-white"></textarea>
                                 </div>
                                 <div>
                                     <label class="block text-xs font-black uppercase tracking-wider text-gray-600" x-bind:for="`output-${entry.id}`">Expected Output <span class="text-red-600">Required</span></label>
@@ -177,7 +181,6 @@
                     </article>
                 </template>
 
-                <button type="button" x-on:click="addEntry" x-bind:disabled="!canAddEntry()" x-bind:title="canAddEntry() ? 'Add another objective' : 'No unassigned project month is available for another objective.'" class="inline-flex w-full items-center justify-center rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs font-bold text-gray-700 hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-600 disabled:cursor-not-allowed disabled:opacity-50">Add another objective</button>
             </section>
 
             <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="work_plan" />

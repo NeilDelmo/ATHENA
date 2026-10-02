@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\WordCheckbox;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -223,13 +224,9 @@ class LineItemBudgetDocumentService
         $checkboxes = $this->elements($xpath, './/w:checkBox', $levelRow);
 
         foreach ($checkboxes as $index => $checkbox) {
-            $default = $this->elements($xpath, './w:default', $checkbox)[0] ?? null;
-
-            if ($default instanceof DOMElement) {
-                $selected = ($index === 0 && $budget['level_of_call'] === 'central_agency')
-                    || ($index === 1 && $budget['level_of_call'] === 'constituent_campus');
-                $default->setAttributeNS(self::W, 'w:val', $selected ? '1' : '0');
-            }
+            $selected = ($index === 0 && $budget['level_of_call'] === 'central_agency')
+                || ($index === 1 && $budget['level_of_call'] === 'constituent_campus');
+            WordCheckbox::setLegacy($xpath, $checkbox, $selected);
         }
 
         if ($budget['approval_body'] === null

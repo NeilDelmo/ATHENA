@@ -38,7 +38,7 @@
             <p class="sr-only">A quick view of your research pipeline.</p>
             <dl class="grid grid-cols-2 gap-4 xl:grid-cols-4">
                 @foreach ([
-                    ['Drafts', $proposalDraftCount, 'Proposal packages in progress', 'M4 4h10l6 6v10H4V4Zm10 0v6h6M8 14h8M8 17h5'],
+                    ['Drafts', $proposalDraftCount, 'Projects in progress', 'M4 4h10l6 6v10H4V4Zm10 0v6h6M8 14h8M8 17h5'],
                     ['Submitted', $topics->count(), 'Your submitted proposals', 'M4 4h16v16H4V4Zm4 5h8M8 12h8M8 15h5'],
                     ['Under review', $underReviewTopics->count(), 'Moving through the review process', 'M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z'],
                     ['Needs revision', $revisionRequestedTopics->count(), 'Feedback ready for your response', 'M12 9v4m0 3h.01M12 3 2 20h20L12 3Z'],
@@ -111,7 +111,7 @@
             <div class="flex items-end justify-between gap-4">
                 <div>
                     <h3 id="recent-drafts-heading" class="text-base font-semibold text-gray-950 dark:text-white">Continue working</h3>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Your two most recently edited proposal packages.</p>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Your two most recently edited projects.</p>
                 </div>
                 <a href="{{ route('faculty.proposal-drafts.index') }}" class="shrink-0 text-xs font-semibold text-[#7A0019] transition hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-[#7A0019] focus:ring-offset-2 dark:text-red-300 dark:hover:text-red-200 dark:focus:ring-red-400 dark:focus:ring-offset-gray-950">View all drafts</a>
             </div>
@@ -138,10 +138,10 @@
 
                         <div class="mt-5">
                             <div class="flex items-center justify-between text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                                <span>Package progress</span>
+                                <span>Project progress</span>
                                 <span>{{ $progress['completed'] }}/{{ $progress['total'] }} papers</span>
                             </div>
-                            <div role="progressbar" aria-label="Proposal package completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $progress['percentage'] }}" class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div role="progressbar" aria-label="Project completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ $progress['percentage'] }}" class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                                 <div class="h-full rounded-full bg-[#7A0019] dark:bg-red-400" style="width: {{ $progress['percentage'] }}%"></div>
                             </div>
                         </div>

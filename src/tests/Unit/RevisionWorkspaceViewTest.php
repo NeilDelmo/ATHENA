@@ -13,6 +13,21 @@ use Tests\TestCase;
 
 uses(TestCase::class);
 
+test('revision feedback and responses omit commenter names for every review stage', function (string $stage) {
+    $html = view('components.proposal-revision-form', [
+        'topic' => $this->topic, 'pendingFileRevisions' => collect([$this->revision]),
+        'stagedRevisionFiles' => collect(), 'displayProjectCost' => 3000,
+        'commentResponseRows' => [[
+            'key' => 'annotation_11', 'reviewer' => 'Dr. Maria Santos', 'location' => 'Work Plan · Page 2',
+            'comment' => 'Move fieldwork to June.', 'response' => 'Moved fieldwork to June.',
+            'remarks' => '', 'stage' => $stage, 'form_source' => 'research_head',
+        ]],
+    ])->render();
+
+    expect($html)->not->toContain('Dr. Maria Santos')
+        ->and($html)->toContain('Work Plan · Page 2', 'Move fieldwork to June.', 'Moved fieldwork to June.');
+})->with(['research_head', 'gad', 'co_evaluator', 'lrec']);
+
 beforeEach(function () {
     DB::connection()->beforeExecuting(function (): never {
         throw new RuntimeException('Revision view tests must not access the database.');

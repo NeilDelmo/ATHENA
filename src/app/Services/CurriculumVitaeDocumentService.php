@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\WordCheckbox;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -276,24 +277,7 @@ class CurriculumVitaeDocumentService
         $checkboxes = $this->elements($xpath, './/w14:checkbox', $cell);
 
         foreach ($checkboxes as $index => $checkbox) {
-            $isSelected = $selected[$index] ?? false;
-            $checked = $this->elements($xpath, './w14:checked', $checkbox)[0] ?? null;
-
-            if ($checked instanceof DOMElement) {
-                $checked->setAttributeNS(self::W14, 'w14:val', $isSelected ? '1' : '0');
-            }
-
-            $checkedState = $this->elements($xpath, './w14:checkedState', $checkbox)[0] ?? null;
-
-            if ($checkedState instanceof DOMElement) {
-                $checkedState->setAttributeNS(self::W14, 'w14:val', '25A0');
-            }
-
-            $displayText = $xpath->query('ancestor::w:sdt[1]/w:sdtContent//w:t', $checkbox)->item(0);
-
-            if ($displayText instanceof DOMElement) {
-                $displayText->nodeValue = $isSelected ? '■' : '☐';
-            }
+            WordCheckbox::setModern($xpath, $checkbox, $selected[$index] ?? false);
         }
     }
 

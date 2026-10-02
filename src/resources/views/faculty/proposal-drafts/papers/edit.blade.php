@@ -106,7 +106,7 @@
                         @if ($isExpenseBreakdown)
                             Complete the official spreadsheet outside ATHENA, export or save it as a PDF, then attach that final PDF here. ATHENA will preserve it exactly as uploaded.
                         @else
-                            Complete the required file outside ATHENA, then upload the finished copy here for inclusion in your proposal package.
+                            Complete the required file outside ATHENA, then upload the finished copy here for inclusion in your project.
                         @endif
                     </p>
 

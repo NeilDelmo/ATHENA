@@ -81,7 +81,7 @@ class ProposalDraftReviewPackage extends Component
             report($exception);
             $this->addError(
                 'submission',
-                'The proposal package could not be finalized. Your draft and staged papers were kept so you can try again.',
+                'The project could not be finalized. Your draft and staged papers were kept so you can try again.',
             );
 
             return;

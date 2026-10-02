@@ -68,6 +68,7 @@
 
     <main>
         <section id="home" class="hero-campus relative isolate flex min-h-[760px] items-end overflow-hidden sm:min-h-screen">
+            <img src="{{ asset('images/bsu_front.png') }}" alt="Batangas State University - TNEU ARASOF–Nasugbu campus" class="absolute inset-0 -z-30 h-full w-full object-cover object-center" fetchpriority="high">
             <div class="absolute inset-0 -z-20 bg-gradient-to-r from-slate-950/70 via-slate-950/25 to-transparent"></div>
             <div class="hero-maroon-accent absolute bottom-0 right-0 -z-10 h-[76%] w-[72%] sm:w-[62%]"></div>
             <div class="absolute inset-x-0 bottom-0 -z-10 h-32 bg-gradient-to-t from-white via-white/30 to-transparent"></div>
@@ -76,7 +77,7 @@
                 <div class="max-w-3xl text-white">
                     <p class="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-white/80 sm:text-sm">
                         <span class="h-px w-10 bg-white/70"></span>
-                        Batangas State University
+                        Batangas State University - TNEU
                     </p>
 
                     <h1 class="mt-6 max-w-2xl text-5xl font-extrabold leading-[1.02] tracking-[-0.04em] drop-shadow-sm sm:text-6xl lg:text-7xl">
@@ -190,21 +191,19 @@
 
                 @php
                     $people = [
-                        ['Researchers', 'Create proposals, manage requirements, and keep every milestone moving.', '01'],
-                        ['Coordinators', 'Guide submissions, follow progress, and keep campus research organized.', '02'],
-                        ['Research leaders', 'See performance clearly and turn timely information into action.', '03'],
-                        ['University offices', 'Stay aligned through consistent records, reports, and shared visibility.', '04'],
+                        ['VCRDES', 'See campus research performance and guide institutional research priorities.'],
+                        ['Research Head', 'Review proposals, guide research teams, and monitor project progress.'],
+                        ['Research Office', 'Coordinate submissions, maintain research records, and support reporting.'],
+                        ['Faculty Researcher', 'Prepare proposals, manage research documents, and report project milestones.'],
+                        ['Faculty', 'Explore research opportunities, collaborate, and access research support.'],
                     ];
                 @endphp
 
-                <div class="mt-14 grid gap-px overflow-hidden rounded-3xl border border-[#7A0019]/10 bg-[#7A0019]/10 sm:grid-cols-2 lg:grid-cols-4">
+                <div class="mt-14 grid gap-px overflow-hidden rounded-3xl border border-[#7A0019]/10 bg-[#7A0019]/10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     @foreach ($people as $person)
                         <article class="reveal group bg-white p-7 transition duration-300 hover:bg-[#7A0019]/[0.025] sm:p-8">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-extrabold tracking-[0.2em] text-slate-300">{{ $person[2] }}</span>
-                                <span class="h-2 w-2 rounded-full bg-[#7A0019]/25 transition group-hover:bg-[#7A0019]"></span>
-                            </div>
-                            <h3 class="mt-10 text-xl font-extrabold text-slate-900">{{ $person[0] }}</h3>
+                            <span class="block h-2 w-2 rounded-full bg-[#7A0019]/25 transition group-hover:bg-[#7A0019]" aria-hidden="true"></span>
+                            <h3 class="mt-6 text-xl font-extrabold text-slate-900">{{ $person[0] }}</h3>
                             <p class="mt-3 text-sm leading-7 text-slate-500">{{ $person[1] }}</p>
                         </article>
                     @endforeach

@@ -50,8 +50,9 @@ class ProposalDraft extends Model
     public function signatoryFields(string $paper): array
     {
         $fields = [];
+        $selections = $this->resolvedSignatorySelections();
         foreach (ProposalSignatory::FIELDS[$paper] ?? [] as $key => $label) {
-            $selection = $this->signatory_selections[$key] ?? null;
+            $selection = $selections[$key] ?? null;
             if ($selection === null) {
                 continue;
             }
@@ -63,6 +64,12 @@ class ProposalDraft extends Model
         }
 
         return $fields;
+    }
+
+    /** @return array<string, array{id?: int|null, name: string, position: string}> */
+    public function resolvedSignatorySelections(): array
+    {
+        return [...($this->signatory_selections ?? []), ...ProposalSignatory::defaultSelections()];
     }
 
     public function researchCall(): BelongsTo

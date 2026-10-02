@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Match filled brand actions to the monitoring revision action, keeping table controls intact. */
+html :is(button, a, input[type="submit"], input[type="button"], [role="button"]):is(.bg-brand, [class~="bg-[#7A0019]"], [class~="bg-[#7a0019]"], .dashboard-action, .rh-button):not(:where(table *, [role="table"] *, [role="grid"] *)) {
+    background-color: theme('colors.red.700');
+    color: theme('colors.white');
+}
+
+html :is(button, a, input[type="submit"], input[type="button"], [role="button"]):is(.bg-brand, [class~="bg-[#7A0019]"], [class~="bg-[#7a0019]"], .dashboard-action, .rh-button):not(:where(table *, [role="table"] *, [role="grid"] *)):hover {
+    background-color: theme('colors.red.800');
+}
+
+html :is(button, a, input[type="submit"], input[type="button"], [role="button"]):is(.bg-brand, [class~="bg-[#7A0019]"], [class~="bg-[#7a0019]"], .dashboard-action, .rh-button):not(:where(table *, [role="table"] *, [role="grid"] *)):focus-visible {
+    --tw-ring-color: theme('colors.red.600');
+    outline-color: theme('colors.red.600');
+}
+
 @layer components {
     .athena-page-header::before,
     .athena-page-header::after {
@@ -168,6 +183,12 @@
         @apply bg-slate-50/70 dark:bg-slate-800/40;
     }
 
+    [data-app-content-shell] > main > div > :is(.max-w-5xl, .max-w-6xl, .max-w-7xl) {
+        width: 100%;
+        max-width: none;
+        padding-left: 0;
+        padding-right: 0;
+    }
     /* Analytics has a reading scale of its own; overview queues stay compact. */
     .athena-page-header:has(.rh-analytics-header)::before,
     .athena-page-header:has(.rh-analytics-header)::after {
@@ -316,6 +337,14 @@
     html[data-sidebar-collapsed='true'] [data-app-content-shell] {
         padding-left: 76px;
     }
+}
+
+[data-detailed-proposal-autosave-form] .semantic-rich-text-editor {
+    height: clamp(8rem, calc(var(--proposal-editor-rows, 7) * 1.5rem + 1.5rem), 24rem);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    resize: vertical;
+    scrollbar-gutter: stable;
 }
 
 .semantic-rich-text-editor :is(ol, ul) {
@@ -966,6 +995,16 @@ html.dark .revision-target-active {
     font-weight: 600;
 }
 .revision-frame-loading[hidden] { display: none; }
+.revision-editor-content, .revision-preview-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+.revision-preview-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: white; }
+.revision-editor-content[hidden], .revision-preview-panel[hidden], .revision-preview-frame[hidden],
+[data-revision-preview-open][hidden], [data-revision-preview-close][hidden] { display: none; }
 .revision-loading-spinner {
     width: 1.25rem;
     height: 1.25rem;
@@ -1101,3 +1140,25 @@ body:has([data-fixed-back-link]) main {
 .revision-resolution-resize:hover span, .revision-resolution-resize:focus-visible span { background: #64748b; }
 .revision-resolution-resize:focus-visible { outline: 2px solid #7a0019; outline-offset: -2px; }
 .revision-panel-resizing iframe { pointer-events: none; }
+
+@layer components {
+    .athena-page-content:not(:has(> [data-proposal-submissions], > .rh-review-page)) :not([data-kpi-strip] *):is([class~="text-xs"], [class~="text-[10px]"], [class~="text-[11px]"]) {
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+
+    .athena-page-content:not(:has(> [data-proposal-submissions], > .rh-review-page)) :not([data-kpi-strip] *)[class~="text-sm"] {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .athena-page-content:not(:has(> [data-proposal-submissions], > .rh-review-page)) :is(button, a, input, select, textarea)[class~="text-xs"] {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .athena-page-content:not(:has(> [data-proposal-submissions], > .rh-review-page)) :is(h2, h3):is([class~="text-base"], [class~="text-lg"]) {
+        font-size: 1.25rem;
+        line-height: 1.4;
+    }
+}

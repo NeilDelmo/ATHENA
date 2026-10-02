@@ -46,7 +46,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             ? $expenseBreakdownSource['items']
             : null;
         $merged = [
-            ...(is_array($savedSource) ? array_replace($savedSource, $this->all()) : []),
+            ...(is_array($savedSource) ? array_replace($savedSource, $this->all()) : $this->all()),
             'project_title' => $draft->project_title,
             'planned_start' => $draft->planned_start?->toDateString(),
             'planned_end' => $draft->planned_end?->toDateString(),
@@ -57,6 +57,7 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
             ),
         ];
         $merged = LineItemBudgetData::synchronizeSourceWithExpenseBreakdown($merged, $expenseBreakdownItems);
+        $merged['level_of_call'] ??= LineItemBudgetData::DEFAULT_LEVEL_OF_CALL;
 
         if (blank($merged['leader_college'] ?? null)) {
             $merged['leader_college'] = (string) ($draft->owner?->college ?? $this->user()?->college ?? '');

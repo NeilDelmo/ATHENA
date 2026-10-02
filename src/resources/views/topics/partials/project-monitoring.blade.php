@@ -30,7 +30,7 @@
             ->where('report_type', 'terminal')
             ->sortByDesc('id')
             ->first()?->id;
-        $displayedNarrativeReports = $topic->narrativeReports->filter(function ($report) use ($topic, $latestTerminalReportId) {
+        $displayedNarrativeReports = $topic->narrativeReports->filter(function ($report) use ($topic, $latestTerminalReportId, $progressQuarterRows) {
             if ($topic->isCompletedProject()) {
                 return false;
             }
@@ -40,7 +40,7 @@
                     && ($report->review_status !== \App\Models\ProjectNarrativeReport::STATUS_REVIEWED || ! $report->hasSignedCopy());
             }
 
-            return true;
+            return $report->reporting_quarter === null || $progressQuarterRows->contains(fn ($row) => $row['report']?->id === $report->id);
         });
         $narrativeReportHistory = $topic->narrativeReports->diff($displayedNarrativeReports);
     @endphp
@@ -77,8 +77,10 @@
         @endphp
         <div
             x-data="projectStatusManager(@js(old('project_status', $storedProjectStatus)), @js($errors->has('project_status') || $errors->has('completion_confirmed')))"
-            x-on:keydown.escape.window="statusManagerOpen = false"
-            class="relative z-30 ml-auto w-fit max-w-full"
+            x-cloak
+            x-show="!$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen"
+            x-on:keydown.escape.window="if (statusManagerOpen) { statusManagerOpen = false; $refs.statusTrigger.focus() }"
+            class="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(5.25rem+env(safe-area-inset-right))] z-[60] w-fit max-w-[calc(100vw-6.25rem)] sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(5.75rem+env(safe-area-inset-right))] print:hidden"
             data-project-status-manager
         >
             <section
@@ -92,16 +94,16 @@
                 x-transition:leave-start="translate-y-0 opacity-100"
                 x-transition:leave-end="translate-y-3 opacity-0"
                 x-on:click.outside="statusManagerOpen = false"
-                class="absolute top-full right-0 mt-3 w-[22rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-17rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900"
+                class="absolute bottom-full right-0 mb-3 w-full max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white p-3 shadow-2xl shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900 sm:p-4"
                 role="dialog"
                 aria-labelledby="project-status-manager-heading-{{ $topic->id }}"
             >
                 <div class="flex items-start justify-between gap-3">
-                    <div>
+                    <div class="min-w-0">
                         <h4 id="project-status-manager-heading-{{ $topic->id }}" class="text-lg font-semibold text-gray-950 dark:text-white">Manage project status</h4>
                         <p class="mt-1 text-base leading-6 text-gray-500 dark:text-slate-400">Completion requires 100% progress, a reviewed Terminal Report, and its fully signed PDF.</p>
                     </div>
-                    <button type="button" x-on:click="statusManagerOpen = false" class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close status manager">
+                    <button type="button" x-on:click="statusManagerOpen = false; $refs.statusTrigger.focus()" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close status manager">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
@@ -113,8 +115,8 @@
                     @method('PATCH')
                     <input type="hidden" name="completion_confirmed" value="0">
                     <label for="project-status-{{ $topic->id }}" class="block text-base font-semibold text-gray-700 dark:text-slate-200">Status</label>
-                    <div class="flex gap-2">
-                        <select id="project-status-{{ $topic->id }}" name="project_status" x-model="selectedStatus" class="h-11 min-w-0 flex-1 rounded-xl border-gray-300 bg-white text-base font-semibold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                    <div class="flex flex-col gap-2">
+                        <select id="project-status-{{ $topic->id }}" name="project_status" x-model="selectedStatus" class="h-11 w-full min-w-0 rounded-xl border-gray-300 bg-white text-base font-semibold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                             @foreach (['ongoing', 'delayed', 'completed'] as $value)
                                 <option value="{{ $value }}" @selected($storedProjectStatus === $value)>{{ ucfirst($value) }}</option>
                             @endforeach
@@ -126,17 +128,18 @@
                 </form>
             </section>
 
-            <div class="flex items-center justify-between gap-3 rounded-full border border-gray-200 bg-white p-1.5 pl-3.5 shadow-lg shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
-                <span class="inline-flex min-w-0 items-center gap-2 text-sm font-black {{ $floatingStatusClasses }} rounded-full px-3 py-2">
+            <div class="flex h-14 items-center justify-between gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-lg shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
+                <span class="hidden min-w-0 items-center gap-2 text-sm font-black {{ $floatingStatusClasses }} rounded-full px-3 py-2 sm:inline-flex">
                     <span class="h-2 w-2 shrink-0 rounded-full bg-current"></span>
                     <span class="truncate">{{ $projectStatusLabel }}</span>
                 </span>
                 <button
                     type="button"
+                    x-ref="statusTrigger"
                     x-on:click="statusManagerOpen = ! statusManagerOpen"
                     x-bind:aria-expanded="statusManagerOpen"
                     aria-controls="project-status-manager-{{ $topic->id }}"
-                    class="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-gray-900 px-4 py-2.5 text-base font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-slate-950"
+                    class="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:bg-white dark:text-slate-950 dark:focus-visible:ring-offset-slate-900"
                 >
                     <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 7h16M4 17h16" stroke-linecap="round"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>
                     <span>Manage status</span>
@@ -224,10 +227,12 @@
     <x-monitoring-quarter-overview :quarter-rows="$monitoringQuarterRows" :topic="$topic" />
 
     @if (! $topic->isCompletedProject())
+        <x-progress-quarter-overview :quarter-rows="$progressQuarterRows" :topic="$topic" :can-report="$canReport" :legacy-reports="$displayedNarrativeReports->where('report_type', 'progress')->whereNull('reporting_quarter')" />
         <div class="space-y-8">
-            @foreach (['progress' => 'Progress reports', 'terminal' => 'Terminal reports'] as $reportType => $reportLabel)
+            @foreach (['terminal' => 'Terminal reports'] as $reportType => $reportLabel)
                 @php
-                    $available = $reportType === 'terminal' ? $terminalOpen : $schedule->narrativeProgressPeriods($topic)->contains(fn ($period) => $period['reporting_date'] !== null);
+                    $available = $reportType === 'terminal' || $schedule->narrativeProgressPeriods($topic)->contains(fn ($period) => $period['drafting_date'] !== null);
+                    $submissionOpen = $reportType === 'terminal' ? $terminalOpen : $schedule->narrativeProgressPeriods($topic)->contains(fn ($period) => $period['reporting_date'] !== null);
                     $sectionReports = $displayedNarrativeReports->where('report_type', $reportType);
                 @endphp
                 <section id="{{ $reportType }}-reports" aria-labelledby="{{ $reportType }}-reports-heading" class="space-y-4">
@@ -235,8 +240,8 @@
                         <div>
                             <h3 id="{{ $reportType }}-reports-heading" class="text-xl font-bold text-gray-950 dark:text-white">{{ $reportLabel }}</h3>
                             <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">{{ $reportType === 'terminal' ? 'Final reports awaiting review or a signed PDF.' : 'One Progress Report for each Monitoring Tool quarter. Open a submission to read its content, figures, and review.' }}</p>
-                            @if ($canReport && ! $available && ($reportType === 'terminal' || $nextPeriod !== null))
-                                <p class="mt-2 text-sm font-medium text-gray-600 dark:text-slate-300">Opens {{ ($reportType === 'terminal' ? $terminalDate : ($nextPeriod['opens_at'] ?? $terminalDate))->format('M j, Y') }}</p>
+                            @if ($canReport && ! $submissionOpen && ($reportType === 'terminal' || $nextPeriod !== null))
+                                <p class="mt-2 text-sm font-medium text-gray-600 dark:text-slate-300">Fill and save a private draft now. Submission opens {{ ($reportType === 'terminal' ? $terminalDate : ($nextPeriod['opens_at'] ?? $terminalDate))->format('M j, Y') }}.</p>
                             @endif
                         </div>
                         @if ($canReport && $available)

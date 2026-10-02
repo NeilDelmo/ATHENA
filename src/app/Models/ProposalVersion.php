@@ -32,6 +32,7 @@ class ProposalVersion extends Model
             'estimated_budget' => 'decimal:2',
             'file_size' => 'integer',
             'version_number' => 'integer',
+            'research_head_screening' => 'array',
         ];
     }
 

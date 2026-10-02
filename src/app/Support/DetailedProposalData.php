@@ -10,10 +10,11 @@ class DetailedProposalData
 {
     /**
      * @param  array<string, mixed>  $validated
-     * @param  array{mooe_total?: float|int, co_total?: float|int}  $budgetTotals
+     * @param  array{mooe_total?: float|int, co_total?: float|int, level_of_call?: string|null}  $budgetTotals
+     * @param  array{complete_documents?: bool, initial_screening_form?: bool}  $documentChecklist
      * @return array<string, mixed>
      */
-    public static function fromValidated(array $validated, array $budgetTotals = []): array
+    public static function fromValidated(array $validated, array $budgetTotals = [], array $documentChecklist = []): array
     {
         $objectives = self::objectives(
             $validated['general_objective'] ?? '',
@@ -81,8 +82,26 @@ class DetailedProposalData
             'approved_by_name' => self::text($validated['approved_by_name'] ?? ''),
             'mooe_total' => round((float) ($budgetTotals['mooe_total'] ?? 0), 2),
             'co_total' => round((float) ($budgetTotals['co_total'] ?? 0), 2),
+            'level_of_call' => $budgetTotals['level_of_call'] ?? null,
+            'document_checklist' => $documentChecklist,
             'references' => self::narrative($validated['references'] ?? ''),
         ];
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public static function normalizeObjectiveFields(array $data): array
+    {
+        if (array_key_exists('specific_objectives', $data)) {
+            return $data;
+        }
+
+        return [...$data, ...self::objectives(
+            $data['general_objective'] ?? '',
+            null,
+            $data['objectives'] ?? '',
+        )];
     }
 
     private static function text(mixed $value): string
@@ -312,7 +331,7 @@ class DetailedProposalData
      */
     private static function methodologyImages(mixed $images): array
     {
-        $sections = ['research_design'];
+        $sections = array_keys(config('detailed_proposal.image_sections'));
 
         return collect($images)
             ->filter(fn (mixed $image): bool => is_array($image))
@@ -338,7 +357,9 @@ class DetailedProposalData
                 ];
             })
             ->filter(fn (array $image): bool => $image['image'] instanceof UploadedFile || filled($image['stored_path']))
+            ->sortBy(fn (array $image): int => array_search($image['section'], $sections, true))
             ->values()
+            ->map(fn (array $image, int $index): array => [...$image, 'figure_number' => $index + 1])
             ->all();
     }
 

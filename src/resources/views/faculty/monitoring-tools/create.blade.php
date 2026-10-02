@@ -9,11 +9,11 @@
         </x-page-header>
     </x-slot>
 
-    <div class="mx-auto max-w-4xl space-y-5 py-6 sm:px-6 lg:px-8">
+    <div data-monitoring-workspace class="w-full space-y-5">
         <div class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div class="border-l-4 border-red-600 px-5 py-5 sm:px-6">
                 <h3 class="text-lg font-black text-gray-950 dark:text-white">{{ $revisionReport ? 'Correct '.$revisionReport->quarter_label.' Monitoring Tool' : 'Submit monitoring tool' }}</h3>
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Review the approved activities for this reporting period, record what was accomplished, then prepare and submit the PDF. Your entries save as a private draft.</p>
+                <p class="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">Record your activities, accomplishments, and spending for this quarter. Your draft saves automatically. You can prepare and submit the PDF after the quarter ends.</p>
                 @if ($revisionReport?->research_head_remarks)
                     <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs leading-5 text-red-800 dark:border-red-950 dark:bg-red-950/40 dark:text-red-100">
                         <p class="font-black">Research Head revision remarks</p>

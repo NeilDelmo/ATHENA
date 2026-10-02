@@ -16,7 +16,7 @@
             </span>
             <div class="min-w-0">
                 <h3 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{{ $released ? 'Proposal released' : 'Review complete' }}</h3>
-                <p class="mt-2 max-w-prose text-base leading-7 text-slate-600 dark:text-slate-400">{{ $released ? 'The signed proposal package and Notice to Proceed have been released. The review record remains available below.' : 'LREC review is complete. The proposal is cleared for signing; collect the signed papers before releasing the package.' }}</p>
+                <p class="mt-2 max-w-prose text-base leading-7 text-slate-600 dark:text-slate-400">{{ $released ? 'The signed project and Notice to Proceed have been released. The review record remains available below.' : 'LREC review is complete. The proposal is cleared for signing; collect the signed papers before releasing the package.' }}</p>
             </div>
         </div>
         <dl class="grid grid-cols-1 gap-4 border-t border-slate-100 bg-slate-50/70 px-5 py-4 text-base dark:border-slate-800 dark:bg-slate-900/50 sm:grid-cols-3 sm:px-6">
@@ -94,7 +94,7 @@
                 </div>
             </section>
             <section class="px-1">
-                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200">Latest proposal package</h3>
+                <h3 class="text-base font-semibold text-slate-800 dark:text-slate-200">Latest project</h3>
                 @if ($version)
                     <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">Version {{ $version->version_number }} submitted {{ $version->created_at->format('M j, Y') }} by {{ $version->submitter?->name ?? $topic->user->name }}.</p>
                 @endif

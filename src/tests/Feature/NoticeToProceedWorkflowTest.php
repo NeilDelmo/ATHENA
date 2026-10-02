@@ -9,11 +9,12 @@ use App\Notifications\ProposalActivityNotification;
 use App\Services\NoticeToProceedDataService;
 use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -34,7 +35,9 @@ beforeEach(function () {
 
     $this->head = User::factory()->create(['name' => 'Research Head']);
     $this->head->assignRole('research_head');
-    $this->faculty = User::factory()->create(['name' => 'Faculty Owner']);
+    $this->staff = User::factory()->create(['name' => 'Research Office Staff', 'college' => 'CICS']);
+    $this->staff->assignRole('research_coordinator');
+    $this->faculty = User::factory()->create(['name' => 'Faculty Owner', 'college' => 'CICS']);
     $this->faculty->assignRole('faculty');
     $this->call = ResearchCall::create([
         'title' => 'Notice Workflow Call',
@@ -64,8 +67,8 @@ test('the notice form keeps editable details visible above the signed upload', f
         $this->topic->update(['notice_to_proceed_data' => app(NoticeToProceedDataService::class)->defaults($this->topic)]);
     }
 
-    $response = $this->actingAs($this->head)
-        ->withSession(['active_workspace' => 'research_head'])
+    $response = $this->actingAs($this->staff)
+        ->withSession(['active_workspace' => 'research_office'])
         ->get(route('topics.show', $this->topic));
 
     $response->assertOk()
@@ -132,13 +135,12 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertDontSee('Project monitoring');
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Manage signatory names')
-        ->assertSeeInOrder(['id="notice-to-proceed-tab"', 'Manage signatory names'], false)
-        ->assertSee(route('signatories.index'), false)
+        ->assertDontSee('Manage signatory names')
+        ->assertSee('id="notice-to-proceed-tab"', false)
         ->assertSee('Preview notice')
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('Refresh preview')
@@ -154,9 +156,9 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
     $payload['resolution_number'] = '01';
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->post(route('topics.notice-to-proceed.store', $this->topic), $payload)
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
         ->assertSessionHas('success', 'Notice details saved. Download the unsigned PDF, obtain the required signatures, then upload the signed copy to release it to the faculty researcher.');
 
@@ -179,8 +181,8 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertNotFound();
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('Download unsigned PDF')
@@ -195,17 +197,17 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
         ->assertDontSee('Upload signed PDF and release');
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->get(route('research_head.topics.notice-to-proceed.download-unsigned', $this->topic))
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->get(route('topics.notice-to-proceed.download-unsigned', $this->topic))
         ->assertDownload('unsigned-notice-to-proceed-approved-coastal-research.pdf');
 
     expect(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $this->topic), [
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
             'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
@@ -214,7 +216,7 @@ test('the signed Notice to Proceed promotes the faculty member and opens monitor
     $this->topic->refresh();
     $this->faculty->refresh();
 
-    expect($this->topic->notice_to_proceed_issued_by)->toBe($this->head->id)
+    expect($this->topic->notice_to_proceed_issued_by)->toBe($this->staff->id)
         ->and($this->topic->notice_to_proceed_original_filename)->toBe('signed-notice-to-proceed-approved-coastal-research.pdf')
         ->and($this->topic->project_status)->toBe('ongoing')
         ->and($this->topic->isMonitoringAvailable())->toBeTrue()
@@ -278,16 +280,16 @@ test('issuing the Notice to Proceed promotes every accepted linked collaborator 
     $payload['resolution_number'] = '01';
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->post(route('topics.notice-to-proceed.store', $this->topic), $payload)
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
         ->assertSessionHasNoErrors();
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $this->topic), [
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
             'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
@@ -321,14 +323,14 @@ test('issuing the Notice to Proceed promotes every accepted linked collaborator 
         ->assertSee('Email Matched Researcher');
 });
 
-test('a Research Head can preview a Notice to Proceed without issuing it', function () {
+test('research office staff can preview a Notice to Proceed without issuing it', function () {
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->post(route('research_head.topics.notice-to-proceed.preview', $this->topic), $payload)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->post(route('topics.notice-to-proceed.preview', $this->topic), $payload)
         ->assertOk()
         ->assertHeader('content-type', 'text/html; charset=UTF-8')
         ->assertSee('data-notice-to-proceed-sheet', false)
@@ -349,9 +351,9 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
     $payload['resolution_number'] = 'LREC-2026-014';
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->postJson(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->postJson(route('topics.notice-to-proceed.store', $this->topic), $payload)
         ->assertOk()
         ->assertJson([
             'saved' => true,
@@ -364,9 +366,9 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
     $payload['resolution_number'] = 'LREC-2026-015';
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
-        ->postJson(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
+        ->postJson(route('topics.notice-to-proceed.store', $this->topic), $payload)
         ->assertOk()
         ->assertJsonPath('saved', true);
 
@@ -374,8 +376,8 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
         ->toBe('LREC-2026-015');
 
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('value="LREC-2026-015"', false);
@@ -383,10 +385,10 @@ test('Notice to Proceed autosave persists the LREC resolution number', function 
 
 test('a signed Notice to Proceed cannot be uploaded until its unsigned notice is prepared', function () {
     $this->withSession([
-        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD,
-    ])->actingAs($this->head)
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ])->actingAs($this->staff)
         ->from(route('topics.show', $this->topic))
-        ->post(route('research_head.topics.notice-to-proceed.upload-signed', $this->topic), [
+        ->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
             'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice-to-proceed.pdf', 125, 'application/pdf'),
         ])
         ->assertRedirect(route('topics.show', $this->topic))
@@ -486,16 +488,151 @@ test('a notice cannot be prepared before proposal approval', function () {
     $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
     $payload['resolution_number'] = '01';
 
-    $this->actingAs($this->head)
+    $this->actingAs($this->staff)
         ->from(route('topics.show', $this->topic))
-        ->post(route('research_head.topics.notice-to-proceed.store', $this->topic), $payload)
-        ->assertRedirect(route('topics.show', $this->topic))
-        ->assertSessionHasErrors('notice_to_proceed');
+        ->post(route('topics.notice-to-proceed.store', $this->topic), $payload)
+        ->assertForbidden();
 
     expect($this->topic->fresh()->notice_to_proceed_issued_at)->toBeNull()
         ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse()
         ->and(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
 });
+
+test('research heads and faculty cannot prepare generate or release notices', function (string $role, string $workspace) {
+    $user = $role === 'research_head' ? $this->head : $this->faculty;
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->staff);
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+    $this->topic->update(['notice_to_proceed_data' => $payload]);
+
+    $this->actingAs($user)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+
+    foreach (['preview', 'store', 'upload-signed'] as $action) {
+        $this->post(route('topics.notice-to-proceed.'.$action, $this->topic), $payload)->assertForbidden();
+    }
+    $this->get(route('topics.notice-to-proceed.download-unsigned', $this->topic))->assertForbidden();
+
+    if ($role === 'research_head') {
+        foreach (['preview', 'store', 'upload-signed'] as $action) {
+            $this->post(route('research_head.topics.notice-to-proceed.'.$action, $this->topic), $payload)->assertForbidden();
+        }
+        $this->get(route('research_head.topics.notice-to-proceed.download-unsigned', $this->topic))->assertForbidden();
+        $source = $this->topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+        $this->post(route('topics.head-uploads.store', $this->topic), [
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            'source_file_id' => $source->id,
+            'review_file' => UploadedFile::fake()->create('signed.pdf', 100, 'application/pdf'),
+        ])->assertForbidden();
+        $this->get(route('topics.show', $this->topic))->assertOk()
+            ->assertSee('Research office staff or the secretary')
+            ->assertDontSee('data-notice-to-proceed-autosave-form', false)
+            ->assertDontSee('data-signed-paper-input', false)
+            ->assertDontSee('Release papers and Notice to Proceed');
+    }
+
+    expect($this->topic->fresh()->notice_to_proceed_issued_at)->toBeNull();
+})->with([
+    'Research Head' => ['research_head', 'research_head'],
+    'Faculty' => ['faculty', 'faculty'],
+]);
+
+test('staff and secretary signing queues are limited to cleared accessible projects', function (string $role, string $workspace, string $dashboard) {
+    $operator = User::factory()->create(['college' => 'CICS']);
+    $operator->assignRole($role);
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    $otherOwner = User::factory()->create(['college' => 'CTE']);
+    $otherProject = TopicProposal::create(['user_id' => $otherOwner->id, 'title' => 'Other college signing project', 'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'estimated_budget' => 5000, 'estimated_duration_months' => 6]);
+    $pendingProject = TopicProposal::create(['user_id' => $this->faculty->id, 'title' => 'Unreviewed college project', 'status' => 'pending', 'estimated_budget' => 5000, 'estimated_duration_months' => 6]);
+
+    $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+    $this->get(route($dashboard))->assertOk()
+        ->assertSee('Prepare Notice to Proceed')
+        ->assertSee($this->topic->title)
+        ->assertDontSee($otherProject->title);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Save notice details');
+    $this->get(route('topics.show', $otherProject))->assertForbidden();
+    foreach ([$otherProject, $pendingProject] as $project) {
+        foreach (['preview', 'store', 'upload-signed'] as $action) {
+            $this->post(route('topics.notice-to-proceed.'.$action, $project), [])->assertForbidden();
+        }
+        $this->get(route('topics.notice-to-proceed.download-unsigned', $project))->assertForbidden();
+    }
+})->with([
+    'Research Office' => ['research_coordinator', 'research_office', 'research_coordinator.dashboard'],
+    'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard'],
+]);
+
+test('an assigned secretary can prepare and release a notice across colleges', function () {
+    $secretary = User::factory()->create(['college' => 'CTE']);
+    $secretary->assignRole('research_secretary');
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'research_secretary_id' => $secretary->id]);
+    completeSignedProposalPackage($this->topic, $this->faculty, $secretary);
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+
+    $this->actingAs($secretary)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_SECRETARY]);
+    $this->get(route('research_secretary.dashboard'))->assertOk()->assertSee($this->topic->title);
+    expect($secretary->can('generateCommentResponseForm', $this->topic))->toBeTrue();
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertSessionHasNoErrors();
+    $this->post(route('topics.notice-to-proceed.preview', $this->topic), $payload)->assertOk();
+    $this->get(route('topics.notice-to-proceed.download-unsigned', $this->topic))->assertDownload();
+    $this->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+    ])->assertSessionHasNoErrors()->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed');
+
+    $this->topic->refresh();
+    expect($this->topic->isMonitoringAvailable())->toBeTrue()
+        ->and($this->topic->notice_to_proceed_issued_by)->toBe($secretary->id)
+        ->and($this->topic->reviews()->latest('id')->first()->decision)->toBe('documents_released');
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), $payload)->assertForbidden();
+    $this->get(route('research_secretary.dashboard'))->assertOk()->assertDontSee('Prepare Notice to Proceed');
+});
+
+test('staff can save replace and preview signed papers but cannot record Research Head assessments', function (string $role, string $workspace) {
+    Process::fake(['*' => 'BatStateU-FO-RES-02 DETAILED RESEARCH PROPOSAL Project Title: Approved Coastal Research Research Agenda Project Leader Proponent Agency Sustainable Development Goal Prepared by: Faculty Owner Verified by: Research Office']);
+    $operator = User::factory()->create(['college' => 'CICS']);
+    $operator->assignRole($role);
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    completeSignedProposalPackage($this->topic, $this->faculty, $this->staff);
+    $source = $this->topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+    $response = $this->postJson(route('topics.head-uploads.store', $this->topic), [
+        'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+        'source_file_id' => $source->id,
+        'review_file' => UploadedFile::fake()->create('replacement-signed.pdf', 100, 'application/pdf'),
+    ])->assertOk()->assertJsonPath('complete', true);
+    $this->get($response->json('view_url'))->assertOk();
+    $this->get($response->json('download_url'))->assertDownload();
+    $this->post(route('topics.head-uploads.store', $this->topic), [
+        'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+    ])->assertForbidden();
+    $this->patch(route('research_head.topics.updateStatus', $this->topic), ['status' => 'rejected'])->assertForbidden();
+    $payload = app(NoticeToProceedDataService::class)->defaults($this->topic);
+    $payload['resolution_number'] = '01';
+    $this->topic->update(['notice_to_proceed_data' => $payload]);
+    $source->delete();
+    $this->post(route('topics.notice-to-proceed.upload-signed', $this->topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+    ])->assertSessionHasErrors('signed_notice_to_proceed');
+    expect($this->topic->fresh()->notice_to_proceed_issued_at)->toBeNull()
+        ->and(Storage::disk('local')->allFiles('notices-to-proceed'))->toBeEmpty();
+})->with([
+    'Research Office' => ['research_coordinator', 'research_office'],
+    'Research Secretary' => ['research_secretary', 'research_secretary'],
+]);
+
+test('unassigned staff without a college cannot access the signing queue projects', function (string $role, string $workspace) {
+    $operator = User::factory()->create(['college' => null]);
+    $operator->assignRole($role);
+    $this->topic->update(['status' => TopicProposal::STATUS_READY_FOR_SIGNATURE]);
+    $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+    $this->get(route('topics.show', $this->topic))->assertForbidden();
+    $this->post(route('topics.notice-to-proceed.store', $this->topic), [])->assertForbidden();
+})->with([
+    'Research Office' => ['research_coordinator', 'research_office'],
+    'Research Secretary' => ['research_secretary', 'research_secretary'],
+]);
 
 function completeSignedProposalPackage(TopicProposal $topic, User $faculty, User $head): void
 {

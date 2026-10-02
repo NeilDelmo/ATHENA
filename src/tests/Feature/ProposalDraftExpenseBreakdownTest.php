@@ -1,11 +1,14 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
 use App\Services\ExpenseBreakdownDocumentService;
 use App\Support\ExpenseBreakdownData;
+use App\Support\LineItemBudgetData;
+use App\Support\ProposalBudgetConsistency;
 use App\Support\ProposalDraftReadiness;
 use Spatie\Permission\Models\Role;
 
@@ -85,6 +88,7 @@ test('the estimated expense paper opens as a structured editor instead of a PDF 
         ->get(route('faculty.proposal-drafts.expense-breakdown.edit', $this->draft))
         ->assertOk()
         ->assertSee('Expense items')
+        ->assertSee('Use MOOE, Capital Outlay, or both.')
         ->assertSee('Descriptions / Specifications / Details')
         ->assertSee('Purpose in the project')
         ->assertSee('Unit Cost (Php)')
@@ -385,6 +389,40 @@ test('contingency uses the official single-amount workbook row', function () {
         ->total_cost->toBe(2500.0)
         ->is_contingency->toBeTrue();
 });
+
+test('a single expense category completes both budget papers and supplies Detailed Proposal totals', function (int $itemIndex, float $mooeTotal, float $coTotal) {
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->once()->andReturn("%PDF-1.7\nBudget test");
+    $expensePayload = ['document_version' => 0, 'items' => [$this->payload['items'][$itemIndex]]];
+    $this->actingAs($this->faculty)
+        ->putJson(route('faculty.proposal-drafts.expense-breakdown.update', $this->draft), $expensePayload)
+        ->assertOk()->assertJsonPath('saved_as_draft', false);
+    $budgetVersion = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)->sole()->lock_version;
+    $this->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), ['document_version' => $budgetVersion])
+        ->assertOk()->assertJsonPath('saved_as_draft', false);
+
+    $draft = $this->draft->fresh(['documents']);
+    $budgetDocument = $draft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET);
+    $budget = LineItemBudgetData::fromValidated($budgetDocument->source_data);
+    expect($budget['mooe_total'])->toEqual($mooeTotal)
+        ->and($budget['co_total'])->toEqual($coTotal)
+        ->and(app(ProposalBudgetConsistency::class)->compare($draft)['consistent'])->toBeTrue();
+    $checklist = app(ProposalDraftReadiness::class)->checklist($draft);
+    expect($checklist['line-item-budget']['complete'])->toBeTrue()
+        ->and($checklist['expense-breakdown']['complete'])->toBeTrue();
+
+    $this->postJson(route('faculty.proposal-drafts.expense-breakdown.preview', $draft), $expensePayload)
+        ->assertOk()->assertSee('0.00');
+    $this->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $draft), [])
+        ->assertOk()->assertSee('0.00');
+    $this->post(route('faculty.proposal-drafts.line-item-budget.download', $draft), [])
+        ->assertOk()->assertDownload();
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $draft))
+        ->assertOk()->assertViewHas('budgetTotals', fn (array $totals): bool => $totals['mooe_total'] === $mooeTotal && $totals['co_total'] === $coTotal
+        );
+})->with([
+    'MOOE without Capital Outlay' => [0, 3600.0, 0.0],
+    'Capital Outlay without MOOE' => [2, 0.0, 50000.0],
+]);
 
 test('another faculty member cannot access expense breakdown endpoints', function () {
     foreach ([

@@ -81,7 +81,7 @@ class NoticeToProceedController extends Controller
 
     public function downloadUnsigned(Request $request, TopicProposal $topic): Response
     {
-        Gate::forUser($request->user())->authorize('view', $topic);
+        Gate::forUser($request->user())->authorize('manageNoticeToProceed', $topic);
         $this->ensureNoticeCanBePrepared($topic);
 
         if (! $topic->hasPreparedNoticeToProceed()) {
@@ -159,7 +159,7 @@ class NoticeToProceedController extends Controller
                 $approvedTopic->reviews()->create([
                     'reviewer_id' => $request->user()->id,
                     'review_stage' => $approvedTopic->review_stage,
-                    'decision' => 'approved',
+                    'decision' => 'documents_released',
                     'comment' => 'Signed proposal papers and signed Notice to Proceed released together to faculty.',
                 ]);
                 $this->promoteTopicTeam->handle($approvedTopic);

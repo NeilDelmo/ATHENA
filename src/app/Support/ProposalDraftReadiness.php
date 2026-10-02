@@ -13,6 +13,7 @@ class ProposalDraftReadiness
     public function __construct(
         private readonly ProposalPaperCatalog $catalog,
         private readonly ProposalBudgetConsistency $proposalBudgetConsistency,
+        private readonly WorkPlanProposalObjectives $workPlanProposalObjectives,
     ) {}
 
     public function projectDetailsAreComplete(ProposalDraft $draft): bool
@@ -75,6 +76,32 @@ class ProposalDraftReadiness
         return $this->checklist($draft)->every('complete');
     }
 
+    /**
+     * @param  list<array<string, mixed>>  $preparedFiles
+     * @return array{complete_documents: bool, initial_screening_form: bool}
+     */
+    public function detailedProposalChecklist(ProposalDraft $draft, array $preparedFiles = []): array
+    {
+        $checklist = $this->checklist($draft);
+        $hasPdf = function (string $slug) use ($checklist, $preparedFiles): bool {
+            $item = $checklist->get($slug);
+            $preparedFile = collect($preparedFiles)->firstWhere('document_type', $item['paper']['document_type']);
+            $file = $preparedFile ?? $item['documents']->first();
+            $path = data_get($file, 'file_path');
+
+            return $item['complete'] && filled($path)
+                && data_get($file, 'mime_type') === 'application/pdf'
+                && Storage::disk('local')->exists($path);
+        };
+
+        return [
+            'complete_documents' => $checklist->get('detailed-proposal')['complete']
+                && ($preparedFiles !== [] || $hasPdf('detailed-proposal'))
+                && $hasPdf('line-item-budget') && $hasPdf('work-plan'),
+            'initial_screening_form' => $hasPdf('initial-screening-form'),
+        ];
+    }
+
     public function detailedProposalIsComplete(
         ProposalDraft $draft,
         ?ProposalDraftDocument $document,
@@ -101,8 +128,10 @@ class ProposalDraftReadiness
 
     public function commentResponseSignatoriesAreComplete(ProposalDraft $draft): bool
     {
+        $selections = $draft->resolvedSignatorySelections();
+
         return collect(array_keys(ProposalSignatory::FIELDS['comment_response_form']))
-            ->every(fn (string $role): bool => filled($draft->signatory_selections[$role]['name'] ?? null));
+            ->every(fn (string $role): bool => filled($selections[$role]['name'] ?? null));
     }
 
     public function submissionFilesArePrepared(ProposalDraft $draft): bool
@@ -138,7 +167,7 @@ class ProposalDraftReadiness
         }
 
         if (! $this->projectDetailsAreComplete($draft)) {
-            $errors['project_details'] = 'Complete Project Details before submitting this proposal package.';
+            $errors['project_details'] = 'Complete Project Details before submitting this project.';
         }
 
         foreach ($this->checklist($draft) as $slug => $item) {
@@ -206,8 +235,7 @@ class ProposalDraftReadiness
             }
 
             return match ($paper['slug']) {
-                'work-plan' => is_array($document->source_data['entries'] ?? null)
-                    && $document->source_data['entries'] !== [],
+                'work-plan' => $this->workPlanIsComplete($draft, $document),
                 'expense-breakdown' => is_array($document->source_data['items'] ?? null)
                     && $document->source_data['items'] !== [],
                 'curriculum-vitae' => is_array($document->source_data['people'] ?? null)
@@ -230,5 +258,20 @@ class ProposalDraftReadiness
             return in_array($extension, $paper['accepted_extensions'], true)
                 && ($maximumBytes === 0 || $actualSize <= $maximumBytes);
         });
+    }
+
+    private function workPlanIsComplete(ProposalDraft $draft, ProposalDraftDocument $document): bool
+    {
+        if (! is_array($document->source_data['entries'] ?? null)) {
+            return false;
+        }
+
+        $entries = $this->workPlanProposalObjectives->entries(
+            $document->source_data['entries'] ?? [],
+            $this->workPlanProposalObjectives->forDraft($draft),
+        );
+
+        return $entries !== [] && collect($entries)->every(fn (array $entry): bool => filled($entry['expected_output'])
+            && filled($entry['activity']) && is_array($entry['months']) && $entry['months'] !== []);
     }
 }

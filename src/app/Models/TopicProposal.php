@@ -319,6 +319,38 @@ class TopicProposal extends Model
             || $this->collaborators()->forUser($user)->exists();
     }
 
+    public function scopeAccessibleForDocumentRelease(Builder $query, User $user): Builder
+    {
+        return $query->where(function (Builder $query) use ($user): void {
+            $query->whereRaw('1 = 0');
+
+            if ($user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY]) && filled($user->college)) {
+                $query->orWhereHas('user', fn (Builder $owner): Builder => $owner->where('college', $user->college));
+            }
+
+            if ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)) {
+                $query->orWhere('research_secretary_id', $user->getKey());
+            }
+        });
+    }
+
+    public function isAccessibleForDocumentRelease(User $user): bool
+    {
+        if (! $user->isUsingWorkspace([User::WORKSPACE_RESEARCH_OFFICE, User::WORKSPACE_RESEARCH_SECRETARY])) {
+            return false;
+        }
+
+        return (filled($user->college) && $this->user?->college === $user->college)
+            || ($user->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY) && $this->research_secretary_id === $user->getKey());
+    }
+
+    public function scopeAwaitingDocumentRelease(Builder $query): Builder
+    {
+        return $query->whereIn('status', [self::STATUS_READY_FOR_SIGNATURE, 'approved'])
+            ->whereNull('notice_to_proceed_issued_at')
+            ->where(fn (Builder $query): Builder => $query->whereNull('project_status')->orWhere('project_status', '!=', self::PROJECT_STATUS_COMPLETED));
+    }
+
     public function canPrepareMonitoringBudget(User $user): bool
     {
         return $this->isMonitoringAvailable()

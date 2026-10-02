@@ -3,6 +3,7 @@
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectMonitoringDraft;
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProjectNarrativeReportDraft;
 use App\Models\ProjectProgressReport;
 use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
@@ -317,13 +318,71 @@ test('project secretary budget confirmation keeps the approved project cap', fun
     expect($report->fresh()->budget_prepared_at)->toBeNull();
 });
 
+test('monitoring and progress reports have matching quarter counts dates and form links', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 9]);
+    $this->travelTo(now()->setDate(2026, 10, 15)->startOfDay());
+    $response = $this->actingAs($this->researcher)->get(route('research.show', $this->topic))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $monitoring = $xpath->query('//*[@data-monitoring-schedule-table]//tbody/tr');
+    $progress = $xpath->query('//*[@data-progress-schedule-table]//tr[@data-progress-quarter]');
+    expect($monitoring->length)->toBe(3)->and($progress->length)->toBe(3);
+    foreach (['2026-04-14', '2026-07-14', '2026-10-14'] as $index => $date) {
+        expect(trim($xpath->query('./th', $monitoring->item($index))->item(0)->textContent))->toBe('Q'.($index + 1))
+            ->and(trim($xpath->query('./th', $progress->item($index))->item(0)->textContent))->toBe('Q'.($index + 1))
+            ->and(trim($xpath->query('./td[1]/p[1]', $monitoring->item($index))->item(0)->textContent))
+            ->toBe(trim($xpath->query('./td[1]/p[1]', $progress->item($index))->item(0)->textContent));
+        $url = route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'progress', 'reporting_date' => $date]);
+        expect($xpath->query('.//a', $progress->item($index))->item(0)->getAttribute('href'))->toBe($url);
+        $this->get($url)->assertOk()->assertViewHas('selectedReportingDate', $date);
+    }
+});
+
+test('progress quarter rows keep reviewed reports and revision actions in their own period', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 9]);
+    $this->travelTo(now()->setDate(2026, 10, 15)->startOfDay());
+    foreach ([1 => 'reviewed', 2 => 'revision_requested'] as $quarter => $status) {
+        $this->topic->narrativeReports()->create([
+            'submitted_by' => $this->researcher->id, 'report_type' => 'progress',
+            'submission_date' => now(), 'reporting_quarter' => $quarter,
+            'reporting_date' => $quarter === 1 ? '2026-04-14' : '2026-07-14',
+            'review_status' => $status,
+            'researchers' => $this->researcher->name,
+            'implementation_start' => '2026-01-15', 'implementation_end' => '2026-10-14',
+            'budget' => 50000, 'funding_agency' => 'Batangas State University',
+            'accomplishment_summary' => 'Quarterly activities completed.',
+            'introduction' => 'Quarterly implementation.', 'objectives' => 'Complete fieldwork.',
+            'methodology' => 'Site visits.', 'results_discussion' => 'Activities documented.', 'photos' => [],
+        ]);
+    }
+    $response = $this->actingAs($this->researcher)->get(route('topics.show', $this->topic))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-progress-quarter="1"]//a')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-progress-quarter="1"]')->item(0)->textContent)->toContain('Reviewed')
+        ->and($xpath->query('//*[@data-progress-quarter="2"]')->item(0)->textContent)->toContain('Corrections requested', 'Revise report')
+        ->and($xpath->query('//*[@data-progress-quarter="2"]//a[contains(., "Revise report")]')->item(0)->getAttribute('href'))
+        ->toBe(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'progress', 'reporting_date' => '2026-07-14']))
+        ->and($xpath->query('//*[@data-progress-quarter="3"]')->item(0)->textContent)->toContain('Not submitted', 'Start report');
+
+    $prepared = $this->topic->narrativeReports()->first()->replicate();
+    $prepared->fill(['reporting_quarter' => 3, 'reporting_date' => '2026-10-14', 'submission_status' => 'prepared', 'review_status' => 'pending'])->save();
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('PDF prepared')->assertSee('Review and submit');
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('topics.show', $this->topic))->assertOk()->assertDontSee('id="narrative-report-'.$prepared->id.'"', false);
+});
+
 test('report schedule blocks early submissions and opens terminal after project end', function () {
     $this->withoutVite();
     $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 6]);
     $this->travelTo(now()->setDate(2026, 4, 14)->startOfDay());
     $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))
         ->assertSessionHasErrors('reporting_date');
-    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertForbidden();
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertOk()->assertSee('Save draft')->assertSee('PDF preparation and submission open Jul 15, 2026.');
     $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Monitoring Tool')->assertSee('Not open yet');
     $this->travelTo(now()->setDate(2026, 4, 15)->startOfDay());
     $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))->assertSessionHasNoErrors()->assertRedirect(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-04-14']));
@@ -334,6 +393,63 @@ test('report schedule blocks early submissions and opens terminal after project 
     expect($report->fresh()->isSubmitted())->toBeTrue();
     $this->travelTo(now()->setDate(2026, 7, 15)->startOfDay());
     $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertOk()->assertSee('Terminal report')->assertSee('value="terminal"', false);
+});
+
+test('researchers can fill and save all three report drafts before submission opens', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 6]);
+    $this->travelTo(now()->setDate(2026, 2, 10)->startOfDay());
+    $this->actingAs($this->researcher);
+
+    $this->get(route('research.show', $this->topic))->assertOk()->assertSee('Fill draft')
+        ->assertSee('Fill and save a private draft now. Submission opens');
+    $monitoring = $this->get(route('project-progress.create', $this->topic))->assertOk()
+        ->assertSee('data-monitoring-tool-autosave-form', false)->assertSee('Save draft')->assertSee('Apr 15, 2026');
+    $progress = $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()
+        ->assertSee('data-narrative-progress-autosave-form', false)->assertSee('Save draft')->assertSee('Apr 15, 2026');
+    $terminal = $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertOk()
+        ->assertSee('terminal_data[abstract]', false)->assertSee('Save draft')->assertSee('Jul 15, 2026');
+    foreach ([$monitoring, $progress, $terminal] as $response) {
+        $response->assertSee('submissionOpen: false', false)->assertDontSee('Submit to Research Head');
+    }
+
+    $this->postJson(route('project-progress.draft', $this->topic), ['draft_version' => 0, 'reporting_date' => '2026-04-14', 'tracking_number' => 'Early monitoring draft'])
+        ->assertOk();
+    foreach (['progress', 'terminal'] as $type) {
+        $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 0, 'report_type' => $type, 'reporting_date' => $type === 'progress' ? '2026-04-14' : null, 'introduction' => 'Saved '.$type.' draft'])->assertOk();
+        $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => $type]))->assertOk()->assertSee('Saved '.$type.' draft');
+    }
+    $this->get(route('project-progress.create', $this->topic))->assertOk()->assertSee('Early monitoring draft');
+    expect(ProjectMonitoringDraft::count())->toBe(1)
+        ->and(ProjectNarrativeReportDraft::count())->toBe(2)
+        ->and(ProjectProgressReport::count())->toBe(0)
+        ->and(ProjectNarrativeReport::count())->toBe(0);
+    $this->postJson(route('project-progress.draft', $this->topic), ['draft_version' => 1, 'reporting_date' => '2026-07-14'])->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 1, 'report_type' => 'progress', 'reporting_date' => '2026-07-14'])->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    $this->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))->assertSessionHasErrors('reporting_date');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ['report_type' => 'terminal'])->assertForbidden();
+    Notification::assertNothingSent();
+});
+
+test('unfinished quarterly drafts reopen and cannot be replaced with another quarter', function () {
+    $this->withoutVite();
+    $this->topic->update(['notice_to_proceed_issued_at' => '2026-01-15', 'estimated_duration_months' => 6]);
+    $this->travelTo(now()->setDate(2026, 5, 10)->startOfDay());
+    $this->actingAs($this->researcher);
+    $this->postJson(route('project-progress.draft', $this->topic), ['draft_version' => 0, 'reporting_date' => '2026-04-14', 'tracking_number' => 'Keep monitoring'])->assertOk();
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 0, 'report_type' => 'progress', 'reporting_date' => '2026-04-14', 'introduction' => 'Keep progress'])->assertOk();
+    $this->get(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-07-14']))
+        ->assertRedirect(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-04-14']));
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'reporting_date' => '2026-07-14']))
+        ->assertRedirect(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'progress', 'reporting_date' => '2026-04-14']));
+    $this->postJson(route('project-progress.draft', $this->topic), ['draft_version' => 1, 'reporting_date' => '2026-07-14'])->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 1, 'report_type' => 'progress', 'reporting_date' => '2026-07-14'])->assertUnprocessable()->assertJsonValidationErrors('reporting_date');
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Keep monitoring')
+        ->and(ProjectNarrativeReportDraft::sole()->source_data['introduction'])->toBe('Keep progress');
+    $this->travelTo(now()->setDate(2026, 7, 15)->startOfDay());
+    $this->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-07-14']))->assertSessionHasErrors('reporting_date');
+    expect(ProjectMonitoringDraft::sole()->source_data['tracking_number'])->toBe('Keep monitoring')
+        ->and(ProjectProgressReport::count())->toBe(0);
 });
 
 test('a researcher prepares an official monitoring PDF before submitting it to the Research Head', function () {
@@ -369,6 +485,27 @@ test('a researcher prepares an official monitoring PDF before submitting it to t
     );
 });
 
+test('the project header highlights journal search without repeating the monitoring status', function () {
+    $response = $this->actingAs($this->researcher)
+        ->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('data-find-journals', false);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $actions = $xpath->query('//a[@data-find-journals]/parent::*')->item(0);
+
+    expect($actions)->not->toBeNull();
+    expect($actions->textContent)->toContain('Find journals')->not->toContain('Project monitoring');
+
+    $this->topic->update(['notice_to_proceed_issued_at' => null]);
+
+    $this->get(route('research.show', $this->topic))
+        ->assertOk()
+        ->assertSee('Final signing');
+});
+
 test('the faculty project page opens the monitoring tool in a focused form page', function () {
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
@@ -401,6 +538,11 @@ test('the faculty project page opens the monitoring tool in a focused form page'
         ->assertSee('x-ref="previewFrame"', false)
         ->assertSee('Approved Activities')
         ->assertSee('Add Activity')
+        ->assertSee('data-monitoring-workspace', false)
+        ->assertSee('x-ref="activityList"', false)
+        ->assertSee('data-monitoring-activity', false)
+        ->assertSee('Progress this quarter')
+        ->assertDontSee('max-w-4xl', false)
         ->assertSee('Spending this quarter')
         ->assertSee('Purchase Request')
         ->assertSee('Request of Payment');
@@ -450,8 +592,8 @@ test('approved Work Plan objectives and activities flow into their monitoring re
         ->assertOk()
         ->assertSee('Report')
         ->assertSee('of 3')
-        ->assertSee('Synced From Approved Work Plan')
-        ->assertSee('Only progress details are editable.');
+        ->assertSee('From your approved work plan')
+        ->assertSee('Review each planned activity and record what you accomplished this quarter.');
 
     $tampered = ($this->monitoringPayload)([
         'reporting_date' => '2026-03-31',
@@ -563,8 +705,11 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
         ->assertSee('data-project-status-manager', false)
         ->assertSee('Manage status')
         ->assertSee('x-show="statusManagerOpen"', false)
-        ->assertSee('relative z-30 ml-auto w-fit max-w-full', false)
-        ->assertSee('absolute top-full right-0 mt-3', false)
+        ->assertSee('fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(5.25rem+env(safe-area-inset-right))]', false)
+        ->assertSee('absolute bottom-full right-0 mb-3 w-full', false)
+        ->assertSee('origin-bottom-right', false)
+        ->assertSee('x-ref="statusTrigger"', false)
+        ->assertDontSee('absolute top-full right-0 mt-3', false)
         ->assertSee('min-h-12 shrink-0', false)
         ->assertSee('items-center gap-2 rounded-full bg-gray-900', false)
         ->assertDontSee('sm:w-[22.5rem]', false)

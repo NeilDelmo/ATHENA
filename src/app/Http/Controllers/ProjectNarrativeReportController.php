@@ -43,10 +43,17 @@ class ProjectNarrativeReportController extends Controller
 
         $schedule = app(MonitoringQuarterService::class);
         $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
-        abort_unless($request->query('report_type') === 'terminal' ? $schedule->canSubmitTerminal($topic) : $schedule->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])), 403, 'This report is not open yet. Check the project reporting schedule.');
 
         $reportType = $request->query('report_type') === 'terminal' ? 'terminal' : 'progress';
         $data = $formData->narrativeProgress($request->user(), $topic, $reportType, $request->query('reporting_date'));
+        if ($reportType === 'progress' && $request->filled('reporting_date') && $data['selectedReportingDate'] !== $request->query('reporting_date')) {
+            return redirect()->route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => $reportType, 'reporting_date' => $data['selectedReportingDate']])
+                ->with('success', 'Your unfinished quarterly draft was reopened. Finish this report before starting another quarter.');
+        }
+        if ($reportType === 'progress' && $data['selectedReportingDate'] && ! $schedule->canDraftForDate($topic, $data['selectedReportingDate'])) {
+            return redirect()->to(route('topics.show', $topic).'#project-monitoring')
+                ->withErrors(['reporting_date' => 'This reporting quarter has not started yet.'], 'narrativeProgress');
+        }
         if ($reportType === 'progress' && $data['quarterOptions']->isEmpty() && $data['preparedReport'] === null) {
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
                 ->withErrors(['reporting_date' => 'All ended quarters already have a submitted Progress Report.'], 'narrativeProgress');
@@ -104,6 +111,14 @@ class ProjectNarrativeReportController extends Controller
         TopicProposal $topic,
         PrepareProjectNarrativeReport $prepareProjectNarrativeReport,
     ): RedirectResponse {
+        if ($request->input('report_type', 'progress') === 'progress') {
+            $savedDraft = ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->where('report_type', 'progress')->first();
+            $savedDate = data_get($savedDraft?->source_data, 'reporting_date');
+            $schedule = app(MonitoringQuarterService::class);
+            if ($savedDate && $schedule->forDate($savedDate, $topic)['start']->ne($schedule->forDate($request->input('reporting_date'), $topic)['start'])) {
+                return back()->withInput()->withErrors(['reporting_date' => 'Finish your saved Progress Report draft before preparing another quarter.'], 'narrativeProgress');
+            }
+        }
         if ($request->input('report_type') === 'terminal') {
             $missing = app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic);
             if ($missing !== []) {

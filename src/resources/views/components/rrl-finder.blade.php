@@ -589,9 +589,11 @@
                             x-model="$store.literatureSearch.synthesisDraft"
                             rows="12"
                             maxlength="5000"
-                            placeholder="Write research notes or summarize the available evidence. Abstract-based notes stay in your library."
+                            placeholder="Generate or write an RRL paragraph from the available evidence, then review it before inserting it with its reference."
                             class="mt-4 min-h-64 w-full flex-1 resize-y rounded-2xl border-slate-300 bg-white p-4 text-sm leading-7 text-slate-900 shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
                         ></textarea>
+
+                        <p x-show="$store.literatureSearch.synthesisDraft.trim().length < 40" class="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400" role="status">Generate a draft or write at least 40 characters to enable adding it to the RRL and references.</p>
 
                         <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <p class="font-medium text-slate-500 dark:text-slate-400"><span x-text="$store.literatureSearch.synthesisWordCount()"></span> words <span aria-hidden="true">&middot;</span> Review required before saving the proposal</p>
@@ -606,8 +608,8 @@
                             <button type="button" @click="$store.literatureSearch.closeSynthesisReview()" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
                             <button type="button" @click="$store.literatureSearch.discardSynthesisDraft()" :disabled="$store.literatureSearch.isDiscardingDraft || !$store.literatureSearch.synthesisDraft" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 px-4 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30">Discard draft</button>
                             <button type="button" @click="$store.literatureSearch.persistSynthesisDraft('draft')" :disabled="$store.literatureSearch.isSavingDraft || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" x-text="$store.literatureSearch.isSavingDraft ? 'Saving...' : 'Save draft'"></button>
-                            <button type="button" @click="$store.literatureSearch.confirmSynthesis()" :disabled="$store.literatureSearch.isSynthesizing || $store.literatureSearch.isSavingDraft || $store.literatureSearch.isSavingResult($store.literatureSearch.synthesisSource) || $store.literatureSearch.synthesisDraft.trim().length < 40 || $store.literatureSearch.synthesisBasis !== 'full_text'" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">
-                                <span x-text="$store.literatureSearch.synthesisApplyTo === 'both' ? 'Insert reviewed text + IEEE reference' : 'Insert reviewed text'"></span>
+                            <button type="button" @click="$store.literatureSearch.confirmSynthesis()" :disabled="$store.literatureSearch.isSynthesizing || $store.literatureSearch.isSavingDraft || $store.literatureSearch.isSavingResult($store.literatureSearch.synthesisSource) || $store.literatureSearch.synthesisDraft.trim().length < 40" class="inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-black text-white shadow-sm transition hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-red-700 dark:hover:bg-red-600">
+                                <span>Insert reviewed RRL + IEEE reference</span>
                             </button>
                         </div>
                     </section>

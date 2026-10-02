@@ -94,6 +94,9 @@ class PrepareProjectProgressReport
                 if (! $lockedTopic->isMonitoringAvailable()) {
                     throw ValidationException::withMessages(['preparation' => 'Monitoring is no longer open for this project.']);
                 }
+                if ($lockedTopic->preparedProgressReports()->exists()) {
+                    throw ValidationException::withMessages(['preparation' => 'Submit or discard the prepared Monitoring Tool before preparing another quarter.']);
+                }
                 $existing = $lockedTopic->progressReports()->where('reporting_year', $period['year'])->where('reporting_quarter', $period['quarter']);
                 if ($supersedesReport === null && $existing->exists()) {
                     throw ValidationException::withMessages(['preparation' => 'This quarter already has a prepared or submitted report. Open that report instead.']);

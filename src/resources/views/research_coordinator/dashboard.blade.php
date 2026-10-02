@@ -3,9 +3,11 @@
         <x-page-header variant="hero"
             eyebrow="Research Office"
             title="Research Office Dashboard"
-            :subtitle="'Record LREC committee feedback for proposals from '.($coordinator->college ?: 'your college').'.'"
+            :subtitle="'Record LREC feedback and prepare Notices to Proceed for projects from '.($coordinator->college ?: 'your college').'.'"
         />
     </x-slot>
+
+    <x-notice-to-proceed-queue :projects="$signingProjects" class="mb-6" />
 
     <section class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="College summary">
         <div class="flex items-center justify-between rounded-2xl border border-gray-200/70 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">

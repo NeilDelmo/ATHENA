@@ -44,6 +44,7 @@
 <article
     data-revision-document="{{ $documentType }}"
     data-revision-label="{{ $label }}"
+    data-revision-preview-upload-url="{{ route('faculty.topics.revision.preview', $topic) }}"
     data-topic-file-dropzone="{{ $inputName }}"
     x-data="fileDropzone({ accept: @js($accept), maxBytes: 26214400, multiple: @js($multiple) })"
     @paste="paste($event)"
@@ -133,6 +134,22 @@
                         </div>
                     </section>
                     <section class="revision-editor-panel" aria-label="{{ $label }} revision editor">
+                        <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3 dark:border-slate-700">
+                            <p class="text-sm font-bold">Your revision</p>
+                            <button type="button" data-revision-preview-open aria-controls="revision-preview-{{ $documentType }}" aria-expanded="false" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700">Preview revised paper</button>
+                            <button type="button" data-revision-preview-close hidden class="min-h-10 rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold dark:border-slate-600">Back to revision</button>
+                        </div>
+                        <section id="revision-preview-{{ $documentType }}" data-revision-preview-panel hidden aria-label="{{ $label }} revised paper preview" class="revision-preview-panel">
+                            <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-slate-700 dark:bg-slate-950">
+                                <p data-revision-preview-status role="status" class="text-xs text-gray-600 dark:text-slate-300"></p>
+                                <select data-revision-preview-file hidden aria-label="Replacement file to preview" class="max-w-full rounded-lg border-gray-300 text-xs dark:border-slate-600 dark:bg-slate-900"></select>
+                                <button type="button" data-revision-preview-refresh class="min-h-9 rounded-lg border border-gray-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-slate-600">Refresh preview</button>
+                            </div>
+                            <p data-revision-preview-stale hidden role="status" class="shrink-0 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-200">Your edits are newer than this preview. Refresh to see the latest paper.</p>
+                            <p data-revision-preview-error hidden role="alert" class="shrink-0 p-4 text-sm text-red-700 dark:text-red-300"></p>
+                            <iframe data-revision-preview-frame hidden title="Preview revised {{ $label }}" class="revision-preview-frame"></iframe>
+                        </section>
+                        <div data-revision-editor-content class="revision-editor-content">
                         @if ($canEmbed)
                             <p data-revision-editor-status role="status" class="border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-slate-700 dark:text-slate-400">Loading editor…</p>
                             <div class="revision-frame-shell">
@@ -146,6 +163,7 @@
                             <h4 class="px-4 pt-4 text-sm font-bold">Upload your revised {{ $label }}</h4>
                             <x-proposal-revision-upload :input-name="$inputName" :accept="$accept" :multiple="$multiple" :required="$required" :staged-file="$stagedFile" :label="$label" :document-type="$documentType" :file-errors="$fileErrors" />
                         @endif
+                        </div>
                         <div data-revision-resolution-panel class="revision-resolution-panel border-t border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900" id="revision-resolution-{{ $documentType }}">
                             <button type="button" data-revision-resolution-resize aria-label="Resize no-change explanation panel" aria-controls="revision-resolution-{{ $documentType }}" class="revision-resolution-resize"><span aria-hidden="true"></span></button>
                             <div class="revision-resolution-content">

@@ -11,7 +11,7 @@
     <x-slot name="header">
         <x-page-header :title="$archived ? 'Submitted draft record' : 'Recovery history'" :subtitle="$subjectTitle">
             <x-slot name="actions">
-                <x-back-link fixed href="{{ $backRoute }}">Back to {{ $archived ? 'submitted proposal' : 'proposal package' }}</x-back-link>
+                <x-back-link fixed href="{{ $backRoute }}">Back to {{ $archived ? 'submitted proposal' : 'project' }}</x-back-link>
                 <span class="inline-flex w-fit rounded-full bg-gray-100 px-3 py-1.5 text-xs font-black text-gray-700 dark:bg-slate-800 dark:text-slate-200">{{ $versions->total() }} {{ Str::plural('recovery point', $versions->total()) }}</span>
             </x-slot>
         </x-page-header>

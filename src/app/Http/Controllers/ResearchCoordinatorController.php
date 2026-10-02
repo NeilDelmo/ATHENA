@@ -14,6 +14,12 @@ class ResearchCoordinatorController extends Controller
     {
         $coordinator = $request->user();
         $memberCount = $this->membersQuery($coordinator)->count();
+        $signingProjects = TopicProposal::query()
+            ->accessibleForDocumentRelease($coordinator)
+            ->awaitingDocumentRelease()
+            ->with('user:id,name,college')
+            ->latest('updated_at')
+            ->paginate(10, ['*'], 'signing_page');
         $lrecProposals = TopicProposal::query()
             ->with(['user:id,name,college', 'latestVersion'])
             ->where('review_stage', 'lrec')
@@ -35,6 +41,7 @@ class ResearchCoordinatorController extends Controller
             'coordinator' => $coordinator,
             'memberCount' => $memberCount,
             'lrecProposals' => $lrecProposals,
+            'signingProjects' => $signingProjects,
         ]);
     }
 

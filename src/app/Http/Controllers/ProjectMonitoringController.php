@@ -48,18 +48,29 @@ class ProjectMonitoringController extends Controller
         $quarters = $quarterService->summaryRows($topic->progressReports()->with('nextVersion')->get(), $topic);
         $requestedDate = $request->input('reporting_date');
         $data = $formData->monitoringTool($request->user(), $topic, $request->integer('revise_monitoring_report'), $requestedDate);
+        $preparedDate = $data['preparedReport']?->reporting_date?->toDateString();
+        if ($preparedDate && $requestedDate && $preparedDate !== $requestedDate && $data['revisionReport'] === null) {
+            return redirect()->route('project-progress.create', ['topic' => $topic, 'reporting_date' => $preparedDate])
+                ->with('success', 'Your prepared Monitoring Tool was reopened. Submit or discard it before starting another quarter.');
+        }
         $draftDate = data_get($data['monitoringDraft']?->source_data, 'reporting_date');
         if ($draftDate && $requestedDate && $data['revisionReport'] === null && $quarterService->forDate($draftDate, $topic)['start']->ne($quarterService->forDate($requestedDate, $topic)['start'])) {
             return redirect()->route('project-progress.create', ['topic' => $topic, 'reporting_date' => $draftDate])
                 ->with('success', 'Your unfinished quarterly draft was reopened. Submit this report before starting another quarter.');
         }
-        $quarterOptions = $quarters->filter(fn (array $row): bool => $row['reporting_date'] !== null && ($row['report'] === null || $row['report']->isPrepared()))->values();
+        $quarterOptions = $quarters->filter(fn (array $row): bool => $row['drafting_date'] !== null && ($row['report'] === null || $row['report']->isPrepared()))
+            ->map(fn (array $row): array => [...$row, 'reporting_date' => $row['drafting_date']])->values();
+        if ($draftDate && $data['revisionReport'] === null) {
+            $draftPeriod = $quarterService->forDate($draftDate, $topic);
+            $quarterOptions = $quarterOptions->filter(fn (array $row): bool => $row['start']->eq($draftPeriod['start']))->values();
+        }
         if ($quarterOptions->isEmpty() && $data['revisionReport'] === null) {
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
                 ->withErrors(['monitoring' => 'No reporting period is open for a new report. Check the schedule below.']);
         }
         $selectedReportingDate = $data['revisionReport']?->reporting_date?->toDateString()
             ?? $draftDate
+            ?? $preparedDate
             ?? $request->old('reporting_date')
             ?? $requestedDate
             ?? $quarterOptions->first()['reporting_date']
@@ -67,7 +78,7 @@ class ProjectMonitoringController extends Controller
         if ($requestedDate && $data['revisionReport'] === null) {
             $requestedQuarter = $quarterService->forDate($requestedDate, $topic);
             $row = $quarters->first(fn (array $row): bool => $row['start']->eq($requestedQuarter['start']));
-            if (! $row || $row['reporting_date'] === null || ($row['report'] && ! $row['report']->isPrepared())) {
+            if (! $row || $row['drafting_date'] === null || ($row['report'] && ! $row['report']->isPrepared())) {
                 return redirect()->to(route('topics.show', $topic).'#project-monitoring')
                     ->withErrors(['monitoring' => 'This quarter is not open for a new report. Open its existing report to view or revise it.']);
             }
@@ -195,6 +206,11 @@ class ProjectMonitoringController extends Controller
         $validated = $request->validated();
         $sourceReport = $this->revisionSourceReport($request, $topic);
         $period = $monitoringQuarterService->forDate($validated['reporting_date'], $topic);
+        $savedDraft = ProjectMonitoringDraft::query()->whereBelongsTo($topic, 'topic')->whereBelongsTo($request->user(), 'user')->forSource($sourceReport)->first();
+        $savedDate = data_get($savedDraft?->source_data, 'reporting_date');
+        if ($savedDate && $monitoringQuarterService->forDate($savedDate, $topic)['start']->ne($period['start'])) {
+            return back()->withInput()->withErrors(['reporting_date' => 'Finish your saved Monitoring Tool draft before preparing another quarter.']);
+        }
 
         if ($sourceReport !== null) {
             $sourcePeriod = $monitoringQuarterService->forDate($sourceReport->reporting_date, $topic);

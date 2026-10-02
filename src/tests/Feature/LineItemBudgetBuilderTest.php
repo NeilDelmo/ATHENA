@@ -66,6 +66,16 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+test('a missing budget call level defaults to constituent campus and central agency remains selectable', function (?string $level) {
+    $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()->assertViewHas('sourceData', fn (array $data): bool => $data['level_of_call'] === 'constituent_campus');
+    $this->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), ($this->payload)([
+        'level_of_call' => $level,
+    ]))->assertOk();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)->sole();
+    expect($document->source_data['level_of_call'])->toBe($level ?? 'constituent_campus');
+})->with([null, 'central_agency']);
+
 test('the line item budget saves optional structured inputs and resumes them', function () {
     $payload = ($this->payload)([
         'mooe_total_override' => '17000.00',

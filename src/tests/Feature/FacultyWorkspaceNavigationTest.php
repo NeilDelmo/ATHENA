@@ -73,21 +73,61 @@ test('faculty sidebars group accessible shortcuts by workspace', function (strin
 
     expect($sidebar)->toContain('data-faculty-navigation')
         ->toContain('aria-label="Overview"')
-        ->toContain('aria-label="Research"')
-        ->toContain('aria-label="Planning"')
+        ->not->toContain('aria-label="Research"')
+        ->not->toContain('aria-label="Planning"')
         ->toContain('aria-label="Resources"')
         ->toContain('href="'.route('faculty.calendar').'"')
         ->toContain('href="'.route('research-support.index').'#shared-literature-library"')
         ->toContain('Saved literature')
         ->not->toContain('href="'.route('research_head.analytics').'"');
 
+    $dom = new DOMDocument;
+    @$dom->loadHTML($sidebar);
+    $xpath = new DOMXPath($dom);
+    $navigation = '//nav[@data-faculty-navigation]';
+    $headings = [];
+    foreach ($xpath->query($navigation.'/section/h2') as $heading) {
+        $headings[] = trim($heading->textContent);
+    }
+    expect($headings)->toBe($workspace === User::WORKSPACE_FACULTY
+        ? ['Overview', 'Submission', 'Review', 'Resources']
+        : ['Overview', 'Monitoring', 'Completion', 'Resources'])
+        ->and($xpath->query($navigation.'//button | '.$navigation.'//details')->length)->toBe(0);
+    $expectedGroups = $workspace === User::WORKSPACE_FACULTY ? [
+        'Overview' => ['Dashboard', 'Calendar'],
+        'Submission' => ['Research calls', 'New proposal', 'Draft proposals'],
+        'Review' => ['Submitted proposals'],
+        'Resources' => ['Saved literature', 'Literature search', 'Turnitin'],
+    ] : [
+        'Overview' => ['Dashboard', 'Calendar'],
+        'Monitoring' => ['My Projects', 'Active projects', 'Awaiting release'],
+        'Completion' => ['Completed projects'],
+        'Resources' => ['Saved literature', 'Literature search', 'Turnitin', 'Journal Finder'],
+    ];
+    foreach ($expectedGroups as $group => $labels) {
+        $links = [];
+        foreach ($xpath->query($navigation.'/section[@aria-label="'.$group.'"]//a') as $link) {
+            $links[] = $link->getAttribute('title');
+            expect($link->getAttribute('class'))->toContain('text-sm', 'min-h-[44px]')
+                ->and($link->getAttribute('x-show'))->toBe('');
+        }
+        expect($links)->toBe($labels);
+    }
+
     if ($workspace === User::WORKSPACE_FACULTY) {
-        expect($sidebar)->toContain('href="'.route('faculty.proposal-drafts.create').'"')
+        expect($sidebar)->toContain('aria-label="Submission"')
+            ->toContain('aria-label="Review"')
+            ->not->toContain('aria-label="Monitoring"')
+            ->toContain('href="'.route('faculty.proposal-drafts.create').'"')
             ->toContain('href="'.route('faculty.submissions').'"')
             ->toContain('href="'.route('research-calls.index').'"')
             ->not->toContain('href="'.route('research.index').'"');
     } else {
-        expect($sidebar)->toContain('href="'.route('research.index').'"')
+        expect($sidebar)->toContain('aria-label="Monitoring"')
+            ->toContain('aria-label="Completion"')
+            ->not->toContain('aria-label="Submission"')
+            ->not->toContain('aria-label="Review"')
+            ->toContain('href="'.route('research.index').'"')
             ->toContain('href="'.route('research.index', ['status' => 'active']).'"')
             ->toContain('href="'.route('research.index', ['status' => 'waiting']).'"')
             ->toContain('href="'.route('research.index', ['status' => 'completed']).'"')

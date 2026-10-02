@@ -161,7 +161,7 @@
                         <div aria-labelledby="package-progress-heading" class="p-4">
                         <div class="flex items-start justify-between gap-3">
                             <div>
-                                <h4 id="package-progress-heading" class="text-sm font-black text-gray-950 dark:text-white">Proposal package progress</h4>
+                                <h4 id="package-progress-heading" class="text-sm font-black text-gray-950 dark:text-white">Project progress</h4>
                                 <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">{{ $completedPaperCount }} of {{ $paperCount }} proposal papers ready</p>
                             </div>
                             <span class="shrink-0 rounded-full border px-2 py-1 text-[9px] font-black {{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'border-gray-300 bg-gray-100 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200' }}">{{ $completedPaperCount === $paperCount && $projectDetailsComplete ? 'Ready' : 'In progress' }}</span>
@@ -194,7 +194,7 @@
 
         <section id="required-pdf-attachments-tab" x-show="activeProposalTab === 'attachments'" x-cloak role="tabpanel" aria-labelledby="required-pdf-attachments-tab-button">
             <div class="mb-4">
-                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Proposal package</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-red-600">Project</p>
                 <h3 id="required-papers-heading" class="mt-1 text-lg font-black text-gray-950 dark:text-white">Required PDF attachments</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">Complete the five proposal papers here. The GAD Checklist and Initial Screening Form are added automatically from Project Details.</p>
             </div>
@@ -275,7 +275,7 @@
                         <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-6">
                             <div class="min-w-0">
                                 <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $item['paper']['label'] }}</p>
-                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $item['complete'] ? 'Ready to include with the seven-PDF package' : 'Available once Project Details are complete' }}</p>
+                                <p class="mt-0.5 text-xs text-gray-500 dark:text-slate-400">{{ $item['complete'] ? 'Ready to include with the seven PDFs' : 'Available once Project Details are complete' }}</p>
                             </div>
                             <a href="{{ $previewRoute }}" class="inline-flex min-h-10 items-center rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Optional preview</a>
                         </div>
@@ -284,7 +284,7 @@
             </section>
 
             <div class="mt-5 flex flex-col gap-3 rounded-xl border-l-4 border-red-600 bg-gray-950 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div><p class="font-black text-white">Ready to prepare the proposal package?</p><p class="mt-1 text-xs text-gray-300">Review the five proposal papers. ATHENA includes the two assessment forms automatically in the seven-PDF package.</p></div>
+                <div><p class="font-black text-white">Ready to prepare the project?</p><p class="mt-1 text-xs text-gray-300">Review the five proposal papers. ATHENA automatically includes the two assessment forms, for a total of seven PDFs.</p></div>
                 <button type="button" x-on:click="$dispatch('open-modal', 'proposal-review')" class="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-white px-5 py-3 text-sm font-bold text-gray-950 hover:bg-red-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-900 sm:w-auto">Review &amp; turn in</button>
             </div>
         </section>
@@ -533,7 +533,7 @@
             <div class="min-h-0 flex-1 overflow-y-auto bg-gray-50 px-4 py-5 sm:px-6 sm:py-6">
                 @if ($errors->any())
                     <x-proposal-alert type="error">
-                        <p class="font-black">This proposal package cannot be turned in yet.</p>
+                        <p class="font-black">This project cannot be turned in yet.</p>
                         <ul class="mt-2 list-disc space-y-1 pl-5">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                     </x-proposal-alert>
                 @elseif (! $readyToSubmit)

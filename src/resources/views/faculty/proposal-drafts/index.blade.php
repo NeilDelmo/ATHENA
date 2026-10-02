@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Draft proposals" subtitle="Prepare your proposal package, then follow its review in Submitted.">
+        <x-page-header title="Draft proposals" subtitle="Prepare your project, then follow its review in Submitted.">
             <x-slot:actions><a wire:navigate href="{{ route('faculty.proposal-drafts.create') }}" class="dashboard-action">New Proposal</a></x-slot:actions>
         </x-page-header>
     </x-slot>
@@ -17,7 +17,7 @@
         <section data-faculty-drafts class="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900" aria-label="Your draft proposals">
             <div class="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4 dark:border-slate-800">
                 <div>
-                    <h2 class="text-sm font-semibold text-slate-900 dark:text-white">Draft packages</h2>
+                    <h2 class="text-sm font-semibold text-slate-900 dark:text-white">Draft projects</h2>
                     <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Drafts stay private until submitted.</p>
                 </div>
                 <span class="shrink-0 text-xs text-slate-500 dark:text-slate-400">{{ $proposalDrafts->total() }} {{ str('draft')->plural($proposalDrafts->total()) }}</span>
@@ -39,7 +39,7 @@
                             <svg class="h-4 w-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 3h10l6 6v12H4V3Zm10 0v6h6M8 13h8m-8 4h5" /></svg>
                             <span>{{ $completeCount }} of {{ $draftChecklist->count() }} papers ready</span>
                             @if ($draftChecklist->isNotEmpty() && $completeCount === $draftChecklist->count())
-                                <span class="font-semibold text-[#7A0019] dark:text-red-300">Review package</span>
+                                <span class="font-semibold text-[#7A0019] dark:text-red-300">Review project</span>
                             @endif
                         </p>
                     </div>

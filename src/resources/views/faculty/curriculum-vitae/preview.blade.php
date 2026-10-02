@@ -28,7 +28,7 @@
                     <table class="cv-table cv-personal-details-table">
                         <colgroup><col><col><col></colgroup>
                         <tbody>
-                            <tr class="cv-data-row"><td>Agency: <strong class="cv-output-value">{{ $person['agency'] }}</strong></td><td>Gender: {{ $person['gender'] === 'male' ? '■ Male  ☐ Female' : ($person['gender'] === 'female' ? '☐ Male  ■ Female' : '☐ Male  ☐ Female') }}</td><td>Birthday (mm/dd/yyyy):&nbsp;&nbsp;&nbsp;<strong class="cv-output-value">{{ $person['birthday'] }}</strong></td></tr>
+                            <tr class="cv-data-row"><td>Agency: <strong class="cv-output-value">{{ $person['agency'] }}</strong></td><td>Gender: {{ $person['gender'] === 'male' ? '☒ Male  ☐ Female' : ($person['gender'] === 'female' ? '☐ Male  ☒ Female' : '☐ Male  ☐ Female') }}</td><td>Birthday (mm/dd/yyyy):&nbsp;&nbsp;&nbsp;<strong class="cv-output-value">{{ $person['birthday'] }}</strong></td></tr>
                             <tr class="cv-data-row"><td colspan="3">&nbsp;</td></tr>
                         </tbody>
                     </table>

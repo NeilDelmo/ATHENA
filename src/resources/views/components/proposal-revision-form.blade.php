@@ -41,7 +41,7 @@
     <input type="hidden" name="redirect_to" value="topic">
     <input type="hidden" name="topic_tab" value="review">
     <input type="hidden" name="revision_draft_id" value="{{ $topic->revisionDraft?->id }}">
-    <h2 id="faculty-revision-heading" class="sr-only">Prepare the corrected proposal package</h2>
+    <h2 id="faculty-revision-heading" class="sr-only">Prepare the corrected project</h2>
 
     <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900">
         <p data-revision-progress role="status" aria-live="polite" class="text-sm font-bold text-slate-800 dark:text-slate-100">Step 1 of 5 · Read feedback</p>
@@ -85,7 +85,6 @@
                                 @foreach ($sourceRows as $item)
                                     <article class="space-y-4 p-4 sm:p-5" data-revision-feedback-item>
                                         <header class="space-y-1">
-                                            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ $item['reviewer'] }}</p>
                                             <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $item['location'] }}@if (isset($item['stage'])) · {{ \App\Services\CommentResponseFeedback::STAGE_LABELS[$item['stage']] ?? '' }}@endif</p>
                                         </header>
                                         <blockquote class="whitespace-pre-line rounded-r-lg border-l-[3px] border-slate-300 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-800 dark:border-slate-600 dark:bg-slate-800/50 dark:text-slate-100">{{ $item['comment'] }}</blockquote>
@@ -139,7 +138,6 @@
                     <h4 class="text-sm font-bold text-slate-900 dark:text-white">{{ $commentResponseLabels[$source] ?? 'Reviewer feedback' }}</h4>
                     @foreach ($sourceRows as $item)
                         <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                            <p class="text-sm font-bold text-slate-900 dark:text-white">{{ $item['reviewer'] }}</p>
                             <p class="text-xs text-slate-500 dark:text-slate-400">{{ $item['location'] }}</p>
                             <blockquote class="whitespace-pre-line border-l-2 border-slate-300 pl-3 text-sm leading-6 text-slate-700 dark:text-slate-200">{{ $item['comment'] }}</blockquote>
                                         <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">

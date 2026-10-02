@@ -4,7 +4,6 @@
     $usesSimpleSidebar = $isFacultyNavigation || $isResearchOfficeNavigation;
     $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-[13px] font-semibold text-slate-600 transition-all duration-200 ease-out hover:translate-x-0.5 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
     $sidebarCurrentClasses = '!bg-white !text-[#7A0019] shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200 before:absolute before:left-0 before:top-1/2 before:h-7 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-[#7A0019] dark:!bg-slate-900 dark:!text-white dark:ring-slate-800 dark:shadow-[0_12px_30px_rgba(0,0,0,0.28)]';
-    $researchHelpPath = parse_url(route('research-support.index'), PHP_URL_PATH);
     if ($usesSimpleSidebar) {
         $sidebarLinkClasses = 'relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-[13px] font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white';
         $sidebarCurrentClasses = '!bg-red-50 !text-[#7A0019] before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-[#7A0019] dark:!bg-red-950/30 dark:!text-red-200';
@@ -185,7 +184,7 @@
                 class="{{ $sidebarLinkClasses }}"
             >
                 <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5h4.5v6.75h-4.5V13.5Zm6-4.5h4.5v11.25h-4.5V9Zm6-5.25h4.5v16.5h-4.5V3.75Z" /></svg>
-                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Budget Monitoring</span>
+                <span x-show="$store.sidebar.open" class="whitespace-nowrap">Signing &amp; Budgets</span>
             </a>
         @endif
 
@@ -237,139 +236,14 @@
             @endif
         @endrole
 
-        @if (Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']))
-            @php
-                $usingResearchWorkspace = Auth::user()->isUsingWorkspace('faculty_researcher');
-            @endphp
+        @if ($isFacultyNavigation)
             <x-faculty-navigation :attention-counts="$sidebarAttentionCounts ?? []" />
-
-            <div
-                x-data="{
-                    researchHelpOpen: @js(request()->routeIs('research-support.*')),
-                    activeResearchHelpSection: window.location.hash || '#rrl-finder',
-                }"
-                @hashchange.window="activeResearchHelpSection = window.location.hash || '#rrl-finder'"
-                x-on:livewire:navigated.window="
-                    activeResearchHelpSection = window.location.hash || '#rrl-finder';
-                    if ($store.sidebar.currentPath.startsWith(@js($researchHelpPath))) researchHelpOpen = true;
-                "
-                data-research-help-menu
-            >
-                <button
-                    type="button"
-                    @click="
-                        if (!$store.sidebar.open) {
-                            $store.sidebar.setOpen(true);
-                            researchHelpOpen = true;
-                        } else {
-                            researchHelpOpen = !researchHelpOpen;
-                        }
-                    "
-                    :aria-expanded="researchHelpOpen"
-                    aria-controls="research-help-feature-links"
-                    aria-label="Research Help Facility"
-                    title="Research Help Facility"
-                    :class="[
-                        $store.sidebar.open ? 'px-4' : 'justify-center gap-0 !px-0',
-                        $store.sidebar.currentPath.startsWith(@js($researchHelpPath)) && activeResearchHelpSection !== '#shared-literature-library' ? @js($sidebarCurrentClasses) : '',
-                    ]"
-                    class="{{ $sidebarLinkClasses }} py-3"
-                >
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17l-5.66 5.66a2.12 2.12 0 01-3-3l5.66-5.66m3-3l5.66-5.66a2.12 2.12 0 013 3l-5.66 5.66m-6 0l3 3m-1.5-7.5l3 3" />
-                    </svg>
-
-                    <span
-                        x-show="$store.sidebar.open"
-                        class="min-w-0 flex-1 whitespace-nowrap text-left"
-                    >
-                        Research Help Facility
-                    </span>
-
-                    <svg
-                        x-show="$store.sidebar.open"
-                        :class="researchHelpOpen ? 'rotate-180' : ''"
-                        class="h-4 w-4 shrink-0 transition-transform duration-200"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        viewBox="0 0 24 24"
-                        aria-hidden="true"
-                    >
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" />
-                    </svg>
-                </button>
-
-                <div
-                    id="research-help-feature-links"
-                    x-cloak
-                    x-show="$store.sidebar.open && researchHelpOpen"
-                    x-transition:enter="transition ease-out duration-150"
-                    x-transition:enter-start="-translate-y-1 opacity-0"
-                    x-transition:enter-end="translate-y-0 opacity-100"
-                    x-transition:leave="transition ease-in duration-100"
-                    x-transition:leave-start="translate-y-0 opacity-100"
-                    x-transition:leave-end="-translate-y-1 opacity-0"
-                    class="relative mt-1 space-y-1 pl-8 before:absolute before:bottom-2 before:left-[18px]
-                           before:top-2 before:w-px before:bg-slate-200 dark:before:bg-slate-800"
-                >
-                    <a
-                        wire:navigate
-                        href="{{ route('research-support.index') }}#rrl-finder"
-                        @click="
-                            activeResearchHelpSection = '#rrl-finder';
-                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
-                        "
-                        :class="activeResearchHelpSection === '#rrl-finder'
-                            ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
-                            : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
-                    >
-                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>Literature Search and Source Organizer</span>
-                    </a>
-
-                    <a
-                        wire:navigate
-                        href="{{ route('research-support.index') }}#turnitin"
-                        @click="
-                            activeResearchHelpSection = '#turnitin';
-                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
-                        "
-                        :class="activeResearchHelpSection === '#turnitin'
-                            ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
-                            : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
-                    >
-                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>Turnitin</span>
-                    </a>
-
-                    @if (Auth::user()->isUsingWorkspace('faculty_researcher'))
-                    <a
-                        wire:navigate
-                        href="{{ route('research-support.index') }}#journal-finder"
-                        @click="
-                            activeResearchHelpSection = '#journal-finder';
-                            if (window.innerWidth < 640) $store.sidebar.setOpen(false);
-                        "
-                        :class="activeResearchHelpSection === '#journal-finder'
-                            ? 'bg-[#7A0019]/8 text-[#7A0019] ring-1 ring-[#7A0019]/10 dark:bg-white/5 dark:text-white dark:ring-white/10'
-                            : 'text-slate-500 hover:bg-slate-100/90 hover:text-[#7A0019] dark:text-slate-500 dark:hover:bg-slate-900 dark:hover:text-white'"
-                        class="flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition"
-                    >
-                        <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"></span>
-                        <span>Journal Finder</span>
-                    </a>
-                    @endif
-                </div>
-            </div>
         @endif
 
     </div>
     @if ($usesSimpleSidebar || Auth::user()->isUsingWorkspace('research_head'))
         <div data-sidebar-account class="relative z-10 shrink-0 border-t border-slate-100 p-3 dark:border-slate-800">
-            @if (Auth::user()->isUsingWorkspace('research_head'))
+            @if ($isFacultyNavigation || Auth::user()->isUsingWorkspace('research_head'))
                 <h2 x-show="$store.sidebar.open" class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</h2>
             @endif
             @if (Auth::user()->hasMultipleWorkspaces())

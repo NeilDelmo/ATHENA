@@ -141,7 +141,7 @@ class ProposalPackageService
         $path = $permanentDirectory.'/'.$document->document_type.'/'.Str::uuid().'.'.$extension;
 
         if (! Storage::disk('local')->copy($document->file_path, $path)) {
-            throw new RuntimeException('The staged revision file could not be copied into the proposal package.');
+            throw new RuntimeException('The staged revision file could not be copied into the project.');
         }
 
         $absolutePath = Storage::disk('local')->path($path);
@@ -411,7 +411,7 @@ class ProposalPackageService
         $path = $file->store($directory, 'local');
 
         if (! $path) {
-            throw new RuntimeException('A proposal package file could not be stored.');
+            throw new RuntimeException('A project file could not be stored.');
         }
 
         $realPath = $file->getRealPath();
@@ -496,6 +496,8 @@ class ProposalPackageService
                 'gad_signature_detected' => $meta['gad_signature_detected'] ?? false,
                 'gad_signature_confirmed' => $meta['gad_signature_confirmed'] ?? false,
                 'gad_signature_detection_method' => $meta['gad_signature_detection_method'] ?? null,
+                'signed_form_verification' => $meta['signed_form_verification'] ?? null,
+                'assessment_form_verification' => $meta['assessment_form_verification'] ?? null,
             ],
         ];
     }

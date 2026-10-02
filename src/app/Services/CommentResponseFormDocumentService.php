@@ -226,12 +226,28 @@ class CommentResponseFormDocumentService
             }
             $properties->appendChild($cellBorders);
 
-            if ($checked[$index]) {
-                $shade = $cell->ownerDocument->createElementNS(self::W, 'w:shd');
-                $shade->setAttributeNS(self::W, 'w:val', 'clear');
-                $shade->setAttributeNS(self::W, 'w:fill', '000000');
-                $properties->appendChild($shade);
+            $boxParagraph = $xpath->query('./w:p', $cell)->item(0);
+            $this->replaceParagraphText($xpath, $boxParagraph, $checked[$index] ? '×' : '');
+            $paragraphProperties = $xpath->query('./w:pPr', $boxParagraph)->item(0);
+            foreach ($this->elements($xpath, './w:jc | ./w:spacing', $paragraphProperties) as $property) {
+                $paragraphProperties->removeChild($property);
             }
+            $alignment = $cell->ownerDocument->createElementNS(self::W, 'w:jc');
+            $alignment->setAttributeNS(self::W, 'w:val', 'center');
+            $paragraphProperties->appendChild($alignment);
+            $spacing = $cell->ownerDocument->createElementNS(self::W, 'w:spacing');
+            foreach (['before' => '0', 'after' => '0', 'line' => '360', 'lineRule' => 'exact'] as $attribute => $value) {
+                $spacing->setAttributeNS(self::W, 'w:'.$attribute, $value);
+            }
+            $paragraphProperties->appendChild($spacing);
+            $margins = $cell->ownerDocument->createElementNS(self::W, 'w:tcMar');
+            foreach (['left', 'right'] as $edge) {
+                $margin = $cell->ownerDocument->createElementNS(self::W, 'w:'.$edge);
+                $margin->setAttributeNS(self::W, 'w:w', '0');
+                $margin->setAttributeNS(self::W, 'w:type', 'dxa');
+                $margins->appendChild($margin);
+            }
+            $properties->appendChild($margins);
 
             $labelCell = $cell->ownerDocument->createElementNS(self::W, 'w:tc');
             $labelProperties = $cell->ownerDocument->createElementNS(self::W, 'w:tcPr');
@@ -382,10 +398,7 @@ class CommentResponseFormDocumentService
                 }
 
                 $cells = $this->elements($xpath, './w:tc', $row);
-                $reviewerPrefix = ($item['stage'] ?? null) !== 'lrec' && filled($item['reviewer'] ?? null)
-                    ? $item['reviewer']."\n"
-                    : '';
-                $values = [($index + 1).'.', $reviewerPrefix.$item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+                $values = [($index + 1).'.', $item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
 
                 foreach ($cells as $offset => $cell) {
                     $paragraphs = $this->elements($xpath, './w:p', $cell);

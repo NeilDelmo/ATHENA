@@ -162,7 +162,22 @@ class TerminalReportData
             $defaults['terminal_data']['supersedes_report_id'] = $lastTerminal->id;
         }
 
+        foreach (self::defaultSignatoryNames() as $key => $name) {
+            $defaults['terminal_data']['signatories'][$key]['name'] = $name;
+        }
+
         return $defaults;
+    }
+
+    /** @return array<string, string> */
+    public static function defaultSignatoryNames(): array
+    {
+        $defaults = ProposalSignatory::defaultSelections();
+
+        return [
+            'reviewed_head' => $defaults['comment_response_head']['name'],
+            'verified_chancellor' => $defaults['comment_response_vice_chancellor']['name'],
+        ];
     }
 
     public function normalize(TopicProposal $topic, array $data): array
@@ -188,6 +203,9 @@ class TerminalReportData
                 ->all();
         }
         $data['terminal_data'] = [...$defaults['terminal_data'], ...($data['terminal_data'] ?? []), 'tables' => $data['terminal_data']['tables'] ?? []];
+        foreach (self::defaultSignatoryNames() as $key => $name) {
+            $data['terminal_data']['signatories'][$key]['name'] = $name;
+        }
         $richText = new ProposalRichText;
         foreach (['introduction', 'rationale', 'methodology', 'results_discussion'] as $field) {
             $data[$field] = $richText->sanitize((string) ($data[$field] ?? ''));

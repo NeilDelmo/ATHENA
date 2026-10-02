@@ -42,11 +42,13 @@ use App\Http\Controllers\ResearchAssistantDocumentController;
 use App\Http\Controllers\ResearchCallController;
 use App\Http\Controllers\ResearchCallDeadlineDismissalController;
 use App\Http\Controllers\ResearchCoordinatorController;
+use App\Http\Controllers\ResearchHeadInitialScreeningFormController;
 use App\Http\Controllers\ResearchHeadProposalSubmissionController;
 use App\Http\Controllers\ResearchHeadReportReviewController;
 use App\Http\Controllers\ResearchHeadTopicController;
 use App\Http\Controllers\ResearchOfficeLrecFeedbackController;
 use App\Http\Controllers\ResearchSupportController;
+use App\Http\Controllers\RevisionPaperPreviewController;
 use App\Http\Controllers\RoleSelectionController;
 use App\Http\Controllers\SidebarAttentionController;
 use App\Http\Controllers\TopicCommentResponseFormController;
@@ -172,6 +174,7 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
     Route::get('/faculty/topics/{topic}/revision', [TopicController::class, 'revision'])->name('faculty.topics.revision');
+    Route::post('/faculty/topics/{topic}/revision/preview', RevisionPaperPreviewController::class)->name('faculty.topics.revision.preview');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });
 
@@ -182,6 +185,10 @@ Route::middleware(['auth', 'workspace:faculty|faculty_researcher|research_head']
 });
 
 Route::middleware(['auth', 'workspace:research_head'])->group(function () {
+    Route::get('/research-head/topics/{topic}/versions/{version}/initial-screening-form', [ResearchHeadInitialScreeningFormController::class, 'edit'])->name('research_head.topics.initial-screening-form.edit');
+    Route::put('/research-head/topics/{topic}/versions/{version}/initial-screening-form', [ResearchHeadInitialScreeningFormController::class, 'update'])->name('research_head.topics.initial-screening-form.update');
+    Route::get('/research-head/topics/{topic}/versions/{version}/initial-screening-form/download', [ResearchHeadInitialScreeningFormController::class, 'download'])->name('research_head.topics.initial-screening-form.download');
+    Route::get('/research-head/topics/{topic}/versions/{version}/initial-screening-form/pdf', [ResearchHeadInitialScreeningFormController::class, 'pdf'])->name('research_head.topics.initial-screening-form.pdf');
     Route::get('/research-head/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('research_head.topics.comment-response-form.pdf');
     Route::get('/research-head/topics/{topic}/comment-response-form/download', [TopicCommentResponseFormController::class, 'download'])->name('research_head.topics.comment-response-form.download');
 });
@@ -233,6 +240,12 @@ Route::get('/topics/{topic}/approval', [TopicController::class, 'downloadApprova
 Route::get('/topics/{topic}/notice-to-proceed', [NoticeToProceedController::class, 'download'])
     ->middleware('auth')
     ->name('topics.notice-to-proceed.download');
+Route::middleware(['auth', 'workspace:research_office|research_secretary'])->group(function () {
+    Route::post('/topics/{topic}/notice-to-proceed/preview', [NoticeToProceedController::class, 'preview'])->name('topics.notice-to-proceed.preview');
+    Route::post('/topics/{topic}/notice-to-proceed/prepare', [NoticeToProceedController::class, 'prepare'])->name('topics.notice-to-proceed.store');
+    Route::get('/topics/{topic}/notice-to-proceed/unsigned', [NoticeToProceedController::class, 'downloadUnsigned'])->name('topics.notice-to-proceed.download-unsigned');
+    Route::post('/topics/{topic}/notice-to-proceed/signed', [NoticeToProceedController::class, 'uploadSigned'])->name('topics.notice-to-proceed.upload-signed');
+});
 Route::post('/topics/{topic}/documents', [ProjectDocumentController::class, 'store'])
     ->middleware(['auth', 'workspace:faculty|faculty_researcher'])
     ->name('topics.documents.store');
@@ -250,7 +263,7 @@ Route::get('/topics/{topic}/head-uploads', [TopicController::class, 'headUploads
     ->middleware(['auth', 'workspace:research_head'])
     ->name('topics.head-uploads.index');
 Route::post('/topics/{topic}/head-uploads', [TopicController::class, 'storeHeadUpload'])
-    ->middleware(['auth', 'workspace:research_head'])
+    ->middleware(['auth', 'workspace:research_head|research_office|research_secretary'])
     ->name('topics.head-uploads.store');
 
 Route::get('/research-calls', [ResearchCallController::class, 'index'])
@@ -325,6 +338,7 @@ Route::middleware('auth')->group(function () {
 });
 
 Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-secretary')->name('research_secretary.')->group(function () {
+    Route::get('/topics/{topic}/comment-response-form/pdf', [TopicCommentResponseFormController::class, 'downloadPdf'])->name('topics.comment-response-form.pdf');
     Route::get('/projects', [ProjectBudgetUtilizationController::class, 'index'])->name('dashboard');
     Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('projects.budget.edit');
     Route::put('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'update'])->name('projects.budget.update');

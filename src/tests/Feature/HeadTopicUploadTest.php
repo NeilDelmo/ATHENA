@@ -7,6 +7,7 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\CommentResponseFeedback;
+use App\Services\ProposalFormVerifier;
 use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Process;
@@ -20,6 +21,9 @@ beforeEach(function () {
 
     Storage::fake('local');
     $this->withoutVite();
+    $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
+        'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
+    ]);
 
     $this->head = User::factory()->create(['name' => 'Research Head']);
     $this->head->assignRole('research_head');
@@ -927,12 +931,14 @@ describe('screening narrative transcription', function () {
             $reviewLink = $xpath->query('//*[@id="co-evaluator-review"]//a[contains(., "Download editable DOCX")]')->item(0);
             expect($reviewLink?->getAttribute('href'))->toBe($url);
             $preferredWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-docx-workflow]')->item(0);
-            $handwrittenWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-narrative-transcription]')->item(0);
+            $scannedWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-narrative-transcription]')->item(0);
             expect($preferredWorkflow?->textContent)->toContain('Recommended: complete the DOCX in Word', 'ATHENA reads the typed comments automatically.')
-                ->and($handwrittenWorkflow?->textContent)->toContain('Handwritten or scanned form (alternative)', 'Upload the completed scan')
-                ->and($xpath->query('preceding::*[@data-screening-docx-workflow]', $handwrittenWorkflow)->length)->toBe(1)
-                ->and($xpath->query('.//textarea[@name="narrative_evaluation"]', $handwrittenWorkflow)->length)->toBe(1)
-                ->and($xpath->query('.//input[@name="narrative_evaluation_confirmed"]', $handwrittenWorkflow)->length)->toBe(1);
+                ->and($preferredWorkflow?->textContent)->toContain('completed DOCX or PDF', 'required wet signature', 'upload a scanned PDF')
+                ->and($scannedWorkflow?->textContent)->toContain('Scanned signed form (alternative)', 'Upload the scanned PDF', 'wet signature', 'typed comments')
+                ->and($scannedWorkflow?->textContent)->not->toContain('Handwritten')
+                ->and($xpath->query('preceding::*[@data-screening-docx-workflow]', $scannedWorkflow)->length)->toBe(1)
+                ->and($xpath->query('.//textarea[@name="narrative_evaluation"]', $scannedWorkflow)->length)->toBe(1)
+                ->and($xpath->query('.//input[@name="narrative_evaluation_confirmed"]', $scannedWorkflow)->length)->toBe(1);
         }
     })->with(['research_head', 'faculty']);
 
@@ -1018,8 +1024,8 @@ describe('screening narrative transcription', function () {
         $this->get(route('topics.versions.files.editable-docx', [$this->topic, $this->version, $otherForm]))->assertNotFound();
     });
 
-    test('verified handwritten comments are recorded with their original form and line breaks', function (string $extension, string $mimeType) {
-        $file = UploadedFile::fake()->create('handwritten-screening.'.$extension, 10, $mimeType);
+    test('verified typed comments from signed scans are recorded with their original form and line breaks', function (string $extension, string $mimeType) {
+        $file = UploadedFile::fake()->create('signed-screening-scan.'.$extension, 10, $mimeType);
         $originalContents = file_get_contents($file->getRealPath());
         $this->actingAs($this->head)
             ->post(route('topics.head-uploads.store', $this->topic), [

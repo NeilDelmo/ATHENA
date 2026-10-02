@@ -30,6 +30,20 @@ test('opening an empty preview generates once while a request is pending', () =>
     assert.equal(generated, 1);
 });
 
+test('reopening a preview after edits regenerates once while a request is pending', () => {
+    let generated = 0;
+    const state = {
+        ...proposalPreviewWorkspace(),
+        previewHtml: '<p>Old preview</p>',
+        generatePreview() { generated++; this.previewLoading = true; },
+    };
+    state.markProposalPreviewStale();
+    state.showProposalPreview();
+    state.showProposalPreview();
+    assert.equal(generated, 1);
+    assert.equal(state.previewPaneOpen, true);
+});
+
 test('edits mark an existing preview stale and track changes during generation', () => {
     const state = { ...proposalPreviewWorkspace(), previewHtml: '' };
     state.markProposalPreviewStale();

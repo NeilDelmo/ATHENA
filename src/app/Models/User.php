@@ -94,12 +94,12 @@ class User extends Authenticatable
             ],
             self::WORKSPACE_RESEARCH_OFFICE => [
                 'label' => 'Research Office',
-                'description' => 'Record LREC committee comments for proposals from your college.',
+                'description' => 'Record LREC feedback and prepare Notices to Proceed for your college.',
                 'route' => 'research_coordinator.dashboard',
             ],
             self::WORKSPACE_RESEARCH_SECRETARY => [
                 'label' => 'Research Secretary',
-                'description' => 'Complete budget utilization for assigned research projects.',
+                'description' => 'Prepare Notices to Proceed, upload signed documents, and complete assigned project budgets.',
                 'route' => 'research_secretary.dashboard',
             ],
             self::WORKSPACE_FACULTY_RESEARCHER => [
@@ -109,7 +109,7 @@ class User extends Authenticatable
             ],
             self::WORKSPACE_FACULTY => [
                 'label' => 'Faculty',
-                'description' => 'Create proposal packages and track your research submissions.',
+                'description' => 'Create projects and track your research submissions.',
                 'route' => 'faculty.dashboard',
             ],
         ];

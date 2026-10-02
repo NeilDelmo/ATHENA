@@ -11,7 +11,7 @@
 
         $statusDescription = match ($topic->status) {
             'approved' => 'This research proposal has been approved.',
-            'ready_for_signature' => 'The review is complete and the Research Head is preparing the required signed final copies.',
+            'ready_for_signature' => 'Review is complete. Research office staff or the secretary will prepare the Notice to Proceed and upload the required signed documents.',
             'rejected' => 'This proposal received a final rejection decision.',
             'revision_requested' => 'The Research Head requested changes before another review.',
             'resubmitted' => 'The revised proposal is waiting for the Research Head.',
@@ -113,7 +113,7 @@
             @if ($topic->signed_approval_path)
                 <section class="rounded-2xl border border-green-200 bg-green-50 p-5">
                     <h3 class="text-xs font-black uppercase tracking-wider text-green-700">Signed approval</h3>
-                    <p class="mt-2 text-xs leading-5 text-green-800">The Research Head has issued the signed authorization to proceed.</p>
+                    <p class="mt-2 text-xs leading-5 text-green-800">Research office staff or the secretary have released the signed authorization to proceed.</p>
                     <a href="{{ route('topics.approval', $topic) }}" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-green-700 px-4 py-2.5 text-xs font-bold text-white">Download signed approval</a>
                 </section>
             @endif
