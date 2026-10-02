@@ -76,6 +76,7 @@ class SidebarAttentionService
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS => 'research_head.proposal-submissions.index',
             ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING => 'research_head.projects.index',
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE => 'faculty.proposal-drafts.index',
+            ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS => 'faculty.submissions',
             ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS => 'research.index',
         };
     }
@@ -92,6 +93,7 @@ class SidebarAttentionService
             ],
             User::WORKSPACE_FACULTY => [
                 ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+                ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
             ],
             User::WORKSPACE_FACULTY_RESEARCHER => [
                 ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
@@ -123,13 +125,33 @@ class SidebarAttentionService
     private function areaFor(DatabaseNotification $notification): ?string
     {
         $area = data_get($notification->data, 'sidebar_area');
+        $title = (string) data_get($notification->data, 'title');
+        $isSubmittedProposalUpdate = in_array($title, [
+            'Proposal submitted for review',
+            'Proposal ready for signature',
+            'Revision requested',
+            'Proposal rejected',
+            'Signed documents ready',
+            'GAD review started',
+            'Queued for LREC',
+            'LREC review started',
+            'LREC revision requested',
+        ], true);
+
+        if ($area === ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE
+            && ($isSubmittedProposalUpdate || filled(data_get($notification->data, 'topic_id')))) {
+            return ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS;
+        }
 
         if (in_array($area, $this->knownAreas(), true)) {
             return $area;
         }
 
-        $title = (string) data_get($notification->data, 'title');
         $url = (string) data_get($notification->data, 'url');
+
+        if ($isSubmittedProposalUpdate) {
+            return ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS;
+        }
 
         if (in_array($title, ['New proposal submitted', 'Proposal revision submitted'], true)) {
             return ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS;
@@ -145,11 +167,6 @@ class SidebarAttentionService
             'Proposal workspace invitation',
             'Team member accepted invitation',
             'Collaborator accepted invitation',
-            'Proposal submitted for review',
-            'Proposal ready for signature',
-            'Revision requested',
-            'Proposal rejected',
-            'Signed documents ready',
         ], true) || Str::contains($url, '/faculty/proposal-drafts')) {
             return ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE;
         }
@@ -177,6 +194,7 @@ class SidebarAttentionService
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_SUBMISSIONS,
             ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
             ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
             ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ];
     }

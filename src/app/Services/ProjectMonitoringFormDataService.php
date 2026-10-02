@@ -65,8 +65,13 @@ class ProjectMonitoringFormDataService
             ? app(MonitoringQuarterService::class)->narrativeProgressPeriods($topic)->filter(fn (array $period): bool => $period['reporting_date'] !== null)->values()
             : collect();
         $draft = ProjectNarrativeReportDraft::query()->whereBelongsTo($topic, 'topic')->where('report_type', $reportType)->whereBelongsTo($user, 'user')->first();
-        $selectedReportingDate = $reportingDate ?? data_get($draft?->source_data, 'reporting_date') ?? $quarterOptions->first()['reporting_date'] ?? null;
-        $selectedQuarter = $selectedReportingDate ? app(MonitoringQuarterService::class)->forDate($selectedReportingDate, $topic)['quarter'] : null;
+        $preparedReport = ProjectNarrativeReport::query()
+            ->prepared()
+            ->whereBelongsTo($topic, 'topic')
+            ->where('report_type', $reportType)
+            ->latest('prepared_at')
+            ->first();
+        $selectedReportingDate = $preparedReport?->reporting_date?->toDateString() ?? $reportingDate ?? data_get($draft?->source_data, 'reporting_date') ?? $quarterOptions->first()['reporting_date'] ?? null;
 
         return [
             'quarterOptions' => $quarterOptions,
@@ -74,13 +79,7 @@ class ProjectMonitoringFormDataService
             'progressDefaults' => $reportType === 'progress' ? app(ProgressReportData::class)->defaults($topic) : [],
             'terminalDefaults' => $reportType === 'terminal' ? app(TerminalReportData::class)->defaults($topic) : [],
             'terminalEvidence' => $reportType === 'terminal' ? app(TerminalReportData::class)->evidence($topic) : [],
-            'preparedReport' => ProjectNarrativeReport::query()
-                ->prepared()
-                ->whereBelongsTo($topic, 'topic')
-                ->where('report_type', $reportType)
-                ->when($reportType === 'progress' && $selectedQuarter !== null, fn ($query) => $query->where('reporting_quarter', $selectedQuarter))
-                ->latest('prepared_at')
-                ->first(),
+            'preparedReport' => $preparedReport,
             'narrativeReportDraft' => ProjectNarrativeReportDraft::query()
                 ->whereBelongsTo($topic, 'topic')
                 ->where('report_type', $reportType)

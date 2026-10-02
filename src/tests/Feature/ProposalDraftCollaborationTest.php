@@ -148,7 +148,7 @@ test('an owner can tag an existing account and the collaborator can edit but not
         ->get(route('faculty.proposal-drafts.show', $this->draft))
         ->assertOk()
         ->assertSee('Joined')
-        ->assertSee('Can open and edit every draft paper.');
+        ->assertSee('Shares this workspace through project completion. Only the project leader can submit.');
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.index'))
@@ -176,12 +176,12 @@ test('an owner can tag an existing account and the collaborator can edit but not
 
     $this->actingAs($this->owner)
         ->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))
-        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
-    $this->assertDatabaseMissing('proposal_draft_members', ['id' => $membership->id]);
+        ->assertForbidden();
+    $this->assertModelExists($membership);
 
     $this->actingAs($this->collaborator)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
-        ->assertForbidden();
+        ->assertOk();
 
     $this->actingAs($this->outsider)
         ->get(route('faculty.proposal-drafts.show', $this->draft))
@@ -314,6 +314,40 @@ test('accepted team members and their project roles are restored when a revision
         ->assertSee('Shared with you by Workspace Owner');
 });
 
+test('accepted collaborators survive stale revision team lists and retain access through project completion', function () {
+    $this->draft->members()->create(['user_id' => $this->collaborator->id, 'name' => $this->collaborator->name, 'email' => $this->collaborator->email, 'accepted_at' => now()]);
+    $topic = TopicProposal::create(['user_id' => $this->owner->id, 'research_call_id' => $this->draft->research_call_id, 'title' => $this->draft->project_title, 'status' => 'revision_requested', 'estimated_duration_months' => 12]);
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+    $membershipId = $topic->collaborators()->sole()->id;
+    $acceptedAt = $topic->collaborators()->sole()->accepted_at->toDateTimeString();
+    $this->draft->members()->update(['accepted_at' => null]);
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+    expect($this->draft->members()->sole()->accepted_at->toDateTimeString())->toBe($acceptedAt);
+    $this->draft->members()->delete();
+    app(SyncTopicCollaborators::class)->handle($this->draft, $topic);
+    expect($topic->collaborators()->sole()->id)->toBe($membershipId)
+        ->and($topic->collaborators()->sole()->accepted_at->toDateTimeString())->toBe($acceptedAt)
+        ->and($this->draft->members()->sole()->accepted_at)->not->toBeNull();
+    $this->actingAs($this->collaborator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->get(route('faculty.proposal-drafts.show', $this->draft))->assertOk();
+    $this->patch(route('faculty.topics.resubmit', $topic))->assertForbidden();
+    $this->collaborator->assignRole('faculty_researcher');
+    $topic->update(['status' => 'approved', 'notice_to_proceed_issued_at' => now()->subMonths(4)]);
+    foreach (['ongoing', 'delayed', 'completed'] as $status) {
+        $topic->update(['project_status' => $status]);
+        $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])->get(route('topics.show', $topic))->assertOk();
+        $this->get(route('research.index'))->assertOk()->assertSee($topic->title);
+        expect($topic->collaborators()->sole()->id)->toBe($membershipId);
+    }
+});
+
+test('pending invitations may still be cancelled before the collaborator joins', function () {
+    $membership = $this->draft->members()->create(['user_id' => $this->collaborator->id, 'name' => $this->collaborator->name, 'email' => $this->collaborator->email, 'accepted_at' => null]);
+    $this->actingAs($this->owner)->delete(route('faculty.proposal-drafts.members.destroy', [$this->draft, $membership]))
+        ->assertRedirect(route('faculty.proposal-drafts.show', $this->draft));
+    $this->assertModelMissing($membership);
+});
+
 test('an unregistered person remains external and is linked after verified Google account matching', function () {
     $this->actingAs($this->owner)
         ->post(route('faculty.proposal-drafts.members.store', $this->draft), [
@@ -443,7 +477,7 @@ test('workspace account details autofill member fields in project papers', funct
         ->assertOk()
         ->assertSee($this->owner->email)
         ->assertSee($this->collaborator->email)
-        ->assertSee('Add workspace member CV');
+        ->assertSee('Add a workspace member');
 });
 
 test('a stale collaborator save cannot overwrite a newer teammate paper or project details', function () {

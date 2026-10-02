@@ -11,7 +11,7 @@
             </div>
 
             <div class="border-t border-gray-200 dark:border-slate-800">
-                <x-progress-report-form :topic="$topic" :prepared-report="$preparedReport" :narrative-report-draft="$narrativeReportDraft" :progress-defaults="$progressDefaults" :terminal-defaults="$terminalDefaults" :terminal-evidence="$terminalEvidence" standalone />
+                <x-progress-report-form :topic="$topic" :prepared-report="$preparedReport" :narrative-report-draft="$narrativeReportDraft" :progress-defaults="$progressDefaults" :terminal-defaults="$terminalDefaults" :terminal-evidence="$terminalEvidence" :quarter-options="$quarterOptions" :selected-reporting-date="$selectedReportingDate" standalone />
             </div>
         </div>
     </div>

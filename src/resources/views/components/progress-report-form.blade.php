@@ -1,4 +1,4 @@
-@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => []])
+@props(['topic', 'preparedReport' => null, 'narrativeReportDraft' => null, 'standalone' => false, 'progressDefaults' => [], 'terminalDefaults' => [], 'terminalEvidence' => [], 'quarterOptions' => [], 'selectedReportingDate' => null])
 @php
     $reportType = $preparedReport?->report_type ?? old('report_type', request('report_type', data_get($narrativeReportDraft?->source_data, 'report_type', 'progress')));
     $reportLabel = $reportType === 'terminal' ? 'Terminal report' : 'Progress report';
@@ -12,6 +12,7 @@
         <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
                 <p class="text-sm font-black text-gray-950 dark:text-white">{{ $reportLabel }} PDF prepared</p>
+                @if ($preparedReport->reporting_period_label)<p class="mt-2 text-base font-semibold text-red-700 dark:text-red-300">{{ $preparedReport->reporting_period_label }} · Version {{ $preparedReport->version_number }}</p>@endif
                 <p class="mt-1 max-w-2xl text-sm leading-6 text-gray-700 dark:text-slate-300">Review this exact stored PDF before sending it to the Research Head. To change its contents or figures, discard it and prepare a new file.</p>
                 <p class="mt-2 text-[11px] font-semibold text-red-700 dark:text-red-300">Prepared {{ $preparedReport->prepared_at?->format('M d, Y g:i A') }}</p>
             </div>
@@ -110,6 +111,17 @@
         @csrf
         <input type="hidden" name="draft_version" value="{{ $narrativeReportDraft?->lock_version ?? 0 }}">
         <input type="hidden" name="report_type" value="{{ $reportType }}">
+        <div class="rounded-xl border border-red-200 bg-white p-4 dark:border-red-900 dark:bg-slate-900">
+            <label for="progress-reporting-date" class="block text-base font-semibold text-gray-950 dark:text-white">Reporting quarter</label>
+            <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-slate-300">Use the same three-month period as the Monitoring Tool. Submission opens after the period ends; the final period may be shorter.</p>
+            <select id="progress-reporting-date" name="reporting_date" required class="mt-3 block min-h-11 w-full rounded-lg border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                <option value="">Choose a quarter</option>
+                @foreach ($quarterOptions as $period)
+                    <option value="{{ $period['reporting_date'] }}" @selected(old('reporting_date', $selectedReportingDate) === $period['reporting_date'])>{{ $period['label'] }} · {{ $period['period'] }}{{ $period['report']?->review_status === 'revision_requested' ? ' · Corrections requested' : '' }}</option>
+                @endforeach
+            </select>
+            @error('reporting_date', 'narrativeProgress')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+        </div>
 
         @if ($errors->narrativeProgress->any())
             <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-xs text-red-700">

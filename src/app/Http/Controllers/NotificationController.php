@@ -253,7 +253,7 @@ class NotificationController extends Controller
             return 'collaboration';
         }
 
-        if ($sidebarArea === 'proposal_submissions' || Str::contains($title, [
+        if (in_array($sidebarArea, ['proposal_submissions', 'submitted_proposals'], true) || Str::contains($title, [
             'review',
             'revision',
             'proposal submitted',

@@ -24,7 +24,7 @@
         ] : [
             ['New proposal', 'faculty.proposal-drafts.create', [], 'plus', null],
             ['Draft proposals', 'faculty.proposal-drafts.index', [], 'document', 'proposal_workspace'],
-            ['Submitted proposals', 'faculty.submissions', [], 'check', null],
+            ['Submitted proposals', 'faculty.submissions', [], 'check', 'submitted_proposals'],
         ],
         'Planning' => array_merge(
             [['Calendar', 'faculty.calendar', [], 'calendar', null]],

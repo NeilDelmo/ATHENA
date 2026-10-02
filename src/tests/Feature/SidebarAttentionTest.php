@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\SidebarAttentionService;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -98,15 +99,15 @@ test('faculty navigation preserves the selected workspace even when researcher a
         sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
     ));
     $faculty->notify(new ProposalActivityNotification(
-        title: 'Revision requested',
-        message: 'A proposal revision is needed.',
+        title: 'Team member accepted invitation',
+        message: 'A team member joined the draft proposal.',
         url: route('faculty.proposal-drafts.index'),
         workspace: User::WORKSPACE_FACULTY,
         sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
     ));
 
     $projectNotification = $faculty->notifications()->where('data->title', 'Signed Notice to Proceed issued')->sole();
-    $proposalNotification = $faculty->notifications()->where('data->title', 'Revision requested')->sole();
+    $proposalNotification = $faculty->notifications()->where('data->title', 'Team member accepted invitation')->sole();
 
     $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
         ->actingAs($faculty)
@@ -214,8 +215,8 @@ test('sidebar attention navigation returns a Livewire destination without a brow
     $faculty = User::factory()->create();
     $faculty->assignRole('faculty');
     $faculty->notify(new ProposalActivityNotification(
-        title: 'Revision requested',
-        message: 'A proposal revision is needed.',
+        title: 'Team member accepted invitation',
+        message: 'A team member joined the draft proposal.',
         url: route('faculty.proposal-drafts.index'),
         workspace: User::WORKSPACE_FACULTY,
         sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
@@ -234,3 +235,64 @@ test('sidebar attention navigation returns a Livewire destination without a brow
 
     expect($notification->fresh()->read_at)->not->toBeNull();
 });
+
+test('submitted proposal updates appear on their own sidebar item and clear independently from draft invitations', function (?string $area, string $title, ?int $topicId) {
+    $faculty = User::factory()->create();
+    $faculty->assignRole(['faculty', 'faculty_researcher']);
+    $faculty->notify(new ProposalActivityNotification(
+        title: 'Proposal workspace invitation',
+        message: 'Join a draft proposal.',
+        url: route('faculty.proposal-drafts.index'),
+        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+    ));
+    $faculty->notify(new ProposalActivityNotification(
+        title: $title,
+        message: 'An update to a submitted proposal.',
+        url: route('faculty.submissions'),
+        topicId: $topicId,
+        workspace: [User::WORKSPACE_FACULTY, User::WORKSPACE_FACULTY_RESEARCHER],
+        sidebarArea: $area,
+    ));
+    $draftNotification = $faculty->notifications()->where('data->title', 'Proposal workspace invitation')->sole();
+    $submittedNotification = $faculty->notifications()->where('data->title', $title)->sole();
+
+    $response = $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY])
+        ->actingAs($faculty)->get(route('faculty.dashboard'))->assertOk();
+
+    expect(app(SidebarAttentionService::class)->countsFor($faculty))->toBe([
+        'proposal_workspace' => 1,
+        'submitted_proposals' => 1,
+    ]);
+
+    $dom = new DOMDocument;
+    @$dom->loadHTML($response->getContent());
+    $xpath = new DOMXPath($dom);
+    $submittedLink = $xpath->query('//aside//a[@data-sidebar-attention-url="'.route('sidebar-attention.open', 'submitted_proposals').'"]')->item(0);
+    $draftLink = $xpath->query('//aside//a[@data-sidebar-attention-url="'.route('sidebar-attention.open', 'proposal_workspace').'"]')->item(0);
+    expect($submittedLink)->not->toBeNull()
+        ->and($submittedLink->getAttribute('href'))->toBe(route('faculty.submissions'))
+        ->and($submittedLink->textContent)->toContain('Submitted proposals')
+        ->and($draftLink->textContent)->toContain('Draft proposals')
+        ->and($xpath->query('.//*[@aria-label="1 unread update"]', $submittedLink)->length)->toBe(2);
+
+    $this->postJson(route('sidebar-attention.open', 'submitted_proposals'))
+        ->assertOk()->assertJson(['url' => route('faculty.submissions'), 'clear_attention' => true]);
+    expect($submittedNotification->fresh()->read_at)->not->toBeNull()
+        ->and($draftNotification->fresh()->read_at)->toBeNull()
+        ->and(app(SidebarAttentionService::class)->countsFor($faculty))->toBe([
+            'proposal_workspace' => 1,
+            'submitted_proposals' => 0,
+        ]);
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('faculty.dashboard'))->assertOk()
+        ->assertDontSee(route('sidebar-attention.open', 'submitted_proposals'), false);
+    $this->post(route('sidebar-attention.open', 'submitted_proposals'))->assertNotFound();
+})->with([
+    'current submission' => ['submitted_proposals', 'Proposal submitted for review', 123],
+    'older submission' => ['proposal_workspace', 'Proposal submitted for review', 123],
+    'older revision' => ['proposal_workspace', 'Revision requested', 123],
+    'older LREC update' => ['proposal_workspace', 'Queued for LREC', null],
+    'older topic update' => ['proposal_workspace', 'Proposal stage changed', 123],
+    'untagged submission' => [null, 'Proposal submitted for review', 123],
+]);

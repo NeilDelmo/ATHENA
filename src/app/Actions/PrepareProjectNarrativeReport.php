@@ -6,8 +6,8 @@ use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Models\User;
-use App\Services\ProgressReportDocumentService;
 use App\Services\MonitoringQuarterService;
+use App\Services\ProgressReportDocumentService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +33,10 @@ class PrepareProjectNarrativeReport
         array $files,
     ): ProjectNarrativeReport {
         return DB::transaction(function () use ($topic, $user, $validated, $files): ProjectNarrativeReport {
-            $topic->newQuery()->whereKey($topic)->lockForUpdate()->firstOrFail();
+            $topic = $topic->newQuery()->whereKey($topic)->lockForUpdate()->firstOrFail();
+            if (! $topic->isMonitoringAvailable()) {
+                throw ValidationException::withMessages(['preparation' => 'This project is no longer open for report preparation.']);
+            }
             $type = $validated['report_type'] ?? 'progress';
             if ($type === 'progress') {
                 $schedule = app(MonitoringQuarterService::class);

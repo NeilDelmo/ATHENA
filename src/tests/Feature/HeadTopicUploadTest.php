@@ -926,6 +926,13 @@ describe('screening narrative transcription', function () {
         if ($workspace === 'research_head') {
             $reviewLink = $xpath->query('//*[@id="co-evaluator-review"]//a[contains(., "Download editable DOCX")]')->item(0);
             expect($reviewLink?->getAttribute('href'))->toBe($url);
+            $preferredWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-docx-workflow]')->item(0);
+            $handwrittenWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-narrative-transcription]')->item(0);
+            expect($preferredWorkflow?->textContent)->toContain('Recommended: complete the DOCX in Word', 'ATHENA reads the typed comments automatically.')
+                ->and($handwrittenWorkflow?->textContent)->toContain('Handwritten or scanned form (alternative)', 'Upload the completed scan')
+                ->and($xpath->query('preceding::*[@data-screening-docx-workflow]', $handwrittenWorkflow)->length)->toBe(1)
+                ->and($xpath->query('.//textarea[@name="narrative_evaluation"]', $handwrittenWorkflow)->length)->toBe(1)
+                ->and($xpath->query('.//input[@name="narrative_evaluation_confirmed"]', $handwrittenWorkflow)->length)->toBe(1);
         }
     })->with(['research_head', 'faculty']);
 

@@ -45,7 +45,7 @@ class ResearchOfficeLrecFeedbackController extends Controller
             'info',
             $topic->id,
             workspace: User::WORKSPACE_FACULTY,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
         ));
 
         return redirect()->to(route('topics.show', $topic).'#proposal-review')
@@ -91,7 +91,7 @@ class ResearchOfficeLrecFeedbackController extends Controller
             'warning',
             $topic->id,
             workspace: User::WORKSPACE_FACULTY,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
         ));
 
         return redirect()->to(route('topics.show', $topic).'#proposal-review')

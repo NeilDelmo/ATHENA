@@ -1781,7 +1781,9 @@ test('final submission creates one immutable package then rejects a duplicate re
         $this->otherFaculty,
         ProposalActivityNotification::class,
         fn (ProposalActivityNotification $notification): bool => $notification->title === 'Proposal submitted for review'
-            && $notification->workspace === null,
+            && $notification->workspace === User::WORKSPACE_FACULTY
+            && $notification->sidebarArea === ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS
+            && $notification->url === route('topics.show', $topic),
     );
 
     $this->actingAs($this->faculty)

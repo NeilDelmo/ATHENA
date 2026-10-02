@@ -216,9 +216,12 @@
                 <div id="co-evaluator-review-content" x-show="expanded" @if (! $expandCoEvaluatorReview) x-cloak @endif>
                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $coEvaluatorReviewComplete ? 'The completed Initial Screening Form and recommendation are recorded.' : 'Enter the evaluator’s name and recommendation, then attach their completed Initial Screening Form. Review outcome choices appear once this step is recorded.' }}</p>
                 @if ($initialScreeningFile)
-                    <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                        <p class="text-sm leading-6 text-gray-700 dark:text-gray-200">Edit the Narrative Evaluation in Word, then upload the completed DOCX or PDF below.</p>
-                        <a href="{{ route('topics.versions.files.editable-docx', [$topic, $latestVersion, $initialScreeningFile]) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-800 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-red-900 dark:bg-gray-950 dark:text-red-200 dark:hover:bg-red-950/40">Download editable DOCX</a>
+                    <div data-screening-docx-workflow class="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/20">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-base font-bold text-gray-950 dark:text-white">Recommended: complete the DOCX in Word</p>
+                            <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-200">Download the form, type the Narrative Evaluation in Word, then upload the completed DOCX. ATHENA reads the typed comments automatically.</p>
+                        </div>
+                        <a href="{{ route('topics.versions.files.editable-docx', [$topic, $latestVersion, $initialScreeningFile]) }}" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-base font-bold text-white hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 sm:w-auto">Download editable DOCX</a>
                     </div>
                     <div x-data="{ replacing: @js(! $coEvaluatorReviewComplete || $coEvaluatorUploadHasErrors) }" class="mt-4">
                         @if ($coEvaluatorEvaluation)
@@ -291,15 +294,16 @@
                                         <span class="min-w-0">
                                             <span x-show="files.length === 0" class="block text-base font-black text-gray-900 dark:text-white">Drop Initial Screening Form here</span>
                                             <span x-show="files.length > 0" x-cloak class="block truncate text-base font-black text-red-700 dark:text-red-300" x-text="files[0]?.name"></span>
-                                            <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'PDF (including scans) or DOCX · up to 25 MB · or click to browse'"></span>
+                                            <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'DOCX recommended · PDF and scans accepted · up to 25 MB'"></span>
                                         </span>
                                     </label>
                                     <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
                                 </div>
                                 <div data-screening-narrative-transcription x-data="{ narrative: @js($manualNarrativeInput) }" class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
                                     <div>
-                                        <label for="narrative_evaluation_{{ $topic->id }}" class="block text-base font-bold text-gray-950 dark:text-white">Narrative Evaluation from the form</label>
-                                        <p id="narrative-evaluation-help-{{ $topic->id }}" class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Leave blank to read typed comments automatically. For handwritten, scanned, or incomplete comments, copy the full evaluation here, including any additional pages.</p>
+                                        <p class="mb-3 text-base font-bold text-gray-950 dark:text-white">Handwritten or scanned form (alternative)</p>
+                                        <label for="narrative_evaluation_{{ $topic->id }}" class="block text-base font-bold text-gray-950 dark:text-white">Transcribe the Narrative Evaluation</label>
+                                        <p id="narrative-evaluation-help-{{ $topic->id }}" class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload the completed scan, then copy all comments here and confirm they match. You can also use this field if automatic reading is incomplete. Leave it blank for a readable typed DOCX or PDF.</p>
                                     </div>
                                     <textarea id="narrative_evaluation_{{ $topic->id }}" name="narrative_evaluation" x-model="narrative" rows="6" minlength="3" maxlength="5000" aria-describedby="narrative-evaluation-help-{{ $topic->id }}" placeholder="Copy the evaluator’s comments exactly as written…" class="block w-full rounded-xl border-gray-300 text-base leading-7 focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">{{ $manualNarrativeInput }}</textarea>
                                     <label for="narrative_evaluation_confirmed_{{ $topic->id }}" class="flex items-start gap-3 text-sm leading-6 text-gray-800 dark:text-gray-200">

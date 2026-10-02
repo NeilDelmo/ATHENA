@@ -67,6 +67,7 @@ beforeEach(function () {
     ]);
 
     $this->progressReportPayload = fn (array $overrides = []): array => array_replace([
+        'reporting_date' => app(MonitoringQuarterService::class)->projectPeriods($this->topic)->first()['end']->toDateString(),
         'submission_date' => now()->toDateString(),
         'tracking_number' => 'PR-2026-001',
         'researchers' => $this->researcher->name."\nJuan Dela Cruz",
@@ -136,6 +137,25 @@ function terminalDocumentXml(string $contents): string
 
     return $xml;
 }
+
+test('accepted collaborators can prepare a shared Terminal Report but only the project leader submits it', function () {
+    $collaborator = User::factory()->create();
+    $collaborator->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create([
+        'user_id' => $collaborator->id, 'name' => $collaborator->name,
+        'email' => $collaborator->email, 'accepted_at' => now(),
+    ]);
+    $this->actingAs($collaborator)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())
+        ->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    $this->get(route('project-narrative-reports.create', [$this->topic, 'report_type' => 'terminal']))
+        ->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertForbidden();
+    expect($report->fresh()->isPrepared())->toBeTrue();
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.view', $report))->assertOk();
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
+});
 
 test('terminal form and preview use final report sections without mandatory images', function () {
     if (getenv('TERMINAL_REPORT_QA_PATH')) {

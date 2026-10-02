@@ -139,7 +139,7 @@ class ProposalDraftMemberController extends Controller
         $proposalDraftMember = $proposalDraft->members()->findOrFail($member);
         $name = $proposalDraftMember->name;
         abort_if($proposalDraftMember->isAccepted(), 403, 'Accepted collaborators remain part of the project through completion.');
-        $proposalDraftMember->delete();
+        abort_unless($proposalDraft->members()->whereKey($proposalDraftMember->id)->whereNull('accepted_at')->delete() === 1, 403);
 
         return redirect()
             ->route('faculty.proposal-drafts.show', $proposalDraft)

@@ -252,7 +252,10 @@ class User extends Authenticatable
 
     private function notificationWorkspace(array $data): string|array|null
     {
-        if (($data['sidebar_area'] ?? null) === ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE) {
+        if (in_array($data['sidebar_area'] ?? null, [
+            ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
+        ], true)) {
             return self::WORKSPACE_FACULTY;
         }
 

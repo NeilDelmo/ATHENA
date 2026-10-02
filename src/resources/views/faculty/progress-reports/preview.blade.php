@@ -26,7 +26,7 @@
                 <tbody>
                     <tr>
                         <th scope="row">I. Submission Date</th>
-                        <td>{{ $report->submission_date?->format('F j, Y') }}</td>
+                        <td>{{ $report->submission_date?->format('F j, Y') }}@if ($report->reporting_period_label)<br>Reporting period: {{ $report->reporting_period_label }}@endif</td>
                     </tr>
                     <tr>
                         <th scope="row">Research Project Title</th>
@@ -114,7 +114,7 @@
 
             <footer class="progress-report-signature">
                 <p>Prepared by:</p>
-                <div class="progress-report-signature-line">{{ strtoupper($report->submitter->name) }}</div>
+                <div class="progress-report-signature-line">{{ strtoupper($report->topic->user->name) }}</div>
                 <p>Project Leader</p>
                 <p>Date Signed: {{ $report->prepared_by_date_signed?->format('F j, Y') ?: '____________________' }}</p>
                 <p>Tracking No. {{ $report->tracking_number ?: '__________________________' }}</p>

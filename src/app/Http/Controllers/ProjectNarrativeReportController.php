@@ -28,13 +28,14 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ProjectNarrativeReportController extends Controller
 {
-    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View
+    public function create(Request $request, TopicProposal $topic, ProjectMonitoringFormDataService $formData): View|RedirectResponse
     {
         Gate::forUser($request->user())->authorize('view', $topic);
 
@@ -44,15 +45,26 @@ class ProjectNarrativeReportController extends Controller
         $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
         abort_unless($request->query('report_type') === 'terminal' ? $schedule->canSubmitTerminal($topic) : $schedule->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])), 403, 'This report is not open yet. Check the project reporting schedule.');
 
+        $reportType = $request->query('report_type') === 'terminal' ? 'terminal' : 'progress';
+        $data = $formData->narrativeProgress($request->user(), $topic, $reportType, $request->query('reporting_date'));
+        if ($reportType === 'progress' && $data['quarterOptions']->isEmpty() && $data['preparedReport'] === null) {
+            return redirect()->to(route('topics.show', $topic).'#project-monitoring')
+                ->withErrors(['reporting_date' => 'All ended quarters already have a submitted Progress Report.'], 'narrativeProgress');
+        }
+
         return view('faculty.progress-reports.create', [
             'topic' => $topic,
-            ...$formData->narrativeProgress($request->user(), $topic, $request->query('report_type') === 'terminal' ? 'terminal' : 'progress', $request->query('reporting_date')),
+            ...$data,
         ]);
     }
 
     public function preview(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): View
     {
         $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
+        if (($validated['report_type'] ?? 'progress') === 'progress') {
+            $period = app(MonitoringQuarterService::class)->forDate($validated['reporting_date'], $topic);
+            $validated = [...$validated, 'reporting_quarter' => $period['quarter'], 'period_start' => $period['start']->toDateString(), 'period_end' => $period['end']->toDateString()];
+        }
         $figureIndexes = (($validated['report_type'] ?? 'progress') === 'terminal' ? range(1, 30) : []);
         $photoFields = collect($figureIndexes)
             ->flatMap(fn (int $index): array => [
@@ -117,6 +129,8 @@ class ProjectNarrativeReportController extends Controller
                 app(TerminalReportData::class)->normalize($topic, $request->validated()),
                 $request->allFiles(),
             );
+        } catch (ValidationException $exception) {
+            return back()->withInput()->withErrors($exception->errors(), 'narrativeProgress');
         } catch (Throwable $exception) {
             report($exception);
 
@@ -166,10 +180,18 @@ class ProjectNarrativeReportController extends Controller
             ], 'narrativeProgress');
         }
 
-        $report->update([
-            'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
-            'submitted_at' => now(),
-        ]);
+        DB::transaction(function () use ($request, $topic, $report): void {
+            $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            $lockedReport = ProjectNarrativeReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared() || $lockedTopic->user_id !== $request->user()->id) {
+                throw ValidationException::withMessages(['preparation' => 'This report is no longer available for submission. Reload the project.']);
+            }
+            $lockedReport->update([
+                'submission_status' => ProjectNarrativeReport::SUBMISSION_STATUS_SUBMITTED,
+                'submitted_by' => $request->user()->id,
+                'submitted_at' => now(),
+            ]);
+        });
 
         User::role('research_head')->get()->each->notify(new ProposalActivityNotification(
             ucfirst($report->report_label).' submitted',
@@ -227,6 +249,7 @@ class ProjectNarrativeReportController extends Controller
 
     public function store(StoreProjectNarrativeReportRequest $request, TopicProposal $topic): RedirectResponse
     {
+        abort_unless($topic->user_id === $request->user()->id, 403);
         $validated = app(TerminalReportData::class)->normalize($topic, $request->validated());
         $storedPaths = [];
 

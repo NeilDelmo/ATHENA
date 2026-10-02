@@ -353,7 +353,7 @@ class ResearchHeadTopicController extends Controller
             $notificationDetails[2],
             $topic->id,
             workspace: User::WORKSPACE_FACULTY,
-            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+            sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
         ));
 
         $message = match ($validated['status']) {

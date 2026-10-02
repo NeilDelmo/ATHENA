@@ -48,7 +48,7 @@
         <div data-project-monitoring-heading class="flex flex-wrap items-start justify-between gap-3 bg-red-700 p-5 text-white dark:bg-red-950 sm:p-6">
             <div>
                 <h3 class="text-2xl font-bold text-white">Project monitoring</h3>
-                <p class="mt-2 text-base leading-7 text-red-100">Quarterly Monitoring Tools, narrative Progress Reports, and a Terminal Report when the project ends.</p>
+                <p class="mt-2 text-base leading-7 text-red-100">Quarterly Monitoring Tools and Progress Reports, followed by a Terminal Report when the project ends.</p>
             </div>
             <span class="rounded-full px-4 py-1.5 text-sm font-semibold {{ $projectStatus === 'completion_pending' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200' : 'bg-white text-red-800 dark:bg-red-100 dark:text-red-900' }}">{{ $projectStatusLabel }}</span>
         </div>
@@ -227,22 +227,22 @@
         <div class="space-y-8">
             @foreach (['progress' => 'Progress reports', 'terminal' => 'Terminal reports'] as $reportType => $reportLabel)
                 @php
-                    $available = $reportType === 'terminal' ? $terminalOpen : $openPeriod !== null;
+                    $available = $reportType === 'terminal' ? $terminalOpen : $schedule->narrativeProgressPeriods($topic)->contains(fn ($period) => $period['reporting_date'] !== null);
                     $sectionReports = $displayedNarrativeReports->where('report_type', $reportType);
                 @endphp
                 <section id="{{ $reportType }}-reports" aria-labelledby="{{ $reportType }}-reports-heading" class="space-y-4">
                     <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h3 id="{{ $reportType }}-reports-heading" class="text-xl font-bold text-gray-950 dark:text-white">{{ $reportLabel }}</h3>
-                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">{{ $reportType === 'terminal' ? 'Final reports awaiting review or a signed PDF.' : 'Open a submission to read its content, figures, and review.' }}</p>
-                            @if ($canReport && ! $available)
+                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">{{ $reportType === 'terminal' ? 'Final reports awaiting review or a signed PDF.' : 'One Progress Report for each Monitoring Tool quarter. Open a submission to read its content, figures, and review.' }}</p>
+                            @if ($canReport && ! $available && ($reportType === 'terminal' || $nextPeriod !== null))
                                 <p class="mt-2 text-sm font-medium text-gray-600 dark:text-slate-300">Opens {{ ($reportType === 'terminal' ? $terminalDate : ($nextPeriod['opens_at'] ?? $terminalDate))->format('M j, Y') }}</p>
                             @endif
                         </div>
                         @if ($canReport && $available)
                             <a href="{{ route('project-narrative-reports.create', ['topic' => $topic, 'report_type' => $reportType]) }}" aria-label="Open {{ $reportType }} report" class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-brand hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-red-300 dark:focus-visible:ring-offset-slate-900">Open form</a>
                         @elseif ($canReport)
-                            <button type="button" disabled class="min-h-11 shrink-0 rounded-lg bg-gray-100 px-4 py-2.5 text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">Not open yet</button>
+                            <button type="button" disabled class="min-h-11 shrink-0 rounded-lg bg-gray-100 px-4 py-2.5 text-sm text-gray-500 dark:bg-slate-800 dark:text-slate-400">{{ $reportType === 'progress' && $openPeriod !== null ? 'Ended quarters submitted' : 'Not open yet' }}</button>
                         @endif
                     </header>
                     @forelse ($sectionReports as $report)

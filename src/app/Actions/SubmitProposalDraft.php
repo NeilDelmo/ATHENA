@@ -302,9 +302,10 @@ class SubmitProposalDraft
                     new ProposalActivityNotification(
                         title: 'Proposal submitted for review',
                         message: 'The collaborative proposal “'.$topic->title.'” was submitted for Research Head review.',
-                        url: route('faculty.dashboard'),
+                        url: route('topics.show', $topic),
                         topicId: $topic->id,
-                        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROPOSAL_WORKSPACE,
+                        workspace: User::WORKSPACE_FACULTY,
+                        sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_SUBMITTED_PROPOSALS,
                     ),
                 );
             }

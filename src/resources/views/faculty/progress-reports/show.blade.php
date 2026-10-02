@@ -11,6 +11,7 @@
         @if (session('success'))
             <p role="status" class="rounded-lg border border-red-200 bg-red-50 p-4 text-base text-brand dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{{ session('success') }}</p>
         @endif
+        @if ($report->reporting_period_label)<p class="text-base font-semibold text-brand dark:text-red-300">{{ $report->reporting_period_label }} · Version {{ $report->version_number }}</p>@endif
         <x-narrative-report-history-item :report="$report" :project-title="$topic->title" :can-review="$canReview" :can-record-signed-copy="$canRecordSignedCopy" />
     </div>
 </x-app-layout>

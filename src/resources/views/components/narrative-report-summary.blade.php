@@ -12,6 +12,7 @@
     <div class="min-w-0">
         <h4 class="text-base font-bold text-gray-950 dark:text-white">{{ $report->report_label }} <span class="font-normal text-gray-600 dark:text-slate-300">· {{ $report->submission_date->format('M j, Y') }}</span></h4>
         <p class="mt-1 text-sm text-gray-600 dark:text-slate-300">{{ $report->submitter->name }}</p>
+        @if ($report->reporting_period_label)<p class="mt-1 text-sm font-medium text-brand dark:text-red-300">{{ $report->reporting_period_label }} · Version {{ $report->version_number }}</p>@endif
     </div>
     <div class="flex flex-wrap items-center gap-3 sm:shrink-0 sm:justify-end">
         <span data-narrative-report-status title="{{ $report->review_status_label }}" class="rounded-full bg-red-50 px-3 py-1.5 text-sm font-medium text-brand dark:bg-red-950/40 dark:text-red-200"><span class="sr-only">{{ $report->review_status_label }}</span><span aria-hidden="true">{{ $compactStatus }}</span></span>

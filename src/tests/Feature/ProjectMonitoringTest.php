@@ -729,6 +729,14 @@ test('an accepted collaborator can access the same active project monitoring wor
     $this->actingAs($collaborator)
         ->get(route('project-progress.monitoring-tool', $report))
         ->assertOk();
+    $this->get(route('project-progress.create', $this->topic))->assertOk()
+        ->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+    $this->post(route('project-progress.submit-prepared', [$this->topic, $report]))->assertForbidden();
+    expect($report->fresh()->isPrepared())->toBeTrue();
+    $this->actingAs($this->researcher)->get(route('project-progress.create', $this->topic))->assertOk()->assertSee('Submit to Research Head');
+    $this->get(route('project-progress.monitoring-tool', $report))->assertOk();
+    $this->post(route('project-progress.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    expect($report->fresh()->isSubmitted())->toBeTrue();
 });
 
 test('a researcher can discard a prepared monitoring tool and its stored PDF', function () {

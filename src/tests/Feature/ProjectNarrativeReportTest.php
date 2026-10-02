@@ -7,7 +7,9 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\MonitoringQuarterService;
 use App\Support\ProgressReportData;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -66,6 +68,7 @@ beforeEach(function () {
     ]);
 
     $this->progressReportPayload = fn (array $overrides = []): array => array_replace([
+        'reporting_date' => app(MonitoringQuarterService::class)->projectPeriods($this->topic)->first()['end']->toDateString(),
         'submission_date' => now()->toDateString(),
         'tracking_number' => 'PR-2026-001',
         'researchers' => $this->researcher->name."\nJuan Dela Cruz",
@@ -87,6 +90,92 @@ beforeEach(function () {
         'photo_section_1' => 'methodology',
         'prepared_by_date_signed' => now()->toDateString(),
     ], $overrides);
+});
+
+test('Progress Reports use the Monitoring Tool periods including a shorter final quarter', function () {
+    $this->topic->update([
+        'notice_to_proceed_issued_at' => '2026-01-15',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-01-15', 'approved_end_date' => '2026-08-20'],
+    ]);
+    $this->travelTo(CarbonImmutable::parse('2026-10-02'));
+    $periods = app(MonitoringQuarterService::class)->projectPeriods($this->topic);
+    $final = $periods->last();
+    expect($periods)->toHaveCount(3)->and($final['start']->toDateString())->toBe('2026-07-15')->and($final['end']->toDateString())->toBe('2026-08-20');
+    $payload = ($this->progressReportPayload)(['reporting_date' => $final['end']->toDateString()]);
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic))
+        ->assertOk()->assertSee('Reporting quarter')->assertSee('Q3 · Jul 15, 2026');
+    $this->post(route('project-narrative-reports.preview', $this->topic), $payload)->assertOk()->assertSee('Q3 · Jul 15, 2026');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    expect($report->reporting_quarter)->toBe(3)->and($report->period_start->toDateString())->toBe('2026-07-15')
+        ->and($report->period_end->toDateString())->toBe('2026-08-20')->and($report->version_number)->toBe(1);
+    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee($report->reporting_period_label)->assertSee('Submit to Research Head');
+    $path = tempnam(sys_get_temp_dir(), 'quarterly-progress-');
+    file_put_contents($path, $this->pdfConverter->sourceDocument);
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $documentText = html_entity_decode(strip_tags($archive->getFromName('word/document.xml')));
+        expect($documentText)->toContain('Reporting period: '.$report->reporting_period_label);
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee($report->reporting_period_label);
+    $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertSee($report->reporting_period_label);
+});
+
+test('Progress Reports reject missing future and out-of-project quarters', function () {
+    $this->actingAs($this->researcher);
+    $periods = app(MonitoringQuarterService::class)->projectPeriods($this->topic);
+    foreach ([null, '2000-01-01', $periods->last()['end']->toDateString()] as $date) {
+        $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)(['reporting_date' => $date]))
+            ->assertSessionHasErrorsIn('narrativeProgress', 'reporting_date');
+    }
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)(['submission_date' => $periods->first()['end']->toDateString()]))
+        ->assertSessionHasErrorsIn('narrativeProgress', 'submission_date');
+    expect(ProjectNarrativeReport::count())->toBe(0)->and($this->pdfConverter->conversionCount)->toBe(0);
+});
+
+test('only corrections create a replacement Progress Report for an already submitted quarter', function () {
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
+    $original = ProjectNarrativeReport::sole();
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasErrorsIn('narrativeProgress');
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $original]))->assertSessionHasNoErrors();
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasErrorsIn('narrativeProgress', 'reporting_date');
+    $original->update(['review_status' => 'revision_requested']);
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
+    $replacement = ProjectNarrativeReport::latest('id')->first();
+    expect($replacement->version_number)->toBe(2)->and($replacement->reporting_quarter)->toBe($original->reporting_quarter)
+        ->and($original->fresh()->isSubmitted())->toBeTrue()->and($original->fresh()->official_pdf_checksum)->toBe($original->official_pdf_checksum);
+});
+
+test('accepted collaborators share prepared Progress Reports but only the project leader submits them', function () {
+    $collaborator = User::factory()->create();
+    $collaborator->assignRole('faculty_researcher');
+    $this->topic->collaborators()->create(['user_id' => $collaborator->id, 'name' => $collaborator->name, 'email' => $collaborator->email, 'accepted_at' => now()]);
+    $this->actingAs($collaborator)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::sole();
+    $path = tempnam(sys_get_temp_dir(), 'shared-progress-');
+    file_put_contents($path, $this->pdfConverter->sourceDocument);
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $documentText = html_entity_decode(strip_tags($archive->getFromName('word/document.xml')));
+        expect($documentText)->toContain(strtoupper($this->researcher->name))->not->toContain(strtoupper($collaborator->name));
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+    $this->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
+    $this->get(route('project-narrative-reports.view', $report))->assertOk();
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertForbidden();
+    expect($report->fresh()->isPrepared())->toBeTrue();
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.create', $this->topic))->assertOk()->assertSee('Submit to Research Head');
+    $this->get(route('project-narrative-reports.view', $report))->assertOk();
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
+    expect($report->fresh()->isSubmitted())->toBeTrue()->and($report->fresh()->submitted_by)->toBe($this->researcher->id);
 });
 
 test('a project owner prepares an official progress-report PDF before submitting it to the Research Head', function () {

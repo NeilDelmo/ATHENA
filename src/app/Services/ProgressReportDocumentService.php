@@ -139,7 +139,7 @@ class ProgressReportDocumentService
             ? $report->topic->estimated_duration_months.' months '
             : '';
         $values = [
-            2 => 'Submission Date: '.$report->submission_date->format('F j, Y'),
+            2 => 'Submission Date: '.$report->submission_date->format('F j, Y').($report->reporting_period_label ? "\nReporting period: ".$report->reporting_period_label : ''),
             4 => $report->topic->title,
             6 => $report->researchers,
             8 => $duration.'('.$report->implementation_start->format('F j, Y').' - '.$report->implementation_end->format('F j, Y').')',
@@ -269,7 +269,7 @@ class ProgressReportDocumentService
             throw new RuntimeException('The Progress Report prepared-by block is incomplete.');
         }
 
-        $leader = $report->submitter?->name ?? $report->topic->user?->name ?? '';
+        $leader = $report->topic->user?->name ?? '';
         $dateSigned = $report->prepared_by_date_signed?->format('F j, Y') ?? '';
         $this->replaceParagraphText($xpath, $paragraphs[0], 'Prepared by:', true);
         $this->replaceParagraphText($xpath, $paragraphs[5], Str::upper($leader), true);

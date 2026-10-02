@@ -16,6 +16,8 @@ class ProposalActivityNotification extends Notification
 
     public const SIDEBAR_AREA_PROPOSAL_WORKSPACE = 'proposal_workspace';
 
+    public const SIDEBAR_AREA_SUBMITTED_PROPOSALS = 'submitted_proposals';
+
     public const SIDEBAR_AREA_MY_PROJECTS = 'my_projects';
 
     /**

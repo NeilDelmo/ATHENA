@@ -309,6 +309,7 @@ class ProjectMonitoringController extends Controller
             }
             $lockedReport->update([
                 'submission_status' => ProjectProgressReport::SUBMISSION_STATUS_SUBMITTED,
+                'submitted_by' => $request->user()->id,
                 'submitted_at' => now(),
             ]);
         });

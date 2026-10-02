@@ -2,11 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Services\MonitoringQuarterService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -141,8 +143,11 @@ class StoreProjectNarrativeReportRequest extends FormRequest
                     return;
                 }
                 $period = $schedule->forDate($this->input('reporting_date'), $topic);
+                if (CarbonImmutable::parse($this->input('submission_date'))->startOfDay()->lessThan($period['opens_at'])) {
+                    $validator->errors()->add('submission_date', 'The submission date must be after the selected quarter ends.');
+                }
                 $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
-                if ($existing !== null && $existing->review_status !== \App\Models\ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {
+                if ($existing !== null && $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {
                     $validator->errors()->add('reporting_date', 'This quarter already has a prepared or submitted Progress Report. Open that report instead.');
                 }
             }
