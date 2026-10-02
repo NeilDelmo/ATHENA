@@ -216,6 +216,12 @@ class CommentResponseFormDocumentService
                 $properties->removeChild($shade);
             }
 
+            $shade = $cell->ownerDocument->createElementNS(self::W, 'w:shd');
+            $shade->setAttributeNS(self::W, 'w:val', 'clear');
+            $shade->setAttributeNS(self::W, 'w:color', 'auto');
+            $shade->setAttributeNS(self::W, 'w:fill', $checked[$index] ? '000000' : 'FFFFFF');
+            $properties->appendChild($shade);
+
             $cellBorders = $cell->ownerDocument->createElementNS(self::W, 'w:tcBorders');
             foreach (['top', 'left', 'bottom', 'right'] as $edge) {
                 $border = $cell->ownerDocument->createElementNS(self::W, 'w:'.$edge);
@@ -227,7 +233,7 @@ class CommentResponseFormDocumentService
             $properties->appendChild($cellBorders);
 
             $boxParagraph = $xpath->query('./w:p', $cell)->item(0);
-            $this->replaceParagraphText($xpath, $boxParagraph, $checked[$index] ? '×' : '');
+            $this->replaceParagraphText($xpath, $boxParagraph, '');
             $paragraphProperties = $xpath->query('./w:pPr', $boxParagraph)->item(0);
             foreach ($this->elements($xpath, './w:jc | ./w:spacing', $paragraphProperties) as $property) {
                 $paragraphProperties->removeChild($property);
@@ -398,7 +404,7 @@ class CommentResponseFormDocumentService
                 }
 
                 $cells = $this->elements($xpath, './w:tc', $row);
-                $values = [($index + 1).'.', $item['location']."\n\n".$item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
+                $values = [($index + 1).'.', $item['comment'], $item['response'] ?? '', $item['remarks'] ?? ''];
 
                 foreach ($cells as $offset => $cell) {
                     $paragraphs = $this->elements($xpath, './w:p', $cell);

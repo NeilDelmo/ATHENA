@@ -3,6 +3,7 @@
 use App\Models\ProposalVersionFile;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Process\Factory;
@@ -14,11 +15,11 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    Storage::fake('local');
+    Storage::set('local', Storage::fake('signed-form-verification-'.getmypid()));
     $this->withoutVite();
     Http::preventStrayRequests();
     Process::preventStrayProcesses();
-    config(['services.openrouter.key' => null, 'services.gemini.key' => null]);
+    config(['services.openrouter.key' => null, 'services.gemini.key' => null, 'proposal_signing.demo_mode' => false]);
 
     foreach (['faculty', 'research_head', 'research_coordinator', 'research_secretary'] as $role) {
         Role::firstOrCreate(['name' => $role]);
@@ -63,11 +64,101 @@ function signingFormText(string $type, string $title = 'Coastal Resilience Study
 function signingVerificationPayload(ProposalVersionFile $source, array $extra = []): array
 {
     return [
+        '_token' => csrf_token(),
         'purpose' => 'signed', 'source_file_id' => $source->id,
         'review_file' => UploadedFile::fake()->create('unrelated-filename.pdf', 100, 'application/pdf'),
         ...$extra,
     ];
 }
+
+test('local demo PDFs fill all three signing slots and record demo uploads', function (string $role, string $workspace) {
+    $this->app->detectEnvironment(fn (): string => 'local');
+    config(['proposal_signing.demo_mode' => true]);
+    $operator = User::factory()->create(['college' => 'CICS']);
+    $operator->assignRole($role);
+    $this->actingAs($operator)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+    foreach ([
+        'gad_checklist' => ['purpose' => 'gad_assessment', 'gad_signature_confirmed' => true, 'gad_outcome' => 'passed', 'gad_score' => 10],
+        'initial_screening_form' => ['purpose' => 'evaluation', 'narrative_evaluation' => 'Recommended for endorsement.', 'recommended_action' => 'for_endorsement'],
+    ] as $type => $assessment) {
+        Storage::disk('local')->put('original/'.$type.'.pdf', '%PDF-1.4 original');
+        $source = $this->version->files()->create([
+            'document_type' => $type, 'file_path' => 'original/'.$type.'.pdf',
+            'original_filename' => $type.'.pdf', 'mime_type' => 'application/pdf',
+        ]);
+        Storage::disk('local')->put('assessed/'.$type.'.pdf', '%PDF-1.4 assessed');
+        $this->version->files()->create([
+            'document_type' => 'head_upload', 'position' => 100 + $source->id, 'source_version_file_id' => $source->id,
+            'file_path' => 'assessed/'.$type.'.pdf', 'original_filename' => $type.'.pdf',
+            'mime_type' => 'application/pdf', 'source_data' => ['target_document_type' => $type, ...$assessment],
+        ]);
+    }
+    foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $index => $type) {
+        $source = $this->version->files()->where('document_type', $type)->sole();
+        $filename = 'random-demo-'.($index + 1).'.pdf';
+        $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source, [
+            'review_file' => UploadedFile::fake()->createWithContent($filename, '%PDF-1.4 unrelated demonstration content'),
+        ]))
+            ->assertOk()->assertJsonPath('verification_status', 'demo_uploaded')
+            ->assertJsonPath('filename', $filename)->assertJsonPath('complete', $index === 2);
+        $signed = $this->version->files()->where('source_version_file_id', $source->id)->sole();
+        expect($signed->source_data['signed_form_verification'])->toMatchArray([
+            'status' => 'demo_uploaded', 'method' => 'demo', 'reason' => 'demo_mode',
+            'document_type' => $type, 'checked_by' => $operator->id,
+        ])
+            ->and($signed->source_data['signed_form_verification']['checked_at'])->not->toBeEmpty()
+            ->and(Storage::disk('local')->exists($signed->file_path))->toBeTrue();
+    }
+    Process::assertNothingRan();
+    Http::assertNothingSent();
+    expect(app(ProposalSignatureWorkflow::class)->isComplete($this->version->fresh()))->toBeTrue();
+    $this->get(route('topics.show', $this->topic))->assertOk()
+        ->assertSee('Any PDF is accepted for this demo.')->assertSee('data-signed-count="3"', false)
+        ->assertDontSee('We check the official form and project title before saving.');
+})->with([
+    'office' => ['research_coordinator', 'research_office'],
+    'secretary' => ['research_secretary', 'research_secretary'],
+]);
+
+test('form checks remain active without the local demo setting', function (string $environment, bool $enabled) {
+    $this->app->detectEnvironment(fn (): string => $environment);
+    config(['proposal_signing.demo_mode' => $enabled]);
+    Process::fake(['*' => signingFormText('line_item_budget')]);
+    $source = $this->version->files()->where('document_type', 'work_plan')->sole();
+    $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source))
+        ->assertUnprocessable()->assertJsonValidationErrors('review_file');
+    expect($this->version->files()->count())->toBe(3);
+})->with([
+    'local demo disabled' => ['local', false],
+    'production' => ['production', true],
+    'testing' => ['testing', true],
+]);
+
+test('demo uploads still require PDFs within the size limit', function (string $filename, string $mimeType, int $size) {
+    $this->app->detectEnvironment(fn (): string => 'local');
+    config(['proposal_signing.demo_mode' => true]);
+    $source = $this->version->files()->where('document_type', 'work_plan')->sole();
+    $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source, [
+        'review_file' => UploadedFile::fake()->create($filename, $size, $mimeType),
+    ]))->assertUnprocessable()->assertJsonValidationErrors('review_file');
+    expect($this->version->files()->count())->toBe(3);
+})->with([
+    'text file' => ['notes.txt', 'text/plain', 1],
+    'oversize PDF' => ['demo.pdf', 'application/pdf', 26 * 1024],
+]);
+
+test('demo uploads retain staff permissions and the final signing stage requirement', function () {
+    $this->app->detectEnvironment(fn (): string => 'local');
+    config(['proposal_signing.demo_mode' => true]);
+    $source = $this->version->files()->where('document_type', 'work_plan')->sole();
+    $this->actingAs($this->owner)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY]);
+    $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source))->assertForbidden();
+    $this->actingAs($this->staff)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE]);
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_REVIEW]);
+    $this->postJson(route('topics.head-uploads.store', $this->topic), signingVerificationPayload($source))
+        ->assertForbidden();
+    expect($this->version->files()->count())->toBe(3);
+});
 
 test('final signed forms are matched by contents and audited before storage', function (string $type, string $role, string $workspace) {
     $operator = User::factory()->create(['college' => 'CICS']);

@@ -69,7 +69,15 @@ class ProposalDraft extends Model
     /** @return array<string, array{id?: int|null, name: string, position: string}> */
     public function resolvedSignatorySelections(): array
     {
-        return [...($this->signatory_selections ?? []), ...ProposalSignatory::defaultSelections()];
+        return [
+            'approved_by_name' => [
+                'id' => null,
+                'name' => (string) config('notice_to_proceed.verifying_officer.name'),
+                'position' => (string) config('notice_to_proceed.verifying_officer.title'),
+            ],
+            ...($this->signatory_selections ?? []),
+            ...ProposalSignatory::defaultSelections(),
+        ];
     }
 
     public function researchCall(): BelongsTo

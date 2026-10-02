@@ -315,6 +315,131 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         ->assertDownload('original.pdf');
 });
 
+test('faculty replies and structured locations are saved and exported in separate comment response fields', function (array $answer, string $expectedRemarks, string $stage) {
+    Storage::fake('local');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Response field test',
+        'estimated_budget' => 10000,
+        'status' => 'revision_requested',
+    ]);
+    createTopicReviewSubmission($topic, $faculty);
+    $review = $topic->reviews()->create([
+        'reviewer_id' => $head->id,
+        'decision' => 'revision_requested',
+        'comment' => 'Explain the recruitment schedule.',
+        'review_stage' => $stage,
+    ]);
+
+    $this->actingAs($faculty)->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => $topic->title,
+        'estimated_budget' => 10000,
+        'estimated_duration_months' => 12,
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => ['overall' => $answer],
+    ])
+        ->assertRedirect(route('faculty.dashboard'))
+        ->assertSessionHasNoErrors();
+
+    $row = app(CommentResponseFeedback::class)->rows($review->fresh())[0];
+    expect($topic->fresh()->status)->toBe('resubmitted')
+        ->and($review->fresh()->feedback_responses['overall']['response'])->toBe($answer['response'])
+        ->and($row['comment'])->toBe('Explain the recruitment schedule.')
+        ->and($row['response'])->toBe($answer['response'])
+        ->and($row['remarks'])->toBe($expectedRemarks)
+        ->and($row['no_change'])->toBe((bool) $answer['no_change'])
+        ->and($row['page'])->toBe($answer['no_change'] ? null : $answer['page'])
+        ->and($row['paragraph'])->toBe($answer['no_change'] ? null : $answer['paragraph']);
+
+    $download = $this->get(route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'review' => $review->id]))->assertOk();
+    $path = tempnam(sys_get_temp_dir(), 'athena-response-location-');
+    file_put_contents($path, $download->streamedContent());
+    $archive = new ZipArchive;
+    try {
+        expect($archive->open($path))->toBeTrue();
+        $document = new DOMDocument;
+        expect($document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET))->toBeTrue();
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $cells = $xpath->query('//w:tbl[w:tr/w:tc//w:t[text()="COMMENTS AND SUGGESTIONS"]]/w:tr[2]/w:tc');
+        expect($cells->item(2)->textContent)->toBe($answer['response'])
+            ->and($cells->item(3)->textContent)->toBe($expectedRemarks);
+    } finally {
+        $archive->close();
+        unlink($path);
+    }
+})->with([
+    'Research Head revision with a location' => [['response' => 'Added the recruitment schedule.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2, 'remarks' => 'sample sample'], 'Page 4, paragraph 2', 'research_head'],
+    'Research Head reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1, 'page' => 'invalid', 'paragraph' => -1], '', 'research_head'],
+    'LREC revision with a location' => [['response' => 'Added the recruitment schedule.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2], 'Page 4, paragraph 2', 'lrec'],
+    'LREC reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1], '', 'lrec'],
+]);
+
+test('faculty revision rejects missing or invalid comment response locations', function (array $answer, string $field) {
+    Storage::fake('local');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $topic = TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Response location validation', 'estimated_budget' => 10000, 'status' => 'revision_requested']);
+    createTopicReviewSubmission($topic, $faculty);
+    $review = $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'revision_requested', 'comment' => 'Clarify recruitment.']);
+
+    $this->actingAs($faculty)->from(route('faculty.topics.revision', $topic))->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => $topic->title, 'estimated_budget' => 10000, 'estimated_duration_months' => 12,
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => ['overall' => $answer],
+    ])->assertSessionHasErrorsIn('resubmission', 'feedback_responses.overall.'.$field)
+        ->assertSessionHasInput('feedback_responses.overall', $answer);
+
+    expect($topic->fresh()->status)->toBe('revision_requested')
+        ->and($topic->versions()->count())->toBe(1)
+        ->and($review->fresh()->feedback_responses)->toBeNull();
+})->with([
+    'Missing page' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'paragraph' => 2], 'page'],
+    'Missing paragraph' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'page' => 4], 'paragraph'],
+    'Text remarks cannot replace a location' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'remarks' => 'sample sample'], 'page'],
+    'Zero page' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'page' => 0, 'paragraph' => 2], 'page'],
+    'Negative paragraph' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'page' => 4, 'paragraph' => -2], 'paragraph'],
+    'Fractional paragraph' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2.5], 'paragraph'],
+    'Text page' => [['response' => 'Updated recruitment.', 'no_change' => 0, 'page' => 'sample', 'paragraph' => 2], 'page'],
+    'No change still needs an explanation' => [['response' => '', 'no_change' => 1], 'response'],
+    'Invalid no change flag' => [['response' => 'Updated recruitment.', 'no_change' => 'yes', 'page' => 4, 'paragraph' => 2], 'no_change'],
+]);
+
+test('a no change response does not bypass location validation for another comment', function () {
+    Storage::fake('local');
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $head = User::factory()->create();
+    $head->assignRole('research_head');
+    $topic = TopicProposal::create(['user_id' => $faculty->id, 'title' => 'Independent response locations', 'estimated_budget' => 10000, 'status' => 'revision_requested']);
+    $version = createTopicReviewSubmission($topic, $faculty);
+    $file = $version->files()->sole();
+    $review = $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'revision_requested', 'comment' => 'Confirm the project budget.']);
+    $revision = $review->fileRevisions()->create([
+        'proposal_version_file_id' => $file->id, 'document_type' => $file->document_type,
+        'original_filename' => $file->original_filename, 'revision_note' => 'Clarify recruitment.',
+    ]);
+
+    $response = $this->actingAs($faculty)->patch(route('faculty.topics.resubmit', $topic), [
+        'title' => $topic->title, 'estimated_budget' => 10000, 'estimated_duration_months' => 12,
+        'feedback_review_id' => $review->id,
+        'feedback_responses' => [
+            'overall' => ['response' => 'The existing budget covers the requirements.', 'no_change' => 1],
+            'file_'.$revision->id => ['response' => 'Revised recruitment.', 'no_change' => 0, 'page' => 4],
+        ],
+    ])->assertSessionHasErrorsIn('resubmission', 'feedback_responses.file_'.$revision->id.'.paragraph');
+
+    expect(array_keys($response->getSession()->get('errors')->getBag('resubmission')->getMessages()))
+        ->toBe(['feedback_responses.file_'.$revision->id.'.paragraph'])
+        ->and($topic->fresh()->status)->toBe('revision_requested');
+});
+
 test('faculty revision submission uses the topic revision draft when the browser omits its identifier', function () {
     Storage::fake('local');
 
@@ -415,7 +540,7 @@ test('faculty revision submission uses the topic revision draft when the browser
             'redirect_to' => 'topic',
             'feedback_review_id' => $review->id,
             'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($review))
-                ->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Addressed in the revised proposal.', 'remarks' => 'Updated']])->all(),
+                ->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Addressed in the revised proposal.', 'no_change' => $row['location'] === 'Detailed Research Proposal' ? 1 : 0, 'page' => 4, 'paragraph' => 2]])->all(),
             'revision_resolutions' => [
                 ProposalVersionFile::TYPE_DETAILED_PROPOSAL => [
                     'action' => 'no_change',
@@ -436,7 +561,9 @@ test('faculty revision submission uses the topic revision draft when the browser
         ->and($noChangeRevision->faculty_response)->toBe('Addressed in the revised proposal.')
         ->and($review->fresh()->feedback_responses['file_'.$noChangeRevision->id]['response'])->toBe($noChangeRevision->faculty_response);
     expect($topic->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)
-        ->source_data['comment_response_signatory_selections'])->toBe($commentsSignatories);
+        ->source_data['comment_response_signatory_selections'])->toBe(array_intersect_key(
+            $draft->resolvedSignatorySelections(), ProposalSignatory::FIELDS['comment_response_form'],
+        ));
 });
 
 test('a Research Head may request another revision only after receiving the faculty resubmission', function () {
@@ -1027,7 +1154,7 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
         'document_type' => $detailedProposal->document_type,
         'original_filename' => $detailedProposal->original_filename,
     ]);
-    $detailedProposal->annotations()->create([
+    $annotation = $detailedProposal->annotations()->create([
         'reviewer_id' => $head->id,
         'topic_review_file_revision_id' => $fileRevision->id,
         'feedback_source' => ProposalFileAnnotation::SOURCE_HEAD,
@@ -1036,6 +1163,10 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
         'rectangles' => [['x' => 0.1, 'y' => 0.2, 'width' => 0.3, 'height' => 0.1]],
         'comment' => 'Clarify the participant recruitment timeline.',
     ]);
+    $review->update(['feedback_responses' => [
+        'annotation_'.$annotation->id => ['response' => 'Added the recruitment schedule.', 'remarks' => 'Page 4, paragraph 2'],
+        'co_evaluator_narrative_'.$evaluation->id => ['response' => 'Defined the sampling frame.', 'remarks' => 'Page 5, paragraph 1'],
+    ]]);
 
     $headQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_RESEARCH_HEAD, 'review' => $review->id];
     $coEvaluatorQuery = ['topic' => $topic, 'source' => CommentResponseFeedback::FORM_CO_EVALUATOR, 'review' => $review->id];
@@ -1090,17 +1221,24 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
     };
 
     expect($documentText($headDownload))
-        ->toContain('Clarify the participant recruitment timeline.')
-        ->not->toContain('The methodology needs a clearer sampling frame.')
+        ->toContain('Clarify the participant recruitment timeline.', 'Added the recruitment schedule.', 'Page 4, paragraph 2')
+        ->not->toContain('The methodology needs a clearer sampling frame.', 'Detailed Research Proposal', 'Page 2')
         ->and($documentText($coEvaluatorDownload))
-        ->toContain('Dr. Maria Santos')
-        ->toContain('The methodology needs a clearer sampling frame.')
+        ->toContain('The methodology needs a clearer sampling frame.', 'Defined the sampling frame.', 'Page 5, paragraph 1')
+        ->not->toContain('Dr. Maria Santos', 'Initial Screening Form · Narrative Evaluation')
         ->not->toContain('Clarify the participant recruitment timeline.');
 
     $revisionPage = $this->get(route('faculty.topics.revision', $topic))
         ->assertOk()
         ->assertSee('Research Head feedback')
         ->assertSee('Co-evaluator feedback')
+        ->assertSee('3. Action and Response')
+        ->assertSee('faculty reply · required')
+        ->assertSee('location in the revised paper')
+        ->assertSee('No change made')
+        ->assertSee('Added the recruitment schedule.')
+        ->assertSee('Defined the sampling frame.')
+        ->assertDontSee('Your response')
         ->assertSee('data-comment-response-source="research_head"', false)
         ->assertSee('data-comment-response-source="co_evaluator"', false);
 
@@ -1108,9 +1246,26 @@ test('Research Head and co evaluator feedback generate separate Comment-Response
     @$revisionDocument->loadHTML($revisionPage->getContent());
     $revisionXPath = new DOMXPath($revisionDocument);
     foreach ([CommentResponseFeedback::FORM_RESEARCH_HEAD, CommentResponseFeedback::FORM_CO_EVALUATOR] as $source) {
+        $expectedLocation = $source === CommentResponseFeedback::FORM_RESEARCH_HEAD
+            ? ['page' => '4', 'paragraph' => '2']
+            : ['page' => '5', 'paragraph' => '1'];
         $group = '//section[@data-comment-response-source="'.$source.'"]';
         expect($revisionXPath->query($group.'//button[@data-comment-response-preview]')->length)->toBe(1)
             ->and($revisionXPath->query('//section[@data-revision-response-source="'.$source.'"]//textarea[@required]')->length)->toBeGreaterThan(0);
+        $responseGroup = '//section[@data-revision-response-source="'.$source.'"]';
+        $responseFields = $revisionXPath->query($responseGroup.'//textarea[contains(@name, "[response]")]');
+        foreach (['page', 'paragraph'] as $locationField) {
+            $locationFields = $revisionXPath->query($responseGroup.'//input[contains(@name, "['.$locationField.']")]');
+            expect($locationFields->length)->toBe($responseFields->length);
+            foreach ($locationFields as $field) {
+                expect($field->hasAttribute('required'))->toBeTrue()
+                    ->and($field->getAttribute('type'))->toBe('number')
+                    ->and($field->getAttribute('min'))->toBe('1')
+                    ->and($field->getAttribute('value'))->toBe($expectedLocation[$locationField]);
+            }
+        }
+        expect($revisionXPath->query($responseGroup.'//textarea[contains(@name, "[remarks]")]')->length)->toBe(0)
+            ->and($revisionXPath->query($responseGroup.'//input[@data-comment-response-no-change]')->length)->toBe($responseFields->length);
     }
 
     expect($evaluation->source_data['narrative_evaluation'])->toBe('The methodology needs a clearer sampling frame.');
@@ -1628,7 +1783,7 @@ test('the proposal workspace is complete role-aware and private', function () {
             'change_summary' => 'Updated the implementation schedule.',
             'work_plan' => UploadedFile::fake()->create('work-plan-v2.docx', 60, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
             'feedback_review_id' => $fileRevision->topic_review_id,
-            'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($fileRevision->review))->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Extended the schedule through the second year.', 'remarks' => 'Updated']])->all(),
+            'feedback_responses' => collect(app(CommentResponseFeedback::class)->rows($fileRevision->review))->mapWithKeys(fn (array $row): array => [$row['key'] => ['response' => 'Extended the schedule through the second year.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2]])->all(),
         ])->assertSessionHasNoErrors(null, 'resubmission');
 
     expect($topic->fresh()->status)->toBe('resubmitted')

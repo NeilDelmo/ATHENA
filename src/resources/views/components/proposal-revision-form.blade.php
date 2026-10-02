@@ -46,7 +46,7 @@
     <div class="rounded-xl border border-slate-200 bg-white px-5 py-4 dark:border-slate-700 dark:bg-slate-900">
         <p data-revision-progress role="status" aria-live="polite" class="text-sm font-bold text-slate-800 dark:text-slate-100">Step 1 of 5 · Read feedback</p>
         <ol class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500 dark:text-slate-400" aria-label="Revision workflow">
-            @foreach (['Read feedback', 'Revise papers', 'Write responses', 'Confirm details', 'Submit'] as $stepLabel)
+            @foreach (['Read feedback', 'Revise papers', 'Action and Response', 'Confirm details', 'Submit'] as $stepLabel)
                 <li data-revision-progress-step="{{ $loop->iteration }}" class="flex items-center gap-2"><span data-revision-progress-mark aria-hidden="true">{{ $loop->iteration }}</span>{{ $stepLabel }}</li>
             @endforeach
         </ol>
@@ -122,9 +122,9 @@
         </div>
     </section>
 
-    <section id="revision-responses" data-revision-step="3" data-revision-step-label="Write responses" hidden class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
-        <h3 class="text-base font-black text-slate-950 dark:text-white">3. Write responses</h3>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Explain what you changed for each comment, or why no change was needed.</p>
+    <section id="revision-responses" data-revision-step="3" data-revision-step-label="Action and Response" hidden class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+        <h3 class="text-base font-black text-slate-950 dark:text-white">3. Action and Response</h3>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Reply to each reviewer comment below. Enter the page and paragraph numbers from your revised paper for Remarks, or select No change made and explain why in your response.</p>
         <div class="mt-5 space-y-4">
             @foreach ($revisionErrors->get('feedback_responses*') as $feedbackErrors)
                 @foreach ((array) $feedbackErrors as $feedbackError)
@@ -140,10 +140,30 @@
                         <article class="space-y-3 rounded-xl border border-slate-200 p-4 dark:border-slate-700">
                             <p class="text-xs text-slate-500 dark:text-slate-400">{{ $item['location'] }}</p>
                             <blockquote class="whitespace-pre-line border-l-2 border-slate-300 pl-3 text-sm leading-6 text-slate-700 dark:text-slate-200">{{ $item['comment'] }}</blockquote>
-                                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                            Your response <span class="font-normal text-slate-500 dark:text-slate-400">(required)</span>
-                                            <textarea data-revision-response-document="{{ $responseDocumentTypes[$item['key']] ?? '' }}" name="feedback_responses[{{ $item['key'] }}][response]" rows="3" maxlength="5000" required placeholder="Explain the change you made and where it can be found, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea>
-                                        </label>
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                Action and Response <span class="font-normal text-slate-500 dark:text-slate-400">(faculty reply · required)</span>
+                                <textarea data-revision-response-document="{{ $responseDocumentTypes[$item['key']] ?? '' }}" name="feedback_responses[{{ $item['key'] }}][response]" rows="3" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea>
+                            </label>
+                            <fieldset data-comment-response-location x-data="{ noChange: @js((bool) old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) }" class="space-y-3">
+                                <legend class="text-sm font-semibold text-slate-700 dark:text-slate-200">Remarks <span class="font-normal text-slate-500 dark:text-slate-400">(location in the revised paper)</span></legend>
+                                <input type="hidden" name="feedback_responses[{{ $item['key'] }}][no_change]" value="0">
+                                <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+                                    <input type="checkbox" data-comment-response-no-change name="feedback_responses[{{ $item['key'] }}][no_change]" value="1" x-model="noChange" @checked(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) class="rounded border-slate-300 text-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950">
+                                    No change made
+                                </label>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
+                                        <input type="number" data-comment-response-page name="feedback_responses[{{ $item['key'] }}][page]" value="{{ old('feedback_responses.'.$item['key'].'.page', $item['page'] ?? '') }}" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange" @disabled(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                    </label>
+                                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Paragraph
+                                        <input type="number" data-comment-response-paragraph name="feedback_responses[{{ $item['key'] }}][paragraph]" value="{{ old('feedback_responses.'.$item['key'].'.paragraph', $item['paragraph'] ?? '') }}" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange" @disabled(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                    </label>
+                                </div>
+                                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="noChange ? 'Explain why no change was needed in Action and Response. Remarks will be blank.' : 'Check the final revised PDF. Remarks will show: Page [number], paragraph [number].'">Check the final revised PDF before entering its page and paragraph numbers.</p>
+                                @if (filled($item['remarks']) && empty($item['page']) && empty($item['paragraph']))
+                                    <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Previous remarks: {{ $item['remarks'] }}. Enter the page and paragraph above, or select No change made.</p>
+                                @endif
+                            </fieldset>
                         </article>
                     @endforeach
                 </section>

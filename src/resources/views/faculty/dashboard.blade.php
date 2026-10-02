@@ -17,7 +17,7 @@
     <x-slot name="header">
         <x-page-header variant="hero"
             eyebrow="Faculty workspace"
-            title="Faculty research"
+            title="Faculty"
             :subtitle="'Welcome back, '.Auth::user()->name.'. Manage your drafts, review feedback, and submitted proposals.'"
         >
             <x-slot:actions>

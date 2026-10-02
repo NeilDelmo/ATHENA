@@ -18,6 +18,11 @@ class ProposalSignatureWorkflow
         ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
     ];
 
+    public function allowsDemoUploads(): bool
+    {
+        return app()->environment('local') && (bool) config('proposal_signing.demo_mode');
+    }
+
     /** @return Collection<int, ProposalVersionFile> */
     public function requiredFiles(ProposalVersion $version): Collection
     {

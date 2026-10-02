@@ -94,7 +94,7 @@ class CommentResponseFeedback
         };
     }
 
-    /** @return list<array{key: string, reviewer: string, location: string, comment: string, response: string, remarks: string, form_source: string, stage: string}> */
+    /** @return list<array{key: string, reviewer: string, location: string, comment: string, response: string, remarks: string, page: ?int, paragraph: ?int, no_change: bool, form_source: string, stage: string}> */
     public function rows(?TopicReview $review): array
     {
         return [
@@ -103,7 +103,7 @@ class CommentResponseFeedback
         ];
     }
 
-    /** @return list<array{key: string, reviewer: string, location: string, comment: string, response: string, remarks: string, form_source: string, stage: string}> */
+    /** @return list<array{key: string, reviewer: string, location: string, comment: string, response: string, remarks: string, page: ?int, paragraph: ?int, no_change: bool, form_source: string, stage: string}> */
     public function rowsForSource(?TopicReview $review, string $source): array
     {
         if ($review === null) {
@@ -119,10 +119,51 @@ class CommentResponseFeedback
 
         return array_map(fn (array $row): array => [
             ...$row,
+            ...$this->responseLocation($responses[$row['key']] ?? []),
             'response' => $responses[$row['key']]['response'] ?? '',
             'remarks' => $responses[$row['key']]['remarks'] ?? '',
             'form_source' => $source,
         ], $rows);
+    }
+
+    /**
+     * @param  array<string, mixed>  $response
+     * @return array{page: ?int, paragraph: ?int, no_change: bool}
+     */
+    private function responseLocation(array $response): array
+    {
+        $page = $response['page'] ?? null;
+        $paragraph = $response['paragraph'] ?? null;
+
+        if ($page === null && $paragraph === null && preg_match('/^Page\s+(\d+),\s*paragraph\s+(\d+)\.?$/i', trim($response['remarks'] ?? ''), $matches)) {
+            $page = (int) $matches[1];
+            $paragraph = (int) $matches[2];
+        }
+
+        return [
+            'page' => $page === null ? null : (int) $page,
+            'paragraph' => $paragraph === null ? null : (int) $paragraph,
+            'no_change' => (bool) ($response['no_change'] ?? false),
+        ];
+    }
+
+    /**
+     * @param  array{response: string, page?: int|string, paragraph?: int|string, no_change: bool|int|string}  $response
+     * @return array{response: string, page: ?int, paragraph: ?int, no_change: bool, remarks: string}
+     */
+    public function normalizeResponse(array $response): array
+    {
+        $noChange = (bool) $response['no_change'];
+        $page = $noChange ? null : (int) $response['page'];
+        $paragraph = $noChange ? null : (int) $response['paragraph'];
+
+        return [
+            'response' => $response['response'],
+            'page' => $page,
+            'paragraph' => $paragraph,
+            'no_change' => $noChange,
+            'remarks' => $noChange ? '' : 'Page '.$page.', paragraph '.$paragraph,
+        ];
     }
 
     public function formLabel(string $source): string

@@ -1,6 +1,83 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { chromium } from '@playwright/test';
+import postcss from 'postcss';
+import tailwindcss from 'tailwindcss';
+import loadConfig from 'tailwindcss/loadConfig.js';
 import initializeRevisionWorkspace, { synchronizeRevisionNoChangeResponses, initializeRevisionPanelResize, initializeRevisionWorkflow, applyRevisionModificationStates, createRevisionSubmissionWatchdog, initializeRevisionDialogs, prepareRevisionEditors, revealRevisionEditorFailure, REVISION_OPERATION_TIMEOUT_MS, REVISION_SUBMISSION_TIMEOUT_MS, revisionControlFingerprint, revisionCurrentSourceFingerprint, revisionDocumentsWithoutResolution, revisionNoChangeResolution, revisionSourceControlFingerprint, revisionSourceFingerprint, revisionEditorForFrame, embeddedRevisionFileSaved } from '../../resources/js/revision-workspace.js';
+
+test('comment response locations require numbers unless no change was made, with independent accessible controls', async () => {
+    const blade = readFileSync(new URL('../../resources/views/components/proposal-revision-form.blade.php', import.meta.url), 'utf8');
+    const start = blade.indexOf('<fieldset data-comment-response-location');
+    const markup = blade.slice(start, blade.indexOf('</fieldset>', start) + '</fieldset>'.length)
+        .replace(/@js\([^\n]*\)/, 'false')
+        .replace(/@(?:checked|disabled)\([^\n]*\)/g, '')
+        .replace(/\s*@if[\s\S]*?@endif/g, '')
+        .replaceAll("{{ $item['key'] }}", 'overall')
+        .replace(/\{\{[\s\S]*?\}\}/g, '');
+    const styles = await postcss([tailwindcss(loadConfig(resolve('tailwind.config.js')))])
+        .process(readFileSync(new URL('../../resources/css/app.css', import.meta.url), 'utf8'), { from: undefined });
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1440, 390]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 1000 } });
+                const errors = [];
+                page.on('pageerror', (error) => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${styles.css}</style><body class="bg-white dark:bg-slate-900">
+                    <form class="mx-auto max-w-3xl space-y-4 p-5">
+                        <article><label>Action and Response<textarea required name="feedback_responses[overall][response]"></textarea></label>${markup}</article>
+                        <article><label>Action and Response<textarea required name="feedback_responses[annotation_1][response]"></textarea></label>${markup.replaceAll('overall', 'annotation_1')}</article>
+                    </form></body></html>`);
+                await page.addScriptTag({ path: resolve('node_modules/alpinejs/dist/cdn.min.js') });
+                const form = page.locator('form');
+                const first = page.locator('article').first();
+                const second = page.locator('article').last();
+                const valid = () => form.evaluate((element) => element.checkValidity());
+                assert.equal(await valid(), false);
+                await first.locator('textarea').fill('Revised recruitment.');
+                await second.locator('textarea').fill('The existing schedule already addresses this comment.');
+                assert.equal(await valid(), false);
+                await first.getByLabel('Page', { exact: true }).fill('4');
+                await first.getByLabel('Paragraph', { exact: true }).fill('2');
+                assert.equal(await valid(), false);
+                await second.getByLabel('No change made', { exact: true }).check();
+                await page.waitForFunction(() => document.querySelectorAll('[data-comment-response-page]')[1].disabled);
+                assert.equal(await valid(), true);
+                assert.equal(await first.locator('[data-comment-response-page]').isDisabled(), false);
+                assert.equal(await second.locator('[data-comment-response-paragraph]').isDisabled(), true);
+                await second.locator('textarea').fill('');
+                assert.equal(await valid(), false);
+                await second.locator('textarea').fill('The existing schedule already addresses this comment.');
+                await first.getByLabel('No change made', { exact: true }).check();
+                await first.getByLabel('No change made', { exact: true }).uncheck();
+                await page.waitForFunction(() => !document.querySelector('[data-comment-response-page]').disabled);
+                assert.equal(await first.locator('[data-comment-response-page]').inputValue(), '4');
+                await first.getByLabel('Page', { exact: true }).fill('0');
+                assert.equal(await valid(), false);
+                await first.getByLabel('Page', { exact: true }).fill('4');
+                await first.getByLabel('Paragraph', { exact: true }).fill('2.5');
+                assert.equal(await valid(), false);
+                await first.getByLabel('Paragraph', { exact: true }).fill('2');
+                assert.equal(await valid(), true);
+                const entries = await form.evaluate((element) => [...new FormData(element).entries()]);
+                assert.equal(Object.fromEntries(entries)['feedback_responses[overall][page]'], '4');
+                assert.equal(Object.fromEntries(entries)['feedback_responses[overall][paragraph]'], '2');
+                assert.equal(Object.fromEntries(entries)['feedback_responses[annotation_1][no_change]'], '1');
+                assert.equal(entries.some(([key]) => key === 'feedback_responses[annotation_1][page]'), false);
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                const background = await first.locator('[data-comment-response-page]').evaluate((element) => getComputedStyle(element).backgroundColor);
+                assert.equal(background, dark ? 'rgb(2, 6, 23)' : 'rgb(255, 255, 255)');
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
 
 test('all edits are saved before any replacement is prepared so later saves cannot invalidate earlier files', async () => {
     const files = new Map();
@@ -570,7 +647,7 @@ function workflowFixture({ unresolved = false, responseComplete = true, confirme
     const error = {};
     const confirmation = { checked: confirmed, checkValidity() { return this.checked; }, reportValidity() {}, focus() {} };
     const response = { checkValidity: () => responseComplete, reportValidity() {}, focus() {} };
-    const panels = ['Read feedback', 'Revise papers', 'Write responses', 'Confirm details', 'Submit'].map((label, index) => ({
+    const panels = ['Read feedback', 'Revise papers', 'Action and Response', 'Confirm details', 'Submit'].map((label, index) => ({
         dataset: { revisionStep: String(index + 1), revisionStepLabel: label },
         querySelectorAll: () => index === 2 ? [response] : (index === 3 ? [confirmation] : []),
         setAttribute() {}, focus() {}, scrollIntoView() {},
@@ -637,7 +714,7 @@ test('workflow keeps incomplete responses on the response step and Enter cannot 
         fixture.next.click();
         fixture.next.click();
         assert.equal(fixture.panels[2].hidden, false);
-        assert.match(fixture.error.textContent, /every comment/);
+        assert.match(fixture.error.textContent, /page and paragraph numbers/);
     } finally { globalThis.window = previousWindow; }
 });
 

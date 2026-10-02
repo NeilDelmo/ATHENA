@@ -3,7 +3,7 @@
 use App\Models\TopicProposal;
 use App\Services\CommentResponseFormDocumentService;
 
-test('evaluation boxes contain crosses beside the reference labels without added stage text', function (array $stages, array $checkedBoxes) {
+test('evaluation boxes use solid shading beside the reference labels without added stage text', function (array $stages, array $checkedBoxes) {
     $contents = app(CommentResponseFormDocumentService::class)->generate([
         'project_title' => 'Coastal Habitat Restoration', 'project_leader' => 'Dr. Aurora Reyes',
         'leader_campus' => 'Alangilan', 'leader_college' => 'CICS', 'leader_department' => '', 'staff' => [],
@@ -23,9 +23,10 @@ test('evaluation boxes contain crosses beside the reference labels without added
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
         $boxes = $xpath->query('/w:document/w:body/w:tbl[1]/w:tr/w:tc/w:tcPr/w:shd');
-        expect($boxes->length)->toBe(0);
+        expect($boxes->length)->toBe(2);
         foreach ([1, 2] as $box) {
-            expect($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]')->item(0)->textContent)->toBe(in_array($box, $checkedBoxes, true) ? '×' : '')
+            expect($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]')->item(0)->textContent)->toBe('')
+                ->and($xpath->evaluate('string(/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]/w:tcPr/w:shd/@w:fill)'))->toBe(in_array($box, $checkedBoxes, true) ? '000000' : 'FFFFFF')
                 ->and($xpath->query('/w:document/w:body/w:tbl[1]/w:tr['.$box.']/w:tc[1]/w:p/w:pPr/w:jc[@w:val="center"]')->length)->toBe(1);
         }
         expect($document->textContent)->toContain('LEVEL OF EVALUATION DONE:', 'Initial Screening', 'Local Research Evaluation')
@@ -74,7 +75,7 @@ test('generated Comment-Response Forms match the requested title and project sta
         'feedback' => [
             [
                 'reviewer' => 'Dr. Maria Santos',
-                'location' => 'Narrative Evaluation',
+                'location' => 'Detailed Research Proposal · Page 1 · III. Sustainable Development Goal',
                 'comment' => 'Clarify the scope of the coastal habitat sampling.',
                 'response' => 'The scope was revised to match the sampling plan.',
                 'remarks' => 'Page 4, paragraph 2',
@@ -104,8 +105,12 @@ test('generated Comment-Response Forms match the requested title and project sta
         $templateXPath->registerNamespace('w', $wordNamespace);
 
         $title = $generatedXPath->query('/w:document/w:body/w:p[.//w:t[contains(., "Coastal Habitat Restoration")]]')->item(0);
-        expect($generatedDocument->textContent)->not->toContain('Dr. Maria Santos')
-            ->and($generatedDocument->textContent)->toContain('Narrative Evaluation', 'Clarify the scope of the coastal habitat sampling.', 'The scope was revised to match the sampling plan.', 'Page 4, paragraph 2');
+        expect($generatedDocument->textContent)->not->toContain('Dr. Maria Santos', 'Detailed Research Proposal', 'III. Sustainable Development Goal')
+            ->and($generatedDocument->textContent)->toContain('Clarify the scope of the coastal habitat sampling.', 'The scope was revised to match the sampling plan.', 'Page 4, paragraph 2');
+        $feedbackCells = $generatedXPath->query('/w:document/w:body/w:tbl[w:tr[1]//w:t[text() = "COMMENTS AND SUGGESTIONS"]]/w:tr[2]/w:tc');
+        expect($feedbackCells->item(1)?->textContent)->toBe('Clarify the scope of the coastal habitat sampling.')
+            ->and($feedbackCells->item(2)?->textContent)->toBe('The scope was revised to match the sampling plan.')
+            ->and($feedbackCells->item(3)?->textContent)->toBe('Page 4, paragraph 2');
         expect($title?->textContent)->toBe('TITLE OF RESEARCH PROPOSAL: '.$projectTitle)
             ->and($generatedXPath->query('.//w:tab | .//w:u | .//w:pBdr', $title)->length)->toBe(0);
         expect($generatedXPath->query('./w:r[w:t[contains(., "Coastal Habitat Restoration")]]/w:rPr/w:b', $title)->length)->toBe(1);
@@ -158,7 +163,7 @@ test('generated Comment-Response Forms match the requested title and project sta
     'Long title with XML characters' => ['Coastal Habitat Restoration & Resilience: A Comparative Study of Mangrove Ecosystems <Across Batangas Province>'],
 ]);
 
-test('the revision workspace uses the same two crossed evaluation boxes as the paper', function (array $stages, array $selectedLevels) {
+test('the revision workspace uses the same two shaded evaluation boxes as the paper', function (array $stages, array $selectedLevels) {
     $view = $this->blade('<x-comment-response-stages :stages="$stages" />', ['stages' => $stages]);
     $view->assertSeeText('LEVEL OF EVALUATION DONE:')
         ->assertSeeText('Initial Screening')
@@ -176,8 +181,8 @@ test('the revision workspace uses the same two crossed evaluation boxes as the p
         $selected = in_array($level, $selectedLevels, true);
         $row = $xpath->query('//li[@data-evaluation-level="'.$level.'"]')->item(0);
         expect($row->getAttribute('data-stage-active'))->toBe($selected ? 'true' : 'false')
-            ->and($xpath->query('./span[1]', $row)->item(0)->getAttribute('class'))->toContain('bg-white')
-            ->and(trim($xpath->query('./span[1]', $row)->item(0)->textContent))->toBe($selected ? '×' : '');
+            ->and($xpath->query('./span[1]', $row)->item(0)->getAttribute('class'))->toContain($selected ? 'bg-black' : 'bg-white')
+            ->and(trim($xpath->query('./span[1]', $row)->item(0)->textContent))->toBe('');
     }
 })->with([
     'Initial Screening' => [['research_head', 'gad', 'co_evaluator'], [0]],
@@ -195,7 +200,7 @@ test('the HTML matrix preview has an inline title and bold project staff names w
             'project_title' => 'Coastal Habitat Restoration', 'project_leader' => 'Dr. Aurora Reyes',
             'staff' => [['name' => 'Bea Santos']], 'evaluation_stages' => ['lrec'],
             'feedback' => [[
-                'reviewer' => 'Dr. Maria Santos', 'stage' => $stage, 'location' => 'Page 2',
+                'reviewer' => 'Dr. Maria Santos', 'stage' => $stage, 'location' => 'Detailed Research Proposal · Page 1 · III. Sustainable Development Goal',
                 'comment' => 'Clarify the sampling plan.', 'response' => 'Revised the sampling plan.', 'remarks' => 'Page 4',
             ]],
         ],
@@ -207,7 +212,8 @@ test('the HTML matrix preview has an inline title and bold project staff names w
         ->assertDontSeeText('REVIEW SOURCE:')
         ->assertDontSeeText('Feedback stage')
         ->assertDontSeeText('Dr. Maria Santos')
-        ->assertSeeText('Page 2')
+        ->assertDontSeeText('Detailed Research Proposal')
+        ->assertDontSeeText('III. Sustainable Development Goal')
         ->assertSeeText('Clarify the sampling plan.')
         ->assertSeeText('Revised the sampling plan.')
         ->assertSeeText('Page 4');
@@ -218,6 +224,10 @@ test('the HTML matrix preview has an inline title and bold project staff names w
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrorHandling);
     $xpath = new DOMXPath($document);
+    $feedbackCells = $xpath->query('//table[@class="feedback"]/tbody/tr[1]/td');
+    expect($feedbackCells->item(1)?->textContent)->toBe('Clarify the sampling plan.')
+        ->and($feedbackCells->item(2)?->textContent)->toBe('Revised the sampling plan.')
+        ->and($feedbackCells->item(3)?->textContent)->toBe('Page 4');
     $title = $xpath->query('//p[strong[text() = "TITLE OF RESEARCH PROPOSAL:"]]')->item(0);
     expect($title?->textContent)->toBe('TITLE OF RESEARCH PROPOSAL: Coastal Habitat Restoration')
         ->and($xpath->query('./br | .//u', $title)->length)->toBe(0)
@@ -226,4 +236,6 @@ test('the HTML matrix preview has an inline title and bold project staff names w
         ->and($xpath->query('//table')->length)->toBe(1)
         ->and($xpath->query('//ul[@class="evaluation-levels"]/li[1]/span[contains(@class, "is-checked")]')->length)->toBe(0)
         ->and($xpath->query('//ul[@class="evaluation-levels"]/li[2]/span[contains(@class, "is-checked")]')->length)->toBe(1);
+    expect($xpath->query('//span[contains(@class, "evaluation-box")]')->item(0)->textContent)->toBe('')
+        ->and($xpath->query('//span[contains(@class, "evaluation-box")]')->item(1)->textContent)->toBe('');
 })->with(['research_head', 'gad', 'co_evaluator', 'lrec']);

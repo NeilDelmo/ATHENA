@@ -3,8 +3,16 @@ export function proposalSignedUploads(config = {}) {
         documents: (config.documents ?? []).map(document => ({ ...document, busy: false, error: '', file: null, manualRequired: false, manuallyConfirmed: false, previewed: false, selectedPreviewUrl: null })),
         previewDocument: null,
         complete: Boolean(config.complete),
+        demoMode: Boolean(config.demoMode),
         get busy() { return this.documents.some(document => document.busy); },
         get count() { return this.documents.filter(document => document.saved).length; },
+        verificationMessage(document) {
+            return {
+                matched: 'Form and project title matched',
+                manually_confirmed: 'Form manually checked by uploader',
+                demo_uploaded: 'Demo upload',
+            }[document.verificationStatus] ?? '';
+        },
         previewSelected(document) {
             if (!document.file) return;
             document.selectedPreviewUrl ??= URL.createObjectURL(document.file);

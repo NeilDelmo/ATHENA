@@ -29,9 +29,44 @@ test('every Research Head and VCRDES signature uses the default without a direct
         }
     }
     expect(TerminalReportData::defaultSignatoryNames())->toBe([
-        'reviewed_head' => 'ASST. PROF. DJOANNA MARIE V. SALAC',
-        'verified_chancellor' => 'DR. FROILAN G. DESTREZA',
-    ]);
+        'reviewed_head' => 'Asst. Prof. DJOANNA MARIE V. SALAC',
+        'verified_chancellor' => 'Dr. FROILAN G. DESTREZA',
+    ])
+        ->and($draft->signatoryFields('detailed_proposal')['approved_by_name'])->toBe('Assoc. Prof. ALBERTSON D. AMANTE')
+        ->and($draft->resolvedSignatorySelections()['approved_by_name']['position'])->toBe('Vice President for Research, Development and Extension Services');
+});
+
+test('detailed proposal titles keep their capitalization in previews and Word even for legacy uppercase names', function () {
+    $this->withoutVite();
+    $names = [
+        'checked_verified_by_name' => 'Asst. Prof. DJOANNA MARIE V. SALAC',
+        'recommending_approval_name' => 'Dr. FROILAN G. DESTREZA',
+        'approved_by_name' => 'Assoc. Prof. ALBERTSON D. AMANTE',
+    ];
+    $legacyNames = array_map('mb_strtoupper', $names);
+    $proposal = DetailedProposalData::fromValidated(['project_title' => 'Signature capitalization', ...$legacyNames]);
+
+    expect($proposal)->toMatchArray($names);
+    $preview = $this->view('faculty.detailed-proposals.preview', ['detailedProposal' => [...$proposal, ...$legacyNames]]);
+    foreach ($names as $key => $name) {
+        $preview->assertSee($name)->assertDontSee($legacyNames[$key]);
+    }
+
+    $contents = app(DetailedProposalDocumentService::class)->generate([...$proposal, ...$legacyNames]);
+    $path = tempnam(sys_get_temp_dir(), 'signatory-case-test-');
+    try {
+        file_put_contents($path, $contents);
+        $zip = new ZipArchive;
+        expect($zip->open($path))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($zip->getFromName('word/document.xml'));
+        $zip->close();
+        foreach ($names as $key => $name) {
+            expect($document->textContent)->toContain($name)->not->toContain($legacyNames[$key]);
+        }
+    } finally {
+        unlink($path);
+    }
 });
 
 test('head manages signatories and faculty selections are private role checked and frozen', function () {
@@ -226,7 +261,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($draft->fresh()->signatoryFields('detailed_proposal'))
         ->toMatchArray([
             'approved_by_name' => 'Mary Jhezl Baldos',
-            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
+            'recommending_approval_name' => 'Dr. FROILAN G. DESTREZA',
         ]);
 
     $this->actingAs($faculty)->put(route('signatories.select', $draft), [
@@ -243,7 +278,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($draft->fresh()->signatoryFields('detailed_proposal'))
         ->toMatchArray([
             'approved_by_name' => 'Akira Soriano',
-            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
+            'recommending_approval_name' => 'Dr. FROILAN G. DESTREZA',
         ])
         ->and($draft->fresh()->lock_version)->toBe(2);
 
@@ -252,7 +287,7 @@ test('faculty can refresh frozen signatory names after the research head renames
     expect($response->viewData('sourceData'))
         ->toMatchArray([
             'approved_by_name' => 'Akira Soriano',
-            'recommending_approval_name' => 'DR. FROILAN G. DESTREZA',
+            'recommending_approval_name' => 'Dr. FROILAN G. DESTREZA',
         ]);
 });
 
@@ -296,7 +331,7 @@ test('comment form signatories are automatic and cannot be replaced by faculty',
     $faculty->assignRole('faculty');
     $draft = ProposalDraft::create(['user_id' => $faculty->id, 'project_title' => 'Default comments signatories', 'lock_version' => 0]);
     $this->actingAs($faculty)->get(route('signatories.edit', [$draft, 'paper' => 'comment_response_form']))
-        ->assertOk()->assertSee('ASST. PROF. DJOANNA MARIE V. SALAC')->assertSee('DR. FROILAN G. DESTREZA')
+        ->assertOk()->assertSee('Asst. Prof. DJOANNA MARIE V. SALAC')->assertSee('Dr. FROILAN G. DESTREZA')
         ->assertDontSee('name="signatories[comment_response_head]"', false)
         ->assertDontSee('name="signatories[comment_response_vice_chancellor]"', false);
     $this->put(route('signatories.select', $draft), [
@@ -304,8 +339,8 @@ test('comment form signatories are automatic and cannot be replaced by faculty',
         'signatories' => ['comment_response_head' => 999999, 'comment_response_vice_chancellor' => 999999],
     ])->assertSessionHasNoErrors()->assertRedirectToRoute('faculty.proposal-drafts.show', $draft);
     expect($draft->fresh()->signatoryFields('comment_response_form'))->toBe([
-        'comment_response_head' => 'ASST. PROF. DJOANNA MARIE V. SALAC',
-        'comment_response_vice_chancellor' => 'DR. FROILAN G. DESTREZA',
+        'comment_response_head' => 'Asst. Prof. DJOANNA MARIE V. SALAC',
+        'comment_response_vice_chancellor' => 'Dr. FROILAN G. DESTREZA',
     ]);
     expect(app(ProposalDraftReadiness::class)->commentResponseSignatoriesAreComplete($draft))->toBeTrue();
 });

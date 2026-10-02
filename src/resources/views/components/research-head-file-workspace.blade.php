@@ -30,7 +30,6 @@
         \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION,
     ], true);
     $expandGadReview = ! $gadPassed || ($errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT);
-    $manualNarrativeInput = is_string(old('narrative_evaluation')) ? old('narrative_evaluation') : '';
     $coEvaluatorUploadHasErrors = $errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
     $expandCoEvaluatorReview = ! $coEvaluatorReviewComplete || $coEvaluatorUploadHasErrors;
     $gadScore = $gadAssessment?->source_data['gad_score'] ?? null;
@@ -133,7 +132,7 @@
                                 </div>
                                 <p class="mt-1 truncate text-sm font-semibold text-gray-500 dark:text-gray-400">{{ $gadAssessment->original_filename }}</p>
                                 @if ($verificationStatus = $gadAssessment->source_data['assessment_form_verification']['status'] ?? null)
-                                    <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $verificationStatus === 'matched' ? 'Form and project title matched' : 'Form manually checked by uploader' }}</p>
+                                    <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ match ($verificationStatus) { 'matched' => 'Form and project title matched', 'form_matched' => 'GAD Checklist identified; project confirmed by uploader', default => 'Form manually checked by uploader' } }}</p>
                                 @endif
                             </div>
                             <div class="flex flex-wrap justify-end gap-2 md:col-span-2">
@@ -182,7 +181,7 @@
                                     </span>
                                 </label>
                                 <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
-                                <x-assessment-form-verification form-name="GAD Generic Checklist" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT" />
+                                <x-assessment-form-verification form-name="GAD Generic Checklist" :project-title-confirmed-by-uploader="true" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT" />
                             </div>
                             <label for="gad_score_{{ $topic->id }}" class="block rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200">
                                 <strong class="block text-gray-950 dark:text-white">Enter score only if automatic reading fails</strong>
@@ -194,7 +193,7 @@
                             </label>
                             <label for="gad_signature_confirmed_{{ $topic->id }}" class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm leading-6 text-gray-700 transition hover:border-red-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-red-900">
                                 <input id="gad_signature_confirmed_{{ $topic->id }}" name="gad_signature_confirmed" type="checkbox" value="1" required @checked(old('gad_signature_confirmed')) class="mt-1 h-4 w-4 rounded border-gray-300 text-red-700 focus:ring-red-700 dark:border-gray-600 dark:bg-gray-900">
-                                <span><strong class="block text-gray-950 dark:text-white">Confirm the verifier’s signature</strong>I previewed the completed GAD Checklist and confirm that a signature is present in the “Checked and verified by” section.</span>
+                                <span><strong class="block text-gray-950 dark:text-white">Confirm checklist and signature</strong>I previewed the completed GAD Checklist, confirm it belongs to this project, and confirm that a signature is present in the “Checked and verified by” section.</span>
                             </label>
                             </div>
                             <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 lg:w-auto">Upload &amp; read score</button>
@@ -218,14 +217,11 @@
                     <svg class="h-5 w-5 shrink-0 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
                 </button>
                 <div id="co-evaluator-review-content" x-show="expanded" @if (! $expandCoEvaluatorReview) x-cloak @endif>
-                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $coEvaluatorReviewComplete ? 'The completed Initial Screening Form and recommendation are recorded.' : 'Enter the evaluator’s name and recommendation, then attach their completed Initial Screening Form. Review outcome choices appear once this step is recorded.' }}</p>
+                <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $coEvaluatorReviewComplete ? 'The completed Initial Screening Form and recommendation are recorded.' : 'Record the evaluator’s recommendation and upload their completed form.' }}</p>
                 @if ($initialScreeningFile)
-                    <div data-screening-docx-workflow class="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900 dark:bg-red-950/20">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-base font-bold text-gray-950 dark:text-white">Recommended: complete the DOCX in Word</p>
-                            <p class="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-200">Download the form, type the Narrative Evaluation in Word, then upload the completed DOCX or PDF. ATHENA reads the typed comments automatically. For the required wet signature, print and sign the completed form, then upload a scanned PDF.</p>
-                        </div>
-                        <a href="{{ route('topics.versions.files.editable-docx', [$topic, $latestVersion, $initialScreeningFile]) }}" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-base font-bold text-white hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 sm:w-auto">Download editable DOCX</a>
+                    <div data-screening-docx-workflow class="mt-4 flex flex-wrap items-center justify-between gap-3">
+                        <p class="min-w-0 flex-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload a completed DOCX or PDF with typed comments and the required wet signature. ATHENA reads the Narrative Evaluation automatically.</p>
+                        <a href="{{ route('topics.versions.files.editable-docx', [$topic, $latestVersion, $initialScreeningFile]) }}" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900">Download editable DOCX</a>
                     </div>
                     <div x-data="{ replacing: @js(! $coEvaluatorReviewComplete || $coEvaluatorUploadHasErrors) }" class="mt-4">
                         @if ($coEvaluatorEvaluation)
@@ -241,7 +237,7 @@
                                     <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ ($coEvaluatorEvaluation->source_data['narrative_evaluation_entry_method'] ?? 'automatic') === 'manual' ? 'Transcribed from the uploaded form and verified by the Research Head.' : 'Read automatically from the uploaded form.' }}</p>
                                     <p class="mt-1 truncate text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $coEvaluatorEvaluation->original_filename }}</p>
                                     @if ($verificationStatus = $coEvaluatorEvaluation->source_data['assessment_form_verification']['status'] ?? null)
-                                        <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ $verificationStatus === 'matched' ? 'Form and project title matched' : 'Form manually checked by uploader' }}</p>
+                                        <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ match ($verificationStatus) { 'matched' => 'Form and project title matched', 'form_matched' => 'Initial Screening Form identified', default => 'Form manually checked by uploader' } }}</p>
                                     @endif
                                     @if ($coEvaluatorEvaluation->source_data['narrative_evaluation'] ?? null)
                                         <p class="mt-2 max-h-24 overflow-y-auto whitespace-pre-line text-sm leading-6 text-gray-800 dark:text-gray-200">{{ $coEvaluatorEvaluation->source_data['narrative_evaluation'] }}</p>
@@ -272,23 +268,22 @@
                                         Co-evaluator name
                                         <input id="co_evaluator_name_{{ $topic->id }}" name="co_evaluator_name" type="text" maxlength="160" autocomplete="off" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
                                     </label>
-                                    <fieldset class="min-w-0" aria-describedby="recommended-action-help-{{ $topic->id }}">
-                                        <legend class="text-sm font-bold text-gray-800 dark:text-gray-100">Recommendation on the completed form</legend>
+                                    <fieldset class="min-w-0">
+                                        <legend class="text-sm font-bold text-gray-800 dark:text-gray-100">Recommendation</legend>
                                         <div class="mt-2 grid gap-2 sm:grid-cols-3">
                                             <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 transition focus-within:ring-2 focus-within:ring-red-700 has-[:checked]:border-red-700 has-[:checked]:bg-red-50 dark:border-gray-700 dark:bg-gray-950 dark:has-[:checked]:border-red-400 dark:has-[:checked]:bg-red-950/30">
                                                 <input type="radio" name="recommended_action" value="{{ \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT }}" required @checked(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::FOR_ENDORSEMENT) class="mt-0.5 shrink-0 border-gray-400 text-red-700 focus:ring-red-700 dark:border-gray-600">
-                                                <span><span class="block text-sm font-bold text-gray-950 dark:text-white">For Endorsement</span><span class="block text-xs text-gray-600 dark:text-gray-300">Ready for LREC</span></span>
+                                                <span class="text-sm font-bold text-gray-950 dark:text-white">For Endorsement</span>
                                             </label>
                                             <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 transition focus-within:ring-2 focus-within:ring-red-700 has-[:checked]:border-red-700 has-[:checked]:bg-red-50 dark:border-gray-700 dark:bg-gray-950 dark:has-[:checked]:border-red-400 dark:has-[:checked]:bg-red-950/30">
                                                 <input type="radio" name="recommended_action" value="{{ \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION }}" required @checked(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION) class="mt-0.5 shrink-0 border-gray-400 text-red-700 focus:ring-red-700 dark:border-gray-600">
-                                                <span><span class="block text-sm font-bold text-gray-950 dark:text-white">Minor Revision</span><span class="block text-xs text-gray-600 dark:text-gray-300">Limited corrections</span></span>
+                                                <span class="text-sm font-bold text-gray-950 dark:text-white">Minor Revision</span>
                                             </label>
                                             <label class="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 transition focus-within:ring-2 focus-within:ring-red-700 has-[:checked]:border-red-700 has-[:checked]:bg-red-50 dark:border-gray-700 dark:bg-gray-950 dark:has-[:checked]:border-red-400 dark:has-[:checked]:bg-red-950/30">
                                                 <input type="radio" name="recommended_action" value="{{ \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION }}" required @checked(old('recommended_action') === \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION) class="mt-0.5 shrink-0 border-gray-400 text-red-700 focus:ring-red-700 dark:border-gray-600">
-                                                <span><span class="block text-sm font-bold text-gray-950 dark:text-white">Major Revision</span><span class="block text-xs text-gray-600 dark:text-gray-300">Substantial changes</span></span>
+                                                <span class="text-sm font-bold text-gray-950 dark:text-white">Major Revision</span>
                                             </label>
                                         </div>
-                                        <p id="recommended-action-help-{{ $topic->id }}" class="mt-2 text-xs leading-5 text-gray-600 dark:text-gray-300">Match the co-evaluator’s completed form. The Research Head sends revision requests separately.</p>
                                     </fieldset>
                                 </div>
                                 <div data-co-evaluator-dropzone x-data="fileDropzone({ accept: '.pdf,.docx', maxBytes: 26214400, multiple: false })" @paste="paste($event)" class="min-w-0">
@@ -301,28 +296,15 @@
                                         <span class="min-w-0">
                                             <span x-show="files.length === 0" class="block text-base font-black text-gray-900 dark:text-white">Drop Initial Screening Form here</span>
                                             <span x-show="files.length > 0" x-cloak class="block truncate text-base font-black text-red-700 dark:text-red-300" x-text="files[0]?.name"></span>
-                                            <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'DOCX recommended · PDF and scans accepted · up to 25 MB'"></span>
+                                            <span class="mt-1 block text-sm text-gray-500 dark:text-gray-400" x-text="files.length ? formatSize(files[0].size) + ' · ready to upload' : 'DOCX or PDF · up to 25 MB'"></span>
                                         </span>
                                     </label>
                                     <p x-show="message" x-cloak role="alert" class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300" x-text="message"></p>
-                                    <x-assessment-form-verification form-name="Initial Screening Form" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION" />
+                                    <x-assessment-form-verification form-name="Initial Screening Form" :show-guidance="false" :manual-review-required="session('assessment_form_manual_review') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION" />
                                 </div>
-                                <div data-screening-narrative-transcription x-data="{ narrative: @js($manualNarrativeInput) }" class="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
-                                    <div>
-                                        <p class="mb-3 text-base font-bold text-gray-950 dark:text-white">Scanned signed form (alternative)</p>
-                                        <label for="narrative_evaluation_{{ $topic->id }}" class="block text-base font-bold text-gray-950 dark:text-white">Transcribe the Narrative Evaluation</label>
-                                        <p id="narrative-evaluation-help-{{ $topic->id }}" class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">Upload the scanned PDF of the completed form with its wet signature, then copy the typed comments here and confirm they match. You can also use this field if automatic reading is incomplete. Leave it blank for a readable DOCX or PDF.</p>
-                                    </div>
-                                    <textarea id="narrative_evaluation_{{ $topic->id }}" name="narrative_evaluation" x-model="narrative" rows="6" minlength="3" maxlength="5000" aria-describedby="narrative-evaluation-help-{{ $topic->id }}" placeholder="Copy the evaluator’s comments exactly as written…" class="block w-full rounded-xl border-gray-300 text-base leading-7 focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">{{ $manualNarrativeInput }}</textarea>
-                                    <label for="narrative_evaluation_confirmed_{{ $topic->id }}" class="flex items-start gap-3 text-sm leading-6 text-gray-800 dark:text-gray-200">
-                                        <input id="narrative_evaluation_confirmed_{{ $topic->id }}" name="narrative_evaluation_confirmed" type="checkbox" value="1" :required="narrative.trim().length > 0" :disabled="narrative.trim().length === 0" @checked(old('narrative_evaluation_confirmed')) class="mt-1 rounded border-gray-300 text-red-700 focus:ring-red-700 disabled:opacity-40 dark:border-gray-600">
-                                        <span>I checked this transcription against all pages of the completed form and confirm that it matches.</span>
-                                    </label>
-                                    <p class="text-sm text-gray-600 dark:text-gray-300">Attach the completed form above even when entering the comments here. Up to 5,000 characters.</p>
-                                    @if ($coEvaluatorUploadHasErrors)
-                                        <p role="status" class="text-sm font-semibold text-red-700 dark:text-red-300">Your entries were kept. Select the completed form again before submitting.</p>
-                                    @endif
-                                </div>
+                                @if ($coEvaluatorUploadHasErrors)
+                                    <p role="status" class="text-sm text-gray-600 dark:text-gray-300">Select the completed form again before submitting.</p>
+                                @endif
                                 <div class="flex justify-end border-t border-gray-200 pt-4 dark:border-gray-800">
                                     <button type="submit" class="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950 sm:w-auto">Record evaluation</button>
                                 </div>

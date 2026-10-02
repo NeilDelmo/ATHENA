@@ -72,8 +72,8 @@ test('the Research Head fills saves and reopens screening for the submitted vers
         ->assertSessionHasNoErrors()->assertRedirect(($this->url)('edit'));
     $saved = $this->version->fresh()->research_head_screening;
     expect($saved['narrative_evaluation'])->toBe($this->payload['narrative_evaluation'])
-        ->and($saved['screening_head'])->toBe('ASST. PROF. DJOANNA MARIE V. SALAC')
-        ->and($saved['screening_verifier'])->toBe('DR. FROILAN G. DESTREZA')
+        ->and($saved['screening_head'])->toBe('Asst. Prof. DJOANNA MARIE V. SALAC')
+        ->and($saved['screening_verifier'])->toBe('Dr. FROILAN G. DESTREZA')
         ->and($saved['scores'])->toEqual($this->payload['scores'])
         ->and($saved['saved_by'])->toBe($this->head->id)
         ->and($saved)->not->toHaveKey('project_title')

@@ -1250,8 +1250,8 @@ test('initial submission uses default comments form signatories when a selection
     expect(TopicProposal::query()->count())->toBe(1);
     $selections = TopicProposal::query()->sole()->latestVersion->files
         ->firstWhere('document_type', 'detailed_proposal')->source_data['comment_response_signatory_selections'];
-    expect($selections['comment_response_head']['name'])->toBe('ASST. PROF. DJOANNA MARIE V. SALAC')
-        ->and($selections['comment_response_vice_chancellor']['name'])->toBe('DR. FROILAN G. DESTREZA');
+    expect($selections['comment_response_head']['name'])->toBe('Asst. Prof. DJOANNA MARIE V. SALAC')
+        ->and($selections['comment_response_vice_chancellor']['name'])->toBe('Dr. FROILAN G. DESTREZA');
 })->with(['comment_response_head', 'comment_response_vice_chancellor']);
 
 test('incomplete drafts stay blocked but completed drafts can be submitted after a call closes', function () {

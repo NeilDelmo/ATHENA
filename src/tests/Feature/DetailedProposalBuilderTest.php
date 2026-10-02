@@ -776,9 +776,9 @@ test('the preview mirrors the official bordered form layout', function () {
         ->assertSee('To be accomplished by the Researcher/s')
         ->assertSee('Head, Research Office')
         ->assertSee('Vice Chancellor for Research Development and Extension Services')
-        ->assertSee('ASST. PROF. DJOANNA MARIE V. SALAC')
-        ->assertSee('DR. FROILAN G. DESTREZA')
-        ->assertSee('PEDRO REYES')
+        ->assertSee('Asst. Prof. DJOANNA MARIE V. SALAC')
+        ->assertSee('Dr. FROILAN G. DESTREZA')
+        ->assertSee('Assoc. Prof. ALBERTSON D. AMANTE')
         ->assertSee('Tracking No.________________')
         ->assertSee('Page 1 of 1')
         ->assertSee('detailed-proposal-page-number');
@@ -833,9 +833,9 @@ test('structured detailed proposal data saves, resumes, and observes optimistic 
         ->and($document->source_data['leader_title'])->toBe('Asst Prof.')
         ->and($document->source_data['staff'][0]['title'])->toBe('Dr.')
         ->and($document->source_data['staff'][0]['email'])->toBe('staff@g.batstate-u.edu.ph')
-        ->and($document->source_data['checked_verified_by_name'])->toBe('ASST. PROF. DJOANNA MARIE V. SALAC')
-        ->and($document->source_data['recommending_approval_name'])->toBe('DR. FROILAN G. DESTREZA')
-        ->and($document->source_data['approved_by_name'])->toBe('Pedro Reyes')
+        ->and($document->source_data['checked_verified_by_name'])->toBe('Asst. Prof. DJOANNA MARIE V. SALAC')
+        ->and($document->source_data['recommending_approval_name'])->toBe('Dr. FROILAN G. DESTREZA')
+        ->and($document->source_data['approved_by_name'])->toBe('Assoc. Prof. ALBERTSON D. AMANTE')
         ->and($document->source_data)->not->toHaveKeys(['project_title', 'project_leader']);
 
     $this->actingAs($this->faculty)
@@ -1296,9 +1296,9 @@ test('the generated Word file preserves every unrelated official package part an
         $preparedDepartmentParagraph = $xpath->query('./w:tc[2]/w:p', $rows->item(31))->item(0);
         $sdgNoteRun = $xpath->query('.//w:r[w:t[contains(., "Check all applicable SDG")]]', $rows->item(4))->item(0);
         $expectedOutputNoteRun = $xpath->query('.//w:r[w:t[contains(., "based on expanded 6Ps")]]', $rows->item(20))->item(0);
-        $checkedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "ASST. PROF. DJOANNA MARIE V. SALAC"]', $rows->item(38))->item(0);
-        $recommendingNameParagraph = $xpath->query('./w:tc[2]/w:p[normalize-space(.) = "DR. FROILAN G. DESTREZA"]', $rows->item(38))->item(0);
-        $approvedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "PEDRO REYES"]', $rows->item(39))->item(0);
+        $checkedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "Asst. Prof. DJOANNA MARIE V. SALAC"]', $rows->item(38))->item(0);
+        $recommendingNameParagraph = $xpath->query('./w:tc[2]/w:p[normalize-space(.) = "Dr. FROILAN G. DESTREZA"]', $rows->item(38))->item(0);
+        $approvedNameParagraph = $xpath->query('./w:tc[1]/w:p[normalize-space(.) = "Assoc. Prof. ALBERTSON D. AMANTE"]', $rows->item(39))->item(0);
         $notesHeadingParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Notes: The Signatories funded by:"]')->item(0);
         $researchCouncilParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Approval through Research Council"]')->item(0);
         $researchCouncilSignatoriesParagraph = $xpath->query('//w:body/w:p[normalize-space(.) = "Director, Research; Vice President for RDES: & University President"]')->item(0);
@@ -1343,9 +1343,9 @@ test('the generated Word file preserves every unrelated official package part an
             ->and($rowText(35))->toContain('To be accomplished by the Research Office')
             ->and($rowText(38))->toContain('Head, Research Office')
             ->and($rowText(38))->toContain('Vice Chancellor for Research Development and Extension Services')
-            ->and($rowText(38))->toContain('ASST. PROF. DJOANNA MARIE V. SALAC')
-            ->and($rowText(38))->toContain('DR. FROILAN G. DESTREZA')
-            ->and($rowText(39))->toContain('PEDRO REYES')
+            ->and($rowText(38))->toContain('Asst. Prof. DJOANNA MARIE V. SALAC')
+            ->and($rowText(38))->toContain('Dr. FROILAN G. DESTREZA')
+            ->and($rowText(39))->toContain('Assoc. Prof. ALBERTSON D. AMANTE')
             ->and($rowText(38))->not->toContain('Vice President/Vice Chancellor')
             ->and($xpath->query('./w:trPr/w:cantSplit', $rows->item(39))->length)->toBe(1)
             ->and($xpath->evaluate('string(w:pPr/w:ind/@w:left)', $notesHeadingParagraph))->toBe('0')
@@ -1716,6 +1716,9 @@ test('the saved budget call level drives the proposal and screening previews', f
         ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertDontSee('data-proposal-call-level', false)
+        ->assertDontSee('Official form source')
+        ->assertDontSee('The Word download is produced')
+        ->assertSee('Edit shared details')
         ->assertDontSee('Set Level of Call in the Line-Item Budget')
         ->assertDontSee('Level of Call:');
     $this->actingAs($this->faculty)

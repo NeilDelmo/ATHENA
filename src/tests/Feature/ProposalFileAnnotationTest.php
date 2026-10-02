@@ -730,7 +730,7 @@ test('a downloaded generated paper is staged in its matching revision attachment
             'revision_draft_id' => $draft->id,
             'feedback_review_id' => $review->id,
             'feedback_responses' => [
-                'file_'.$fileRevision->id => ['response' => 'Updated the requested work plan.'],
+                'file_'.$fileRevision->id => ['response' => 'Updated the requested work plan.', 'no_change' => 0, 'page' => 1, 'paragraph' => 2],
             ],
             'title' => $this->topic->title,
             'description' => 'Updated work plan from the proposal workspace.',
@@ -801,7 +801,7 @@ test('overall feedback clearly carries forward papers without a replacement requ
         'estimated_budget' => 50000,
         'estimated_duration_months' => 12,
         'feedback_review_id' => $review->id,
-        'feedback_responses' => ['overall' => ['response' => 'Confirmed the 12-month duration.']],
+        'feedback_responses' => ['overall' => ['response' => 'Confirmed the 12-month duration.', 'no_change' => 1]],
     ])->assertSessionHasNoErrors();
     expect($review->fresh()->feedback_responses['overall']['response'])->toBe('Confirmed the 12-month duration.')
         ->and($this->topic->fresh()->latestVersion->files->firstWhere('document_type', ProposalVersionFile::TYPE_WORK_PLAN)->is_carried_forward)->toBeTrue();
@@ -1212,7 +1212,7 @@ test('embedded editors expose only current published feedback and preserve the r
         'revision_draft_id' => $draft->id,
         'feedback_review_id' => $review->id,
         'feedback_responses' => [
-            'annotation_'.$published->id => ['response' => 'Updated the work plan activity.'],
+            'annotation_'.$published->id => ['response' => 'Updated the work plan activity.', 'no_change' => 0, 'page' => 1, 'paragraph' => 2],
         ],
         'title' => $this->topic->title,
         'estimated_budget' => 50000,

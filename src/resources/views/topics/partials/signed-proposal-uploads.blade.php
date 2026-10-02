@@ -1,5 +1,6 @@
 @php
     $canUploadSignedPapers = $isSigningStage && Auth::user()->can('manageNoticeToProceed', $topic);
+    $signingDemoMode = $workspace['signingDemoMode'] ?? false;
     $uploadDocuments = $finalSigningFiles->map(function ($source) use ($workspace, $activeSignedCopiesBySource, $topic, $latestVersion) {
         $signed = ($workspace['signedCopiesBySource'] ?? collect())->get($source->id)
             ?? $activeSignedCopiesBySource->get($source->id, collect())->first();
@@ -17,6 +18,7 @@
     $uploadConfig = [
         'documents' => $uploadDocuments,
         'complete' => $signaturesComplete,
+        'demoMode' => $signingDemoMode,
         'url' => route('topics.head-uploads.store', $topic),
         'csrf' => csrf_token(),
     ];
@@ -32,7 +34,7 @@
     </div>
 
     @if ($canUploadSignedPapers)
-        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff.</p>
+        <p class="px-5 pb-5 text-sm text-slate-500 dark:text-slate-400 sm:px-6">One PDF per paper, up to 25 MB. @if ($signingDemoMode) Any PDF is accepted for this demo. @else We check the official form and project title before saving. Scans use the configured AI document reader on the first two pages. Required wet signatures must still be checked by staff. @endif</p>
         <noscript><p role="alert" class="px-5 pb-5 text-base text-red-700">Enable JavaScript to upload signed copies.</p></noscript>
     @endif
 
@@ -45,8 +47,8 @@
                         <span data-uploaded-badge x-show="document.saved" x-cloak class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-base font-semibold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200"><svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6" stroke-linecap="round" stroke-linejoin="round" /></svg>Uploaded</span>
                     </div>
                     <p x-show="document.saved" class="mt-2 break-all text-base leading-6 text-slate-700 dark:text-slate-200" x-text="document.filename"></p>
-                    <p role="status" class="mt-2 text-base leading-6" :class="document.saved ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'" x-text="document.busy ? 'Checking form and project title…' : (document.saved ? 'Signed copy saved' : 'Awaiting signed copy')">{{ $signedSourceFileIds->contains($source->id) ? 'Signed copy saved' : 'Awaiting signed copy' }}</p>
-                    <p x-show="document.saved && document.verificationStatus" x-cloak class="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300" x-text="document.verificationStatus === 'matched' ? 'Form and project title matched' : 'Form manually checked by uploader'"></p>
+                    <p role="status" class="mt-2 text-base leading-6" :class="document.saved ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'" x-text="document.busy ? (demoMode ? 'Uploading PDF…' : 'Checking form and project title…') : (document.saved ? 'Signed copy saved' : 'Awaiting signed copy')">{{ $signedSourceFileIds->contains($source->id) ? 'Signed copy saved' : 'Awaiting signed copy' }}</p>
+                    <p x-show="document.saved && document.verificationStatus" x-cloak class="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300" x-text="verificationMessage(document)"></p>
                     <p x-show="document.error" x-cloak role="alert" class="mt-2 text-base text-red-700 dark:text-red-300" x-text="document.error"></p>
                 </div>
                 <div class="flex flex-wrap items-center gap-3">

@@ -134,8 +134,8 @@ class StoreResearchHeadFileRequest extends FormRequest
             'narrative_evaluation.max' => 'The Narrative Evaluation may not exceed 5,000 characters.',
             'narrative_evaluation_confirmed.required' => 'Check the transcription against all pages of the uploaded form and confirm that it matches.',
             'narrative_evaluation_confirmed.accepted' => 'Check the transcription against all pages of the uploaded form and confirm that it matches.',
-            'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
-            'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
+            'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm it belongs to this project and includes the GAD verifier’s signature.',
+            'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm it belongs to this project and includes the GAD verifier’s signature.',
             'gad_score.numeric' => 'Enter the GAD score shown on the scanned checklist.',
             'gad_score.between' => 'The GAD score must be between 0 and 20.',
         ];

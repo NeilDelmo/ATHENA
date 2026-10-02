@@ -13,7 +13,7 @@
     <ul class="space-y-1">
         @foreach ($levels as $level)
             <li data-evaluation-level="{{ $loop->index }}" data-stage-active="{{ $level['active'] ? 'true' : 'false' }}" class="flex items-center gap-3 text-sm">
-                <span class="inline-flex h-4 w-4 shrink-0 items-center justify-center border border-black bg-white text-lg leading-none text-black" aria-hidden="true">{{ $level['active'] ? '×' : '' }}</span>
+                <span @class(['inline-flex h-4 w-4 shrink-0 border border-black', 'bg-black' => $level['active'], 'bg-white' => ! $level['active']]) aria-hidden="true"></span>
                 <span>{{ $level['label'] }}<span class="sr-only">{{ $level['active'] ? ' — Selected' : ' — Not selected' }}</span></span>
             </li>
         @endforeach

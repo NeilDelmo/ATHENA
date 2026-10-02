@@ -20,7 +20,7 @@ test('page header standardizes workspace title subtitle and responsive actions',
 test('hero headers keep dashboard spacing and typography with transparent content and existing actions', function () {
     $html = Blade::render(<<<'BLADE'
         <x-page-header container>
-            <x-page-header variant="hero" eyebrow="Faculty workspace" title="Faculty research" subtitle="Welcome back.">
+            <x-page-header variant="hero" eyebrow="Faculty workspace" title="Faculty" subtitle="Welcome back.">
                 <x-slot:actions><a href="/existing-action">New proposal</a></x-slot:actions>
             </x-page-header>
         </x-page-header>
@@ -86,6 +86,7 @@ test('every workspace dashboard renders the reference hero style beneath the unt
         ->and($xpath->query('//header[@data-page-header-container]/div[contains(@class, "relative z-[1]")]//*[@data-page-header-variant="hero"]')->length)->toBe(1)
         ->and($xpath->query('//header[@data-page-header-container]//*[@data-page-header-variant="simple"]')->length)->toBe(0)
         ->and($hero)->not->toBeNull()
+        ->and(trim($xpath->query('.//h2', $hero)->item(0)->textContent))->toBe($title)
         ->and($hero->getAttribute('class'))->toContain('border-l-4 border-[#800000]', 'px-5 py-4', 'sm:items-center sm:justify-between')
         ->and($hero->getAttribute('class'))->not->toContain('!border-l-0', '!px-0', '!pt-0', '!normal-case', '!tracking-normal')
         ->and($xpath->query('./div/p[1]', $hero)->item(0)->getAttribute('class'))->toContain('text-sm font-bold uppercase tracking-[0.2em]')
@@ -94,7 +95,7 @@ test('every workspace dashboard renders the reference hero style beneath the unt
 })->with([
     'Research Head' => ['research_head', 'research_head', 'research_head.dashboard', 'Dashboard'],
     'Research Office' => ['research_office', 'research_coordinator', 'research_coordinator.dashboard', 'Research Office Dashboard'],
-    'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Faculty research'],
+    'Faculty' => ['faculty', 'faculty', 'faculty.dashboard', 'Faculty'],
     'Faculty Researcher' => ['faculty_researcher', 'faculty_researcher', 'faculty.dashboard', 'Your research at a glance'],
     'Research Secretary' => ['research_secretary', 'research_secretary', 'research_secretary.dashboard', 'Research Secretary Workspace'],
 ]);

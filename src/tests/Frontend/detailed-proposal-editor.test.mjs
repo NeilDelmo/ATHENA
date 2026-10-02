@@ -333,3 +333,28 @@ test('shared-library reviewed abstract drafts can be confirmed for proposal inse
     assert.equal(redirected.action, 'both');
     assert.equal(state.synthesisError, '');
 });
+
+test('detailed proposal signature titles retain their case on screen and in print', async () => {
+    const css = readFileSync(new URL('../../resources/css/detailed-proposal-print.css', import.meta.url), 'utf8');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+
+    try {
+        const page = await browser.newPage();
+        await page.setContent(`<style>${css}</style><p class="detailed-proposal-signature-name">Assoc. Prof. ALBERTSON D. AMANTE</p>`);
+        for (const media of ['screen', 'print']) {
+            await page.emulateMedia({ media });
+            const name = await page.locator('.detailed-proposal-signature-name').evaluate((element) => ({
+                text: element.innerText,
+                transform: getComputedStyle(element).textTransform,
+                weight: getComputedStyle(element).fontWeight,
+                decoration: getComputedStyle(element).textDecorationLine,
+            }));
+            assert.equal(name.text, 'Assoc. Prof. ALBERTSON D. AMANTE');
+            assert.equal(name.transform, 'none');
+            assert.equal(name.weight, '700');
+            assert.equal(name.decoration, 'underline');
+        }
+    } finally {
+        await browser.close();
+    }
+});

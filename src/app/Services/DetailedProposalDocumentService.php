@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\DetailedProposalData;
 use App\Support\ProposalRichText;
 use App\Support\WordCheckbox;
 use DOMDocument;
@@ -920,13 +921,13 @@ class DetailedProposalDocumentService
         }
 
         $checkedName = filled($proposal['checked_verified_by_name'])
-            ? Str::upper((string) $proposal['checked_verified_by_name'])
+            ? DetailedProposalData::signatoryName($proposal['checked_verified_by_name'])
             : 'NAME';
         $recommendingName = filled($proposal['recommending_approval_name'])
-            ? Str::upper((string) $proposal['recommending_approval_name'])
+            ? DetailedProposalData::signatoryName($proposal['recommending_approval_name'])
             : 'NAME';
         $approvedName = filled($proposal['approved_by_name'])
-            ? Str::upper((string) $proposal['approved_by_name'])
+            ? DetailedProposalData::signatoryName($proposal['approved_by_name'])
             : 'NAME';
 
         $this->replaceParagraphText($checkedParagraphs[3], '');

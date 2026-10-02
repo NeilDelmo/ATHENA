@@ -112,14 +112,10 @@
         <div class="proposal-preview-workspace" @keydown.escape.window="closeProposalPreview()" @resize.window.debounce.150ms="applyProposalPreviewZoom()">
         <div data-proposal-official-form-source class="proposal-edit-pane space-y-6" aria-label="Proposal editing form">
         <section data-revision-section="section-project-information" data-revision-shared-summary class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h3 class="text-base font-black text-gray-900">Official form source</h3>
-                    <p class="mt-1 max-w-3xl text-xs leading-5 text-gray-500">The Word download is produced from the university's original DOCX. Its legal-size portrait setup, logo, borders, labels, footer page fields, privacy notice, and Research Office approval page are retained.</p>
-                </div>
+            <div class="flex justify-end">
                 <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex shrink-0 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit shared details</a>
             </div>
-            <dl class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
+            <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">I. Research Project Title</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold uppercase text-gray-900">{{ $proposalDraft->project_leader }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">MOOE from Attachment B</dt><dd class="mt-1 text-sm font-semibold text-gray-900">Php {{ number_format($budgetTotals['mooe_total'], 2) }}</dd></div>

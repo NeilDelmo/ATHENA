@@ -510,9 +510,12 @@ class TopicController extends Controller
             'change_summary' => 'nullable|string|max:2000',
             'feedback_review_id' => 'nullable|integer',
             'feedback_responses' => 'nullable|array|max:500',
-            'feedback_responses.*' => 'array:response,remarks',
+            'feedback_responses.*' => 'array:response,page,paragraph,no_change,remarks',
             'feedback_responses.*.response' => 'required|string|max:5000',
-            'feedback_responses.*.remarks' => 'nullable|string|max:300',
+            'feedback_responses.*.no_change' => 'required|boolean',
+            'feedback_responses.*.page' => 'exclude_if:feedback_responses.*.no_change,1|required_unless:feedback_responses.*.no_change,1|integer|min:1|max:100000',
+            'feedback_responses.*.paragraph' => 'exclude_if:feedback_responses.*.no_change,1|required_unless:feedback_responses.*.no_change,1|integer|min:1|max:100000',
+            'feedback_responses.*.remarks' => 'exclude',
             'revision_resolutions' => 'nullable|array',
             'revision_resolutions.*' => 'array',
             'revision_resolutions.*.action' => 'nullable|in:no_change',
@@ -527,6 +530,8 @@ class TopicController extends Controller
             'gad_checklist' => 'nullable|file|mimes:pdf,doc,docx|max:25600',
         ], [
             'estimated_budget.max' => 'The total project cost may not exceed PHP '.number_format($maximumBudget, 2).'.',
+            'feedback_responses.*.page.required_unless' => 'Enter the revised page number, or select No change made.',
+            'feedback_responses.*.paragraph.required_unless' => 'Enter the revised paragraph number, or select No change made.',
         ], [
             'estimated_budget' => 'total project cost',
             'revision_draft_id' => 'revision workspace',
@@ -537,6 +542,9 @@ class TopicController extends Controller
             'expense_breakdown' => 'expense breakdown',
             'curricula_vitae.*' => 'curriculum vitae file',
             'gad_checklist' => 'GAD checklist',
+            'feedback_responses.*.page' => 'revised page number',
+            'feedback_responses.*.paragraph' => 'revised paragraph number',
+            'feedback_responses.*.no_change' => 'No change made selection',
         ]);
 
         $revisionDraft = $this->revisionDraftForResubmission($request, $topic);
@@ -628,7 +636,7 @@ class TopicController extends Controller
                     if (blank($answer['response'] ?? null)) {
                         throw ValidationException::withMessages(['feedback_responses' => 'Respond to every review comment before submitting your revision.'])->errorBag('resubmission');
                     }
-                    $responses[$row['key']] = $answer;
+                    $responses[$row['key']] = app(CommentResponseFeedback::class)->normalizeResponse($answer);
                 }
                 $review->update(['feedback_responses' => $responses]);
 
@@ -1000,7 +1008,9 @@ class TopicController extends Controller
         if ($isInitialReviewUpload || ($isSignedCopy && in_array($sourceFile->document_type, [ProposalVersionFile::TYPE_DETAILED_PROPOSAL, ProposalVersionFile::TYPE_WORK_PLAN, ProposalVersionFile::TYPE_LINE_ITEM_BUDGET], true))) {
             $projectTitle = (string) ($sourceFile->source_data['project_title'] ?? $latestVersion->title ?? $topic->title);
             try {
-                $check = $formVerifier->check($file, $sourceFile, $projectTitle);
+                $check = $isSignedCopy && $this->signatureWorkflow->allowsDemoUploads()
+                    ? ['status' => 'demo_uploaded', 'method' => 'demo', 'reason' => 'demo_mode']
+                    : $formVerifier->check($file, $sourceFile, $projectTitle);
             } catch (RuntimeException $exception) {
                 return $this->headUploadErrorResponse($topic, $isInitialReviewUpload, ['review_file' => $exception->getMessage()]);
             }
@@ -1021,7 +1031,7 @@ class TopicController extends Controller
             }
 
             $verification = [
-                'status' => $needsManualReview ? 'manually_confirmed' : 'matched',
+                'status' => $needsManualReview ? 'manually_confirmed' : $check['status'],
                 'method' => $check['method'],
                 'document_type' => $sourceFile->document_type,
                 'project_title' => $projectTitle,
@@ -1070,7 +1080,7 @@ class TopicController extends Controller
                     return $this->headUploadErrorResponse(
                         $topic,
                         true,
-                        ['review_file' => $exception->getMessage().' You can enter the full Narrative Evaluation below, confirm it matches the completed form, and select the file again.'],
+                        ['review_file' => $exception->getMessage().' Upload the completed DOCX or a PDF with selectable text so ATHENA can read the typed Narrative Evaluation.'],
                         ($assessmentFormVerification['status'] ?? null) === 'manually_confirmed',
                     );
                 }
@@ -1245,6 +1255,7 @@ class TopicController extends Controller
      *     signedCopiesBySource: Collection<int, ProposalVersionFile>,
      *     missingSignatureFiles: Collection<int, ProposalVersionFile>,
      *     signaturesComplete: bool,
+     *     signingDemoMode: bool,
      *     gadAssessment: ProposalVersionFile|null,
      *     gadPassed: bool,
      *     coEvaluatorEvaluation: ProposalVersionFile|null
@@ -1315,6 +1326,7 @@ class TopicController extends Controller
             ? $this->signatureWorkflow->missingRequiredFiles($latestVersion)
             : collect();
         $signaturesComplete = $latestVersion !== null && $this->signatureWorkflow->isComplete($latestVersion);
+        $signingDemoMode = $this->signatureWorkflow->allowsDemoUploads();
         $gadPassed = $latestVersion?->hasPassingGadAssessment() ?? false;
 
         return compact(
@@ -1330,6 +1342,7 @@ class TopicController extends Controller
             'signedCopiesBySource',
             'missingSignatureFiles',
             'signaturesComplete',
+            'signingDemoMode',
             'gadAssessment',
             'gadPassed',
             'coEvaluatorEvaluation',

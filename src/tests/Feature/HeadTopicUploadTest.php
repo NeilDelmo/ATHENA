@@ -107,6 +107,9 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->assertDontSee('PROPOSAL ROUTING DOCKET')
         ->assertSee('data-current-review-controls="gad"', false)
         ->assertSee('Drop completed GAD checklist here')
+        ->assertSee('An exact project title match is not required.')
+        ->assertSee('Confirm checklist and signature')
+        ->assertSee('confirm it belongs to this project')
         ->assertSee('Upload &amp; read score', false)
         ->assertDontSee('data-co-evaluator-screening-panel', false)
         ->assertSee('Enter score only if automatic reading fails')
@@ -931,14 +934,17 @@ describe('screening narrative transcription', function () {
             $reviewLink = $xpath->query('//*[@id="co-evaluator-review"]//a[contains(., "Download editable DOCX")]')->item(0);
             expect($reviewLink?->getAttribute('href'))->toBe($url);
             $preferredWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-docx-workflow]')->item(0);
-            $scannedWorkflow = $xpath->query('//*[@id="co-evaluator-review"]//*[@data-screening-narrative-transcription]')->item(0);
-            expect($preferredWorkflow?->textContent)->toContain('Recommended: complete the DOCX in Word', 'ATHENA reads the typed comments automatically.')
-                ->and($preferredWorkflow?->textContent)->toContain('completed DOCX or PDF', 'required wet signature', 'upload a scanned PDF')
-                ->and($scannedWorkflow?->textContent)->toContain('Scanned signed form (alternative)', 'Upload the scanned PDF', 'wet signature', 'typed comments')
-                ->and($scannedWorkflow?->textContent)->not->toContain('Handwritten')
-                ->and($xpath->query('preceding::*[@data-screening-docx-workflow]', $scannedWorkflow)->length)->toBe(1)
-                ->and($xpath->query('.//textarea[@name="narrative_evaluation"]', $scannedWorkflow)->length)->toBe(1)
-                ->and($xpath->query('.//input[@name="narrative_evaluation_confirmed"]', $scannedWorkflow)->length)->toBe(1);
+            $section = '//*[@id="co-evaluator-review"]';
+            expect($preferredWorkflow?->textContent)->toContain('completed DOCX or PDF', 'required wet signature', 'ATHENA reads the Narrative Evaluation automatically.')
+                ->and($xpath->query($section.'//*[@data-screening-narrative-transcription]')->length)->toBe(0)
+                ->and($xpath->query($section.'//textarea[@name="narrative_evaluation"]')->length)->toBe(0)
+                ->and($xpath->query($section.'//input[@name="narrative_evaluation_confirmed"]')->length)->toBe(0)
+                ->and($xpath->query($section.'//input[@name="co_evaluator_name" and @required]')->length)->toBe(1)
+                ->and($xpath->query($section.'//input[@name="recommended_action" and @type="radio"]')->length)->toBe(3)
+                ->and($xpath->query($section.'//input[@name="review_file" and @required]')->length)->toBe(1);
+            $sectionText = $xpath->query($section)->item(0)?->textContent;
+            expect($sectionText)->not->toContain('Scanned signed form', 'Transcribe the Narrative Evaluation', 'Recommended: complete the DOCX in Word', 'configured AI reader', 'Limited corrections', 'Substantial changes')
+                ->and($sectionText)->toContain('Recommendation', 'Record evaluation');
         }
     })->with(['research_head', 'faculty']);
 
@@ -1087,7 +1093,7 @@ describe('screening narrative transcription', function () {
         'unsupported original form' => [['review_file' => UploadedFile::fake()->create('screening.txt', 10, 'text/plain')], 'review_file'],
     ]);
 
-    test('transcription validation keeps all comments available when replacing an evaluation', function () {
+    test('replacement errors keep evaluator details without restoring the removed transcription panel', function () {
         $this->actingAs($this->head)
             ->post(route('topics.head-uploads.store', $this->topic), [
                 ...$this->transcriptionPayload,
@@ -1103,14 +1109,16 @@ describe('screening narrative transcription', function () {
         $document = new DOMDocument;
         @$document->loadHTML($response->getContent());
         $xpath = new DOMXPath($document);
-        expect($xpath->query('//*[@data-screening-narrative-transcription]')->item(0)?->textContent)
-            ->toContain($this->transcription)
-            ->toContain('Your entries were kept. Select the completed form again before submitting.');
+        expect($xpath->query('//*[@data-screening-narrative-transcription]')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//textarea[@name="narrative_evaluation"]')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//input[@name="co_evaluator_name"]')->item(0)?->getAttribute('value'))->toBe($this->transcriptionPayload['co_evaluator_name'])
+            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//input[@name="recommended_action" and @checked]')->item(0)?->getAttribute('value'))->toBe($this->transcriptionPayload['recommended_action'])
+            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]')->item(0)?->textContent)->toContain('Select the completed form again before submitting.');
         expect($xpath->query('//*[@data-co-evaluator-screening-panel]/parent::*')->item(0)?->getAttribute('x-data'))
             ->toBe('{ replacing: true }');
     });
 
-    test('failed automatic reading explains how to record a scanned narrative', function () {
+    test('failed automatic reading directs the uploader to a readable completed form', function () {
         Process::fake([Process::result(output: '')]);
         $payload = $this->transcriptionPayload;
         unset($payload['narrative_evaluation'], $payload['narrative_evaluation_confirmed']);
@@ -1124,7 +1132,8 @@ describe('screening narrative transcription', function () {
         @$document->loadHTML($response->getContent());
         $xpath = new DOMXPath($document);
         expect($xpath->query('//*[@data-research-head-file-workspace]//*[@role="alert"]')->item(0)?->textContent)
-            ->toContain('You can enter the full Narrative Evaluation below, confirm it matches the completed form, and select the file again.');
+            ->toContain('Upload the completed DOCX or a PDF with selectable text so ATHENA can read the typed Narrative Evaluation.')
+            ->and($response->getContent())->not->toContain('Transcribe the Narrative Evaluation', 'You can enter the full Narrative Evaluation below');
 
         expect($this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->count())->toBe(0);
     });

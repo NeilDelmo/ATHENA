@@ -197,6 +197,6 @@ test('revision workspace presents the guided workflow in the order faculty compl
 
     expect($page)->toContain('Research proposal', 'Revision required', 'max-w-6xl')
         ->and($page)->not->toContain('data-revision-step-panel')
-        ->and($form)->toContain('1. Reviewer feedback', '2. Revise papers', '3. Write responses', '4. Proposal details', '5. Final review and submission', 'data-revision-details-confirmed', 'data-revision-step-continue', 'data-revision-feedback-item')
+        ->and($form)->toContain('1. Reviewer feedback', '2. Revise papers', '3. Action and Response', '4. Proposal details', '5. Final review and submission', 'data-revision-details-confirmed', 'data-revision-step-continue', 'data-revision-feedback-item', '[page]', '[paragraph]', 'No change made')
         ->and($form)->not->toContain('Revised page and paragraph', '[remarks]');
 });

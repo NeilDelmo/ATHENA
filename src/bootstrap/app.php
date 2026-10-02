@@ -42,6 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'faculty.proposal-drafts.work-plan.download',
                 )
                 || ($request->expectsJson() && $request->routeIs(
+                    'topics.head-uploads.store',
                     'topics.versions.files.annotations.store',
                     'topics.versions.files.annotations.update',
                     'topics.versions.files.annotations.destroy',

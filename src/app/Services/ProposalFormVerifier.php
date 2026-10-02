@@ -45,16 +45,20 @@ class ProposalFormVerifier
 
         $method = $isDocx ? 'docx_text' : 'pdf_text';
         $scanProjectTitle = null;
+        $requiresProjectTitleMatch = ! in_array($source->document_type, [
+            ProposalVersionFile::TYPE_GAD_CHECKLIST,
+            ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+        ], true);
 
         if (Str::length($text) < 200) {
             if ($isDocx) {
                 return $this->manualReview('docx_insufficient_readable_text');
             }
-            $scan = $this->readScan($path);
+            $scan = $this->readScan($path, $requiresProjectTitleMatch);
             if ($scan === null) {
                 return $this->manualReview('scan_could_not_be_read');
             }
-            if (($scan['legible'] ?? false) !== true || ! is_string($scan['project_title'] ?? null)) {
+            if (($scan['legible'] ?? false) !== true || ($requiresProjectTitleMatch && ! is_string($scan['project_title'] ?? null))) {
                 return $this->manualReview('scan_not_legible');
             }
             $text = $this->normalize(implode(' ', [
@@ -62,7 +66,7 @@ class ProposalFormVerifier
                 (string) ($scan['reference_number'] ?? ''),
                 ...array_filter($scan['field_labels'] ?? [], 'is_string'),
             ]));
-            $scanProjectTitle = $this->normalize($scan['project_title']);
+            $scanProjectTitle = is_string($scan['project_title'] ?? null) ? $this->normalize($scan['project_title']) : null;
             $method = 'scan_reader';
         }
 
@@ -91,6 +95,14 @@ class ProposalFormVerifier
             ? $scanProjectTitle === $expectedTitle
             : $this->textProjectTitle($text) === $expectedTitle;
         if ($expectedTitle === '' || ! $titleMatches) {
+            if (! $requiresProjectTitleMatch) {
+                return [
+                    'status' => 'form_matched', 'method' => $method,
+                    'message' => $source->label().' identified.',
+                    'reason' => 'project_title_mismatch',
+                ];
+            }
+
             return [
                 'status' => 'rejected', 'method' => $method,
                 'message' => 'The project title in this file does not match the submitted project. Upload the completed '.$source->label().' for “'.$projectTitle.'”.',
@@ -102,7 +114,7 @@ class ProposalFormVerifier
     }
 
     /** @return array<string, mixed>|null */
-    private function readScan(string $path): ?array
+    private function readScan(string $path, bool $requiresProjectTitleMatch): ?array
     {
         if (! $this->ai->isConfigured(usesVision: true)) {
             return null;
@@ -125,7 +137,10 @@ class ProposalFormVerifier
                 return null;
             }
 
-            $content = [['type' => 'text', 'text' => 'Read the attached first two pages of a completed research form or assessment checklist. Return JSON with legible (boolean), form_heading (exact visible heading or null), reference_number (exact visible form code or Box number or null), project_title (exact value under Research Project Title or Project Title, not Program Title, or null), and field_labels (array of exact visible field/section labels, including an assessment subtitle if present). Do not infer missing text. Set legible to false when the form identity or project title cannot be read confidently. Do not authenticate signatures.']];
+            $legibilityInstruction = $requiresProjectTitleMatch
+                ? 'Set legible to false when the form identity or project title cannot be read confidently.'
+                : 'Set legible to false when the form identity cannot be read confidently. A missing or unclear project title does not make the form illegible; return null for that title.';
+            $content = [['type' => 'text', 'text' => 'Read the attached first two pages of a completed research form or assessment checklist. Return JSON with legible (boolean), form_heading (exact visible heading or null), reference_number (exact visible form code or Box number or null), project_title (exact value under Research Project Title or Project Title, not Program Title, or null), and field_labels (array of exact visible field/section labels, including an assessment subtitle if present). Do not infer missing text. '.$legibilityInstruction.' Do not authenticate signatures.']];
             foreach (array_slice($pages, 0, 2) as $page) {
                 if (File::size($page) > 8 * 1024 * 1024) {
                     return null;

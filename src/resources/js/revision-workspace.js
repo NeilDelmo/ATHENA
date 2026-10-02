@@ -847,7 +847,7 @@ export function initializeRevisionWorkflow(form) {
         const invalid = controls.find((control) => !control.checkValidity());
         if (invalid) {
             show(step);
-            error.textContent = step === 3 ? 'Write a response to every comment before continuing.' : 'Check the proposal details and confirm they are correct.';
+            error.textContent = step === 3 ? 'Complete each response and its page and paragraph numbers, or select No change made.' : 'Check the proposal details and confirm they are correct.';
             error.hidden = false;
             invalid.reportValidity();
             invalid.focus();

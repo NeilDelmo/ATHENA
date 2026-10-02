@@ -77,15 +77,26 @@ class DetailedProposalData
             'specific_method_objectives' => $specificMethodObjectives,
             'methodology_images' => $methodologyImages,
             'responsibilities' => self::rows($validated['responsibilities'] ?? [], ['name', 'percentage', 'duties'], true),
-            'checked_verified_by_name' => self::text($validated['checked_verified_by_name'] ?? ''),
-            'recommending_approval_name' => self::text($validated['recommending_approval_name'] ?? ''),
-            'approved_by_name' => self::text($validated['approved_by_name'] ?? ''),
+            'checked_verified_by_name' => self::signatoryName($validated['checked_verified_by_name'] ?? ''),
+            'recommending_approval_name' => self::signatoryName($validated['recommending_approval_name'] ?? ''),
+            'approved_by_name' => self::signatoryName($validated['approved_by_name'] ?? ''),
             'mooe_total' => round((float) ($budgetTotals['mooe_total'] ?? 0), 2),
             'co_total' => round((float) ($budgetTotals['co_total'] ?? 0), 2),
             'level_of_call' => $budgetTotals['level_of_call'] ?? null,
             'document_checklist' => $documentChecklist,
             'references' => self::narrative($validated['references'] ?? ''),
         ];
+    }
+
+    public static function signatoryName(mixed $value): string
+    {
+        $name = Str::upper(self::text($value));
+
+        return preg_replace_callback(
+            '/^(?:(?:ASSOC|ASST)\.\s+PROF\.|DR\.|PROF\.|ENGR\.|ATTY\.|MR\.|MRS\.|MS\.)(?=\s)/u',
+            fn (array $matches): string => Str::title(Str::lower($matches[0])),
+            $name,
+        ) ?? $name;
     }
 
     /** @param array<string, mixed> $data

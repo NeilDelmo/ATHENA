@@ -1,6 +1,6 @@
 @php
     $richText = app(\App\Support\ProposalRichText::class);
-    $signatoryName = fn (string $key): string => \Illuminate\Support\Str::upper($detailedProposal[$key] ?: 'NAME');
+    $signatoryName = fn (string $key): string => \App\Support\DetailedProposalData::signatoryName($detailedProposal[$key] ?: 'NAME');
     $sdgs = config('detailed_proposal.sdgs');
 @endphp
 <!DOCTYPE html>

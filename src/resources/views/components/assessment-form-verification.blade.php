@@ -1,4 +1,4 @@
-@props(['formName', 'manualReviewRequired' => false])
+@props(['formName', 'manualReviewRequired' => false, 'projectTitleConfirmedByUploader' => false, 'showGuidance' => true])
 
 <div data-assessment-form-verification x-data="{
     previewUrl: null, previewed: false, confirmed: false,
@@ -6,7 +6,9 @@
     preview() { if (!this.files[0]) return; if (this.previewUrl) URL.revokeObjectURL(this.previewUrl); this.previewUrl = URL.createObjectURL(this.files[0]); this.previewed = /\.pdf$/i.test(this.files[0].name); },
     destroy() { if (this.previewUrl) URL.revokeObjectURL(this.previewUrl); }
 }" class="mt-3 space-y-3">
-    <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">We check the official {{ $formName }} and project title before saving. Scanned PDFs use the configured AI reader on the first two pages. Signature checks remain your responsibility.</p>
+    @if ($showGuidance)
+        <p class="text-sm leading-6 text-gray-600 dark:text-gray-300">@if ($projectTitleConfirmedByUploader)We identify the {{ $formName }} and read its score. An exact project title match is not required. Check that the checklist belongs to this project and includes the verifier’s signature.@else We check the official {{ $formName }} and project title before saving. Scanned PDFs use the configured AI reader on the first two pages. Signature checks remain your responsibility.@endif</p>
+    @endif
     <button x-show="files.length" x-cloak type="button" @click="preview()" class="rh-button-secondary">Preview selected form</button>
     <template x-if="previewUrl && /\.pdf$/i.test(files[0]?.name ?? '')">
         <div x-data="pdfAnnotationWorkspace({ pdfUrl: previewUrl, annotations: [], canAnnotate: false, fitWidth: true })" class="revision-pdf-viewer !h-96">
