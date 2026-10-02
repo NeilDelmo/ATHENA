@@ -203,9 +203,12 @@
                                                         @endif
                                                     </div>
                                                 </div>
-                                                <div class="mt-3 flex justify-end gap-2">
+                                                <div class="mt-3 flex flex-wrap justify-end gap-2">
                                                     @if ($document['view_url'])
                                                         <button type="button" data-project-document-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'project-{{ $topic->id }}-{{ $document['key'] }}')" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">View</button>
+                                                    @endif
+                                                    @if ($document['editable_docx_url'] ?? null)
+                                                        <a href="{{ $document['editable_docx_url'] }}" class="inline-flex min-h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70">Editable DOCX</a>
                                                     @endif
                                                     <a href="{{ $document['download_url'] }}" @if ($document['generated_comment_response'] ?? false) download="{{ $document['filename'] }}" @endif class="inline-flex min-h-10 items-center justify-center rounded-xl bg-gray-950 px-3 py-2 text-xs font-bold text-white transition hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download</a>
                                                 </div>

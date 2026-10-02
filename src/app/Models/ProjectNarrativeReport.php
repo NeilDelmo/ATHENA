@@ -20,6 +20,11 @@ class ProjectNarrativeReport extends Model
 
     protected $fillable = [
         'report_type',
+        'reporting_date',
+        'reporting_quarter',
+        'period_start',
+        'period_end',
+        'version_number',
         'terminal_data',
         'topic_id',
         'submitted_by',
@@ -61,6 +66,11 @@ class ProjectNarrativeReport extends Model
     {
         return [
             'terminal_data' => 'array',
+            'reporting_date' => 'date',
+            'reporting_quarter' => 'integer',
+            'period_start' => 'date',
+            'period_end' => 'date',
+            'version_number' => 'integer',
             'submission_date' => 'date',
             'implementation_start' => 'date',
             'implementation_end' => 'date',
@@ -108,6 +118,13 @@ class ProjectNarrativeReport extends Model
     public function getReportLabelAttribute(): string
     {
         return $this->report_type === 'terminal' ? 'Terminal report' : 'Progress report';
+    }
+
+    public function getReportingPeriodLabelAttribute(): ?string
+    {
+        return $this->period_start && $this->period_end
+            ? 'Q'.$this->reporting_quarter.' · '.$this->period_start->format('M j, Y').' – '.$this->period_end->format('M j, Y')
+            : null;
     }
 
     public function isSubmitted(): bool

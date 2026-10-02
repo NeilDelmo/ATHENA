@@ -24,6 +24,9 @@ function loadPdfJs() {
         pdfJs.GlobalWorkerOptions.workerSrc = resolveApplicationAssetUrl(workerModule.default);
 
         return pdfJs;
+    }).catch((error) => {
+        pdfJsPromise = undefined;
+        throw error;
     });
 
     return pdfJsPromise;
@@ -225,6 +228,7 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
             paperFocusOpen: false,
             loading: true,
             loadError: '',
+            viewerRefreshRequired: false,
             selectionToolbarVisible: false,
             pendingSelection: null,
             draftSelection: null,
@@ -377,12 +381,13 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                 window.getSelection()?.removeAllRanges();
             },
 
-            async loadPdf() {
+            async loadPdf(pdfJsLoader = loadPdfJs) {
                 this.loading = true;
                 this.loadError = '';
+                this.viewerRefreshRequired = false;
 
                 try {
-                    const pdfJs = await loadPdfJs();
+                    const pdfJs = await pdfJsLoader();
                     pdfDocument = await pdfJs.getDocument({
                         url: this.config.pdfUrl,
                         withCredentials: true,
@@ -390,7 +395,10 @@ export default function registerPdfAnnotationWorkspace(Alpine) {
                     await this.renderDocument(pdfJs);
                     this.focusRequestedAnnotation();
                 } catch (error) {
-                    this.loadError = error instanceof Error
+                    this.viewerRefreshRequired = /dynamically imported module|module script|Importing a module script/i.test(error?.message ?? '');
+                    this.loadError = this.viewerRefreshRequired
+                        ? 'The PDF viewer could not load. Reload this page to load the current viewer, then open the report again.'
+                        : error instanceof Error
                         ? error.message
                         : 'The submitted PDF could not be rendered.';
                 } finally {

@@ -6,8 +6,10 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
+use App\Services\CommentResponseFeedback;
 use App\Support\InitialScreeningSubmissionOrder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
@@ -723,7 +725,7 @@ test('a non-passing GAD result returns the proposal to revision and keeps co-eva
             ->count())->toBe(0);
 });
 
-test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function (bool $returnToReview) {
+test('research head can upload a completed Initial Screening Form and extract its Narrative Evaluation', function (bool $returnToReview, string $format) {
     $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
     $gadChecklist = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)
@@ -771,10 +773,16 @@ XML);
         $contents = file_get_contents($temporaryPath);
         expect($contents)->not->toBeFalse();
 
+        $upload = UploadedFile::fake()->createWithContent('completed-initial-screening.docx', $contents);
+        if ($format === 'pdf') {
+            Process::fake([Process::result(output: "Narrative Evaluation:\nThe objectives are relevant, but the sampling plan must explain how participants will be selected.\nPrepared by: Dr. Maria Santos")]);
+            $upload = UploadedFile::fake()->create('completed-initial-screening.pdf', 100, 'application/pdf');
+        }
+
         $response = $this->actingAs($this->head)
             ->post(route('topics.head-uploads.store', $this->topic), [
                 'source_file_id' => $initialScreening->id,
-                'review_file' => UploadedFile::fake()->createWithContent('completed-initial-screening.docx', $contents),
+                'review_file' => $upload,
                 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
                 'co_evaluator_name' => 'Dr. Maria Santos',
                 'recommended_action' => InitialScreeningSubmissionOrder::MAJOR_REVISION,
@@ -792,11 +800,14 @@ XML);
             ->and($evaluation->source_data['purpose'])->toBe(ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)
             ->and($evaluation->source_data['co_evaluator_name'])->toBe('Dr. Maria Santos')
             ->and($evaluation->source_data['recommended_action'])->toBe(InitialScreeningSubmissionOrder::MAJOR_REVISION)
+            ->and($evaluation->source_data['narrative_evaluation_entry_method'])->toBe('automatic')
+            ->and($evaluation->source_data['narrative_evaluation_confirmed'])->toBeFalse()
             ->and($evaluation->source_data['narrative_evaluation'])->toBe('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
 
         $this->get(route('topics.head-uploads.index', $this->topic))
             ->assertOk()
-            ->assertSee('Narrative Evaluation extracted')
+            ->assertSee('Narrative Evaluation recorded')
+            ->assertSee('Read automatically from the uploaded form.')
             ->assertSee('Major Revision')
             ->assertSee('The objectives are relevant, but the sampling plan must explain how participants will be selected.');
 
@@ -831,7 +842,329 @@ XML);
             unlink($temporaryPath);
         }
     }
-})->with(['documents page' => false, 'review tab' => true]);
+})->with([
+    'DOCX documents page' => [false, 'docx'],
+    'DOCX review tab' => [true, 'docx'],
+    'PDF documents page' => [false, 'pdf'],
+    'PDF review tab' => [true, 'pdf'],
+]);
+
+describe('screening narrative transcription', function () {
+    beforeEach(function () {
+        Process::preventStrayProcesses();
+        $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+        $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();
+        $this->initialScreening = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)->sole();
+        $gadPath = 'head-uploads/passing-gad.pdf';
+        Storage::disk('local')->put($gadPath, 'completed GAD checklist');
+        $this->passingGad = $this->version->files()->create([
+            'source_version_file_id' => $gadChecklist->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 90,
+            'file_path' => $gadPath,
+            'original_filename' => 'passing-gad.pdf',
+            'mime_type' => 'application/pdf',
+            'uploaded_by' => $this->head->id,
+            'source_data' => [
+                'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST,
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                'gad_score' => 12,
+                'gad_outcome' => 'passed',
+                'gad_signature_confirmed' => true,
+            ],
+        ]);
+        $this->transcription = "Clarify the sampling plan.\n\nComments continued on the next page:\nInclude the consent procedure.";
+        $this->transcriptionPayload = [
+            'source_file_id' => $this->initialScreening->id,
+            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            'co_evaluator_name' => 'Dr. Maria Santos',
+            'recommended_action' => InitialScreeningSubmissionOrder::MINOR_REVISION,
+            'narrative_evaluation' => $this->transcription,
+            'narrative_evaluation_confirmed' => '1',
+            'return_to_review' => true,
+        ];
+    });
+
+    test('editable screening DOCX is available to the Research Head and faculty using submitted details', function (string $workspace) {
+        $this->initialScreening->update(['source_data' => [
+            'project_title' => 'Submitted Research Title',
+            'project_leader' => 'Submitted Project Leader',
+            'order_of_submission' => InitialScreeningSubmissionOrder::REVISED_WITH_MAJOR_CHANGES,
+            'screening_head' => 'Dr. Helena Cruz',
+        ]]);
+        $this->topic->update(['title' => 'Later Project Title']);
+        $viewer = $workspace === 'research_head' ? $this->head : $this->faculty;
+        $url = route('topics.versions.files.editable-docx', [$this->topic, $this->version, $this->initialScreening]);
+        $download = $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace])->actingAs($viewer)
+            ->get($url)->assertSuccessful()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            ->assertDownload('submitted-research-title-initial-screening-form-v1.docx');
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'screening-download-test-');
+        file_put_contents($temporaryPath, $download->streamedContent());
+        $archive = new ZipArchive;
+
+        try {
+            expect($archive->open($temporaryPath))->toBeTrue();
+            $document = new DOMDocument;
+            expect($document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET))->toBeTrue();
+            expect($document->textContent)->toContain('Research Project Title: Submitted Research Title', 'Project Leader: Submitted Project Leader', 'Narrative Evaluation:', 'DR. HELENA CRUZ')
+                ->not->toContain('Later Project Title');
+            $xpath = new DOMXPath($document);
+            $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            expect($xpath->query('//w:p[contains(string(.), "Revised with Major Changes")]//w:checkBox/w:checked[@w:val="1"]')->length)->toBe(1);
+        } finally {
+            $archive->close();
+            unlink($temporaryPath);
+        }
+
+        $page = $this->get(route('topics.show', $this->topic))->assertSuccessful();
+        $document = new DOMDocument;
+        @$document->loadHTML($page->getContent());
+        $xpath = new DOMXPath($document);
+        $folderLink = $xpath->query('//*[@data-project-document-key="proposal-version-file-'.$this->initialScreening->id.'"]//a[contains(., "Editable DOCX")]')->item(0);
+        expect($folderLink?->getAttribute('href'))->toBe($url);
+        if ($workspace === 'research_head') {
+            $reviewLink = $xpath->query('//*[@id="co-evaluator-review"]//a[contains(., "Download editable DOCX")]')->item(0);
+            expect($reviewLink?->getAttribute('href'))->toBe($url);
+        }
+    })->with(['research_head', 'faculty']);
+
+    test('downloaded screening DOCX can be edited and uploaded for automatic narrative reading', function () {
+        $download = $this->actingAs($this->head)
+            ->get(route('topics.versions.files.editable-docx', [$this->topic, $this->version, $this->initialScreening]))
+            ->assertSuccessful();
+        $temporaryPath = tempnam(sys_get_temp_dir(), 'screening-edit-test-');
+        file_put_contents($temporaryPath, $download->streamedContent());
+        $archive = new ZipArchive;
+
+        try {
+            expect($archive->open($temporaryPath))->toBeTrue();
+            $document = new DOMDocument;
+            expect($document->loadXML($archive->getFromName('word/document.xml'), LIBXML_NONET))->toBeTrue();
+            $xpath = new DOMXPath($document);
+            $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            $heading = $xpath->query('//w:p[contains(string(.), "Narrative Evaluation:")]')->item(0);
+            expect($heading)->not->toBeNull();
+            $nextParagraph = $heading->nextSibling;
+            foreach (['Clarify the sampling plan.', 'Include the consent procedure.'] as $comment) {
+                $paragraph = $document->createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:p');
+                $run = $document->createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:r');
+                $text = $document->createElementNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'w:t');
+                $text->appendChild($document->createTextNode($comment));
+                $run->appendChild($text);
+                $paragraph->appendChild($run);
+                $heading->parentNode->insertBefore($paragraph, $nextParagraph);
+            }
+            $archive->addFromString('word/document.xml', $document->saveXML());
+            $archive->close();
+            $editedContents = file_get_contents($temporaryPath);
+            $originalPdf = Storage::disk('local')->get($this->initialScreening->file_path);
+            $payload = $this->transcriptionPayload;
+            unset($payload['narrative_evaluation'], $payload['narrative_evaluation_confirmed']);
+            $this->post(route('topics.head-uploads.store', $this->topic), [
+                ...$payload,
+                'review_file' => UploadedFile::fake()->createWithContent('completed-screening.docx', $editedContents),
+            ])->assertSessionHasNoErrors();
+
+            $evaluation = $this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+            expect($evaluation->source_data['narrative_evaluation'])->toBe("Clarify the sampling plan.\nInclude the consent procedure.")
+                ->and($evaluation->source_data['narrative_evaluation_entry_method'])->toBe('automatic')
+                ->and(Storage::disk('local')->get($evaluation->file_path))->toBe($editedContents)
+                ->and(Storage::disk('local')->get($this->initialScreening->file_path))->toBe($originalPdf);
+            Process::assertNothingRan();
+        } finally {
+            unlink($temporaryPath);
+        }
+    });
+
+    test('editable screening download rejects unrelated users and mismatched documents', function () {
+        $url = route('topics.versions.files.editable-docx', [$this->topic, $this->version, $this->initialScreening]);
+        $outsider = User::factory()->create();
+        $outsider->assignRole('faculty');
+        $this->actingAs($outsider)->get($url)->assertForbidden();
+        $paper = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+        $this->actingAs($this->head)
+            ->get(route('topics.versions.files.editable-docx', [$this->topic, $this->version, $paper]))->assertNotFound();
+        $otherTopic = TopicProposal::create([
+            'user_id' => $this->faculty->id,
+            'title' => 'Unrelated project',
+            'estimated_budget' => 1000,
+            'estimated_duration_months' => 1,
+            'status' => 'pending',
+        ]);
+        $this->get(route('topics.versions.files.editable-docx', [$otherTopic, $this->version, $this->initialScreening]))->assertNotFound();
+        $otherVersion = $otherTopic->versions()->create([
+            'submitted_by' => $this->faculty->id,
+            'version_number' => 1,
+            'submission_type' => 'initial',
+            'title' => $otherTopic->title,
+            'file_path' => 'unrelated-proposal.pdf',
+            'original_filename' => 'unrelated-proposal.pdf',
+        ]);
+        $otherForm = $otherVersion->files()->create([
+            'document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM,
+            'position' => 0,
+            'file_path' => 'unrelated-screening.pdf',
+            'original_filename' => 'unrelated-screening.pdf',
+            'mime_type' => 'application/pdf',
+        ]);
+        $this->get(route('topics.versions.files.editable-docx', [$this->topic, $this->version, $otherForm]))->assertNotFound();
+    });
+
+    test('verified handwritten comments are recorded with their original form and line breaks', function (string $extension, string $mimeType) {
+        $file = UploadedFile::fake()->create('handwritten-screening.'.$extension, 10, $mimeType);
+        $originalContents = file_get_contents($file->getRealPath());
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => $file,
+                'narrative_evaluation' => '  '.str_replace("\n", "\r\n", $this->transcription).'  ',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('topics.show', $this->topic).'#initial-review-workflow');
+
+        $evaluation = $this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+        expect($evaluation->source_data['narrative_evaluation'])->toBe($this->transcription)
+            ->and($evaluation->source_data['narrative_evaluation_entry_method'])->toBe('manual')
+            ->and($evaluation->source_data['narrative_evaluation_confirmed'])->toBeTrue()
+            ->and($evaluation->uploaded_by)->toBe($this->head->id)
+            ->and($evaluation->source_version_file_id)->toBe($this->initialScreening->id)
+            ->and(Storage::disk('local')->get($evaluation->file_path))->toBe($originalContents);
+        Process::assertNothingRan();
+
+        $this->get(route('topics.head-uploads.index', $this->topic))
+            ->assertSuccessful()
+            ->assertSee('Transcribed from the uploaded form and verified by the Research Head.')
+            ->assertSee($this->transcription)
+            ->assertDontSee('Read automatically from the uploaded form.');
+
+        $review = $this->topic->reviews()->create([
+            'reviewer_id' => $this->head->id,
+            'decision' => 'revision_requested',
+            'review_stage' => 'gad',
+        ]);
+        $feedback = app(CommentResponseFeedback::class)->rowsForSource($review, CommentResponseFeedback::FORM_CO_EVALUATOR);
+        expect($feedback)->toHaveCount(1)
+            ->and($feedback[0]['comment'])->toBe($this->transcription)
+            ->and($feedback[0]['form_source'])->toBe(CommentResponseFeedback::FORM_CO_EVALUATOR);
+    })->with([
+        'scanned PDF' => ['pdf', 'application/pdf'],
+        'image-only DOCX' => ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    ]);
+
+    test('manual comments require valid text and confirmation', function (array $overrides, string $errorField) {
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('screening.pdf', 10, 'application/pdf'),
+                ...$overrides,
+            ])
+            ->assertRedirect(route('topics.show', $this->topic).'#initial-review-workflow')
+            ->assertSessionHasErrors([$errorField], null, 'headUpload');
+
+        expect($this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->count())->toBe(0);
+        Process::assertNothingRan();
+    })->with([
+        'missing confirmation' => [['narrative_evaluation_confirmed' => null], 'narrative_evaluation_confirmed'],
+        'unchecked confirmation' => [['narrative_evaluation_confirmed' => '0'], 'narrative_evaluation_confirmed'],
+        'too short after trimming' => [['narrative_evaluation' => ' a '], 'narrative_evaluation'],
+        'over 5000 characters' => [['narrative_evaluation' => str_repeat('a', 5001)], 'narrative_evaluation'],
+        'array instead of text' => [['narrative_evaluation' => ['comment']], 'narrative_evaluation'],
+        'missing original form' => [['review_file' => null], 'review_file'],
+        'unsupported original form' => [['review_file' => UploadedFile::fake()->create('screening.txt', 10, 'text/plain')], 'review_file'],
+    ]);
+
+    test('transcription validation keeps all comments available when replacing an evaluation', function () {
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('first-screening.pdf', 10, 'application/pdf'),
+            ])->assertSessionHasNoErrors();
+
+        $response = $this->actingAs($this->head)->followingRedirects()
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('screening.pdf', 10, 'application/pdf'),
+                'narrative_evaluation_confirmed' => null,
+            ])->assertSuccessful();
+        $document = new DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new DOMXPath($document);
+        expect($xpath->query('//*[@data-screening-narrative-transcription]')->item(0)?->textContent)
+            ->toContain($this->transcription)
+            ->toContain('Your entries were kept. Select the completed form again before submitting.');
+        expect($xpath->query('//*[@data-co-evaluator-screening-panel]/parent::*')->item(0)?->getAttribute('x-data'))
+            ->toBe('{ replacing: true }');
+    });
+
+    test('failed automatic reading explains how to record a scanned narrative', function () {
+        Process::fake([Process::result(output: '')]);
+        $payload = $this->transcriptionPayload;
+        unset($payload['narrative_evaluation'], $payload['narrative_evaluation_confirmed']);
+
+        $response = $this->actingAs($this->head)->followingRedirects()
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$payload,
+                'review_file' => UploadedFile::fake()->create('scanned-screening.pdf', 10, 'application/pdf'),
+            ])->assertSuccessful();
+        $document = new DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new DOMXPath($document);
+        expect($xpath->query('//*[@data-research-head-file-workspace]//*[@role="alert"]')->item(0)?->textContent)
+            ->toContain('You can enter the full Narrative Evaluation below, confirm it matches the completed form, and select the file again.');
+
+        expect($this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->count())->toBe(0);
+    });
+
+    test('blank manual comments retain automatic reading', function () {
+        Process::fake([Process::result(output: "Narrative Evaluation:\nThe project is ready for endorsement.\nPrepared by: Dr. Santos")]);
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('typed-screening.pdf', 10, 'application/pdf'),
+                'narrative_evaluation' => " \r\n ",
+                'narrative_evaluation_confirmed' => null,
+            ])->assertSessionHasNoErrors();
+
+        $evaluation = $this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+        expect($evaluation->source_data['narrative_evaluation'])->toBe('The project is ready for endorsement.')
+            ->and($evaluation->source_data['narrative_evaluation_entry_method'])->toBe('automatic')
+            ->and($evaluation->source_data['narrative_evaluation_confirmed'])->toBeFalse();
+        Process::assertRan(fn () => true);
+    });
+
+    test('manual comments cannot bypass the GAD gate or proposal stage', function (string $blockedStage) {
+        if ($blockedStage === 'gad') {
+            $this->passingGad->update(['source_data' => [
+                ...$this->passingGad->source_data,
+                'gad_score' => 3,
+                'gad_outcome' => 'returned',
+            ]]);
+        } else {
+            $this->topic->update(['status' => 'pending']);
+        }
+
+        $this->actingAs($this->head)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('screening.pdf', 10, 'application/pdf'),
+            ])->assertSessionHasErrors(['review_file'], null, 'headUpload');
+
+        expect($this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->count())->toBe(0);
+        Process::assertNothingRan();
+    })->with(['gad', 'proposal']);
+
+    test('faculty cannot record a Research Head transcription', function () {
+        $this->actingAs($this->faculty)
+            ->post(route('topics.head-uploads.store', $this->topic), [
+                ...$this->transcriptionPayload,
+                'review_file' => UploadedFile::fake()->create('screening.pdf', 10, 'application/pdf'),
+            ])->assertForbidden();
+
+        expect($this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->count())->toBe(0);
+        Process::assertNothingRan();
+    });
+});
 
 test('replacing a signed copy preserves the superseded audit record before final release', function () {
     $gadChecklist = $this->version->files()->where('document_type', ProposalVersionFile::TYPE_GAD_CHECKLIST)->sole();

@@ -48,7 +48,7 @@
         <div data-project-monitoring-heading class="flex flex-wrap items-start justify-between gap-3 bg-red-700 p-5 text-white dark:bg-red-950 sm:p-6">
             <div>
                 <h3 class="text-2xl font-bold text-white">Project monitoring</h3>
-                <p class="mt-2 text-base leading-7 text-red-100">Quarterly progress reports. A terminal report when the project ends.</p>
+                <p class="mt-2 text-base leading-7 text-red-100">Quarterly Monitoring Tools, narrative Progress Reports, and a Terminal Report when the project ends.</p>
             </div>
             <span class="rounded-full px-4 py-1.5 text-sm font-semibold {{ $projectStatus === 'completion_pending' ? 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-200' : 'bg-white text-red-800 dark:bg-red-100 dark:text-red-900' }}">{{ $projectStatusLabel }}</span>
         </div>
@@ -62,7 +62,7 @@
                 <a href="{{ route('topics.show', $topic) }}#notice-to-proceed" class="mt-5 inline-flex min-h-11 items-center rounded-lg border border-red-200 px-4 py-2 text-base font-semibold text-brand hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950 dark:focus-visible:ring-offset-slate-900">Notice to Proceed &amp; signed papers</a>
             @endif
             @if ($topic->isCompletedProject())
-                <p class="mt-4 text-base leading-7 text-gray-600 dark:text-slate-300">Project completed. Reports are read-only. Continue conference and publication tracking in Conferences &amp; Publications.</p>
+                <p class="mt-4 text-base leading-7 text-gray-600 dark:text-slate-300">Project completed. This status is final and cannot be changed. Monitoring reports are read-only. Authorized Faculty Researchers can continue journal search and publication tracking.</p>
             @endif
         </div>
     </header>
@@ -76,7 +76,7 @@
             };
         @endphp
         <div
-            x-data="{ statusManagerOpen: @js($errors->has('project_status')) }"
+            x-data="projectStatusManager(@js(old('project_status', $storedProjectStatus)), @js($errors->has('project_status') || $errors->has('completion_confirmed')))"
             x-on:keydown.escape.window="statusManagerOpen = false"
             class="relative z-30 ml-auto w-fit max-w-full"
             data-project-status-manager
@@ -108,18 +108,21 @@
 
                 @error('project_status')<p class="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:bg-red-950/50 dark:text-red-200">{{ $message }}</p>@enderror
 
-                <form method="POST" action="{{ route('research_head.projects.update-status', $topic) }}" class="mt-4 space-y-3">
+                <form method="POST" action="{{ route('research_head.projects.update-status', $topic) }}" @submit.prevent="submitStatus($event)" class="mt-4 space-y-3" data-project-status-form>
                     @csrf
                     @method('PATCH')
+                    <input type="hidden" name="completion_confirmed" value="0">
                     <label for="project-status-{{ $topic->id }}" class="block text-base font-semibold text-gray-700 dark:text-slate-200">Status</label>
                     <div class="flex gap-2">
-                        <select id="project-status-{{ $topic->id }}" name="project_status" class="h-11 min-w-0 flex-1 rounded-xl border-gray-300 bg-white text-base font-semibold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                        <select id="project-status-{{ $topic->id }}" name="project_status" x-model="selectedStatus" class="h-11 min-w-0 flex-1 rounded-xl border-gray-300 bg-white text-base font-semibold text-gray-900 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                             @foreach (['ongoing', 'delayed', 'completed'] as $value)
                                 <option value="{{ $value }}" @selected($storedProjectStatus === $value)>{{ ucfirst($value) }}</option>
                             @endforeach
                         </select>
-                        <button class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-base font-semibold text-white transition hover:bg-red-800">Save status</button>
+                        <button :disabled="submitting" class="inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-red-700 px-4 text-base font-semibold text-white transition hover:bg-red-800 disabled:opacity-50">Save status</button>
                     </div>
+                    <p x-show="selectedStatus === 'completed'" x-cloak class="rounded-lg border border-red-200 bg-red-50 p-3 text-base leading-6 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">Completion is final. The status cannot be changed back, and monitoring reports become read-only.</p>
+                    @error('completion_confirmed')<p role="alert" class="text-sm text-red-700 dark:text-red-200">{{ $message }}</p>@enderror
                 </form>
             </section>
 
@@ -231,7 +234,7 @@
                     <header class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h3 id="{{ $reportType }}-reports-heading" class="text-xl font-bold text-gray-950 dark:text-white">{{ $reportLabel }}</h3>
-                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">{{ $reportType === 'terminal' ? 'Final reports awaiting review or a signed PDF.' : 'Quarterly reports submitted by the project team.' }}</p>
+                            <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">{{ $reportType === 'terminal' ? 'Final reports awaiting review or a signed PDF.' : 'Open a submission to read its content, figures, and review.' }}</p>
                             @if ($canReport && ! $available)
                                 <p class="mt-2 text-sm font-medium text-gray-600 dark:text-slate-300">Opens {{ ($reportType === 'terminal' ? $terminalDate : ($nextPeriod['opens_at'] ?? $terminalDate))->format('M j, Y') }}</p>
                             @endif
@@ -243,12 +246,7 @@
                         @endif
                     </header>
                     @forelse ($sectionReports as $report)
-                        <x-narrative-report-history-item
-                            :project-title="$topic->title"
-                            :report="$report"
-                            :can-review="Auth::user()->isUsingWorkspace('research_head') && $report->review_status !== \App\Models\ProjectNarrativeReport::STATUS_REVIEWED"
-                            :can-record-signed-copy="Auth::user()->isUsingWorkspace('research_head') && $report->report_type === 'terminal' && $report->review_status === \App\Models\ProjectNarrativeReport::STATUS_REVIEWED"
-                        />
+                        <x-narrative-report-summary :report="$report" />
                     @empty
                         <p class="rounded-xl border border-dashed border-red-200 bg-white px-5 py-6 text-base text-gray-600 dark:border-red-900 dark:bg-slate-900 dark:text-slate-300">{{ $reportType === 'terminal' ? 'No terminal reports awaiting review or a signed PDF.' : 'No progress reports submitted yet.' }}</p>
                     @endforelse
@@ -363,42 +361,14 @@
             @endforelse
         </div>
 
-        <section id="narrative-report-history" aria-labelledby="narrative-report-history-heading" class="space-y-5 border-t border-gray-200 pt-6 dark:border-slate-700">
-            <div class="flex items-center justify-between gap-3">
-                <div>
-                    <h3 id="narrative-report-history-heading" class="text-xl font-bold text-gray-950 dark:text-white">Report history</h3>
-                    <p class="mt-1 text-base leading-7 text-gray-600 dark:text-slate-300">All submitted progress and terminal reports, including those awaiting review or corrections.</p>
-                </div>
-            </div>
-            @if ($topic->narrativeReports->isNotEmpty())
-                <div class="overflow-x-auto rounded-xl border border-red-200 bg-white dark:border-red-900 dark:bg-slate-900">
-                    <table class="w-full min-w-[38rem] text-left text-base" data-narrative-submission-log>
-                        <caption class="sr-only">All submitted narrative reports</caption>
-                        <thead class="bg-red-50 text-brand dark:bg-red-950/40 dark:text-red-200"><tr><th class="p-4">Submitted</th><th class="p-4">Report</th><th class="p-4">Researcher</th><th class="p-4">Status</th><th class="p-4"><span class="sr-only">Actions</span></th></tr></thead>
-                        <tbody class="divide-y divide-gray-200 dark:divide-slate-700">
-                            @foreach ($topic->narrativeReports as $report)
-                                <tr data-narrative-history-entry="{{ $report->id }}">
-                                    <td class="whitespace-nowrap p-4">{{ $report->submission_date?->format('M j, Y') }}</td>
-                                    <td class="p-4 font-semibold">{{ $report->report_label }}</td>
-                                    <td class="p-4">{{ $report->submitter->name }}</td>
-                                    <td class="p-4">{{ $report->review_status_label }}</td>
-                                    <td class="p-4">
-                                        <a href="#narrative-report-{{ $report->id }}" aria-label="View {{ strtolower($report->report_label) }} submitted {{ $report->submission_date?->format('M j, Y') }}" class="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base font-semibold text-brand transition hover:border-brand hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950">
-                                            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12s3.5-7.5 9.75-7.5 9.75 7.5 9.75 7.5-3.5 7.5-9.75 7.5S2.25 12 2.25 12Z"/><circle cx="12" cy="12" r="3"/></svg>
-                                            View report
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @else
-                <p class="rounded-xl border border-dashed border-red-200 bg-white px-5 py-6 text-base text-gray-600 dark:border-red-900 dark:bg-slate-900 dark:text-slate-300">No submitted reports yet.</p>
-            @endif
-            @foreach ($narrativeReportHistory as $report)
-                <x-narrative-report-history-item :report="$report" :project-title="$topic->title" />
-            @endforeach
-        </section>
+        @if ($narrativeReportHistory->isNotEmpty())
+            <section id="narrative-report-history" aria-labelledby="narrative-report-history-heading" class="space-y-4 border-t border-gray-200 pt-6 dark:border-slate-700">
+                <h3 id="narrative-report-history-heading" class="text-xl font-bold text-gray-950 dark:text-white">Report history</h3>
+                <p class="text-base text-gray-600 dark:text-slate-300">Previous reports and submissions from completed projects.</p>
+                @foreach ($narrativeReportHistory->sortBy('submission_date') as $report)
+                    <x-narrative-report-summary :report="$report" />
+                @endforeach
+            </section>
+        @endif
     </div>
 </section>

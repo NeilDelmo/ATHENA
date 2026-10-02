@@ -449,7 +449,7 @@ class ProposalPackageService
     }
 
     /**
-     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, recommended_action?: string|null, narrative_evaluation?: string|null, gad_score?: float|null, gad_rating?: string|null, gad_interpretation?: string|null, gad_outcome?: string|null, gad_score_entry_method?: string|null, gad_signature_detected?: bool, gad_signature_confirmed?: bool, gad_signature_detection_method?: string|null}  $meta
+     * @param  array{source_version_file_id: int|null, target_document_type: string|null, purpose: string, document_title?: string|null, issuing_office?: string|null, note?: string|null, decision?: string|null, required_signature_file_ids?: array<int, int>, co_evaluator_name?: string|null, recommended_action?: string|null, narrative_evaluation?: string|null, narrative_evaluation_entry_method?: string|null, narrative_evaluation_confirmed?: bool, gad_score?: float|null, gad_rating?: string|null, gad_interpretation?: string|null, gad_outcome?: string|null, gad_score_entry_method?: string|null, gad_signature_detected?: bool, gad_signature_confirmed?: bool, gad_signature_detection_method?: string|null}  $meta
      * @return array<string, mixed>
      */
     public function storeHeadUpload(
@@ -486,6 +486,8 @@ class ProposalPackageService
                 'co_evaluator_name' => $meta['co_evaluator_name'] ?? null,
                 'recommended_action' => $meta['recommended_action'] ?? null,
                 'narrative_evaluation' => $meta['narrative_evaluation'] ?? null,
+                'narrative_evaluation_entry_method' => $meta['narrative_evaluation_entry_method'] ?? null,
+                'narrative_evaluation_confirmed' => $meta['narrative_evaluation_confirmed'] ?? false,
                 'gad_score' => $meta['gad_score'] ?? null,
                 'gad_rating' => $meta['gad_rating'] ?? null,
                 'gad_interpretation' => $meta['gad_interpretation'] ?? null,

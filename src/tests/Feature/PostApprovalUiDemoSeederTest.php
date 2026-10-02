@@ -129,5 +129,18 @@ test('post approval UI demos provide accessible reports and completion stages wi
     $readerResponse = $this->get(route('topics.show', $topics['delayed']))->assertSuccessful()->assertSee('Report corrections requested');
     $this->get(route('topics.show', $topics['completed-presented']))->assertSuccessful()->assertSee('Signed terminal PDF uploaded');
     $this->actingAs($head)->withSession(['workspace' => User::WORKSPACE_RESEARCH_HEAD])
-        ->get(route('topics.show', $topics['delayed-second']))->assertSuccessful()->assertSee('Signed terminal report');
+        ->get(route('project-narrative-reports.show', $topics['delayed-second']->narrativeReports()->where('report_type', 'terminal')->first()))->assertSuccessful()->assertSee('Signed terminal report');
+
+    $clinic = $topics['ongoing-second'];
+    $interim = $clinic->narrativeReports()->where('report_type', 'progress')->firstOrFail();
+    $final = $clinic->narrativeReports()->where('report_type', 'terminal')->firstOrFail();
+    expect($interim->submission_date->lt($final->submission_date))->toBeTrue()
+        ->and($interim->accomplishments)->toHaveCount(2)
+        ->and($final->accomplishments)->toHaveCount(3);
+    $response = $this->get(route('topics.show', $clinic))->assertSuccessful();
+    $document = new DOMDocument;
+    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$response->getContent());
+    $entries = (new DOMXPath($document))->query('//*[@data-narrative-history-entry]');
+    expect($entries->item(0)->getAttribute('data-narrative-history-entry'))->toBe((string) $interim->id)
+        ->and($entries->item(1)->getAttribute('data-narrative-history-entry'))->toBe((string) $final->id);
 });

@@ -304,7 +304,7 @@ class ProjectMonitoringController extends Controller
         DB::transaction(function () use ($topic, $report, $request): void {
             $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $lockedReport = ProjectProgressReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
-            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared() || $lockedReport->submitted_by !== $request->user()->id) {
+            if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared() || $lockedTopic->user_id !== $request->user()->id) {
                 throw ValidationException::withMessages(['preparation' => 'This report is no longer available for submission. Reload the quarter.']);
             }
             $lockedReport->update([
@@ -325,7 +325,7 @@ class ProjectMonitoringController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_PROJECT_MONITORING,
         ));
 
-        return redirect()->to(route('topics.show', $topic).'#monitoring-tool-'.$report->id)->with('success', 'Quarterly monitoring report submitted for Research Head review.');
+        return redirect()->to(route('topics.show', $topic).'#monitoring-tool-'.$report->id)->with('success', 'Monitoring Tool submitted for Research Head review.');
     }
 
     public function discardPrepared(
@@ -419,6 +419,7 @@ class ProjectMonitoringController extends Controller
         ProjectProgressReport $report,
         SidebarAttentionService $sidebarAttention,
     ): RedirectResponse {
+        abort_unless($report->topic->isMonitoringAvailable(), 404);
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
         abort_if($report->nextVersion()->exists(), 404);
@@ -466,33 +467,43 @@ class ProjectMonitoringController extends Controller
                 TopicProposal::PROJECT_STATUS_DELAYED,
                 TopicProposal::PROJECT_STATUS_COMPLETED,
             ])],
+            'completion_confirmed' => ['accepted_if:project_status,completed'],
+        ], [
+            'completion_confirmed.accepted_if' => 'Confirm that completion is final before marking this project Completed.',
         ]);
 
-        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
-            && ($topic->latestProgressReport()->value('progress_percentage') ?? 0) < 100) {
-            return back()->withErrors(['project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.']);
-        }
+        $topic = DB::transaction(function () use ($topic, $validated): TopicProposal {
+            $topic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
+            abort_unless($topic->isMonitoringAvailable(), 404);
 
-        $terminalReport = $topic->narrativeReports()
-            ->where('report_type', 'terminal')
-            ->reorder()
-            ->latest('id')
-            ->first();
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+                && ($topic->latestProgressReport()->value('progress_percentage') ?? 0) < 100) {
+                throw ValidationException::withMessages(['project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.']);
+            }
 
-        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
-            && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
-                || ! $terminalReport instanceof ProjectNarrativeReport
-                || $terminalReport->review_status !== ProjectNarrativeReport::STATUS_REVIEWED)) {
-            return back()->withErrors(['project_status' => 'Complete the project after its end date and after the terminal report has been submitted and reviewed.']);
-        }
+            $terminalReport = $topic->narrativeReports()
+                ->where('report_type', 'terminal')
+                ->reorder()
+                ->latest('id')
+                ->first();
 
-        if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
-            && (! $terminalReport->hasSignedCopy()
-                || ! Storage::disk('local')->exists($terminalReport->signedCopy()['path']))) {
-            return back()->withErrors(['project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.']);
-        }
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+                && (! app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
+                    || ! $terminalReport instanceof ProjectNarrativeReport
+                    || $terminalReport->review_status !== ProjectNarrativeReport::STATUS_REVIEWED)) {
+                throw ValidationException::withMessages(['project_status' => 'Complete the project after its end date and after the terminal report has been submitted and reviewed.']);
+            }
 
-        $topic->update($validated);
+            if ($validated['project_status'] === TopicProposal::PROJECT_STATUS_COMPLETED
+                && (! $terminalReport->hasSignedCopy()
+                    || ! Storage::disk('local')->exists($terminalReport->signedCopy()['path']))) {
+                throw ValidationException::withMessages(['project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.']);
+            }
+
+            $topic->update(['project_status' => $validated['project_status']]);
+
+            return $topic;
+        });
 
         $topic->user()->firstOrFail()->notify(new ProposalActivityNotification(
             'Project status updated',
@@ -504,7 +515,9 @@ class ProjectMonitoringController extends Controller
             sidebarArea: ProposalActivityNotification::SIDEBAR_AREA_MY_PROJECTS,
         ));
 
-        return back()->with('success', 'Project monitoring status updated.');
+        return back()->with('success', $topic->isCompletedProject()
+            ? 'Project marked Completed. This status is final. Monitoring reports are now read-only.'
+            : 'Project monitoring status updated.');
     }
 
     public function download(Request $request, ProjectProgressReport $report)
@@ -558,7 +571,7 @@ class ProjectMonitoringController extends Controller
     {
         if ($report->isPrepared()) {
             abort_unless(
-                ($request->user()->id === $report->submitted_by
+                ($request->user()->isUsingWorkspace('faculty_researcher')
                     && $report->topic->isAccessibleTo($request->user()))
                     || ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_SECRETARY)
                         && $report->topic->research_secretary_id === $request->user()->id),

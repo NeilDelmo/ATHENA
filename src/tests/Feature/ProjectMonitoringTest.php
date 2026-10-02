@@ -324,7 +324,7 @@ test('report schedule blocks early submissions and opens terminal after project 
     $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))
         ->assertSessionHasErrors('reporting_date');
     $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))->assertForbidden();
-    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Quarterly reporting schedule')->assertSee('Not open yet');
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Monitoring Tool')->assertSee('Not open yet');
     $this->travelTo(now()->setDate(2026, 4, 15)->startOfDay());
     $this->actingAs($this->researcher)->post(route('project-progress.prepare', $this->topic), ($this->monitoringPayload)(['reporting_date' => '2026-04-14']))->assertSessionHasNoErrors()->assertRedirect(route('project-progress.create', ['topic' => $this->topic, 'reporting_date' => '2026-04-14']));
     $report = ProjectProgressReport::where('topic_id', $this->topic->id)->firstOrFail();
@@ -377,8 +377,11 @@ test('the faculty project page opens the monitoring tool in a focused form page'
             'data-project-monitoring-heading', 'bg-red-700', 'Project monitoring',
             'data-project-monitoring-details', 'bg-white', 'Monitoring starts', 'Project ends', 'Next period opens',
         ], false)
-        ->assertSee('Quarterly reporting schedule')
-        ->assertSee('Start report')
+        ->assertSee('Monitoring Tool')
+        ->assertSee('Submit a Monitoring Tool for each three-month reporting period after it ends.')
+        ->assertSee('Progress reports')
+        ->assertDontSee('Quarterly progress reports.')
+        ->assertSee('Start tool')
         ->assertSee(route('project-progress.create', $this->topic), false)
         ->assertDontSee('data-monitoring-tool-autosave-form', false);
 
@@ -568,7 +571,7 @@ test('the Research Head topic page shows monitoring in its own tab', function ()
         ->assertDontSee('<details class="rounded-xl border border-gray-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">', false)
         ->assertSee('data-monitoring-schedule-table', false)
         ->assertSee('data-monitoring-action', false)
-        ->assertSee('View report')
+        ->assertSee('View tool')
         ->assertSee("window.location.hash === '#project-monitoring'", false);
 });
 
@@ -714,7 +717,7 @@ test('an accepted collaborator can access the same active project monitoring wor
     $this->actingAs($collaborator)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Start report');
+        ->assertSee('Start tool');
     $this->actingAs($collaborator)
         ->post(route('project-progress.store', $this->topic), ($this->monitoringPayload)())
         ->assertRedirect()
@@ -807,7 +810,7 @@ test('a research head can review a report and update project status', function (
         ->assertSee('x-show="openReportId === '.$report->id.'"', false)
         ->assertSee('data-monitoring-schedule-table', false)
         ->assertSee('x-bind:aria-expanded="openReportId === '.$report->id.'"', false)
-        ->assertSee('View report')
+        ->assertSee('View tool')
         ->assertSee('x-bind:rows="remarksExpanded ? Math.max(3, Math.ceil(remarksText.length / 75)) : 1"', false)
         ->assertSee('id="research-head-remarks-'.$report->id.'"', false)
         ->assertSee('Progress is acceptable.')
@@ -911,7 +914,7 @@ test('a revised Monitoring Tool remains in its original quarter with a retained 
     $this->actingAs($this->head)
         ->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Quarterly reporting schedule')
+        ->assertSee('Monitoring Tool')
         ->assertSee($replacement->quarter_label.' Monitoring Tool · Version 2')
         ->assertSee('Report corrections requested')
         ->assertSee('Historical version')
@@ -928,6 +931,25 @@ test('project status accepts only supported execution states', function () {
     expect($this->topic->fresh()->project_status)->toBe('ongoing');
 });
 
+test('completion requires acknowledgement of the final status warning', function () {
+    $this->actingAs($this->head)->patch(route('research_head.projects.update-status', $this->topic), [
+        'project_status' => 'completed',
+    ])->assertSessionHasErrors('completion_confirmed');
+    expect($this->topic->fresh()->project_status)->toBe('ongoing');
+    Notification::assertNothingSent();
+    $warningResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful()
+        ->assertSee('Completion is final. The status cannot be changed back, and monitoring reports become read-only.')
+        ->assertSee('name="completion_confirmed"', false)
+        ->assertSee('submitStatus($event)', false);
+    if (getenv('ATHENA_EXPORT_COMPLETION_LAYOUT') === '1') {
+        $directory = storage_path('framework/testing');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/completion-status.html', $warningResponse->getContent());
+    }
+});
+
 test('a project cannot be marked completed below 100 percent progress', function () {
     ProjectProgressReport::create([
         'topic_id' => $this->topic->id,
@@ -941,6 +963,7 @@ test('a project cannot be marked completed below 100 percent progress', function
     $this->actingAs($this->head)
         ->patch(route('research_head.projects.update-status', $this->topic), [
             'project_status' => 'completed',
+            'completion_confirmed' => '1',
         ])
         ->assertSessionHasErrors([
             'project_status' => 'A project can only be completed when its latest monitoring tool shows 100% progress.',
@@ -987,6 +1010,7 @@ test('a project requires the reviewed terminal reports signed PDF before complet
     $this->actingAs($this->head)
         ->patch(route('research_head.projects.update-status', $this->topic), [
             'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED,
+            'completion_confirmed' => '1',
         ])
         ->assertSessionHasErrors([
             'project_status' => 'Upload the fully signed Terminal Report PDF before marking the project completed.',
@@ -1013,7 +1037,8 @@ test('a project requires the reviewed terminal reports signed PDF before complet
 
     $this->get(route('topics.show', $this->topic))
         ->assertOk()
-        ->assertSee('Signed terminal PDF uploaded')
+        ->assertSee('Signed terminal PDF uploaded');
+    $this->get(route('project-narrative-reports.show', $terminalReport))->assertSuccessful()
         ->assertSee('Download signed Terminal Report');
 
     $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
@@ -1033,9 +1058,32 @@ test('a project requires the reviewed terminal reports signed PDF before complet
 
     $this->patch(route('research_head.projects.update-status', $this->topic), [
         'project_status' => TopicProposal::PROJECT_STATUS_COMPLETED,
+        'completion_confirmed' => '1',
     ])->assertSessionHasNoErrors();
 
     expect($this->topic->fresh()->project_status)->toBe(TopicProposal::PROJECT_STATUS_COMPLETED);
+    $terminalBefore = $terminalReport->fresh()->getAttributes();
+    foreach (['ongoing', 'delayed', 'completed'] as $status) {
+        $this->patch(route('research_head.projects.update-status', $this->topic), [
+            'project_status' => $status, 'completion_confirmed' => '1',
+        ])->assertNotFound();
+    }
+    $monitoring = $this->topic->progressReports()->firstOrFail();
+    $this->patch(route('research_head.progress-reports.review', $monitoring), [
+        'review_status' => 'revision_requested', 'research_head_remarks' => 'Attempt to alter closed monitoring.',
+    ])->assertNotFound();
+    $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
+        'review_status' => 'revision_requested', 'research_head_remarks' => 'Attempt to alter the closed terminal report.',
+    ])->assertNotFound();
+    $this->post(route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport), [
+        'signed_report' => UploadedFile::fake()->create('replacement.pdf', 120, 'application/pdf'),
+    ])->assertForbidden();
+    expect($this->topic->fresh()->project_status)->toBe('completed')
+        ->and($terminalReport->fresh()->getAttributes())->toBe($terminalBefore)
+        ->and($monitoring->fresh()->review_status)->toBe('reviewed');
+    $this->get(route('topics.show', $this->topic))->assertSuccessful()
+        ->assertSee('This status is final and cannot be changed.')
+        ->assertDontSee('data-project-status-manager', false);
 });
 
 test('the owner and Research Head can download a progress attachment', function () {
@@ -1239,135 +1287,54 @@ test('monitoring PDF preview supports legacy reports without a stored PDF', func
 });
 
 test('progress reports remain visible after review while terminal reports follow their signing workflow', function () {
-    $caption = 'Campus documentation showing participant coordination and the complete pilot validation session.';
-    $remarks = 'Explain the participant shortfall and provide a revised validation schedule.';
     $report = ProjectNarrativeReport::create([
-        'topic_id' => $this->topic->id,
-        'submitted_by' => $this->researcher->id,
-        'report_type' => 'progress',
-        'submission_date' => now()->toDateString(),
-        'researchers' => $this->researcher->name,
-        'implementation_start' => now()->subMonths(3),
-        'implementation_end' => now(),
-        'budget' => 50000,
-        'introduction' => 'Project background.',
-        'objectives' => 'Assess community research needs.',
-        'methodology' => 'Field surveys and pilot validation.',
-        'results_discussion' => 'The pilot met its planned targets.',
-        'accomplishment_summary' => 'Baseline collection, pilot implementation, and validation were completed.',
-        'funding_agency' => 'Batangas State University',
+        'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
+        'report_type' => 'progress', 'submission_date' => now(), 'researchers' => $this->researcher->name,
+        'implementation_start' => now()->subMonths(3), 'implementation_end' => now(),
+        'budget' => 50000, 'funding_agency' => 'Batangas State University',
+        'accomplishment_summary' => 'Completed the pilot with documentation.',
+        'introduction' => 'Pilot implementation.', 'objectives' => 'Evaluate the pilot.',
+        'methodology' => 'Interviews and observation.', 'results_discussion' => 'Pilot results documented.',
         'review_status' => ProjectNarrativeReport::STATUS_REVISION_REQUESTED,
-        'research_head_remarks' => $remarks,
-        'photos' => [['path' => 'progress-reports/campus.jpg', 'caption' => $caption, 'section' => 'results_discussion']],
+        'research_head_remarks' => 'Explain the participant shortfall.',
+        'photos' => [['path' => 'progress-reports/campus.jpg', 'caption' => 'Pilot coordination.', 'section' => 'results_discussion']],
     ]);
-
-    $response = $this->actingAs($this->head)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->get(route('topics.show', $this->topic))
-        ->assertSuccessful()
-        ->assertSee('Report history')
-        ->assertSee('1 figure')
-        ->assertSee('Download PDF')
-        ->assertSee('Corrections requested');
-
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD]);
+    $response = $this->get(route('topics.show', $this->topic))->assertSuccessful()
+        ->assertSee('Open report')->assertSee(route('project-narrative-reports.show', $report), false)
+        ->assertDontSee('data-narrative-report-content', false)->assertDontSee('data-narrative-pdf-preview-modal', false);
     $document = new DOMDocument;
     @$document->loadHTML('<?xml encoding="utf-8" ?>'.$response->getContent());
     $xpath = new DOMXPath($document);
-    $card = $xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->item(0);
-    expect($card)->not->toBeNull()
-        ->and($xpath->query('//*[@id="progress-reports"]//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(0)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@data-narrative-history-entry="'.$report->id.'"]')->length)->toBe(1)
-        ->and(substr_count($card->textContent, $remarks))->toBe(1)
-        ->and($card->textContent)->toContain($report->accomplishment_summary)
-        ->and($card->textContent)->toContain($report->funding_agency)
-        ->and($xpath->query('.//details | .//summary', $card)->length)->toBe(0)
-        ->and($card->textContent)->not->toContain('Photo 1');
-
-    $decision = $xpath->query('.//input[@type="radio"][@name="review_status"][@value="revision_requested"]', $card)->item(0);
-    $notes = $xpath->query('.//textarea[@name="research_head_remarks"]', $card)->item(0);
-    expect($decision)->not->toBeNull()
-        ->and($decision->hasAttribute('checked'))->toBeTrue()
-        ->and($xpath->evaluate('string(.//fieldset/legend)', $card))->toBe('Decision')
-        ->and($notes->textContent)->toBe($remarks)
-        ->and($notes->getAttribute('maxlength'))->toBe('5000')
-        ->and($xpath->query('.//label[@for="'.$notes->getAttribute('id').'"]', $card)->length)->toBe(1);
-
-    $photoUrl = route('project-narrative-reports.photos.view', [$report, 0]);
-    $image = $xpath->query('.//figure//img[@src="'.$photoUrl.'"]', $card)->item(0);
-    expect($image)->not->toBeNull()
-        ->and($image->getAttribute('alt'))->toBe($caption)
-        ->and(trim($xpath->evaluate('string(.//figcaption)', $card)))->toBe('Figure 1. '.$caption);
-
-    $this->patch(route('research_head.narrative-progress-reports.review', $report), [
-        'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
-        'research_head_remarks' => 'Accomplishments and supporting photos reviewed.',
-    ])->assertSessionHasNoErrors();
-    expect($report->fresh()->review_status)->toBe(ProjectNarrativeReport::STATUS_REVIEWED);
-
-    $reviewedResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$reviewedResponse->getContent());
-    $xpath = new DOMXPath($document);
     expect($xpath->query('//*[@id="progress-reports"]//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(0)
-        ->and($xpath->query('//*[@id="progress-reports"]//form')->length)->toBe(0)
         ->and($xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
-        ->and($reviewedResponse->getContent())->toContain('Reviewed by Research Head');
+        ->and($xpath->query('//*[@id="progress-reports"]//form')->length)->toBe(0);
+    $this->get(route('project-narrative-reports.show', $report))->assertSuccessful()
+        ->assertSee('Explain the participant shortfall.')->assertSee('Pilot coordination.')
+        ->assertSee('data-narrative-report-review', false)->assertSee('Preview PDF');
+    $this->from(route('project-narrative-reports.show', $report))
+        ->patch(route('research_head.narrative-progress-reports.review', $report), [
+            'review_status' => 'reviewed', 'research_head_remarks' => 'Evidence reviewed.',
+        ])->assertSessionHasNoErrors()->assertRedirect(route('project-narrative-reports.show', $report));
+    $this->get(route('project-narrative-reports.show', $report))->assertSuccessful()
+        ->assertSee('Evidence reviewed.')->assertDontSee('data-narrative-report-review', false);
 
-    $oldTerminalReport = $report->replicate();
-    $oldTerminalReport->fill(['report_type' => 'terminal', 'review_status' => ProjectNarrativeReport::STATUS_PENDING])->save();
-    $terminalReport = $oldTerminalReport->replicate();
-    $terminalReport->save();
-    $pendingProgressReport = $report->replicate();
-    $pendingProgressReport->fill(['review_status' => ProjectNarrativeReport::STATUS_PENDING])->save();
-
-    $terminalResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$terminalResponse->getContent());
-    $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@id="terminal-reports"]//*[@id="narrative-report-'.$terminalReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="terminal-reports"]//*[@data-narrative-report-review]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="progress-reports"]//*[@id="narrative-report-'.$pendingProgressReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$oldTerminalReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//form')->length)->toBe(0);
-
-    $this->patch(route('research_head.narrative-progress-reports.review', $terminalReport), [
-        'review_status' => ProjectNarrativeReport::STATUS_REVIEWED,
-        'research_head_remarks' => 'Final results reviewed. Record the signed copy.',
-    ])->assertSessionHasNoErrors();
-    $signedCopyResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$signedCopyResponse->getContent());
-    $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@id="terminal-reports"]//*[@id="narrative-report-'.$terminalReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="terminal-reports"]//*[@data-narrative-report-review]')->length)->toBe(0)
-        ->and($xpath->query('//*[@id="terminal-reports"]//form[@action="'.route('research_head.narrative-progress-reports.signed-copy.store', $terminalReport).'"]')->length)->toBe(1);
-
-    $terminalReport->refresh()->update(['terminal_data' => ['signed_copy' => [
-        'path' => 'signed-terminal.pdf', 'original_filename' => 'signed-terminal.pdf',
-    ]]]);
-    $archivedResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$archivedResponse->getContent());
-    $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@id="terminal-reports"]//*[@id="narrative-report-'.$terminalReport->id.'"]')->length)->toBe(0)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$terminalReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@id="narrative-report-history"]//form')->length)->toBe(0);
-
-    $this->topic->update(['project_status' => 'completed']);
-    $completedResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful();
-    @$document->loadHTML('<?xml encoding="utf-8" ?>'.$completedResponse->getContent());
-    $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@id="narrative-report-history"]//*[@id="narrative-report-'.$pendingProgressReport->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('//*[@data-narrative-report-review]')->length)->toBe(0);
-
-    $facultyResponse = $this->actingAs($this->researcher)
-        ->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
-        ->get(route('topics.show', $this->topic))
-        ->assertSuccessful()
-        ->assertSee('Research Head remarks')
-        ->assertSee('Accomplishments and supporting photos reviewed.')
-        ->assertDontSee('data-narrative-report-review', false);
-    expect($facultyResponse->getContent())->toContain(route('project-narrative-reports.download', $report));
+    $oldTerminal = $report->replicate();
+    $oldTerminal->fill(['report_type' => 'terminal', 'review_status' => 'pending'])->save();
+    $terminal = $oldTerminal->replicate();
+    $terminal->save();
+    $this->get(route('project-narrative-reports.show', $oldTerminal))->assertSuccessful()->assertDontSee('data-narrative-report-review', false);
+    $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()->assertSee('data-narrative-report-review', false);
+    $terminal->update(['review_status' => 'reviewed']);
+    $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()
+        ->assertSee('Signed terminal report')->assertDontSee('data-narrative-report-review', false);
+    $terminal->update(['terminal_data' => ['signed_copy' => ['path' => 'signed.pdf', 'original_filename' => 'signed.pdf']]]);
+    $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('Report history')->assertSee('Signed terminal PDF uploaded');
+    $this->topic->update(['project_status' => TopicProposal::PROJECT_STATUS_COMPLETED]);
+    $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertDontSee('id="progress-reports"', false);
+    $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful()
+        ->assertDontSee('data-narrative-report-review', false)->assertDontSee('name="signed_report"', false);
 });
-
 test('report reviews opens submitted quarterly reports and removes reviewed reports from the pending queue', function () {
     $report = ProjectProgressReport::create([
         'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
@@ -1432,7 +1399,7 @@ test('report reader shows the accomplishment table and seven figures within thei
         'photos' => $photos, 'review_status' => ProjectNarrativeReport::STATUS_PENDING,
     ]);
     $response = $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
-        ->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('Figure 7.')->assertSee('Research evidence 7')
+        ->get(route('project-narrative-reports.show', $report))->assertSuccessful()->assertSee('Figure 7.')->assertSee('Research evidence 7')
         ->assertSee('Preview PDF')->assertSee('Preview figure')->assertDontSee('View full size')
         ->assertSee('data-narrative-pdf-preview-modal', false);
     $document = new DOMDocument;
@@ -1450,11 +1417,13 @@ test('report reader shows the accomplishment table and seven figures within thei
         $numbers[] = (int) $figure->getAttribute('data-report-figure');
     }
     expect($numbers)->toBe(range(1, 7));
-    $historyAction = $xpath->query('//*[@data-narrative-submission-log]//a[@href="#narrative-report-'.$report->id.'"]')->item(0);
+    $listResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertDontSee('Research evidence 7');
+    $listDocument = new DOMDocument;
+    @$listDocument->loadHTML('<?xml encoding="utf-8" ?>'.$listResponse->getContent());
+    $historyAction = (new DOMXPath($listDocument))->query('//*[@data-narrative-report-summary]//a[@href="'.route('project-narrative-reports.show', $report).'"]')->item(0);
     expect($historyAction)->not->toBeNull()
-        ->and($historyAction->getAttribute('class'))->toContain('border-red-200', 'bg-red-50', 'text-base', 'min-h-12')->not->toContain('underline')
-        ->and($historyAction->getAttribute('aria-label'))->toContain('View '.strtolower($report->report_label).' submitted')
-        ->and($xpath->query('./*[local-name()="svg"]', $historyAction)->length)->toBe(1);
+        ->and($historyAction->getAttribute('class'))->toContain('bg-brand', 'text-base', 'min-h-11')->not->toContain('underline')
+        ->and($historyAction->getAttribute('aria-label'))->toContain('Open '.strtolower($report->report_label).' submitted');
     expect($xpath->query('.//figure//button[@aria-haspopup="dialog"]', $card)->length)->toBe(14)
         ->and($xpath->query('.//figure//button[@aria-label="Preview figure 1"]/*[local-name()="svg"]', $card)->length)->toBe(1)
         ->and($xpath->query('.//*[@data-narrative-figure-preview-modal]', $card)->length)->toBe(7)
@@ -1512,8 +1481,10 @@ test('reviewed progress remains visible beside a pending terminal report in both
         ->and($xpath->query('.//form', $progressCard)->length)->toBe(0)
         ->and($xpath->query('//*[@id="narrative-report-'.$report->id.'"]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-narrative-history-entry="'.$report->id.'"]')->length)->toBe(1)
-        ->and($xpath->query('.//header//*[@data-narrative-report-status]', $terminalCard)->item(0)->textContent)->toContain('Pending Research Head review')->not->toContain('Signed terminal PDF needed')
-        ->and($xpath->query('.//*[@data-narrative-report-review]', $terminalCard)->length)->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0);
+        ->and($xpath->query('.//*[@data-narrative-report-status]', $terminalCard)->item(0)->textContent)->toContain('Pending Research Head review')->not->toContain('Signed terminal PDF needed')
+        ->and($xpath->query('.//*[@data-narrative-report-review]', $terminalCard)->length)->toBe(0);
+    $detailResponse = $this->get(route('project-narrative-reports.show', $terminal))->assertSuccessful();
+    expect(substr_count($detailResponse->getContent(), 'data-narrative-report-review'))->toBe($workspace === User::WORKSPACE_RESEARCH_HEAD ? 1 : 0);
 
     $terminal->update(['review_status' => ProjectNarrativeReport::STATUS_REVIEWED]);
     $this->get(route('topics.show', $this->topic))->assertSuccessful()->assertSee('Signed terminal PDF needed');

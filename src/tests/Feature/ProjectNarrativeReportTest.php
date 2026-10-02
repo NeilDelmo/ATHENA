@@ -165,7 +165,7 @@ test('the faculty monitoring page opens the progress report in a focused form pa
     $this->actingAs($this->researcher)
         ->get(route('research.show', $this->topic))
         ->assertOk()
-        ->assertSee('Quarterly reporting schedule')
+        ->assertSee('Monitoring Tool')
         ->assertSee('Open progress report')
         ->assertSee(route('project-narrative-reports.create', $this->topic), false)
         ->assertDontSee('data-narrative-progress-autosave-form', false);
@@ -551,6 +551,48 @@ test('repeatable figures preserve more than ten images and paragraph placement i
         $archive->close();
         unlink($path);
     }
+});
+
+test('submitted report pages allow project readers and deny outsiders, guests, and prepared reports', function () {
+    $report = ProjectNarrativeReport::create([
+        'topic_id' => $this->topic->id, 'submitted_by' => $this->researcher->id,
+        'report_type' => 'progress', 'submission_date' => now(), 'researchers' => $this->researcher->name,
+        'implementation_start' => now()->subMonths(3), 'implementation_end' => now(),
+        'funding_agency' => 'University', 'budget' => 150000,
+        'introduction' => 'Submitted narrative.', 'objectives' => 'Study coastal conditions.',
+        'methodology' => 'Site observations.', 'results_discussion' => 'Documented observations.',
+        'accomplishment_summary' => 'Fieldwork completed.', 'photos' => [],
+    ]);
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.show', $report))
+        ->assertSuccessful()->assertSee('Submitted narrative.')->assertSee('Back to monitoring')
+        ->assertSee('Preview PDF')->assertDontSee('data-narrative-report-review', false);
+    foreach (range(1, 3) as $month) {
+        $additional = $report->replicate();
+        $additional->fill(['submission_date' => now()->subMonths($month)])->save();
+    }
+    $listResponse = $this->get(route('topics.show', $this->topic))->assertSuccessful()
+        ->assertDontSee('Submitted narrative.')->assertDontSee('data-narrative-pdf-preview-modal', false);
+    expect(substr_count($listResponse->getContent(), 'data-narrative-report-summary'))->toBe(4);
+    if (getenv('ATHENA_EXPORT_REPORT_LAYOUT') === '1') {
+        $directory = storage_path('framework/testing');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+        file_put_contents($directory.'/compact-report-list.html', $listResponse->getContent());
+    }
+    $this->actingAs($this->head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_HEAD])
+        ->get(route('project-narrative-reports.show', $report))->assertSuccessful()->assertSee('data-narrative-report-review', false);
+    if (getenv('ATHENA_EXPORT_REPORT_LAYOUT') === '1') {
+        file_put_contents(storage_path('framework/testing/report-reader.html'), $this->get(route('project-narrative-reports.show', $report))->getContent());
+    }
+    $outsider = User::factory()->create();
+    $outsider->assignRole('faculty_researcher');
+    $this->actingAs($outsider)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER])
+        ->get(route('project-narrative-reports.show', $report))->assertForbidden();
+    $report->update(['submission_status' => 'prepared']);
+    $this->actingAs($this->researcher)->get(route('project-narrative-reports.show', $report))->assertNotFound();
+    auth()->logout();
+    $this->get(route('project-narrative-reports.show', $report))->assertRedirect(route('login'));
 });
 
 test('progress draft retains arbitrary figure captions and long reused narratives without saving file uploads', function () {

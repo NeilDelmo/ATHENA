@@ -19,6 +19,15 @@ class StoreResearchHeadFileRequest extends FormRequest
         return $this->user()?->isUsingWorkspace('research_head') ?? false;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('narrative_evaluation'))) {
+            $this->merge([
+                'narrative_evaluation' => trim(str_replace(["\r\n", "\r", "\0"], ["\n", "\n", ''], $this->input('narrative_evaluation'))),
+            ]);
+        }
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -33,6 +42,7 @@ class StoreResearchHeadFileRequest extends FormRequest
         $isSignedCopy = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED;
         $isEvaluation = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
         $isGadAssessment = $this->input('purpose') === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
+        $hasManualNarrative = $isEvaluation && filled($this->input('narrative_evaluation'));
 
         return [
             'source_file_id' => [
@@ -64,6 +74,12 @@ class StoreResearchHeadFileRequest extends FormRequest
                 'nullable',
                 Rule::in(InitialScreeningSubmissionOrder::recommendations()),
             ],
+            'narrative_evaluation' => $isEvaluation
+                ? ['nullable', 'string', 'min:3', 'max:5000']
+                : ['prohibited'],
+            'narrative_evaluation_confirmed' => $isEvaluation
+                ? ($hasManualNarrative ? ['required', 'accepted'] : ['nullable', 'boolean'])
+                : ['prohibited'],
             'gad_signature_confirmed' => $isGadAssessment
                 ? ['required', 'accepted']
                 : ['prohibited'],
@@ -107,6 +123,11 @@ class StoreResearchHeadFileRequest extends FormRequest
             'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
             'recommended_action.required' => 'Record the Recommended Action selected on the completed Initial Screening Form.',
             'recommended_action.in' => 'Choose a valid Recommended Action from the completed Initial Screening Form.',
+            'narrative_evaluation.string' => 'Enter the Narrative Evaluation as text copied from the completed form.',
+            'narrative_evaluation.min' => 'Enter at least 3 characters from the completed Narrative Evaluation.',
+            'narrative_evaluation.max' => 'The Narrative Evaluation may not exceed 5,000 characters.',
+            'narrative_evaluation_confirmed.required' => 'Check the transcription against all pages of the uploaded form and confirm that it matches.',
+            'narrative_evaluation_confirmed.accepted' => 'Check the transcription against all pages of the uploaded form and confirm that it matches.',
             'gad_signature_confirmed.required' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
             'gad_signature_confirmed.accepted' => 'Preview the completed GAD Checklist and confirm that the GAD verifier’s signature is present.',
             'gad_score.numeric' => 'Enter the GAD score shown on the scanned checklist.',

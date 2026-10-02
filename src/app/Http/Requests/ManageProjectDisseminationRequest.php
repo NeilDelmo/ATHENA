@@ -17,10 +17,6 @@ class ManageProjectDisseminationRequest extends FormRequest
             return false;
         }
 
-        if ($this->isMethod('GET')) {
-            return $this->user()->isUsingWorkspace(['faculty_researcher', 'research_head']);
-        }
-
         if (! $this->user()->isUsingWorkspace('faculty_researcher') || ! $topic->isAccessibleTo($this->user())) {
             return false;
         }

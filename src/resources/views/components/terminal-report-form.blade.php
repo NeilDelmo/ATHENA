@@ -106,7 +106,7 @@
 
         @if (($defaults['missing_monitoring_periods'] ?? []) !== [])
             <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-900 dark:bg-amber-950">
-                Before preparing the official copy, complete monitoring reports for {{ implode(', ', $defaults['missing_monitoring_periods']) }}. You can still save and preview this draft.
+                Before preparing the official copy, complete Monitoring Tools for {{ implode(', ', $defaults['missing_monitoring_periods']) }}. You can still save and preview this draft.
             </div>
         @endif
 

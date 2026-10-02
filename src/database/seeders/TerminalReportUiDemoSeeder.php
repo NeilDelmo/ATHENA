@@ -34,6 +34,14 @@ class TerminalReportUiDemoSeeder extends Seeder
             Storage::disk('local')->put($backup, $report->toJson(JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
         }
 
+        $progress = $report->topic->narrativeReports()
+            ->where('report_type', 'progress')
+            ->where('tracking_number', 'LIFE-'.$report->topic_id.'-NARRATIVE')
+            ->where('accomplishment_summary', 'like', 'UI DEMONSTRATION DATA:%')->first();
+        if ($progress !== null) {
+            app(ProgressReportUiDemoSeeder::class)->refreshReport($progress);
+        }
+
         $example = app(ProgressReportUiDemoSeeder::class)->exampleData($report->topic);
         $report->fill([
             ...$example,

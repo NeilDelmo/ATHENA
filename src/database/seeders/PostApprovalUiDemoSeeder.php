@@ -138,7 +138,10 @@ class PostApprovalUiDemoSeeder extends Seeder
     private function narrative(TopicProposal $topic, User $head, string $type, string $review): ProjectNarrativeReport
     {
         $window = app(MonitoringQuarterService::class)->reportingWindow($topic);
-        $rows = collect($topic->progressReports()->orderByDesc('reporting_date')->first()->work_plan)
+        $monitoring = $topic->progressReports()->submitted()
+            ->when($type === 'progress', fn ($query) => $query->where('period_end', '<', $window['end']->toDateString()))
+            ->reorder()->latest('reporting_date')->firstOrFail();
+        $rows = collect($monitoring->work_plan)
             ->map(fn (array $row): array => ['objective' => $row['objective'] ?? '', 'target' => $row['physical_target'], 'actual' => $row['actual_accomplishment']])->all();
         $photoPath = 'post-approval-ui-demo/campus.jpg';
         if ($type === 'terminal' && ! Storage::disk('local')->exists($photoPath)) {
@@ -148,7 +151,7 @@ class PostApprovalUiDemoSeeder extends Seeder
             ['topic_id' => $topic->id, 'tracking_number' => 'LIFE-'.$topic->id.($type === 'terminal' ? '-TERMINAL' : '-NARRATIVE')],
             [
                 'submitted_by' => $topic->user_id, 'report_type' => $type,
-                'submission_date' => $type === 'terminal' ? $window['end']->addDay() : $window['start']->addMonths(3),
+                'submission_date' => $type === 'terminal' ? $window['end']->copy()->addDay() : $monitoring->period_end->copy()->addDay(),
                 'researchers' => $topic->user->name, 'implementation_start' => $window['start'], 'implementation_end' => $window['end'],
                 'budget' => $topic->estimated_budget, 'funding_agency' => 'Batangas State University',
                 'accomplishment_summary' => 'UI DEMONSTRATION DATA: The team completed baseline collection, piloted the intervention, and documented validation results for '.$topic->title.'.',

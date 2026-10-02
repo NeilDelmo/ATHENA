@@ -22,9 +22,6 @@
                     @if ($topic->isCompletedProject())
                         <p class="mt-2 text-sm font-semibold text-gray-700 dark:text-slate-200">Research reporting is complete and remains archived. Journal searches do not alter those reports.</p>
                     @endif
-                    @if (Auth::user()->isUsingWorkspace('research_head'))
-                        <p class="mt-2 text-sm font-semibold text-red-700 dark:text-red-300">Research Head view: you can review and run recommendations without changing the project.</p>
-                    @endif
                 </div>
             </div>
             <ol class="mt-5 grid gap-2 text-sm sm:grid-cols-5">

@@ -27,6 +27,7 @@ class SaveProjectNarrativeReportDraftRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            'reporting_date' => ['nullable', 'date_format:Y-m-d'],
             'draft_version' => ['required', 'integer', 'min:0'],
             'report_type' => ['sometimes', Rule::in(['progress', 'terminal'])],
             'submission_date' => ['nullable', 'date', 'before_or_equal:today'],

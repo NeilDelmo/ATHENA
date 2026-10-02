@@ -19,7 +19,9 @@ class SubmitPreparedProjectProgressReportRequest extends FormRequest
             && $report instanceof ProjectProgressReport
             && $report->topic_id === $topic->id
             && $report->isPrepared()
-            && $this->user()?->id === $report->submitted_by
+            && ($this->isMethod('DELETE')
+                ? in_array($this->user()?->id, [$report->submitted_by, $topic->user_id], true)
+                : $this->user()?->id === $topic->user_id)
             && $topic->isMonitoringAvailable()
             && app(MonitoringQuarterService::class)->canSubmitForDate($topic, $report->reporting_date)
             && $topic->isAccessibleTo($this->user());

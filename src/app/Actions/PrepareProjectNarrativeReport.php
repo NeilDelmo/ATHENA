@@ -7,6 +7,7 @@ use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Services\ProgressReportDocumentService;
+use App\Services\MonitoringQuarterService;
 use App\Support\ProgressReportData;
 use App\Support\TerminalReportData;
 use Illuminate\Support\Facades\DB;
@@ -34,7 +35,19 @@ class PrepareProjectNarrativeReport
         return DB::transaction(function () use ($topic, $user, $validated, $files): ProjectNarrativeReport {
             $topic->newQuery()->whereKey($topic)->lockForUpdate()->firstOrFail();
             $type = $validated['report_type'] ?? 'progress';
-            if (ProjectNarrativeReport::prepared()->where('topic_id', $topic->id)->where('submitted_by', $user->id)->where('report_type', $type)->exists()) {
+            if ($type === 'progress') {
+                $schedule = app(MonitoringQuarterService::class);
+                if (! $schedule->canSubmitForDate($topic, $validated['reporting_date'])) {
+                    throw ValidationException::withMessages(['reporting_date' => 'This reporting quarter is not open.']);
+                }
+                $period = $schedule->forDate($validated['reporting_date'], $topic);
+                $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
+                if ($existing !== null && (! $existing->isSubmitted() || $existing->review_status !== ProjectNarrativeReport::STATUS_REVISION_REQUESTED)) {
+                    throw ValidationException::withMessages(['reporting_date' => 'This quarter already has a prepared or submitted Progress Report.']);
+                }
+                $validated = [...$validated, 'reporting_quarter' => $period['quarter'], 'period_start' => $period['start']->toDateString(), 'period_end' => $period['end']->toDateString(), 'version_number' => ($existing?->version_number ?? 0) + 1];
+            }
+            if (ProjectNarrativeReport::prepared()->where('topic_id', $topic->id)->where('report_type', $type)->exists()) {
                 throw ValidationException::withMessages(['preparation' => 'A prepared report of this type already exists.']);
             }
             if ($type === 'terminal') {

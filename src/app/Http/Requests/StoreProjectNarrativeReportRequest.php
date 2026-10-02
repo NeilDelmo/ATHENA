@@ -50,6 +50,7 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
+            'reporting_date' => [Rule::excludeIf($this->input('report_type') === 'terminal'), 'required', 'date_format:Y-m-d'],
             'submission_date' => ['required', 'date', 'before_or_equal:today'],
             'report_type' => ['required', Rule::in(['progress', 'terminal'])],
             'tracking_number' => ['nullable', 'string', 'max:100'],
@@ -131,6 +132,20 @@ class StoreProjectNarrativeReportRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if ($this->input('report_type') === 'progress' && $validator->errors()->isEmpty()) {
+                $topic = $this->route('topic');
+                $schedule = app(MonitoringQuarterService::class);
+                if (! $schedule->canSubmitForDate($topic, $this->input('reporting_date'))) {
+                    $validator->errors()->add('reporting_date', 'Choose an ended reporting quarter from the project schedule.');
+
+                    return;
+                }
+                $period = $schedule->forDate($this->input('reporting_date'), $topic);
+                $existing = $topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
+                if ($existing !== null && $existing->review_status !== \App\Models\ProjectNarrativeReport::STATUS_REVISION_REQUESTED) {
+                    $validator->errors()->add('reporting_date', 'This quarter already has a prepared or submitted Progress Report. Open that report instead.');
+                }
+            }
             if ($this->input('report_type') !== 'terminal' || $validator->errors()->isNotEmpty()) {
                 return;
             }

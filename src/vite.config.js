@@ -2,6 +2,10 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 
 export default defineConfig({
+    build: {
+        // Open pages can still request lazy PDF viewer chunks from the previous build.
+        emptyOutDir: false,
+    },
     server: {
         watch: {
             usePolling: process.platform === 'win32',

@@ -18,12 +18,14 @@ class SearchJournalsRequest extends FormRequest
             return false;
         }
 
-        if (! $topic instanceof TopicProposal) {
+        if ($topic === null) {
             return $user->isUsingWorkspace('faculty_researcher');
         }
 
-        return $topic->isDisseminationAvailable()
-            && $user->isUsingWorkspace(['faculty_researcher', 'research_head'])
+        return $topic instanceof TopicProposal
+            && $topic->isDisseminationAvailable()
+            && $user->isUsingWorkspace('faculty_researcher')
+            && $topic->isAccessibleTo($user)
             && $user->can('view', $topic);
     }
 

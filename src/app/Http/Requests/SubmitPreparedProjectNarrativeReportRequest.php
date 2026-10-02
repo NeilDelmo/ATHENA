@@ -18,12 +18,14 @@ class SubmitPreparedProjectNarrativeReportRequest extends FormRequest
             && $report instanceof ProjectNarrativeReport
             && $report->topic_id === $topic->id
             && $report->isPrepared()
-            && $this->user()?->id === $report->submitted_by
+            && ($this->isMethod('DELETE')
+                ? in_array($this->user()?->id, [$report->submitted_by, $topic->user_id], true)
+                : $this->user()?->id === $topic->user_id)
             && $topic->isMonitoringAvailable()
             && ($report->report_type === 'terminal'
                 ? app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
                     && ($this->isMethod('DELETE') || app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic) === [])
-                : app(MonitoringQuarterService::class)->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])))
+                : ($this->isMethod('DELETE') || $report->reporting_date !== null && app(MonitoringQuarterService::class)->canSubmitForDate($topic, $report->reporting_date)))
             && $topic->isAccessibleTo($this->user());
     }
 

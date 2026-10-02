@@ -324,8 +324,9 @@
                                 <span class="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider {{ $member->isAccepted() ? 'bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200' : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Joined' : ($member->isLinked() ? 'Invitation pending' : 'Pending sign-in') }}</span>
                             </div>
                         </div>
-                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-red-700 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Can open and edit every draft paper.' : ($member->isLinked() ? 'Waiting for the team member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
+                        <p class="mt-3 text-[11px] font-semibold {{ $member->isAccepted() ? 'text-gray-600 dark:text-slate-300' : 'text-red-700 dark:text-red-200' }}">{{ $member->isAccepted() ? 'Shares this workspace through project completion. Only the project leader can submit.' : ($member->isLinked() ? 'Waiting for the team member to accept the invitation.' : 'Waiting for this exact email to sign in to ATHENA.') }}</p>
                         @can('manageMembers', $proposalDraft)
+                        @if (! $member->isAccepted())
                             <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-3 dark:border-slate-800">
                                 <form action="{{ route('faculty.proposal-drafts.members.invitation', [$proposalDraft, $member]) }}" method="POST">
                                     @csrf
@@ -337,6 +338,7 @@
                                     <button type="submit" class="text-xs font-bold text-red-700 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-600">Remove</button>
                                 </form>
                             </div>
+                        @endif
                         @endcan
                     </article>
                 @endforeach

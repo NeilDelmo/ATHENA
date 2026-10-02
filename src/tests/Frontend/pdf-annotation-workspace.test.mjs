@@ -73,6 +73,30 @@ function annotationWorkspace() {
     return state;
 }
 
+test('a missing PDF viewer module offers refresh and a later successful load clears the error', async () => {
+    const state = annotationWorkspace();
+    await state.loadPdf(async () => { throw new TypeError('Failed to fetch dynamically imported module: /build/assets/pdf-old.js'); });
+    assert.equal(state.viewerRefreshRequired, true);
+    assert.match(state.loadError, /Reload this page/);
+    assert.equal(state.loadError.includes('pdf-old.js'), false);
+    assert.equal(state.loading, false);
+
+    state.renderDocument = async () => {};
+    state.focusRequestedAnnotation = () => {};
+    await state.loadPdf(async () => ({ getDocument: () => ({ promise: Promise.resolve({}) }) }));
+    assert.equal(state.viewerRefreshRequired, false);
+    assert.equal(state.loadError, '');
+    assert.equal(state.loading, false);
+});
+
+test('an unavailable report PDF offers retry without asking for a viewer refresh', async () => {
+    const state = annotationWorkspace();
+    await state.loadPdf(async () => ({ getDocument: () => ({ promise: Promise.reject(new Error('Report PDF not found.')) }) }));
+    assert.equal(state.viewerRefreshRequired, false);
+    assert.equal(state.loadError, 'Report PDF not found.');
+    assert.equal(state.loading, false);
+});
+
 test('annotation workspace is always ready for Research Head feedback', () => {
     const state = annotationWorkspace();
     state.annotations = [{ id: 1 }, { id: 2 }];

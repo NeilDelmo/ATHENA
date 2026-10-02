@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
+use App\Services\MonitoringQuarterService;
 use App\Services\ProgressReportDocumentService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Storage;
@@ -27,16 +28,35 @@ class ProgressReportUiDemoSeeder extends Seeder
             Storage::disk('local')->put($backup, $reports->toJson(JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
         }
         foreach ($reports as $report) {
-            $report->fill($this->exampleData($report->topic));
-            $pdf = app(DocumentPdfConverter::class)->convertDocx(app(ProgressReportDocumentService::class)->generate($report));
-            $path = 'post-approval-ui-demo/'.$report->topic_id.'/progress-reader-'.$report->id.'.pdf';
-            if (! Storage::disk('local')->put($path, $pdf)) {
-                throw new RuntimeException('The refreshed demonstration PDF could not be stored.');
-            }
-            $report->fill(['official_pdf_path' => $path, 'official_pdf_filename' => 'ui-demo-progress-report.pdf',
-                'official_pdf_checksum' => hash('sha256', $pdf), 'official_pdf_size' => strlen($pdf)])->save();
-            $this->command?->info('Updated demonstration progress report #'.$report->id.' with seven figures.');
+            $this->refreshReport($report);
         }
+    }
+
+    public function refreshReport(ProjectNarrativeReport $report): void
+    {
+        $window = app(MonitoringQuarterService::class)->reportingWindow($report->topic);
+        $monitoring = $report->topic->progressReports()->submitted()
+            ->where('period_end', '<', $window['end']->toDateString())
+            ->reorder()->latest('reporting_date')->first();
+        $report->fill($this->exampleData($report->topic));
+        if ($monitoring !== null) {
+            $report->fill([
+                'submission_date' => $monitoring->period_end->copy()->addDay(),
+                'accomplishments' => collect($monitoring->work_plan)->map(fn (array $row): array => [
+                    'objective' => $row['objective'] ?? '', 'target' => $row['physical_target'],
+                    'actual' => $row['actual_accomplishment'],
+                ])->all(),
+                'accomplishment_summary' => 'UI DEMONSTRATION DATA: Interim accomplishments from '.$monitoring->period_start->format('M j, Y').' to '.$monitoring->period_end->format('M j, Y').'. Further validation and final evaluation follow in the terminal report.',
+            ]);
+        }
+        $pdf = app(DocumentPdfConverter::class)->convertDocx(app(ProgressReportDocumentService::class)->generate($report));
+        $path = 'post-approval-ui-demo/'.$report->topic_id.'/progress-reader-'.$report->id.'.pdf';
+        if (! Storage::disk('local')->put($path, $pdf)) {
+            throw new RuntimeException('The refreshed demonstration PDF could not be stored.');
+        }
+        $report->fill(['official_pdf_path' => $path, 'official_pdf_filename' => 'ui-demo-progress-report.pdf',
+            'official_pdf_checksum' => hash('sha256', $pdf), 'official_pdf_size' => strlen($pdf)])->save();
+        $this->command?->info('Updated demonstration progress report #'.$report->id.' with seven figures.');
     }
 
     /** @return array<string, mixed> */

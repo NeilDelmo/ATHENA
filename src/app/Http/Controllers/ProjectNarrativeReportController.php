@@ -41,11 +41,12 @@ class ProjectNarrativeReportController extends Controller
         abort_unless($topic->isMonitoringAvailable() && $topic->isAccessibleTo($request->user()), 404);
 
         $schedule = app(MonitoringQuarterService::class);
+        $request->validate(['reporting_date' => ['nullable', 'date_format:Y-m-d']]);
         abort_unless($request->query('report_type') === 'terminal' ? $schedule->canSubmitTerminal($topic) : $schedule->projectPeriods($topic)->contains(fn (array $period): bool => now()->greaterThanOrEqualTo($period['opens_at'])), 403, 'This report is not open yet. Check the project reporting schedule.');
 
         return view('faculty.progress-reports.create', [
             'topic' => $topic,
-            ...$formData->narrativeProgress($request->user(), $topic, $request->query('report_type') === 'terminal' ? 'terminal' : 'progress'),
+            ...$formData->narrativeProgress($request->user(), $topic, $request->query('report_type') === 'terminal' ? 'terminal' : 'progress', $request->query('reporting_date')),
         ]);
     }
 
@@ -100,7 +101,6 @@ class ProjectNarrativeReportController extends Controller
         $existingPreparedReport = ProjectNarrativeReport::query()
             ->prepared()
             ->whereBelongsTo($topic, 'topic')
-            ->where('submitted_by', $request->user()->id)
             ->where('report_type', $request->input('report_type', 'progress'))
             ->exists();
 
@@ -279,11 +279,32 @@ class ProjectNarrativeReportController extends Controller
         return back()->with('success', 'Official '.strtolower($report->report_label).' submitted for Research Head review.');
     }
 
+    public function show(Request $request, ProjectNarrativeReport $report): View
+    {
+        $this->authorizeViewer($request, $report);
+        abort_unless($report->isSubmitted(), 404);
+        $report->loadMissing(['topic', 'submitter', 'reviewer']);
+        $topic = $report->topic;
+        $isLatestTerminal = $report->report_type === 'terminal'
+            && $topic->narrativeReports()->where('report_type', 'terminal')->reorder()->latest('id')->value('id') === $report->id;
+        $canManage = $request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)
+            && ! $topic->isCompletedProject()
+            && $topic->notice_to_proceed_issued_at !== null
+            && ($report->report_type === 'progress' || $isLatestTerminal);
+
+        return view('faculty.progress-reports.show', [
+            'report' => $report, 'topic' => $topic,
+            'canReview' => $canManage && $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED,
+            'canRecordSignedCopy' => $canManage && $isLatestTerminal && $report->review_status === ProjectNarrativeReport::STATUS_REVIEWED,
+        ]);
+    }
+
     public function review(
         Request $request,
         ProjectNarrativeReport $report,
         SidebarAttentionService $sidebarAttention,
     ): RedirectResponse {
+        abort_unless($report->topic->isMonitoringAvailable(), 404);
         abort_unless($report->topic()->withIssuedNotice()->exists(), 404);
         abort_unless($report->isSubmitted(), 404);
 
@@ -458,7 +479,7 @@ class ProjectNarrativeReportController extends Controller
     {
         if ($report->isPrepared()) {
             abort_unless(
-                $request->user()->id === $report->submitted_by
+                $request->user()->isUsingWorkspace('faculty_researcher')
                     && $report->topic->isAccessibleTo($request->user()),
                 403,
             );

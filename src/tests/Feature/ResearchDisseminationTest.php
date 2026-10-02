@@ -3,6 +3,7 @@
 use App\Models\ProjectConference;
 use App\Models\ResearcherProfile;
 use App\Models\ResearchPublication;
+use App\Models\TopicCollaborator;
 use App\Models\TopicProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -131,19 +132,69 @@ test('journal finder ranks venues from related articles without creating publica
         && str_contains((string) $request['search'], 'community coastal monitoring'));
 });
 
-test('dissemination prevents unrelated users cross-project writes and head mutations', function () {
+test('dissemination prevents unrelated users cross-project writes and head access', function () {
     $conference = ProjectConference::factory()->create(['topic_id' => $this->topic->id, 'added_by' => $this->researcher->id]);
     $second = TopicProposal::create(['user_id' => $this->researcher->id, 'title' => 'Other project', 'status' => 'approved', 'project_status' => 'completed']);
     $this->patch(route('research.dissemination.conferences.update', [$second, $conference]), [])->assertForbidden();
     $outsider = User::factory()->create();
     $outsider->assignRole('faculty_researcher');
     $this->actingAs($outsider)->get(route('research.dissemination.show', $this->topic))->assertForbidden();
+    $this->postJson(route('research.dissemination.journals.search', $this->topic), ['query' => 'coastal monitoring'])->assertForbidden();
     $this->postJson(route('research.dissemination.authors', $this->topic), ['query' => 'Researcher'])->assertForbidden();
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head'])
-        ->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Research Head view');
+        ->get(route('research.dissemination.show', $this->topic))->assertForbidden();
     $this->post(route('research.dissemination.conferences.store', $this->topic), [])->assertForbidden();
+});
+
+test('journal finder is hidden and forbidden in office workspaces even for the project owner', function (string $role, string $workspace) {
+    Role::firstOrCreate(['name' => $role]);
+    $this->researcher->assignRole($role);
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace]);
+
+    if ($workspace === User::WORKSPACE_RESEARCH_HEAD) {
+        $this->get(route('topics.show', $this->topic))->assertOk()->assertDontSee('Find journals');
+    }
+
+    $this->get(route('research-support.index'))->assertOk()->assertDontSee('Journal Finder');
+    $this->get(route('research.dissemination.show', $this->topic))->assertForbidden();
+    $this->postJson(route('research.dissemination.journals.search', $this->topic), ['query' => 'coastal monitoring'])->assertForbidden();
+    $this->postJson(route('research-support.journal-search'), ['query' => 'coastal monitoring'])->assertForbidden();
+    Http::assertNothingSent();
+
+    $this->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_FACULTY_RESEARCHER]);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Find journals');
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Journal Finder');
+})->with([
+    'Research Head' => ['research_head', User::WORKSPACE_RESEARCH_HEAD],
+    'Research Office' => ['research_coordinator', User::WORKSPACE_RESEARCH_OFFICE],
+]);
+
+test('authorized researchers retain journal discovery during monitoring and after completion', function (string $status) {
+    $this->topic->update(['project_status' => $status]);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Find journals');
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Journal Finder');
+})->with(['ongoing', 'delayed', 'completed']);
+
+test('project journal discovery requires an accepted collaboration', function () {
+    $collaborator = User::factory()->create();
+    $collaborator->assignRole('faculty_researcher');
+    $invitation = TopicCollaborator::factory()->create([
+        'topic_id' => $this->topic->id,
+        'user_id' => $collaborator->id,
+        'email' => $collaborator->email,
+    ]);
+    $this->actingAs($collaborator);
+    $this->get(route('research.dissemination.show', $this->topic))->assertForbidden();
+    $this->postJson(route('research.dissemination.journals.search', $this->topic), ['query' => 'coastal monitoring'])->assertForbidden();
+    Http::assertNothingSent();
+
+    $invitation->update(['accepted_at' => now()]);
+    Http::fake(['api.openalex.org/works*' => Http::response(['results' => []])]);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('Find journals');
+    $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee('Journal Finder');
+    $this->postJson(route('research.dissemination.journals.search', $this->topic), ['query' => 'coastal monitoring', 'indexing' => 'any'])->assertOk();
 });
 
 test('author confirmation and import use canonical records and prevent duplicate imports', function () {

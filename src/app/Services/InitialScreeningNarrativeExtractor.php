@@ -5,6 +5,8 @@ namespace App\Services;
 use DOMDocument;
 use DOMNode;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -33,25 +35,55 @@ class InitialScreeningNarrativeExtractor
 
     private function pdfText(string $path): string
     {
+        $binary = (string) config('research_assistant.document.pdftotext_binary');
+        $unavailableMessage = 'PDF text extraction is unavailable on this server. Ask the administrator to configure pdftotext (PDFTOTEXT_BINARY), or upload the completed DOCX form.';
+
         try {
             $result = Process::timeout((int) config('research_assistant.document.extraction_timeout'))->run([
-                (string) config('research_assistant.document.pdftotext_binary'),
+                $binary,
                 '-layout',
                 '-nopgbrk',
                 $path,
                 '-',
             ]);
+        } catch (ProcessTimedOutException $exception) {
+            Log::warning('Initial Screening PDF text extraction timed out.', ['binary' => $binary]);
 
-            if ($result->failed()) {
-                throw new RuntimeException('The completed Initial Screening Form could not be converted to readable text.');
+            throw new RuntimeException('Reading the Initial Screening PDF took too long. Try again with a smaller PDF or upload the completed DOCX form.', previous: $exception);
+        } catch (Throwable $exception) {
+            Log::warning('Initial Screening PDF text extraction could not start.', ['binary' => $binary, 'error' => $exception->getMessage()]);
+
+            throw new RuntimeException($unavailableMessage, previous: $exception);
+        }
+
+        if ($result->failed()) {
+            $errorOutput = Str::lower($result->errorOutput());
+            Log::warning('Initial Screening PDF text extraction failed.', [
+                'binary' => $binary,
+                'exit_code' => $result->exitCode(),
+                'error_output' => Str::limit($result->errorOutput(), 1000),
+            ]);
+
+            if (in_array($result->exitCode(), [126, 127, 9009], true)
+                || Str::contains($errorOutput, [
+                    'is not recognized', 'command not found', 'not found as an executable',
+                    'the system cannot find the path specified', 'the system cannot find the file specified',
+                ])) {
+                throw new RuntimeException($unavailableMessage);
             }
 
-            return $result->output();
-        } catch (RuntimeException $exception) {
-            throw $exception;
-        } catch (Throwable) {
-            throw new RuntimeException('PDF text extraction is unavailable on this server. Upload a DOCX copy or enable pdftotext.');
+            if ($result->exitCode() === 3 || Str::contains($errorOutput, ['incorrect password', 'permission error', 'encrypted'])) {
+                throw new RuntimeException('The Initial Screening PDF is password-protected or blocks text extraction. Upload an unlocked PDF with selectable text, or the completed DOCX form.');
+            }
+
+            throw new RuntimeException('The Initial Screening PDF could not be read. Re-export the completed form as a PDF with selectable text, or upload its DOCX copy.');
         }
+
+        if (trim($result->output()) === '') {
+            throw new RuntimeException('The Initial Screening PDF has no selectable text. For a photo or scanned form, upload the completed DOCX form or a PDF processed with text recognition (OCR).');
+        }
+
+        return $result->output();
     }
 
     private function docxText(string $path): string
@@ -122,7 +154,7 @@ class InitialScreeningNarrativeExtractor
 
     private function narrativeEvaluation(string $text): string
     {
-        $text = str_replace(["\r\n", "\r", "\0"], ["\n", "\n", ''], $text);
+        $text = str_replace(["\r\n", "\r", "\f", "\0"], ["\n", "\n", "\n", ''], $text);
         $text = preg_replace('/[\t ]+/u', ' ', $text) ?? $text;
 
         $parts = preg_split('/Narrative\s+Evaluation\s*:/iu', $text, 2);

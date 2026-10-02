@@ -20,15 +20,21 @@
                     <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
                 @endif
                 <a href="{{ route('project-narrative-reports.download', $preparedReport) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Download prepared PDF</a>
+                @if (Auth::id() === $topic->user_id)
                 <form method="POST" action="{{ route('project-narrative-reports.submit-prepared', [$topic, $preparedReport]) }}">
                     @csrf
                     <button class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2">Submit to Research Head</button>
                 </form>
+                @else
+                    <p class="text-sm font-semibold text-red-700 dark:text-red-300">Only the project leader can submit this report.</p>
+                @endif
+                @if (in_array(Auth::id(), [$topic->user_id, $preparedReport->submitted_by], true))
                 <form method="POST" action="{{ route('project-narrative-reports.discard-prepared', [$topic, $preparedReport]) }}">
                     @csrf
                     @method('DELETE')
                     <button class="inline-flex min-h-12 items-center justify-center rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950">Discard</button>
                 </form>
+                @endif
             </x-monitoring-action-dock>
         </div>
     </section>

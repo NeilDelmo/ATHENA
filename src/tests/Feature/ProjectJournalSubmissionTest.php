@@ -58,7 +58,7 @@ test('duplicate entries cannot reset an existing manuscript stage', function () 
     expect(ProjectJournalSubmission::count())->toBe(1);
 });
 
-test('unrelated researchers cross-project edits and research head mutations are denied', function () {
+test('unrelated researchers cross-project edits and research head access are denied', function () {
     $entry = ProjectJournalSubmission::factory()->create(['topic_id' => $this->topic->id, 'added_by' => $this->researcher->id]);
     $other = TopicProposal::create(['user_id' => $this->researcher->id, 'title' => 'Other', 'status' => 'approved', 'project_status' => 'completed']);
     $this->patch(route('research.dissemination.journal-submissions.update', [$other, $entry]), $this->entry)->assertForbidden();
@@ -68,7 +68,7 @@ test('unrelated researchers cross-project edits and research head mutations are 
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $this->actingAs($head)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => 'research_head']);
-    $this->get(route('research.dissemination.show', $this->topic))->assertOk()->assertSee($entry->journal_name)->assertDontSee('Update stage or details');
+    $this->get(route('research.dissemination.show', $this->topic))->assertForbidden();
     $this->post(route('research.dissemination.journal-submissions.store', $this->topic), $this->entry)->assertForbidden();
     $this->patch(route('research.dissemination.journal-submissions.update', [$this->topic, $entry]), $this->entry)->assertForbidden();
 });

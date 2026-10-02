@@ -7,6 +7,7 @@ import { addCalendarMonths } from './proposal-draft-dates';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace';
 import initializeAnnouncementImageUploads from './announcement-image-upload';
 import { projectDocumentDrawer } from './project-document-drawer';
+import { projectStatusManager } from './project-status-manager';
 import { proposalSignedUploads } from './proposal-signed-uploads';
 import registerPdfAnnotationWorkspace from './pdf-annotation-workspace';
 import initializeResearchCallCarousels from './research-call-carousel';
@@ -96,6 +97,7 @@ Alpine.store('sidebar', {
 
 Alpine.data('journalFinder', journalFinder);
 Alpine.data('projectDocumentDrawer', projectDocumentDrawer);
+Alpine.data('projectStatusManager', projectStatusManager);
 Alpine.data('proposalSignedUploads', proposalSignedUploads);
 Alpine.data('researchSecretaryPicker', (config = {}) => ({
     candidates: Array.isArray(config.candidates) ? config.candidates : [],

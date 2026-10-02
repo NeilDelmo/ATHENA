@@ -14,6 +14,7 @@ class StoreSignedTerminalReportRequest extends FormRequest
 
         if (! $report instanceof ProjectNarrativeReport
             || ! $this->user()?->isUsingWorkspace('research_head')
+            || ! $report->topic->isMonitoringAvailable()
             || $report->report_type !== 'terminal'
             || ! $report->isSubmitted()
             || $report->review_status !== ProjectNarrativeReport::STATUS_REVIEWED) {

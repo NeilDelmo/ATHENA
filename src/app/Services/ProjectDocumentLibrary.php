@@ -65,6 +65,9 @@ class ProjectDocumentLibrary
                             'file_size' => $file->file_size,
                             'view_url' => route('topics.versions.files.view', [$topic, $version, $file]),
                             'download_url' => route('topics.versions.files.download', [$topic, $version, $file]),
+                            'editable_docx_url' => $file->document_type === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
+                                ? route('topics.versions.files.editable-docx', [$topic, $version, $file])
+                                : null,
                             'official' => $isSignedCopy || $file->document_type !== ProposalVersionFile::TYPE_HEAD_UPLOAD
                                 || ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
                         ]);

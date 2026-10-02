@@ -21,13 +21,24 @@ class SyncTopicCollaborators
             ])
             ->all();
 
-        $topic->collaborators()->delete();
-
-        if ($members !== []) {
-            $topic->collaborators()->createMany($members);
+        $existing = $topic->collaborators()->get();
+        $retainedIds = [];
+        foreach ($members as $member) {
+            $collaborator = $existing->first(fn ($candidate): bool =>
+                ($member['user_id'] !== null && $candidate->user_id === $member['user_id'])
+                || mb_strtolower(trim($candidate->email)) === mb_strtolower(trim($member['email'])));
+            if ($collaborator !== null) {
+                $member['accepted_at'] = $collaborator->accepted_at ?? $member['accepted_at'];
+                $collaborator->update($member);
+            } else {
+                $collaborator = $topic->collaborators()->create($member);
+            }
+            $retainedIds[] = $collaborator->id;
         }
 
-        $secretaryId = $draft->members()
+        $topic->collaborators()->whereNull('accepted_at')->whereNotIn('id', $retainedIds)->delete();
+
+        $secretaryId = $topic->collaborators()
             ->where('project_role', ProposalDraftMember::ROLE_SECRETARY)
             ->whereNotNull('accepted_at')
             ->whereNotNull('user_id')

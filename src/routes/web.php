@@ -203,6 +203,9 @@ Route::get('/topics/{topic}/versions/{version}/download', [TopicController::clas
 Route::get('/topics/{topic}/versions/{version}/files/{file}/download', [TopicController::class, 'downloadVersionFile'])
     ->middleware('auth')
     ->name('topics.versions.files.download');
+Route::get('/topics/{topic}/versions/{version}/files/{file}/editable-docx', [TopicController::class, 'downloadInitialScreeningDocx'])
+    ->middleware('auth')
+    ->name('topics.versions.files.editable-docx');
 Route::get('/topics/{topic}/versions/{version}/files/{file}/view', [TopicController::class, 'viewVersionFile'])
     ->middleware('auth')
     ->name('topics.versions.files.view');
@@ -326,6 +329,9 @@ Route::middleware(['auth', 'workspace:research_secretary'])->prefix('research-se
     Route::get('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'edit'])->name('projects.budget.edit');
     Route::put('/projects/{topic}/reports/{report}/budget', [ProjectBudgetUtilizationController::class, 'update'])->name('projects.budget.update');
 });
+Route::get('/narrative-progress-reports/{report}', [ProjectNarrativeReportController::class, 'show'])
+    ->middleware('auth')
+    ->name('project-narrative-reports.show');
 Route::get('/narrative-progress-reports/{report}/document', [ProjectNarrativeReportController::class, 'download'])
     ->middleware('auth')
     ->name('project-narrative-reports.download');
@@ -411,7 +417,7 @@ Route::middleware(['auth', 'workspace:faculty_researcher'])->group(function () {
 });
 
 // RESEARCH HEAD ROUTES
-Route::middleware(['auth', 'workspace:faculty_researcher|research_head'])->prefix('research/{topic}/dissemination')->name('research.dissemination.')->group(function () {
+Route::middleware(['auth', 'workspace:faculty_researcher'])->prefix('research/{topic}/dissemination')->name('research.dissemination.')->group(function () {
     Route::get('/', [ProjectDisseminationController::class, 'show'])->name('show');
     Route::post('/journal-submissions', [ProjectJournalSubmissionController::class, 'store'])->name('journal-submissions.store');
     Route::patch('/journal-submissions/{journalSubmission}', [ProjectJournalSubmissionController::class, 'update'])->name('journal-submissions.update');

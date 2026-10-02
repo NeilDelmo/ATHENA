@@ -40,15 +40,21 @@
                 @if ($topic->research_secretary_id && ! $preparedReport->hasPreparedBudget())
                     <a href="{{ route('project-budget.edit', [$topic, $preparedReport]) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-900 shadow-sm transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700 focus-visible:ring-offset-2">Complete budget utilization</a>
                 @endif
+                @if (Auth::id() === $topic->user_id)
                 <form method="POST" action="{{ route('project-progress.submit-prepared', [$topic, $preparedReport]) }}">
                     @csrf
                     <button @disabled($topic->research_secretary_id && ! $preparedReport->hasPreparedBudget()) class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45">Submit to Research Head</button>
                 </form>
+                @else
+                    <p class="text-sm font-semibold text-red-700 dark:text-red-300">Only the project leader can submit this report.</p>
+                @endif
+                @if (in_array(Auth::id(), [$topic->user_id, $preparedReport->submitted_by], true))
                 <form method="POST" action="{{ route('project-progress.discard-prepared', [$topic, $preparedReport]) }}" onsubmit="return confirm('Discard this prepared PDF? You will need to prepare it again.')">
                     @csrf
                     @method('DELETE')
                     <button class="inline-flex min-h-12 items-center justify-center rounded-xl border border-red-200 bg-white px-5 py-3 text-sm font-bold text-red-700 shadow-sm transition hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-red-900 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950">Discard</button>
                 </form>
+                @endif
             </x-monitoring-action-dock>
         </div>
     </section>

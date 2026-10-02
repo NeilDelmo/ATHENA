@@ -70,7 +70,7 @@
     <x-slot name="header">
         <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')">
             <x-slot name="actions">
-                    @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace(['faculty_researcher', 'research_head']) && $hasProjectAccess)
+                    @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo(Auth::user()))
                         <a href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex items-center justify-center rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300">Find journals</a>
                     @endif
                     @if ($draftHistoryCount > 0 && ($isFacultyWorkspace || $isResearchHead))

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProjectProgressReport;
+use App\Models\ProjectNarrativeReport;
 use App\Models\TopicProposal;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -159,6 +160,20 @@ class MonitoringQuarterService
     public function terminalOpensAt(TopicProposal $topic): CarbonImmutable
     {
         return $this->reportingWindow($topic)['end']->addDay()->startOfDay();
+    }
+
+    /** @return Collection<int, array<string, mixed>> */
+    public function narrativeProgressPeriods(TopicProposal $topic): Collection
+    {
+        $reports = $topic->narrativeReports()->where('report_type', 'progress')->latest('id')->get();
+
+        return $this->projectPeriods($topic)->map(function (array $period) use ($reports): array {
+            $report = $reports->first(fn (ProjectNarrativeReport $report): bool => $report->reporting_quarter === $period['quarter']);
+            $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
+            $editable = $report === null || $report->isPrepared() || $report->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED;
+
+            return [...$period, 'report' => $report, 'reporting_date' => $open && $editable ? $period['end']->toDateString() : null];
+        });
     }
 
     public function missingTerminalMonitoringPeriods(TopicProposal $topic): array

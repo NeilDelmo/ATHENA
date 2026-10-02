@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
 use App\Services\GADChecklistScoreExtractor;
+use App\Services\InitialScreeningFormDocumentService;
 use App\Services\InitialScreeningNarrativeExtractor;
 use App\Services\MonitoringQuarterService;
 use App\Services\NoticeToProceedDataService;
@@ -785,6 +786,43 @@ class TopicController extends Controller
         return Storage::disk('local')->download($file->file_path, $file->original_filename);
     }
 
+    public function downloadInitialScreeningDocx(
+        Request $request,
+        TopicProposal $topic,
+        ProposalVersion $version,
+        ProposalVersionFile $file,
+        InitialScreeningFormDocumentService $documentService,
+    ): StreamedResponse {
+        $this->ensureCanViewTopic($request, $topic);
+        abort_unless($version->topic_id === $topic->id, 404);
+        abort_unless($file->proposal_version_id === $version->id, 404);
+        abort_unless($file->document_type === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM, 404);
+        $this->ensureCanAccessVersionFile($request, $topic, $file);
+
+        $sourceData = $file->source_data ?? [];
+        $screeningForm = [
+            ...$sourceData,
+            'project_title' => (string) ($sourceData['project_title'] ?? $version->title ?? $topic->title),
+            'project_leader' => (string) ($sourceData['project_leader'] ?? $version->submitter?->name ?? $topic->user?->name),
+            'order_of_submission' => $sourceData['order_of_submission'] ?? ((int) $version->version_number === 1
+                ? InitialScreeningSubmissionOrder::FIRST_SUBMISSION
+                : InitialScreeningSubmissionOrder::REVISED_WITH_MINOR_CHANGES),
+        ];
+        $contents = $documentService->generate($screeningForm);
+        $filenameBase = Str::slug($screeningForm['project_title']) ?: 'research-project';
+
+        return response()->streamDownload(
+            static function () use ($contents): void {
+                echo $contents;
+            },
+            $filenameBase.'-initial-screening-form-v'.$version->version_number.'.docx',
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'X-Content-Type-Options' => 'nosniff',
+            ],
+        );
+    }
+
     public function viewVersionFile(
         Request $request,
         TopicProposal $topic,
@@ -943,6 +981,7 @@ class TopicController extends Controller
 
         $file = $request->file('review_file');
         $narrativeEvaluation = null;
+        $narrativeEnteredManually = $isEvaluation && filled($validated['narrative_evaluation'] ?? null);
         $gadAssessment = null;
         $gadScoreEnteredManually = false;
 
@@ -970,14 +1009,18 @@ class TopicController extends Controller
         }
 
         if ($isEvaluation) {
-            try {
-                $narrativeEvaluation = $narrativeExtractor->extract($file);
-            } catch (RuntimeException $exception) {
-                return $this->headUploadErrorResponse(
-                    $topic,
-                    true,
-                    ['review_file' => $exception->getMessage()],
-                );
+            if ($narrativeEnteredManually) {
+                $narrativeEvaluation = $validated['narrative_evaluation'];
+            } else {
+                try {
+                    $narrativeEvaluation = $narrativeExtractor->extract($file);
+                } catch (RuntimeException $exception) {
+                    return $this->headUploadErrorResponse(
+                        $topic,
+                        true,
+                        ['review_file' => $exception->getMessage().' You can enter the full Narrative Evaluation below, confirm it matches the completed form, and select the file again.'],
+                    );
+                }
             }
         }
 
@@ -999,6 +1042,8 @@ class TopicController extends Controller
                     'co_evaluator_name' => $validated['co_evaluator_name'] ?? null,
                     'recommended_action' => $validated['recommended_action'] ?? null,
                     'narrative_evaluation' => $narrativeEvaluation,
+                    'narrative_evaluation_entry_method' => $isEvaluation ? ($narrativeEnteredManually ? 'manual' : 'automatic') : null,
+                    'narrative_evaluation_confirmed' => $narrativeEnteredManually && $request->boolean('narrative_evaluation_confirmed'),
                     'gad_score' => $gadAssessment['gad_score'] ?? null,
                     'gad_rating' => $gadAssessment['gad_rating'] ?? null,
                     'gad_interpretation' => $gadAssessment['gad_interpretation'] ?? null,
