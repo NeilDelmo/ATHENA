@@ -15,7 +15,7 @@
             ['label' => 'Proposal records', 'value' => \Illuminate\Support\Number::format($summary['proposals']), 'icon' => 'folder'],
             ['label' => 'Active queue', 'value' => \Illuminate\Support\Number::format($summary['active']), 'icon' => 'clock'],
             ['label' => 'All submissions', 'value' => \Illuminate\Support\Number::format($summary['total']), 'icon' => 'layers'],
-            ['label' => 'Initial packages', 'value' => \Illuminate\Support\Number::format($summary['initial']), 'icon' => 'file-plus'],
+            ['label' => 'Initial submissions', 'value' => \Illuminate\Support\Number::format($summary['initial']), 'icon' => 'file-plus'],
             ['label' => 'Revisions received', 'value' => \Illuminate\Support\Number::format($summary['revision']), 'icon' => 'refresh'],
         ]" />
 
@@ -25,8 +25,9 @@
             <label class="sr-only" for="proposal-submission-type">Submission type</label>
             <select id="proposal-submission-type" name="type" class="block w-full rounded-xl border-gray-200 text-base focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                 <option value="">All submission types</option>
-                <option value="initial" @selected($submissionType === 'initial')>Initial packages</option>
+                <option value="initial" @selected($submissionType === 'initial')>Initial submissions</option>
                 <option value="revision" @selected($submissionType === 'revision')>Revisions</option>
+                <option value="update" @selected($submissionType === 'update')>Submission updates</option>
             </select>
             <label class="sr-only" for="proposal-submission-status">Active review stage</label>
             <select id="proposal-submission-status" name="status" class="block w-full rounded-xl border-gray-200 text-base focus:border-gray-500 focus:ring-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
@@ -70,13 +71,13 @@
             <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-slate-800">
                 <div>
                     <h3 id="active-proposal-queue-heading" class="text-xl font-black text-gray-900 dark:text-white">Active proposal queue</h3>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">One current package per proposal. New packages are marked in red.</p>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">One latest submission per proposal. New submissions are marked in red.</p>
                 </div>
                 <span class="shrink-0 text-sm tabular-nums text-gray-500 dark:text-slate-400">{{ $activeProposals->total() }} active</span>
             </div>
             <div data-proposal-queue-layout="rows" class="overflow-hidden rounded-b-xl border-x border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
                 <div aria-hidden="true" class="hidden grid-cols-[minmax(0,1fr)_220px_180px_196px] items-center gap-4 border-b border-brand bg-brand px-4 py-3 text-sm font-semibold text-white dark:border-red-900 dark:bg-brand dark:text-white xl:grid">
-                    <span>Proposal and faculty</span><span>Review stage</span><span>Latest package</span><span class="text-right">Action</span>
+                    <span>Proposal and faculty</span><span>Review stage</span><span>Latest submission</span><span class="text-right">Action</span>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">
                     @forelse ($activeProposals as $proposal)
@@ -107,7 +108,7 @@
                             </div>
                             <div class="col-span-2 min-w-0 text-sm text-gray-500 dark:text-slate-400 xl:col-span-1">
                                 @if ($latestSubmission)
-                                    <p class="font-medium text-gray-700 dark:text-slate-200">{{ $isRevisedSubmission ? 'Revised package' : 'Initial package' }} · Version {{ $latestSubmission->version_number }}</p>
+                                    <p class="font-medium text-gray-700 dark:text-slate-200">{{ $latestSubmission->submission_type === 'update' ? 'Updated submission' : ($isRevisedSubmission ? 'Revised submission' : 'Initial submission') }} · Version {{ $latestSubmission->version_number }}</p>
                                 @else
                                     <p>Submitted proposal record</p>
                                 @endif
@@ -123,7 +124,7 @@
                     @empty
                         <div class="px-4 py-8 text-center">
                             <h4 class="text-base font-semibold text-gray-900 dark:text-white">No active proposals in the queue</h4>
-                            <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">New and revised packages will appear here. Approved projects remain in Project Monitoring.</p>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">New and revised submissions will appear here. Approved projects remain in Project Monitoring.</p>
                         </div>
                     @endforelse
                 </div>
@@ -137,7 +138,7 @@
         <{{ $receivedOnly ? 'section' : 'details' }} id="submission-history" data-submission-history @if ($search !== '' || $submissionType !== '' || $status !== '' || request()->has('page')) open @endif class="group/history">
             <{{ $receivedOnly ? 'div' : 'summary' }} class="mb-3 flex min-h-14 cursor-pointer list-none flex-wrap items-center justify-between gap-3 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:focus-visible:outline-red-400 sm:flex-nowrap [&::-webkit-details-marker]:hidden">
                 <div class="border-l-4 border-brand pl-3 dark:border-red-400">
-                    <h3 id="proposal-submission-records-heading" class="text-xl font-bold text-gray-900 dark:text-white">{{ $receivedOnly ? 'Received packages' : 'Submission history' }}</h3>
+                    <h3 id="proposal-submission-records-heading" class="text-xl font-bold text-gray-900 dark:text-white">{{ $receivedOnly ? 'Received submissions' : 'Submission history' }}</h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">All submitted versions, newest first.</p>
                 </div>
                 <span class="flex shrink-0 items-center gap-3 text-sm tabular-nums text-gray-500 dark:text-slate-400">
@@ -147,7 +148,7 @@
             </{{ $receivedOnly ? 'div' : 'summary' }}>
             <div data-submission-history-layout="rows" class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
                 <div aria-hidden="true" class="hidden grid-cols-[minmax(0,1fr)_200px_170px_130px_196px] items-center gap-4 border-b border-brand bg-brand px-4 py-3 text-sm font-semibold text-white dark:border-red-900 xl:grid">
-                    <span>Proposal and faculty</span><span>Current review stage</span><span>Package</span><span>Received</span><span class="text-right">Action</span>
+                    <span>Proposal and faculty</span><span>Current review stage</span><span>Submission</span><span>Received</span><span class="text-right">Action</span>
                 </div>
                 <div class="divide-y divide-gray-100 dark:divide-slate-800">
                     @forelse ($submissions as $submission)
@@ -161,7 +162,7 @@
                                 <h4 class="break-words text-base font-semibold leading-6 text-gray-900 dark:text-white">{{ $submission->title }}</h4>
                                 <p class="mt-1 text-sm text-gray-500 dark:text-slate-400">{{ $submission->topic->user->name }}</p>
                                 <details class="group/package mt-1 text-sm text-gray-500 dark:text-slate-400">
-                                    <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-2 rounded font-medium hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-500 dark:hover:text-white [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Package details</summary>
+                                    <summary class="inline-flex min-h-8 cursor-pointer list-none items-center gap-2 rounded font-medium hover:text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gray-500 dark:hover:text-white [&::-webkit-details-marker]:hidden"><span class="group-open/package:hidden" aria-hidden="true">+</span><span class="hidden group-open/package:inline" aria-hidden="true">&minus;</span>Submission details</summary>
                                     <div class="space-y-1 py-2 leading-6">
                                         <p class="break-all">{{ $submission->topic->user->email }}</p>
                                         <p>{{ $submission->topic->researchCall?->title ?? 'Research call unavailable' }}@if ($submission->topic->researchCall?->academic_year) · AY {{ $submission->topic->researchCall->academic_year }}@endif</p>
@@ -177,9 +178,9 @@
                                 <span data-proposal-history-status-label="{{ $historyStatusLabel }}" class="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium leading-5 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">{{ $historyStatusLabel }}</span>
                             </div>
                             <div class="col-span-2 min-w-0 text-sm text-gray-500 dark:text-slate-400 xl:col-span-1">
-                                <span class="sr-only">Package:</span>
-                                <p class="font-medium text-gray-700 dark:text-slate-200">{{ $isRevision ? 'Revision' : 'Initial submission' }} · Version {{ $submission->version_number }}</p>
-                                <p class="mt-1">{{ $fileCount }} {{ Str::plural('package file', $fileCount) }}</p>
+                                <span class="sr-only">Submission:</span>
+                                <p class="font-medium text-gray-700 dark:text-slate-200">{{ $submission->submission_type === 'update' ? 'Submission update' : ($isRevision ? 'Revision' : 'Initial submission') }} · Version {{ $submission->version_number }}</p>
+                                <p class="mt-1">{{ $fileCount }} {{ Str::plural('document', $fileCount) }}</p>
                             </div>
                             <div class="col-span-2 text-sm text-gray-500 dark:text-slate-400 xl:col-span-1">
                                 <span class="sr-only">Received:</span>

@@ -76,6 +76,26 @@ test('a missing budget call level defaults to constituent campus and central age
     expect($document->source_data['level_of_call'])->toBe($level ?? 'constituent_campus');
 })->with([null, 'central_agency']);
 
+test('the budget certifier defaults appear in the editor and survive saving and previewing', function () {
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.line-item-budget.edit', $this->draft))
+        ->assertOk()
+        ->assertViewHas('sourceData', fn (array $data): bool => $data['certified_by'] === 'Dr. ENRICO M. DALANGIN'
+            && $data['certified_role'] === "Chancellor\nVice Chairperson, LREC");
+
+    $payload = ($this->payload)(['certified_by' => '', 'certified_role' => '']);
+    $this->putJson(route('faculty.proposal-drafts.line-item-budget.update', $this->draft), $payload)->assertOk();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_LINE_ITEM_BUDGET)->sole();
+    expect($document->source_data)->toMatchArray([
+        'certified_by' => 'Dr. ENRICO M. DALANGIN',
+        'certified_role' => "Chancellor\nVice Chairperson, LREC",
+    ]);
+    $this->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), [])
+        ->assertOk()
+        ->assertSee('Dr. ENRICO M. DALANGIN')
+        ->assertSee('<p>Chancellor</p><p>Vice Chairperson, LREC</p>', false);
+});
+
 test('the line item budget saves optional structured inputs and resumes them', function () {
     $payload = ($this->payload)([
         'mooe_total_override' => '17000.00',
@@ -156,8 +176,9 @@ test('the line-item budget uses short profile defaults and omits an empty projec
         ->assertOk()
         ->assertSee('ARASOF-Nasugbu')
         ->assertSee('CICS')
-        ->assertSee('name="certified_by"', false)
-        ->assertSee('name="certified_role"', false);
+        ->assertSee('Signature names')
+        ->assertSee('Dr. ENRICO M. DALANGIN')
+        ->assertSee(route('signatories.edit', [$this->draft, 'paper' => 'line_item_budget']), false);
 
     $this->actingAs($this->faculty)
         ->postJson(route('faculty.proposal-drafts.line-item-budget.preview', $this->draft), ($this->payload)([

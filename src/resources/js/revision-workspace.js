@@ -1,6 +1,7 @@
 import { activeProposalPaperAutoSave, finishProposalPaperAutoSave } from './proposal-paper-autosave.js';
 import { findRevisionTarget, focusRevisionTarget } from './revision-target-focus.js';
 import { proposalPreviewWorkspace } from './proposal-preview-workspace.js';
+import { initializeCommentResponseLocations, normalizeLocationText, readPdfPassages } from './comment-response-location.js';
 
 export function isEmbeddedRevisionEditor() {
     return Boolean(document.querySelector('[data-revision-embedded] [data-revision-editor-context]'));
@@ -245,6 +246,24 @@ export function revisionTargetFingerprint(documentRoot, targetId) {
         : String(scope?.textContent || '').trim() || '__missing__';
 }
 
+export function revisionChangedPassages(documentRoot, targetId, originalSource) {
+    const { controls } = revisionControls(documentRoot, targetId);
+    const paragraphs = (value) => {
+        const template = documentRoot.createElement('template');
+        template.innerHTML = String(value || '');
+        template.content.querySelectorAll('br').forEach((element) => element.replaceWith('\n'));
+        template.content.querySelectorAll('p, li').forEach((element) => element.append('\n\n'));
+        return template.content.textContent.split(/\n\s*\n/).map((text) => text.trim()).filter(Boolean);
+    };
+    return controls.flatMap((control) => {
+        if (revisionControlIsWorkspaceMetadata(control) || ['hidden', 'checkbox', 'radio', 'file'].includes(control.type)) return [];
+        const source = revisionSourceValue(originalSource, control.name);
+        if (!source.found || revisionControlFingerprint(control) === revisionSourceControlFingerprint(control, source.value)) return [];
+        const previous = paragraphs(source.value).map(normalizeLocationText);
+        return paragraphs(control.value).filter((text) => !previous.includes(normalizeLocationText(text)));
+    });
+}
+
 function initializeEmbeddedEditor() {
     const context = document.querySelector('[data-revision-editor-context]');
     const root = document.querySelector('[data-paper-editor]');
@@ -288,6 +307,10 @@ function initializeEmbeddedEditor() {
         label: context.dataset.documentType.replaceAll('_', ' '),
         onChange: null,
         modificationStates,
+        sourceFingerprint: () => currentFingerprint(null),
+        changedPassages(annotationId) {
+            return revisionChangedPassages(document, targets[annotationId]?.target, originalSource);
+        },
         validate() {
             const editor = state();
 
@@ -634,6 +657,12 @@ export function initializeRevisionDialogs(form, topicId) {
     const refreshModificationStates = (card, states = null) => {
         const replacementSelected = (card.querySelector('input[type="file"]')?.files?.length || 0) > 0;
         applyRevisionModificationStates(card, states || editorFor(card)?.modificationStates?.() || {}, replacementSelected);
+        const fingerprint = editorFor(card)?.sourceFingerprint?.();
+        if (fingerprint !== undefined && card.dataset.locationSourceFingerprint !== fingerprint) {
+            const previous = card.dataset.locationSourceFingerprint;
+            card.dataset.locationSourceFingerprint = fingerprint;
+            if (previous !== undefined) form.dispatchEvent(new CustomEvent('revision-document-changed', { detail: { documentType: card.dataset.revisionDocument } }));
+        }
     };
     const synchronizeNoChange = (card) => {
         const checkbox = card.querySelector('[data-revision-no-change]');
@@ -831,6 +860,7 @@ export function initializeRevisionWorkflow(form) {
             panel.focus({ preventScroll: true });
             panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+        form.dispatchEvent(new CustomEvent('revision-step-changed', { detail: { step: current } }));
     };
     const validate = (step) => {
         if (step === 2) {
@@ -968,6 +998,51 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
         const workflow = initializeRevisionWorkflow(form);
         const revisionDialogs = initializeRevisionDialogs(form, topicId);
         workflow?.setDialogs(revisionDialogs);
+        const responseLocations = initializeCommentResponseLocations(form, {
+            fingerprint: () => frames.map((frame) => revisionEditorForFrame(frame, topicId)?.sourceFingerprint?.() || '').join('\u001f')
+                + [...form.querySelectorAll('input[type="file"]')].map((input) => [...input.files].map((file) => file.name + ':' + file.size + ':' + file.lastModified).join(',')).join('|'),
+            suggestedTexts: (field, type) => {
+                const card = [...form.querySelectorAll('[data-revision-document]')].find((card) => card.dataset.revisionDocument === type);
+                if ((card?.querySelector('input[type="file"]')?.files?.length || 0) > 0) return [];
+                const frame = card?.querySelector('[data-revision-editor-frame]');
+                return frame ? revisionEditorForFrame(frame, topicId)?.changedPassages?.(field.dataset.responseKey?.replace('annotation_', '')) || [] : [];
+            },
+            readDocuments: async (types, prepared) => {
+                const cards = [...form.querySelectorAll('[data-revision-document]')].filter((card) => types.includes(card.dataset.revisionDocument));
+                const editors = cards.flatMap((card) => {
+                    if (card.querySelector('input[type="file"]')?.files?.length || revisionNoChangeResolution(card).selected) return [];
+                    const frame = card.querySelector('[data-revision-editor-frame]');
+                    const editor = frame ? revisionEditorForFrame(frame, topicId) : null;
+                    return editor ? [{ ...editor, label: card.dataset.revisionLabel }] : [];
+                });
+                const generated = prepared || await prepareRevisionEditors(editors);
+                const results = new Map();
+                for (const card of cards) {
+                    const type = card.dataset.revisionDocument;
+                    const passages = [];
+                    const uploaded = [...(card.querySelector('input[type="file"]')?.files || [])];
+                    const sources = uploaded.length ? uploaded : [generated.find((file) => file.document_type === type)?.blob || card.dataset.revisionStagedPdfUrl].filter(Boolean);
+                    for (let index = 0; index < sources.length; index++) {
+                        let source = sources[index];
+                        const label = uploaded[index]?.name || card.dataset.revisionLabel;
+                        let objectUrl;
+                        try {
+                            if (source instanceof Blob && source.type !== 'application/pdf' && !/\.pdf$/i.test(source.name || '')) {
+                                const preview = await revisionPaperPreview(card, topicId, index);
+                                source = preview.url;
+                                if (preview.objectUrl) objectUrl = preview.url;
+                            }
+                            passages.push(...await readPdfPassages(source, label));
+                        } finally { if (objectUrl) URL.revokeObjectURL(objectUrl); }
+                    }
+                    results.set(type, { passages });
+                }
+                return results;
+            },
+        });
+        form.querySelectorAll('[data-revision-document] input[type="file"]').forEach((input) => input.addEventListener('change', () => {
+            responseLocations?.invalidate(input.closest('[data-revision-document]').dataset.revisionDocument);
+        }));
 
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -1044,6 +1119,8 @@ export default function initializeRevisionWorkspace(confirmSubmission, {
                 });
                 if (attempt.cancelled) return;
                 if (files.length) form.elements.revision_draft_id.value = String(files[0].draft_id);
+                await responseLocations?.verify(files);
+                if (attempt.cancelled) return;
                 // Only the final PATCH sends this revision to the Research Head.
                 frames.forEach((frame) => revisionEditorForFrame(frame, topicId)?.release());
                 showSubmissionProgress(

@@ -1,5 +1,6 @@
 <?php
 
+use App\Contracts\DocumentPdfConverter;
 use App\Models\ProposalDraft;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalVersionFile;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
+    foreach (['faculty', 'faculty_researcher', 'research_head', 'research_coordinator'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
 
@@ -28,8 +29,25 @@ beforeEach(function () {
     $this->head = User::factory()->create(['name' => 'Research Head']);
     $this->head->assignRole('research_head');
 
-    $this->faculty = User::factory()->create(['name' => 'Lead Faculty']);
+    $this->faculty = User::factory()->create(['name' => 'Lead Faculty', 'college' => User::COLLEGES['CICS']]);
     $this->faculty->assignRole('faculty');
+    $this->signingStaff = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $this->signingStaff->assignRole('research_coordinator');
+    $this->asSigningStaff = fn () => $this->actingAs($this->signingStaff)->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE,
+    ]);
+    app()->instance(DocumentPdfConverter::class, new class implements DocumentPdfConverter
+    {
+        public function convertDocx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+
+        public function convertXlsx(string $contents): string
+        {
+            return "%PDF-1.7\n".hash('sha256', $contents);
+        }
+    });
 
     $this->call = ResearchCall::create([
         'title' => 'Open Call',
@@ -115,8 +133,9 @@ test('research head workspace presents the GAD gate before co-evaluator review',
         ->assertSee('Enter score only if automatic reading fails')
         ->assertSee('Leave this blank first. If ATHENA cannot read the score, enter the final score printed on the completed checklist and upload it again.')
         ->assertDontSee('Score shown on a scanned PDF')
-        ->assertSee('Hide workflow')
-        ->assertSee('data-review-workflow-toggle', false)
+        ->assertDontSee('Hide workflow')
+        ->assertDontSee('data-review-workflow-toggle', false)
+        ->assertSee('data-visible-proposal-workflow', false)
         ->assertSee('Open project folder')
         ->assertSee('data-project-documents-inline-trigger', false)
         ->assertDontSee('data-project-documents-floating-trigger', false)
@@ -322,6 +341,9 @@ test('the review page reveals controls only for the active stage', function (str
     $reviewTab = '//*[@id="proposal-review-tab"]';
 
     expect($xpath->query('//*[@data-horizontal-stepper]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-visible-proposal-workflow][not(@x-show)][not(@x-cloak)]')->length)->toBe(1)
+        ->and($xpath->query('//button[@data-review-workflow-toggle]')->length)->toBe(0)
+        ->and($xpath->query('//button[@data-workflow-stage-button]')->length)->toBe(5)
         ->and($xpath->query('//*[@data-route-step]')->length)->toBe(5)
         ->and($xpath->query('//*[@data-route-step][@aria-current="step"]')->item(0)->getNodePath())
         ->toBe($xpath->query('//*[@data-route-step]')->item($currentStep - 1)->getNodePath())
@@ -337,9 +359,8 @@ test('the review page reveals controls only for the active stage', function (str
     } else {
         expect($xpath->query($reviewTab.'//*[@data-current-review-controls="'.$activeControls.'"]')->length)->toBe(1);
         if ($activeControls === 'co-evaluator') {
-            expect($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-gad-review-card]')->length)->toBe(1)
+            expect($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-gad-review-card]')->length)->toBe(0)
                 ->and($xpath->query($reviewTab.'//*[@data-current-review-controls]/section[@data-co-evaluator-review-card]')->length)->toBe(1)
-                ->and($xpath->query($reviewTab.'//*[@data-gad-review-card][@data-initially-expanded="false"]')->length)->toBe(1)
                 ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-review-card][@data-initially-expanded="'.($coEvaluatorAction === null ? 'true' : 'false').'"]')->length)->toBe(1)
                 ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]//*[@data-co-evaluator-details]/fieldset/div/label')->length)->toBe(3)
                 ->and($xpath->query($reviewTab.'//*[@data-co-evaluator-screening-panel]//input[@name="recommended_action"][@type="radio"]')->length)->toBe(3)
@@ -351,6 +372,11 @@ test('the review page reveals controls only for the active stage', function (str
 
     if ($status === TopicProposal::STATUS_GAD_REVIEW) {
         expect($xpath->query($reviewTab.'//*[@data-review-decision-disclosure]')->length)->toBe($coEvaluatorAction === null ? 0 : 1);
+        expect($xpath->query($reviewTab.'//*[@data-active-paper-review]')->length)->toBe(0)
+            ->and($xpath->query($reviewTab.'//*[@data-research-head-screening-form]')->length)->toBe(0)
+            ->and($xpath->query($reviewTab.'//*[@data-assessment-revision-papers]')->item(0)->getAttribute('x-show'))->toBe("decision === 'revision_requested'")
+            ->and($xpath->query($reviewTab.'//*[@data-assessment-revision-papers]')->item(0)->hasAttribute('x-cloak'))->toBeTrue()
+            ->and($xpath->query($reviewTab.'//*[@data-completed-review-stages]/a')->length)->toBe(0);
     }
 
     if (in_array($status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, TopicProposal::STATUS_LREC_REVIEW], true)) {
@@ -377,6 +403,68 @@ test('the review page reveals controls only for the active stage', function (str
     'awaiting presentation' => [TopicProposal::STATUS_LREC_QUEUED, 'lrec', true, InitialScreeningSubmissionOrder::FOR_ENDORSEMENT, 4, null, false],
     'LREC active' => [TopicProposal::STATUS_LREC_REVIEW, 'lrec', true, InitialScreeningSubmissionOrder::FOR_ENDORSEMENT, 4, null, false],
     'signing active' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'lrec', true, InitialScreeningSubmissionOrder::FOR_ENDORSEMENT, 5, null, false],
+]);
+
+test('previous workflow stages expose saved outcomes without reopening review controls', function (string $viewer, string $routeName) {
+    $this->head->update(['name' => 'Private Reviewer Name']);
+    $this->topic->update(['status' => TopicProposal::STATUS_LREC_QUEUED, 'review_stage' => 'lrec']);
+    $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'review_stage' => 'initial',
+        'decision' => 'gad_review',
+        'comment' => 'Methodology cleared for GAD assessment.',
+    ]);
+    $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id,
+        'review_stage' => 'gad',
+        'decision' => 'lrec_queued',
+        'comment' => 'All assessment requirements are cleared for presentation.',
+    ]);
+    foreach ([
+        [ProposalVersionFile::TYPE_GAD_CHECKLIST, ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT, ['gad_score' => 12, 'gad_outcome' => 'passed', 'gad_signature_confirmed' => true]],
+        [ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM, ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION, ['recommended_action' => InitialScreeningSubmissionOrder::FOR_ENDORSEMENT, 'narrative_evaluation' => 'The sampling plan is appropriate.']],
+    ] as $position => [$documentType, $purpose, $assessmentData]) {
+        $source = $this->version->files()->where('document_type', $documentType)->sole();
+        $this->version->files()->create([
+            'source_version_file_id' => $source->id,
+            'document_type' => ProposalVersionFile::TYPE_HEAD_UPLOAD,
+            'position' => 90 + $position,
+            'file_path' => 'head-uploads/'.$purpose.'.pdf',
+            'original_filename' => $purpose.'.pdf',
+            'mime_type' => 'application/pdf',
+            'source_data' => ['purpose' => $purpose, 'target_document_type' => $documentType, ...$assessmentData],
+        ]);
+    }
+
+    $response = $this->actingAs($this->{$viewer})->get(route($routeName, $this->topic))->assertOk();
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $workflow = $xpath->query('//*[@data-proposal-routing-docket]')->item(0);
+
+    expect($workflow->textContent)->toContain('Stage 4 of 5', 'Completed', 'Upcoming', 'Methodology cleared for GAD assessment.', 'Passed · 12/20', 'The sampling plan is appropriate.', 'All assessment requirements are cleared for presentation.')
+        ->not->toContain('Private Reviewer Name')
+        ->and($xpath->query('.//button[@data-workflow-stage-button="1"][@aria-controls="proposal-routing-docket-stage-1"][not(@disabled)]', $workflow)->length)->toBe(1)
+        ->and($xpath->query('.//button[@data-workflow-stage-button="5"][@disabled]', $workflow)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-workflow-stage-outcome="1"][@x-show="selectedStage === 1"]', $workflow)->length)->toBe(1)
+        ->and($xpath->query('.//*[@data-workflow-stage-outcome="2"]//a', $workflow)->length)->toBe(2)
+        ->and($xpath->query('.//*[@data-workflow-stage-outcome="3"]//a', $workflow)->length)->toBe(2)
+        ->and($xpath->query('.//form|.//input|.//textarea', $workflow)->length)->toBe(0)
+        ->and($xpath->query('.//*[@data-workflow-stage-record]', $workflow)->length)->toBe(4)
+        ->and($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_QUEUED)
+        ->and($this->topic->reviews()->count())->toBe(2);
+
+    $this->topic->update(['status' => 'revision_requested', 'review_stage' => 'initial']);
+    $returned = $this->actingAs($this->{$viewer})->get(route($routeName, $this->topic))->assertOk();
+    @$document->loadHTML($returned->getContent());
+    $xpath = new DOMXPath($document);
+    expect($xpath->query('//*[@data-route-step][@aria-current="step"]')->item(0)->textContent)->toContain('Research Head review', 'Revision requested')
+        ->and($xpath->query('//button[@data-workflow-stage-button="2"][not(@disabled)]')->length)->toBe(1)
+        ->and($xpath->query('//*[@data-workflow-stage-outcome="3"]')->item(0)->textContent)->toContain('The sampling plan is appropriate.', 'All assessment requirements are cleared for presentation.');
+})->with([
+    'faculty proposal page' => ['faculty', 'topics.show'],
+    'Research Head proposal page' => ['head', 'topics.show'],
+    'Research Head documents page' => ['head', 'topics.head-uploads.index'],
 ]);
 
 test('other submitted paper groups use buttons without native triangle disclosures', function (bool $hasSavedComment) {
@@ -479,10 +567,8 @@ XML);
             ->get(route('topics.head-uploads.index', $this->topic));
 
         $workspace->assertOk()
-            ->assertSee('12.32')
-            ->assertSee('Gender-sensitive')
-            ->assertSee('Proposed project is gender-sensitive (proposal passes the GAD test).')
-            ->assertSee('Signature evidence detected in the file and confirmed after preview.')
+            ->assertDontSee('data-gad-review-card', false)
+            ->assertSee('Research Head review and GAD assessment cleared.')
             ->assertSee('Record evaluation')
             ->assertDontSee('data-co-evaluator-step-locked', false);
 
@@ -504,7 +590,7 @@ test('GAD upload errors keep the Research Head on the original review tab', func
     ])->assertRedirect(route('topics.show', $this->topic).'#initial-review-workflow')
         ->assertSessionHasErrors(['review_file'], null, 'headUpload');
     $this->get(route('topics.show', $this->topic))->assertOk()
-        ->assertSee('data-review-workflow-toggle', false)
+        ->assertSee('data-visible-proposal-workflow', false)
         ->assertSee('name="return_to_review" value="1"', false)
         ->assertSee("'#initial-review-workflow'", false);
 });
@@ -542,7 +628,8 @@ test('research head can confirm the score from a phone-scanned GAD checklist', f
 
     $this->get(route('topics.head-uploads.index', $this->topic))
         ->assertOk()
-        ->assertSee('Confirmed from scanned copy');
+        ->assertSee('Research Head review and GAD assessment cleared.')
+        ->assertDontSee('data-gad-review-card', false);
 });
 
 test('GAD assessment upload requires the Research Head to confirm the verifier signature', function () {
@@ -843,7 +930,7 @@ XML);
         $this->actingAs($this->faculty)
             ->get(route('faculty.proposal-drafts.initial-screening-form.preview', $revisionDraft))
             ->assertOk()
-            ->assertSee('data-screening-order="revised_with_major_changes"', false);
+            ->assertHeader('Content-Type', 'application/pdf');
     } finally {
         if (is_file($temporaryPath)) {
             unlink($temporaryPath);
@@ -939,7 +1026,7 @@ describe('screening narrative transcription', function () {
                 ->and($xpath->query($section.'//*[@data-screening-narrative-transcription]')->length)->toBe(0)
                 ->and($xpath->query($section.'//textarea[@name="narrative_evaluation"]')->length)->toBe(0)
                 ->and($xpath->query($section.'//input[@name="narrative_evaluation_confirmed"]')->length)->toBe(0)
-                ->and($xpath->query($section.'//input[@name="co_evaluator_name" and @required]')->length)->toBe(1)
+                ->and($xpath->query($section.'//input[@name="co_evaluator_name"]')->length)->toBe(0)
                 ->and($xpath->query($section.'//input[@name="recommended_action" and @type="radio"]')->length)->toBe(3)
                 ->and($xpath->query($section.'//input[@name="review_file" and @required]')->length)->toBe(1);
             $sectionText = $xpath->query($section)->item(0)?->textContent;
@@ -948,7 +1035,41 @@ describe('screening narrative transcription', function () {
         }
     })->with(['research_head', 'faculty']);
 
-    test('downloaded screening DOCX can be edited and uploaded for automatic narrative reading', function () {
+    test('co-evaluator comments and their form preview are available while assessment sections start collapsed', function () {
+        $this->actingAs($this->head)->post(route('topics.head-uploads.store', $this->topic), [
+            ...$this->transcriptionPayload,
+            'review_file' => UploadedFile::fake()->create('completed-screening.pdf', 10, 'application/pdf'),
+        ])->assertSessionHasNoErrors();
+
+        $response = $this->get(route('topics.show', $this->topic))->assertSuccessful();
+        $document = new DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new DOMXPath($document);
+        expect($xpath->query('//*[@id="gad-office-review"]')->length)->toBe(0);
+        foreach (['co-evaluator-review' => 'co-evaluator-review-content'] as $section => $content) {
+            expect($xpath->query('//*[@id="'.$section.'"]')->item(0)->getAttribute('data-initially-expanded'))->toBe('false')
+                ->and($xpath->query('//*[@id="'.$section.'"]/button')->item(0)->getAttribute('aria-expanded'))->toBe('false')
+                ->and($xpath->query('//*[@id="'.$content.'"]')->item(0)->hasAttribute('x-cloak'))->toBeTrue();
+        }
+        $comments = $xpath->query('//*[@data-co-evaluator-comments]/p')->item(0);
+        $evaluation = $this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
+        expect($xpath->query('//*[@id="version-history-tab"]//*[@data-version-assessment-records]//*[@data-assessment-record]')->length)->toBe(2)
+            ->and($xpath->query('//*[@id="version-history-tab"]//*[@data-assessment-record="'.$evaluation->id.'"]')->item(0)->textContent)->toContain($this->transcription)
+            ->and($xpath->query('//*[@data-version-assessment-records]//input')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-assessment-record="'.$evaluation->id.'"]//a[contains(@href, "/download")]')->item(0)->getAttribute('href'))->toBe(route('topics.versions.files.download', [$this->topic, $this->version, $evaluation]));
+        expect($comments?->textContent)->toBe($this->transcription)
+            ->and($comments?->getAttribute('class'))->not->toContain('max-h-', 'overflow-y-auto')
+            ->and($xpath->query('//*[@id="co-evaluator-review"]//*[@data-co-evaluator-comment-response-preview-button]')->length)->toBe(1)
+            ->and($xpath->query('//*[@id="co-evaluator-review-content"]//*[@data-co-evaluator-comment-response-preview-button]')->length)->toBe(0);
+        $configuration = json_decode($xpath->query('//*[@data-co-evaluator-comment-response-preview-modal]//*[@data-pdf-annotation-config]')->item(0)->getAttribute('data-pdf-annotation-config'), true);
+        expect($configuration['pdfUrl'])->toBe(route('research_head.topics.comment-response-form.pdf', [
+            'topic' => $this->topic, 'draft_version' => $this->version->id, 'source' => CommentResponseFeedback::FORM_CO_EVALUATOR,
+        ]))->and($configuration['canAnnotate'])->toBeFalse()
+            ->and($this->topic->reviews()->where('decision', 'revision_requested')->count())->toBe(0)
+            ->and($this->topic->reviews()->where('decision', 'head_upload')->count())->toBe(1);
+    });
+
+    test('downloaded screening DOCX can be uploaded without re-entering the co-evaluator name', function () {
         $download = $this->actingAs($this->head)
             ->get(route('topics.versions.files.editable-docx', [$this->topic, $this->version, $this->initialScreening]))
             ->assertSuccessful();
@@ -979,7 +1100,7 @@ describe('screening narrative transcription', function () {
             $editedContents = file_get_contents($temporaryPath);
             $originalPdf = Storage::disk('local')->get($this->initialScreening->file_path);
             $payload = $this->transcriptionPayload;
-            unset($payload['narrative_evaluation'], $payload['narrative_evaluation_confirmed']);
+            unset($payload['co_evaluator_name'], $payload['narrative_evaluation'], $payload['narrative_evaluation_confirmed']);
             $this->post(route('topics.head-uploads.store', $this->topic), [
                 ...$payload,
                 'review_file' => UploadedFile::fake()->createWithContent('completed-screening.docx', $editedContents),
@@ -987,6 +1108,8 @@ describe('screening narrative transcription', function () {
 
             $evaluation = $this->version->files()->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION)->sole();
             expect($evaluation->source_data['narrative_evaluation'])->toBe("Clarify the sampling plan.\nInclude the consent procedure.")
+                ->and($evaluation->source_data['co_evaluator_name'])->toBeNull()
+                ->and($evaluation->source_data['recommended_action'])->toBe($payload['recommended_action'])
                 ->and($evaluation->source_data['narrative_evaluation_entry_method'])->toBe('automatic')
                 ->and(Storage::disk('local')->get($evaluation->file_path))->toBe($editedContents)
                 ->and(Storage::disk('local')->get($this->initialScreening->file_path))->toBe($originalPdf);
@@ -1090,10 +1213,12 @@ describe('screening narrative transcription', function () {
         'over 5000 characters' => [['narrative_evaluation' => str_repeat('a', 5001)], 'narrative_evaluation'],
         'array instead of text' => [['narrative_evaluation' => ['comment']], 'narrative_evaluation'],
         'missing original form' => [['review_file' => null], 'review_file'],
+        'missing recommendation' => [['recommended_action' => null], 'recommended_action'],
+        'invalid recommendation' => [['recommended_action' => 'approve'], 'recommended_action'],
         'unsupported original form' => [['review_file' => UploadedFile::fake()->create('screening.txt', 10, 'text/plain')], 'review_file'],
     ]);
 
-    test('replacement errors keep evaluator details without restoring the removed transcription panel', function () {
+    test('replacement errors keep the recommendation without restoring name or transcription fields', function () {
         $this->actingAs($this->head)
             ->post(route('topics.head-uploads.store', $this->topic), [
                 ...$this->transcriptionPayload,
@@ -1111,11 +1236,14 @@ describe('screening narrative transcription', function () {
         $xpath = new DOMXPath($document);
         expect($xpath->query('//*[@data-screening-narrative-transcription]')->length)->toBe(0)
             ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//textarea[@name="narrative_evaluation"]')->length)->toBe(0)
-            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//input[@name="co_evaluator_name"]')->item(0)?->getAttribute('value'))->toBe($this->transcriptionPayload['co_evaluator_name'])
+            ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//input[@name="co_evaluator_name"]')->length)->toBe(0)
+            ->and($xpath->query('//*[@data-co-evaluator-evaluation-summary]')->item(0)?->textContent)->not->toContain($this->transcriptionPayload['co_evaluator_name'])
             ->and($xpath->query('//*[@data-co-evaluator-screening-panel]//input[@name="recommended_action" and @checked]')->item(0)?->getAttribute('value'))->toBe($this->transcriptionPayload['recommended_action'])
             ->and($xpath->query('//*[@data-co-evaluator-screening-panel]')->item(0)?->textContent)->toContain('Select the completed form again before submitting.');
         expect($xpath->query('//*[@data-co-evaluator-screening-panel]/parent::*')->item(0)?->getAttribute('x-data'))
             ->toBe('{ replacing: true }');
+        expect($xpath->query('//*[@id="co-evaluator-review"]')->item(0)->getAttribute('data-initially-expanded'))->toBe('true')
+            ->and($xpath->query('//*[@id="gad-office-review"]')->length)->toBe(0);
     });
 
     test('failed automatic reading directs the uploader to a readable completed form', function () {
@@ -1204,21 +1332,21 @@ test('replacing a signed copy preserves the superseded audit record before final
         ])
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $gadChecklist->id,
             'review_file' => UploadedFile::fake()->create('signed-gad-checklist.pdf', 200, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
-        ->assertSessionHas('success', 'Research Head file attached to the faculty submission.');
+        ->assertSessionHas('success', 'Signed paper saved for document release.');
 
     $originalSignedCopy = $this->version->files()
         ->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD)
         ->where('source_data->purpose', ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED)
         ->sole();
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $gadChecklist->id,
             'review_file' => UploadedFile::fake()->create('corrected-signed-gad-checklist.pdf', 220, 'application/pdf'),
@@ -1263,7 +1391,7 @@ test('Research Head can return a signing-stage paper to revision and supersede i
         ->where('decision', TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->sole();
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $workPlan->id,
             'review_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
@@ -1368,7 +1496,7 @@ test('a cleared proposal moves to final signing without a manual approval step',
         ])
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
         ->assertSessionHas('topic_tab', 'notice')
-        ->assertSessionHas('success', 'LREC cleared. Upload the signed papers and prepare the Notice to Proceed for one final release.');
+        ->assertSessionHas('success', 'LREC cleared. Research office staff or the secretary will prepare and release the signed documents and Notice to Proceed.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -1378,7 +1506,7 @@ test('a cleared proposal moves to final signing without a manual approval step',
         ->get(route('topics.show', $this->topic))
         ->assertOk()
         ->assertSee('data-signed-count="0"', false)
-        ->assertSee('Signed PDF for')
+        ->assertSee('Signed papers awaiting release')
         ->assertSee('Signing &amp; release', false)
         ->assertDontSee('Need to change a submitted proposal paper?')
         ->assertDontSee('Request paper revision')
@@ -1484,7 +1612,7 @@ test('signed copies are limited to signature papers in the signing stage', funct
             'review_file' => UploadedFile::fake()->create('too-early.pdf', 100, 'application/pdf'),
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
         ])
-        ->assertSessionHasErrors(['purpose'], null, 'headUpload');
+        ->assertForbidden();
 
     $this->actingAs($this->head)
         ->patch(route('research_head.topics.updateStatus', $this->topic), [
@@ -1494,7 +1622,7 @@ test('signed copies are limited to signature papers in the signing stage', funct
         ])
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $expenseBreakdown->id,
             'review_file' => UploadedFile::fake()->create('unneeded-signature.pdf', 100, 'application/pdf'),
@@ -1502,7 +1630,7 @@ test('signed copies are limited to signature papers in the signing stage', funct
         ])
         ->assertSessionHasErrors(['source_file_id'], null, 'headUpload');
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $workPlan->id,
             'review_file' => UploadedFile::fake()->create('signed-work-plan.docx', 100, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
@@ -1549,7 +1677,7 @@ test('final release stays locked until every required signed PDF is uploaded', f
     foreach ($requiredDocumentTypes as $documentType) {
         $sourceFile = $this->version->files()->where('document_type', $documentType)->sole();
 
-        $this->actingAs($this->head)
+        ($this->asSigningStaff)()
             ->post(route('topics.head-uploads.store', $this->topic), [
                 'source_file_id' => $sourceFile->id,
                 'review_file' => UploadedFile::fake()->create("signed-{$documentType}.pdf", 100, 'application/pdf'),
@@ -1582,7 +1710,7 @@ test('final release stays locked until every required signed PDF is uploaded', f
     ])->actingAs($this->head)
         ->patch(route('research_head.topics.finalizeApproval', $this->topic))
         ->assertRedirect(route('topics.show', $this->topic).'#notice-to-proceed')
-        ->assertSessionHas('success', 'Signed papers are ready. Upload the signed Notice to Proceed to release the complete package to faculty.');
+        ->assertSessionHas('success', 'Signed papers are ready. Research office staff or the secretary will upload the signed Notice to Proceed and release the project to faculty.');
 
     expect($this->topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
         ->and($this->topic->fresh()->project_status)->toBeNull()
@@ -1812,7 +1940,7 @@ test('the shared document list records Research Head uploads', function () {
         ])
         ->assertSessionHasNoErrors();
 
-    $this->actingAs($this->head)
+    ($this->asSigningStaff)()
         ->post(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $workPlan->id,
             'review_file' => UploadedFile::fake()->create('signed-work-plan.pdf', 100, 'application/pdf'),
@@ -1851,7 +1979,7 @@ test('automatic signed uploads return saved files without redirecting and preser
     ])->get();
 
     foreach ($sources as $source) {
-        $this->actingAs($this->head)->postJson(route('topics.head-uploads.store', $this->topic), [
+        ($this->asSigningStaff)()->postJson(route('topics.head-uploads.store', $this->topic), [
             'source_file_id' => $source->id,
             'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
             'review_file' => UploadedFile::fake()->create('signed-'.$source->id.'.pdf', 100, 'application/pdf'),
@@ -1862,7 +1990,7 @@ test('automatic signed uploads return saved files without redirecting and preser
     }
 
     expect($this->version->files()->where('source_data->purpose', 'signed')->whereNull('superseded_at')->count())->toBe(3);
-    $this->actingAs($this->head)->postJson(route('topics.head-uploads.store', $this->topic), [
+    ($this->asSigningStaff)()->postJson(route('topics.head-uploads.store', $this->topic), [
         'source_file_id' => $sources->first()->id,
         'purpose' => 'signed',
         'review_file' => UploadedFile::fake()->create('replacement.pdf', 100, 'application/pdf'),
@@ -1887,5 +2015,5 @@ test('automatic signed uploads return saved files without redirecting and preser
         'source_file_id' => $sources->first()->id,
         'purpose' => 'signed',
         'review_file' => UploadedFile::fake()->create('blocked.pdf', 100, 'application/pdf'),
-    ])->assertUnprocessable()->assertJsonValidationErrors('purpose');
+    ])->assertForbidden();
 });

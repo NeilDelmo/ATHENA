@@ -61,7 +61,10 @@ test('page header decoration stays behind readable clickable content at desktop 
                     const page = await browser.newPage({ viewport: { width, height: 600 } });
                     await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${css}</style></head>
                         <body data-app-shell><div style="margin-left:${width < 640 ? 76 : 280}px">${previousHtml}</div></body></html>`);
-                    const previousHeight = await page.locator('[data-page-header-container]').evaluate((header) => header.getBoundingClientRect().height);
+                    const previousStyle = await page.locator('[data-page-header-container]').evaluate((header) => ({
+                        height: header.getBoundingClientRect().height,
+                        buttonColor: header.querySelector('button, a') ? getComputedStyle(header.querySelector('button, a')).backgroundColor : null,
+                    }));
                     await page.setContent(`<html class="${dark ? 'dark' : ''}"><head><style>${css}</style></head>
                         <body data-app-shell><div style="margin-left:${width < 640 ? 76 : 280}px">${html}</div></body></html>`);
 
@@ -118,14 +121,14 @@ test('page header decoration stays behind readable clickable content at desktop 
                         const buttonRgb = result.buttonColor.match(/\d+/g).slice(0, 3).join(', ');
                         assert.ok(result.glow.includes(buttonRgb), 'Glow must use the primary action button color');
                     } else if (result.buttonColor) {
-                        assert.equal(result.buttonColor, 'rgb(122, 0, 25)', 'Dashboard actions must keep their existing maroon color');
+                        assert.equal(result.buttonColor, previousStyle.buttonColor, 'Header decorations must preserve dashboard action colors');
                     }
                     assert.equal(result.gridEvents, 'none');
                     assert.equal(result.glowEvents, 'none');
                     assert.equal(result.zIndex, '1');
                     assert.equal(result.background, dark ? 'rgb(15, 23, 42)' : 'rgb(255, 255, 255)');
-                    assert.equal(result.headingColor, dark ? (workspace === 'research-head' ? 'rgb(241, 245, 249)' : 'rgb(255, 255, 255)') : 'rgb(2, 6, 23)');
-                    assert.equal(result.height, previousHeight, `${workspace} header height must stay unchanged`);
+                    assert.equal(result.headingColor, dark ? 'rgb(255, 255, 255)' : 'rgb(2, 6, 23)');
+                    assert.equal(result.height, previousStyle.height, `${workspace} header height must stay unchanged`);
                     assert.ok(result.transparentTextContainers, `${workspace} text containers must leave the grid and glow visible`);
                     assert.ok(result.noOverflow, `Titles, subtitles, and actions must fit inside the header (workspace=${workspace}, width=${width}, dark=${dark})`);
                     assert.ok(result.buttonsReachable, 'Decorations must not intercept action clicks');

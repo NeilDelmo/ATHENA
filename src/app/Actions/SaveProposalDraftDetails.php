@@ -19,6 +19,8 @@ class SaveProposalDraftDetails
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $lockedDraft->ensureEditable();
+
             if ($lockedDraft->lock_version !== $expectedVersion) {
                 throw ValidationException::withMessages([
                     'draft_version' => 'A teammate saved newer project details. Copy any unsaved text you need, then reload the page before editing again.',

@@ -88,6 +88,7 @@ test('requested documents open a single dialog with submitted PDF left and the e
         ->and($xpath->query('//article//*[@data-revision-document-state][@hidden][@data-modified="false"][@data-addressed="false"]')->length)->toBe(1)
         ->and($xpath->query('//article[@data-revision-document="work_plan"]//*[@data-revision-resolved-cue][@hidden]/following-sibling::button[@data-revision-open]')->length)->toBe(1)
         ->and($xpath->query('//input[@name="work_plan"]')->length)->toBe(0)
+        ->and($xpath->query('//article[@data-revision-document="work_plan"][@x-data]')->length)->toBe(0)
         ->and($xpath->query('//form//button[@type="submit"]')->length)->toBe(1)
         ->and($xpath->query('//form//*[@data-revision-submit-overlay][@role="status"][@aria-hidden="true"][contains(concat(" ", normalize-space(@class), " "), " hidden ")]')->length)->toBe(1)
         ->and($xpath->query('//form//*[@data-revision-submit-overlay][contains(concat(" ", normalize-space(@class), " "), " flex ")]')->length)->toBe(0)
@@ -126,6 +127,7 @@ test('upload-only revisions retain their PDF and feedback beside one required fi
 
     expect($xpath->query('//dialog//iframe[@data-revision-pdf-frame]')->length)->toBe(1)
         ->and($xpath->query('//dialog//input[@name="gad_checklist"][@required]')->length)->toBe(1)
+        ->and($xpath->query('//article[contains(@x-data,"fileDropzone")]')->length)->toBe(1)
         ->and($xpath->query('//dialog//input[@name="revision_resolutions[gad_checklist][action]"]')->length)->toBe(1)
         ->and($xpath->query('//iframe[@data-revision-editor-frame]')->length)->toBe(0);
 });

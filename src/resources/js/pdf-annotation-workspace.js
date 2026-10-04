@@ -16,7 +16,7 @@ function resolveApplicationAssetUrl(assetUrl) {
     return `${applicationPath}${assetUrl}`;
 }
 
-function loadPdfJs() {
+export function loadPdfJs() {
     pdfJsPromise ??= Promise.all([
         import('pdfjs-dist'),
         import('pdfjs-dist/build/pdf.worker.mjs?url'),

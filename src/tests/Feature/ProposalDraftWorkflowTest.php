@@ -2,6 +2,7 @@
 
 use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\RecordProposalDraftDocumentVersion;
+use App\Actions\SaveProposalDraftDetails;
 use App\Actions\SaveProposalDraftDocument;
 use App\Actions\SubmitProposalDraft;
 use App\Contracts\DocumentPdfConverter;
@@ -17,15 +18,21 @@ use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
+use App\Services\CommentResponseFeedback;
 use App\Services\NoticeToProceedDataService;
+use App\Services\ProposalSignatureWorkflow;
 use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ProposalDraftReadiness;
 use App\Support\ProposalPaperCatalog;
+use App\Support\ResearchHeadScreeningData;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
     foreach (['faculty', 'faculty_researcher', 'research_head'] as $role) {
@@ -227,6 +234,131 @@ beforeEach(function () {
         return $draft->fresh(['documents', 'researchCall']);
     };
 });
+
+test('faculty update an unseen submitted package repeatedly without replacing its previous versions', function () {
+    Notification::fake();
+    $this->call->update(['max_active_research_per_faculty' => 1]);
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $topic = app(SubmitProposalDraft::class)->handle($draft, $this->faculty);
+    $originalFiles = $topic->latestVersion->files->mapWithKeys(fn ($file): array => [$file->file_path => Storage::disk('local')->get($file->file_path)]);
+    $this->actingAs($this->faculty)->get(route('topics.show', $topic))
+        ->assertOk()->assertSee('Update submitted package');
+
+    for ($number = 2; $number <= 3; $number++) {
+        $this->get(route('faculty.topics.edit-package', $topic))->assertRedirect();
+        $workingDraft = $topic->revisionDraft()->with('documents')->firstOrFail();
+        $this->get(route('faculty.topics.edit-package', $topic))->assertRedirect(route('faculty.proposal-drafts.show', $workingDraft));
+        expect($topic->revisionDraft()->count())->toBe(1)->and($workingDraft->documents)->toHaveCount(7);
+        $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()->assertSee('These changes are private');
+        $document = $workingDraft->documents->firstWhere('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+        $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertOk();
+        $this->put(route('faculty.proposal-drafts.submission-files.replace', [$workingDraft, 'detailed-proposal']), [
+            'file' => UploadedFile::fake()->createWithContent('updated.pdf', "%PDF-1.7\nUpdated package ".$number),
+            'document_version' => $document->lock_version,
+        ])->assertSessionHasNoErrors();
+        $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
+        $topic->refresh();
+        expect($topic->versions()->count())->toBe($number)
+            ->and($topic->latestVersion->version_number)->toBe($number)
+            ->and($topic->latestVersion->submission_type)->toBe('update')
+            ->and($topic->status)->toBe('pending')
+            ->and($this->faculty->proposals()->count())->toBe(1);
+        foreach ($originalFiles as $path => $contents) {
+            expect(Storage::disk('local')->get($path))->toBe($contents);
+        }
+    }
+    $this->get(route('topics.show', $topic))->assertSee('Package update before review');
+    $this->actingAs($this->head)->get(route('research_head.received-submissions.index', ['type' => 'update']))
+        ->assertOk()->assertSee('Submission update')->assertViewHas('submissions', fn ($submissions): bool => $submissions->count() === 2);
+});
+
+test('opening a submitted proposal locks an already opened update workspace and its save endpoints', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $this->actingAs($this->head)->get(route('topics.show', $topic))->assertOk();
+    expect($topic->fresh()->canUpdateBeforeReview())->toBeFalse();
+    $this->actingAs($this->faculty)->get(route('topics.show', $topic))->assertDontSee('Update submitted package');
+    $this->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $workingDraft))->assertForbidden();
+    $this->putJson(route('faculty.proposal-drafts.details.update', $workingDraft), ($this->projectDetails)())->assertForbidden();
+    $this->post(route('faculty.proposal-drafts.members.store', $workingDraft), ['name' => 'New Member', 'email' => 'member@g.batstate-u.edu.ph'])->assertForbidden();
+    $this->post(route('faculty.proposal-drafts.submission-files.prepare', $workingDraft))->assertForbidden();
+    $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertForbidden();
+    $this->get(route('faculty.proposal-drafts.show', $workingDraft))->assertOk()
+        ->assertSee('Further submission requires a revision request.')
+        ->assertDontSee('data-proposal-package-submit', false);
+    expect($topic->versions()->count())->toBe(1)->and($workingDraft->fresh())->not->toBeNull();
+});
+
+test('pre-review package updates are owner-only and unavailable in later review stages', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $this->actingAs($this->otherFaculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    $this->actingAs($this->head)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    $topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW]);
+    $this->actingAs($this->faculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+    expect($topic->revisionDraft()->exists())->toBeFalse();
+});
+
+test('an unseen submitted package accepts team additions and detailed proposal edits before the next turn in', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $originalIntroduction = $topic->latestVersion->files->firstWhere('document_type', 'detailed_proposal')->source_data['introduction'];
+    $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $this->actingAs($this->faculty)->post(route('faculty.proposal-drafts.members.store', $workingDraft), [
+        'name' => 'New Research Member', 'email' => 'new.research.member@g.batstate-u.edu.ph',
+    ])->assertSessionHasNoErrors();
+    $document = $workingDraft->documents->firstWhere('document_type', 'detailed_proposal');
+    $this->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $workingDraft), [
+        ...$document->source_data, 'introduction' => 'Updated introduction before the first Research Head review.',
+        'project_leader' => $workingDraft->project_leader, 'document_version' => $document->lock_version,
+        'draft_version' => $workingDraft->lock_version,
+    ])->assertOk();
+    expect($topic->latestVersion->files->firstWhere('document_type', 'detailed_proposal')->source_data['introduction'])->toBe($originalIntroduction)
+        ->and($topic->collaborators()->count())->toBe(0);
+    $this->post(route('faculty.proposal-drafts.submission-files.prepare', $workingDraft))->assertSessionHasNoErrors();
+    $this->post(route('faculty.proposal-drafts.submit', $workingDraft))->assertSessionHasNoErrors();
+    expect($topic->fresh()->latestVersion->version_number)->toBe(2)
+        ->and($topic->fresh()->latestVersion->files->firstWhere('document_type', 'detailed_proposal')->source_data['introduction'])->toContain('Updated introduction')
+        ->and($topic->collaborators()->where('email', 'new.research.member@g.batstate-u.edu.ph')->exists())->toBeTrue();
+});
+
+test('stale working draft models cannot save or turn in after review begins', function () {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $workingDraft = app(CreateProposalRevisionDraft::class)->handle($topic, $this->faculty);
+    $document = $workingDraft->documents->firstWhere('document_type', 'detailed_proposal');
+    $topic->markLatestVersionViewedByResearchHead();
+    foreach ([
+        fn () => app(SaveProposalDraftDocument::class)->handle($workingDraft, $this->faculty, 'detailed_proposal', 0, $document->lock_version, ['source_data' => ['introduction' => 'Stale edit']]),
+        fn () => app(SaveProposalDraftDetails::class)->handle($workingDraft, $workingDraft->lock_version, ['project_title' => 'Stale title']),
+        fn () => app(SubmitProposalDraft::class)->handle($workingDraft, $this->faculty),
+    ] as $save) {
+        try {
+            $save();
+            $this->fail('A stale workspace must not change a proposal after review begins.');
+        } catch (HttpException $exception) {
+            expect($exception->getStatusCode())->toBe(403);
+        }
+    }
+    expect($topic->versions()->count())->toBe(1)->and($document->fresh()->source_data['introduction'])->not->toBe('Stale edit');
+});
+
+test('direct Research Head document access closes pre-review package editing', function (string $entry) {
+    Notification::fake();
+    $topic = app(SubmitProposalDraft::class)->handle(($this->completeDraft)(($this->createDraft)()), $this->faculty);
+    $version = $topic->latestVersion;
+    $file = $version->files->firstWhere('document_type', 'detailed_proposal');
+    $url = match ($entry) {
+        'document' => route('topics.versions.files.download', [$topic, $version, $file]),
+        'screening' => route('research_head.topics.initial-screening-form.edit', [$topic, $version]),
+    };
+    $this->actingAs($this->head)->get($url)->assertOk();
+    expect($topic->fresh()->research_head_viewed_version_id)->toBe($version->id)
+        ->and($topic->fresh()->canUpdateBeforeReview())->toBeFalse();
+    $this->actingAs($this->faculty)->get(route('faculty.topics.edit-package', $topic))->assertForbidden();
+})->with(['document', 'screening']);
 
 test('faculty create proposal drafts without selecting a research call', function () {
     $this->actingAs($this->faculty)->get(route('faculty.proposal-drafts.create'))
@@ -2174,4 +2306,210 @@ test('an independent proposal can be prepared submitted reviewed and revised', f
     $topic->update(['status' => 'revision_requested']);
     $this->get(route('faculty.proposal-drafts.revision', $topic))->assertRedirect();
     expect($topic->revisionDraft()->firstOrFail()->research_call_id)->toBeNull();
+});
+
+test('a proposal completes repeated highlighted revisions co evaluator and LREC revisions then signed document release', function () {
+    Notification::fake();
+    $extractedText = '';
+    Process::fake(function (PendingProcess $process) use (&$extractedText) {
+        $output = str_contains(implode(' ', $process->command), 'pdf-section-coordinates')
+            ? '<document><page width="600" height="800"><box xMin="0" xMax="600" yMin="0" yMax="800"/><line xMin="20" xMax="300" yMin="20" yMax="40"><word>VII. Executive Brief</word></line></page></document>'
+            : $extractedText;
+
+        return Process::result(output: $output);
+    });
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $college = User::COLLEGES['CICS'];
+    $this->faculty->update(['college' => $college]);
+    $office = User::factory()->create(['college' => $college]);
+    $office->assignRole('research_coordinator');
+    $draft = ($this->completeDraft)(($this->createDraft)());
+    $as = fn (User $user, string $workspace) => $this->actingAs($user)->withSession([
+        User::ACTIVE_WORKSPACE_SESSION_KEY => $workspace,
+    ]);
+    $as($this->faculty, User::WORKSPACE_FACULTY)
+        ->post(route('faculty.proposal-drafts.submit', $draft))
+        ->assertRedirect(route('faculty.dashboard'))->assertSessionHasNoErrors();
+    $topic = TopicProposal::query()->sole();
+    $version = fn () => $topic->latestVersion()->with('files')->firstOrFail();
+    $paper = fn (string $type) => $version()->files->firstWhere('document_type', $type);
+    expect($topic->status)->toBe('pending')->and($version()->files)->toHaveCount(7);
+    Notification::assertSentTo($this->head, ProposalActivityNotification::class);
+
+    $saveScreening = function (string $recommendation) use ($as, $topic, $version): void {
+        $current = $version();
+        $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
+            ->put(route('research_head.topics.initial-screening-form.update', [$topic, $current]), [
+                'order_of_submission' => $current->version_number === 1 ? 'first_submission' : 'revised_with_minor_changes',
+                'level_of_call' => 'constituent_campus', 'requested_budget' => 3600,
+                'duration_months' => 12, 'researcher_count' => 1,
+                'documents' => collect(ResearchHeadScreeningData::DOCUMENTS)
+                    ->mapWithKeys(fn (string $label, string $type): array => [$type => ['attached' => true, 'pages' => 1]])->all(),
+                'scores' => ['documents' => 30, 'alignment' => 15, 'content' => 40],
+                'recommended_action' => $recommendation,
+                'narrative_evaluation' => 'Review completed for this submitted version.',
+            ])->assertSessionHasNoErrors();
+        $this->get(route('research_head.topics.initial-screening-form.download', [$topic, $current]))->assertOk();
+        expect($current->fresh()->research_head_screening['recommended_action'])->toBe($recommendation);
+    };
+    $requestHighlightedRevision = function (string $comment) use ($as, $topic, $version, $paper): void {
+        $current = $version();
+        $file = $paper(ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+        $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
+            ->postJson(route('topics.versions.files.annotations.store', [$topic, $current, $file]), [
+                'annotation_type' => 'area', 'page_number' => 1, 'editor_target' => 'executive-brief',
+                'rectangles' => [['x' => .1, 'y' => .2, 'width' => .3, 'height' => .1]],
+                'comment' => $comment,
+            ])->assertCreated();
+        $this->patch(route('research_head.topics.updateStatus', $topic), ['status' => 'revision_requested'])
+            ->assertSessionHasNoErrors();
+        expect($topic->fresh()->status)->toBe('revision_requested');
+        $this->patch(route('research_head.topics.updateStatus', $topic), ['status' => 'revision_requested'])
+            ->assertSessionHasErrors('status');
+        $this->flushSession();
+    };
+    $submitRevision = function (int $round, string $expectedStatus, bool $noChange = false) use ($as, $topic, $version): void {
+        $review = $topic->reviews()->where('decision', 'revision_requested')->latest('id')->firstOrFail();
+        $feedback = app(CommentResponseFeedback::class);
+        $rows = $feedback->rows($review);
+        expect($rows)->not->toBeEmpty();
+        $as($this->faculty, User::WORKSPACE_FACULTY)
+            ->get(route('faculty.topics.revision', $topic))->assertOk()->assertSee($rows[0]['comment']);
+        $this->get(route('faculty.topics.comment-response-form.pdf', ['topic' => $topic, 'review' => $review]))
+            ->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $payload = [
+            'title' => $topic->title, 'estimated_budget' => 3600, 'estimated_duration_months' => 12,
+            'feedback_review_id' => $review->id, 'redirect_to' => 'topic',
+            'feedback_responses' => collect($rows)->mapWithKeys(fn (array $row): array => [$row['key'] => [
+                'response' => $noChange ? 'The existing summary addresses this comment.' : 'Clarified the summary in revision '.$round.'.',
+                'no_change' => $noChange, 'page' => 1, 'paragraph' => 2,
+            ]])->all(),
+        ];
+        if ($noChange) {
+            $payload['revision_resolutions'] = [ProposalVersionFile::TYPE_DETAILED_PROPOSAL => [
+                'action' => 'no_change', 'explanation' => 'The existing summary addresses this comment.',
+            ]];
+        } else {
+            $this->get(route('faculty.proposal-drafts.revision', ['topic' => $topic, 'document_type' => 'detailed_proposal']))
+                ->assertRedirect();
+            $revisionDraft = $topic->revisionDraft()->with('documents')->firstOrFail();
+            $document = $revisionDraft->documents->firstWhere('document_type', 'detailed_proposal');
+            $this->put(route('faculty.proposal-drafts.detailed-proposal.update', $revisionDraft), [
+                ...$document->source_data, 'project_leader' => $revisionDraft->project_leader,
+                'document_version' => $document->lock_version, 'draft_version' => $revisionDraft->lock_version,
+                'executive_brief' => 'Revised summary '.$round.'. The research will assess coastal habitats using community surveys and field observations.',
+            ])->assertSessionHasNoErrors();
+            $document->refresh();
+            $prepared = $this->withHeader('X-Revision-PDF', '1')
+                ->post(route('faculty.proposal-drafts.detailed-proposal.download', $revisionDraft), [
+                    ...$document->source_data, 'project_leader' => $revisionDraft->project_leader,
+                    'document_version' => $document->lock_version, 'draft_version' => $revisionDraft->lock_version,
+                ])->assertOk();
+            $this->flushHeaders();
+            $this->postJson(route('faculty.proposal-drafts.revision-files.store', $revisionDraft), [
+                'document_type' => 'detailed_proposal', 'document_version' => $document->lock_version,
+                'file' => UploadedFile::fake()->createWithContent('revised-proposal.pdf', $prepared->streamedContent()),
+            ])->assertOk();
+        }
+        $previous = $version();
+        $this->patch(route('faculty.topics.resubmit', $topic), $payload)->assertSessionHasNoErrors();
+        expect($topic->fresh()->status)->toBe($expectedStatus)
+            ->and($version()->version_number)->toBe($previous->version_number + 1)
+            ->and($review->fileRevisions()->whereNull('resolved_at')->count())->toBe(0);
+        foreach ($feedback->rows($review->fresh()) as $row) {
+            expect($row['comment'])->not->toBeEmpty()
+                ->and($row['response'])->toBe($payload['feedback_responses'][$row['key']]['response'])
+                ->and($row['remarks'])->toBe($noChange ? 'No change made' : 'Page 1, paragraph 2')
+                ->and($row['no_change'])->toBe($noChange);
+        }
+        $this->get(route('faculty.topics.comment-response-form.download', ['topic' => $topic, 'review' => $review]))->assertOk();
+        $as($this->head, User::WORKSPACE_RESEARCH_HEAD)->get(route('topics.show', $topic))->assertOk();
+        $this->patch(route('faculty.topics.resubmit', $topic), $payload)->assertForbidden();
+        $this->flushSession();
+    };
+
+    $saveScreening('minor_revision');
+    $requestHighlightedRevision('Clarify the project summary and intended beneficiaries.');
+    $submitRevision(1, 'resubmitted');
+    $requestHighlightedRevision('Confirm that the revised summary covers the intended scope.');
+    $submitRevision(2, 'resubmitted', true);
+    $saveScreening('for_endorsement');
+    $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_GAD_REVIEW, 'research_head_clearance_confirmed' => true,
+        ])->assertSessionHasNoErrors();
+
+    $uploadAssessment = function (string $type, string $recommendation = 'for_endorsement') use ($as, $topic, $paper, &$extractedText): void {
+        $gad = $type === ProposalVersionFile::TYPE_GAD_CHECKLIST;
+        $extractedText = $gad
+            ? 'Research Project Title: '.$topic->title.' Assessment of Gender-Responsiveness Box 7a Generic Checklist Involvement of women and men Collection of sex-disaggregated data Conduct of gender analysis TOTAL GAD SCORE FOR THE PROJECT IDENTIFICATION AND DESIGN STAGES 12.32 Checked and verified by: Verifier'
+            : 'BatStateU-FO-RES-03 INITIAL SCREENING FORM Research Project Title: '.$topic->title.' Project Leader: Faculty Owner Order of Submission Checklist of Submitted Documents Level of Call Narrative Evaluation: Explain how participants will be recruited. Prepared by: Co-Evaluator';
+        $as($this->head, User::WORKSPACE_RESEARCH_HEAD)->post(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $paper($type)->id, 'review_file' => UploadedFile::fake()->create('completed-assessment.pdf', 100, 'application/pdf'),
+            ...($gad ? ['purpose' => 'gad_assessment', 'gad_signature_confirmed' => true] : [
+                'purpose' => 'evaluation', 'co_evaluator_name' => 'Dr. Co Evaluator', 'recommended_action' => $recommendation,
+            ]),
+        ])->assertSessionHasNoErrors();
+    };
+    $uploadAssessment('gad_checklist');
+    $uploadAssessment('initial_screening_form', 'minor_revision');
+    $requestHighlightedRevision('Clarify participant recruitment in the summary.');
+    $coReview = $topic->reviews()->where('decision', 'revision_requested')->latest('id')->firstOrFail();
+    expect(app(CommentResponseFeedback::class)->rowsForSource($coReview, 'co_evaluator')[0]['comment'])
+        ->toBe('Explain how participants will be recruited.');
+    $submitRevision(3, TopicProposal::STATUS_GAD_REVIEW);
+    expect($version()->hasPassingGadAssessment())->toBeFalse()
+        ->and($version()->files->where('document_type', ProposalVersionFile::TYPE_HEAD_UPLOAD))->toBeEmpty();
+    $uploadAssessment('gad_checklist');
+    $uploadAssessment('initial_screening_form');
+    $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_LREC_QUEUED, 'initial_clearance_confirmed' => true,
+        ])->assertSessionHasNoErrors();
+    $as($office, User::WORKSPACE_RESEARCH_OFFICE)->post(route('research_coordinator.topics.lrec-review.start', $topic))->assertSessionHasNoErrors();
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_LREC_REVIEW);
+    $this->post(route('research_coordinator.topics.lrec-feedback.store', $topic), [
+        'committee_comments' => [['location' => 'Detailed Proposal, Summary', 'comment' => 'Clarify the expected community benefits.']],
+    ])->assertSessionHasNoErrors();
+    $submitRevision(4, TopicProposal::STATUS_LREC_REVIEW);
+    expect($version()->hasPassingGadAssessment())->toBeTrue();
+    expect(app(ProposalSignatureWorkflow::class)->signedCopiesBySource($version()))->toHaveCount(2);
+    $as($this->head, User::WORKSPACE_RESEARCH_HEAD)
+        ->patch(route('research_head.topics.updateStatus', $topic), [
+            'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE, 'lrec_clearance_confirmed' => true,
+        ])->assertSessionHasNoErrors();
+    expect($topic->fresh()->isMonitoringAvailable())->toBeFalse();
+    $as($office, User::WORKSPACE_RESEARCH_OFFICE)->get(route('topics.show', $topic))->assertOk()->assertSee('Upload the required signed PDFs');
+    foreach (['detailed_proposal', 'work_plan', 'line_item_budget'] as $type) {
+        $extractedText = 'Research Project Title: '.$topic->title.' '.match ($type) {
+            'detailed_proposal' => 'Research Agenda: Environment BatStateU-FO-RES-02 Detailed Research Proposal Project Leader Proponent Agency Sustainable Development Goal Research Agenda',
+            'work_plan' => 'Total Duration: 12 BatStateU-FO-RES-02 Major Activities Work Plan Planned Start Planned End Expected Output',
+            'line_item_budget' => 'Project Leader: Faculty Owner BatStateU-FO-RES-02 Line Item Budget Particulars Amount Maintenance and Other Operating Expenses Capital Outlays',
+        };
+        $extractedText .= ' Prepared by: Faculty Owner Checked and verified by: Research Head Project Leader and Staff Approved by the Research Council';
+        $this->postJson(route('topics.head-uploads.store', $topic), [
+            'source_file_id' => $paper($type)->id, 'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            'review_file' => UploadedFile::fake()->create('signed-'.$type.'.pdf', 100, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('source_file_id', $paper($type)->id);
+    }
+    expect(app(ProposalSignatureWorkflow::class)->isComplete($version()))->toBeTrue();
+    $notice = app(NoticeToProceedDataService::class)->defaults($topic->fresh());
+    $notice['resolution_number'] = '01';
+    $this->post(route('topics.notice-to-proceed.store', $topic), $notice)->assertSessionHasNoErrors();
+    $this->get(route('topics.notice-to-proceed.download-unsigned', $topic))->assertOk();
+    $this->post(route('topics.notice-to-proceed.upload-signed', $topic), [
+        'signed_notice_to_proceed' => UploadedFile::fake()->create('signed-notice.pdf', 100, 'application/pdf'),
+    ])->assertSessionHasNoErrors();
+    $topic->refresh();
+    expect($topic->fresh()->status)->toBe('approved')
+        ->and($topic->hasIssuedNoticeToProceed())->toBeTrue()
+        ->and($topic->isMonitoringAvailable())->toBeTrue()
+        ->and($topic->reviews()->where('decision', 'documents_released')->count())->toBe(1)
+        ->and($this->faculty->fresh()->hasRole('faculty_researcher'))->toBeTrue();
+    $as($this->faculty, User::WORKSPACE_FACULTY_RESEARCHER)
+        ->get(route('topics.notice-to-proceed.download', $topic))->assertOk();
+    foreach (app(ProposalSignatureWorkflow::class)->signedCopiesBySource($version()) as $signed) {
+        $this->get(route('topics.versions.files.download', [$topic, $version(), $signed]))->assertOk();
+    }
+    $this->get(route('topics.show', $topic))->assertOk()->assertSee('Released documents')->assertSee('Project monitoring');
 });

@@ -1,11 +1,11 @@
 @props(['topic', 'draft' => null, 'defaults' => [], 'evidence' => [], 'standalone' => false])
 @php
-    $data = array_replace($defaults, $draft?->source_data ?? []);
+    $data = app(\App\Support\TerminalReportData::class)->normalize($topic, [...array_replace($defaults, $draft?->source_data ?? []), 'accomplishments' => old('accomplishments', $draft?->source_data['accomplishments'] ?? $defaults['accomplishments'] ?? [])]);
     $terminal = $data['terminal_data'] ?? [];
     $value = fn ($key, $fallback = '') => old($key, data_get($data, $key, $fallback));
     $input = 'mt-2 block min-h-12 w-full rounded-xl border-gray-300 bg-white px-3 py-2.5 text-base text-gray-950 shadow-sm transition placeholder:text-gray-400 focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white';
     $authors = $value('terminal_data.authors', []);
-    $accomplishments = $value('accomplishments', []) ?: [['objective' => '', 'target' => '', 'actual' => '']];
+    $accomplishments = $data['accomplishments'] ?: [['objective' => '', 'target' => '', 'actual' => '']];
     $selectedCover = $value('reuse_cover_image');
     $coverPreview = $evidence[$selectedCover]['preview_url'] ?? '';
     $usedFigureSlots = collect(range(1, 30))
@@ -13,7 +13,7 @@
         ->max();
     $initialFigureCount = max(1, (int) ($usedFigureSlots ?: 1));
     $monitoringSources = collect($defaults['monitoring_reference'] ?? []);
-    $missingPeriods = collect($defaults['missing_monitoring_periods'] ?? []);
+    $missingPeriods = collect($defaults['missing_report_periods'] ?? []);
     $objectivesFromWorkPlan = (bool) ($defaults['objectives_from_work_plan'] ?? false);
     $objectiveCount = count($accomplishments);
     $evidenceCount = count($evidence);
@@ -108,9 +108,9 @@
             Review the carried-over proposal content and confirm the final dates, spending, and findings. Image files are not autosaved, so choose new uploads again if you leave before preparing the report.
         </div>
 
-        @if (($defaults['missing_monitoring_periods'] ?? []) !== [])
+        @if ($missingPeriods->isNotEmpty())
             <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950 dark:border-amber-900 dark:bg-amber-950">
-                Before preparing the official copy, complete Monitoring Tools for {{ implode(', ', $defaults['missing_monitoring_periods']) }}. You can still save and preview this draft.
+                Before preparing the official copy, complete {{ $missingPeriods->implode(', ') }}. You can still save and preview this draft.
             </div>
         @endif
 
@@ -293,7 +293,7 @@
             @foreach (['introduction' => 'Introduction', 'rationale' => 'Rationale', 'terminal_data.literature_review' => 'Review of Literature', 'objectives' => 'General objective (optional)', 'methodology' => 'VI. Materials and Methods / Methodology', 'results_discussion' => 'VII. Results and Discussion', 'terminal_data.conclusions' => 'Conclusions', 'terminal_data.recommendations' => 'Recommendations', 'terminal_data.bibliography' => 'Bibliography'] as $field => $label)
                 <label class="block text-xl font-bold text-gray-950 dark:text-white">
                     {{ $label }}
-                    <textarea id="terminal-{{ str_replace('.', '-', $field) }}" name="{{ str_contains($field, '.') ? 'terminal_data['.substr($field, 14).']' : $field }}" data-semantic-editor data-semantic-editor-size="large" rows="9" maxlength="100000" @required($field !== 'objectives') class="{{ $input }}">{{ $value($field) }}</textarea>
+                    <textarea id="terminal-{{ str_replace('.', '-', $field) }}" name="{{ str_contains($field, '.') ? 'terminal_data['.substr($field, 14).']' : $field }}" @unless ($field === 'objectives' && ($defaults['objectives_from_proposal'] ?? false)) data-semantic-editor data-semantic-editor-size="large" @endunless @readonly($field === 'objectives' && ($defaults['objectives_from_proposal'] ?? false)) rows="9" maxlength="100000" @required($field !== 'objectives') class="{{ $input }}">{{ $field === 'objectives' && ($defaults['objectives_from_proposal'] ?? false) ? $defaults['objectives'] : $value($field) }}</textarea>
                 </label>
             @endforeach
         </section>

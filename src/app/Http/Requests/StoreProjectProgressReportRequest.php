@@ -59,7 +59,7 @@ class StoreProjectProgressReportRequest extends FormRequest
         $window = app(MonitoringQuarterService::class)->reportingWindow($this->route('topic'));
 
         return [
-            'reporting_date' => ['required', 'date', 'before_or_equal:today', 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
+            'reporting_date' => ['required', 'date', ...($this->routeIs('project-progress.preview') ? [] : ['before_or_equal:today']), 'after_or_equal:'.$window['start']->toDateString(), ...($window['end'] ? ['before_or_equal:'.$window['end']->toDateString()] : [])],
             'source_report_id' => ['nullable', 'integer'],
             'tracking_number' => ['nullable', 'string', 'max:100'],
             'work_plan' => ['required', 'array', 'min:1', 'max:11'],
@@ -93,7 +93,7 @@ class StoreProjectProgressReportRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
-                if (! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canSubmitForDate($this->route('topic'), $this->input('reporting_date'))) {
+                if (! $this->routeIs('project-progress.preview') && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canSubmitForDate($this->route('topic'), $this->input('reporting_date'))) {
                     $validator->errors()->add('reporting_date', 'This reporting period is still in progress. Submit after its end date.');
                 }
                 $workPlanInput = $this->input('work_plan', []);

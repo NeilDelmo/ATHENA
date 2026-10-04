@@ -100,7 +100,9 @@ class TopicCommentResponseFormController extends Controller
         $version = $draftVersionId > 0 ? $topic->latestVersion : ($review ? $feedbackService->reviewedVersion($review) : $topic->latestVersion);
         $files = $version?->files ?? collect();
         $feedback = $draftVersionId > 0
-            ? $feedbackService->draftRows($version)
+            ? ($source === CommentResponseFeedback::FORM_CO_EVALUATOR
+                ? $feedbackService->draftCoEvaluatorRows($version)
+                : $feedbackService->draftRows($version))
             : $feedbackService->rowsForSource($review, $source);
         $fallbackStage = $draftVersionId > 0
             ? $feedbackService->currentStage($topic, $version)
@@ -162,7 +164,8 @@ class TopicCommentResponseFormController extends Controller
         }
 
         abort_unless($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
-        abort_unless($source === CommentResponseFeedback::FORM_RESEARCH_HEAD && ! $request->has('review'), 404);
+        abort_unless(! $request->has('review') && ($source === CommentResponseFeedback::FORM_RESEARCH_HEAD
+            || ($source === CommentResponseFeedback::FORM_CO_EVALUATOR && $topic->status === TopicProposal::STATUS_GAD_REVIEW)), 404);
         $versionId = $request->integer('draft_version');
         abort_unless($versionId > 0 && $topic->latestVersion()->whereKey($versionId)->exists(), 404);
         abort_unless(in_array($topic->status, ['pending', 'expert_review', 'resubmitted', 'for_final_decision', TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true), 404);

@@ -166,12 +166,17 @@ body {
     font-weight: 700;
 }
 
-.monitoring-signature {
-    width: 34%;
+.monitoring-signatures {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12pt;
     margin-top: 16pt;
-    text-align: center;
     break-inside: avoid;
     page-break-inside: avoid;
+}
+
+.monitoring-signature {
+    text-align: center;
 }
 
 .monitoring-signature p {

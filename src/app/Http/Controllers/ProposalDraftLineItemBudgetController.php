@@ -57,6 +57,11 @@ class ProposalDraftLineItemBudgetController extends Controller
             ->where('position', 0)
             ->first();
         $sourceData = $lineItemBudgetDocument?->source_data ?? [];
+        foreach ($proposalDraft->signatoryFields('line_item_budget') as $key => $default) {
+            if (isset($proposalDraft->signatory_selections['certified_by']) || blank($sourceData[$key] ?? null)) {
+                $sourceData[$key] = $default;
+            }
+        }
         $sourceData['level_of_call'] ??= LineItemBudgetData::DEFAULT_LEVEL_OF_CALL;
         $expenseBreakdownItems = is_array($expenseBreakdownDocument?->source_data)
             && is_array($expenseBreakdownDocument->source_data['items'] ?? null)

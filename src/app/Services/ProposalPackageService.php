@@ -16,7 +16,10 @@ use Throwable;
 
 class ProposalPackageService
 {
-    public function __construct(private readonly DocumentPdfConverter $pdfConverter) {}
+    public function __construct(
+        private readonly DocumentPdfConverter $pdfConverter,
+        private readonly ProposalSignatureWorkflow $signatureWorkflow,
+    ) {}
 
     /**
      * Store every package file present in the request.
@@ -128,6 +131,34 @@ class ProposalPackageService
         }
 
         return $snapshot;
+    }
+
+    public function carryForwardLrecAssessments(ProposalVersion $previousVersion, ProposalVersion $version): void
+    {
+        $sourceFiles = $version->files()->where('is_carried_forward', true)
+            ->whereIn('document_type', ProposalVersionFile::GENERATED_ASSESSMENT_FORM_TYPES)
+            ->get()->keyBy('source_version_file_id');
+        $assessments = $this->signatureWorkflow->signedCopiesBySource($previousVersion)
+            ->filter(fn (ProposalVersionFile $file): bool => in_array($file->source_data['purpose'] ?? null, [
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
+                ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION,
+            ], true));
+
+        foreach ($assessments as $assessment) {
+            $sourceFile = $sourceFiles->get($assessment->source_version_file_id);
+            if (! $sourceFile) {
+                continue;
+            }
+
+            $version->files()->create([
+                ...$this->carriedFileAttributes($assessment),
+                'source_version_file_id' => $sourceFile->id,
+                'source_data' => [
+                    ...($assessment->source_data ?? []),
+                    'carried_from_version_file_id' => $assessment->id,
+                ],
+            ]);
+        }
     }
 
     /** @return array<string, mixed> */

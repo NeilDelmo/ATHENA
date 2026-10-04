@@ -92,7 +92,7 @@ class SaveProjectProgressReportDraftRequest extends FormRequest
     {
         return [function (Validator $validator): void {
             if (filled($this->input('reporting_date')) && ! $validator->errors()->has('reporting_date') && ! app(MonitoringQuarterService::class)->canDraftForDate($this->route('topic'), $this->input('reporting_date'))) {
-                $validator->errors()->add('reporting_date', 'Draft one active reporting quarter at a time. This quarter has not started yet.');
+                $validator->errors()->add('reporting_date', 'Choose a reporting quarter within the approved project schedule.');
             }
         }];
     }

@@ -12,6 +12,8 @@ use App\Support\ProposalPaperCatalog;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class CreateProposalRevisionDraft
 {
@@ -21,110 +23,131 @@ class CreateProposalRevisionDraft
 
     public function handle(TopicProposal $topic, User $user): ProposalDraft
     {
-        return DB::transaction(function () use ($topic, $user): ProposalDraft {
-            $topic = TopicProposal::query()->whereKey($topic->getKey())->lockForUpdate()->firstOrFail();
-            abort_unless($topic->user_id === $user->id && $topic->status === 'revision_requested', 403);
+        $copiedPaths = [];
+        try {
+            return DB::transaction(function () use ($topic, $user, &$copiedPaths): ProposalDraft {
+                $topic = TopicProposal::query()->whereKey($topic->getKey())->lockForUpdate()->firstOrFail();
+                abort_unless($user->isUsingWorkspace(User::WORKSPACE_FACULTY)
+                    && $topic->user_id === $user->id
+                    && ($topic->status === 'revision_requested' || $topic->canUpdateBeforeReview()), 403);
+                $isPackageUpdate = $topic->canUpdateBeforeReview();
 
-            $existingDraft = ProposalDraft::query()
-                ->where('topic_id', $topic->getKey())
-                ->first();
+                $existingDraft = ProposalDraft::query()
+                    ->where('topic_id', $topic->getKey())
+                    ->first();
 
-            if ($existingDraft) {
-                return $existingDraft;
-            }
+                if ($existingDraft) {
+                    return $existingDraft;
+                }
 
-            $topic->loadMissing([
-                'researchCall',
-                'latestVersion.files',
-                'collaborators',
-            ]);
+                $topic->loadMissing([
+                    'researchCall',
+                    'latestVersion.files',
+                    'collaborators',
+                ]);
 
-            $history = ProposalDraftDocumentVersion::query()
-                ->whereBelongsTo($topic, 'topic')
-                ->orderByDesc('id')
-                ->get()
-                ->unique(fn (ProposalDraftDocumentVersion $version): string => $version->document_type.':'.$version->position)
-                ->values();
-            $historyByType = $history->keyBy(fn (ProposalDraftDocumentVersion $version): string => $version->document_type.':'.$version->position);
-            $versionFiles = $topic->latestVersion?->files
-                ->keyBy(fn (ProposalVersionFile $file): string => $file->document_type.':'.$file->position)
-                ?? collect();
-            $workPlanSource = $this->sourceFor($historyByType, $versionFiles, ProposalVersionFile::TYPE_WORK_PLAN);
-            $detailedProposalSource = $this->sourceFor($historyByType, $versionFiles, ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
-            $duration = max(1, (int) ($topic->estimated_duration_months ?: ($workPlanSource['total_duration_months'] ?? 1)));
-            $plannedStart = $this->dateValue($workPlanSource['planned_start'] ?? null) ?? now()->toDateString();
-            $plannedEnd = $this->dateValue($workPlanSource['planned_end'] ?? null)
-                ?? Carbon::parse($plannedStart)->addMonths($duration)->subDay()->toDateString();
-            $projectLeader = $this->firstFilled([
-                $detailedProposalSource['project_leader'] ?? null,
-                $workPlanSource['prepared_by'] ?? null,
-                $user->name,
-            ]);
-
-            $draft = ProposalDraft::query()->create([
-                'user_id' => $user->getKey(),
-                'research_call_id' => $topic->research_call_id,
-                'topic_id' => $topic->getKey(),
-                'project_title' => $topic->title,
-                'duration_months' => $duration,
-                'planned_start' => $plannedStart,
-                'planned_end' => $plannedEnd,
-                'project_leader' => $projectLeader,
-                'signatory_selections' => $versionFiles->get(ProposalVersionFile::TYPE_DETAILED_PROPOSAL.':0')?->source_data['comment_response_signatory_selections']
-                    ?? $detailedProposalSource['comment_response_signatory_selections'] ?? [],
-                'status' => ProposalDraft::STATUS_DRAFT,
-                'lock_version' => 0,
-            ]);
-
-            $draft->members()->createMany(
-                $topic->collaborators->map(fn (TopicCollaborator $collaborator): array => [
-                    'user_id' => $collaborator->user_id,
-                    'name' => $collaborator->name,
-                    'email' => $collaborator->email,
-                    'accepted_at' => $collaborator->accepted_at,
-                    'project_role' => $collaborator->user_id === $topic->research_secretary_id
-                        ? TopicCollaborator::ROLE_SECRETARY
-                        : $collaborator->project_role,
-                ])->all(),
-            );
-
-            foreach ($this->catalog->all()->where('mode', '!=', 'automatic') as $paper) {
-                $documentType = $paper['document_type'];
-                $source = $this->sourceFor($historyByType, $versionFiles, $documentType);
-                $positions = $history
-                    ->where('document_type', $documentType)
-                    ->pluck('position')
-                    ->merge($versionFiles->where('document_type', $documentType)->pluck('position'))
-                    ->unique()
-                    ->sort()
+                $history = ProposalDraftDocumentVersion::query()
+                    ->whereBelongsTo($topic, 'topic')
+                    ->orderByDesc('id')
+                    ->get()
+                    ->unique(fn (ProposalDraftDocumentVersion $version): string => $version->document_type.':'.$version->position)
                     ->values();
+                $historyByType = $history->keyBy(fn (ProposalDraftDocumentVersion $version): string => $version->document_type.':'.$version->position);
+                $versionFiles = $topic->latestVersion?->files
+                    ->keyBy(fn (ProposalVersionFile $file): string => $file->document_type.':'.$file->position)
+                    ?? collect();
+                $workPlanSource = $this->sourceFor($historyByType, $versionFiles, ProposalVersionFile::TYPE_WORK_PLAN);
+                $detailedProposalSource = $this->sourceFor($historyByType, $versionFiles, ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+                $duration = max(1, (int) ($topic->estimated_duration_months ?: ($workPlanSource['total_duration_months'] ?? 1)));
+                $plannedStart = $this->dateValue($workPlanSource['planned_start'] ?? null) ?? now()->toDateString();
+                $plannedEnd = $this->dateValue($workPlanSource['planned_end'] ?? null)
+                    ?? Carbon::parse($plannedStart)->addMonths($duration)->subDay()->toDateString();
+                $projectLeader = $this->firstFilled([
+                    $detailedProposalSource['project_leader'] ?? null,
+                    $workPlanSource['prepared_by'] ?? null,
+                    $user->name,
+                ]);
 
-                if ($positions->isEmpty() && $source !== []) {
-                    $positions = collect([0]);
+                $draft = ProposalDraft::query()->create([
+                    'user_id' => $user->getKey(),
+                    'research_call_id' => $topic->research_call_id,
+                    'topic_id' => $topic->getKey(),
+                    'project_title' => $topic->title,
+                    'duration_months' => $duration,
+                    'planned_start' => $plannedStart,
+                    'planned_end' => $plannedEnd,
+                    'project_leader' => $projectLeader,
+                    'signatory_selections' => $versionFiles->get(ProposalVersionFile::TYPE_DETAILED_PROPOSAL.':0')?->source_data['comment_response_signatory_selections']
+                        ?? $detailedProposalSource['comment_response_signatory_selections'] ?? [],
+                    'status' => ProposalDraft::STATUS_DRAFT,
+                    'lock_version' => 0,
+                ]);
+
+                $draft->members()->createMany(
+                    $topic->collaborators->map(fn (TopicCollaborator $collaborator): array => [
+                        'user_id' => $collaborator->user_id,
+                        'name' => $collaborator->name,
+                        'email' => $collaborator->email,
+                        'accepted_at' => $collaborator->accepted_at,
+                        'project_role' => $collaborator->user_id === $topic->research_secretary_id
+                            ? TopicCollaborator::ROLE_SECRETARY
+                            : $collaborator->project_role,
+                    ])->all(),
+                );
+
+                foreach ($this->catalog->all()->filter(fn (array $paper): bool => $isPackageUpdate || $paper['mode'] !== 'automatic') as $paper) {
+                    $documentType = $paper['document_type'];
+                    $source = $this->sourceFor($historyByType, $versionFiles, $documentType);
+                    $positions = $history
+                        ->where('document_type', $documentType)
+                        ->pluck('position')
+                        ->merge($versionFiles->where('document_type', $documentType)->pluck('position'))
+                        ->unique()
+                        ->sort()
+                        ->values();
+
+                    if ($positions->isEmpty() && $source !== []) {
+                        $positions = collect([0]);
+                    }
+
+                    foreach ($positions as $position) {
+                        $key = $documentType.':'.$position;
+                        $documentVersion = $historyByType->get($key);
+                        $versionFile = $versionFiles->get($key);
+                        $documentSource = is_array($versionFile?->source_data) && $versionFile->source_data !== []
+                            ? $versionFile->source_data
+                            : (is_array($documentVersion?->source_data) && $documentVersion->source_data !== []
+                                ? $documentVersion->source_data
+                                : $source);
+
+                        $fileAttributes = [];
+                        if ($isPackageUpdate && $versionFile && Storage::disk('local')->exists($versionFile->file_path)) {
+                            $path = $draft->storageDirectory().'/submitted-copy/'.Str::uuid().'.pdf';
+                            if (! Storage::disk('local')->copy($versionFile->file_path, $path)) {
+                                throw new \RuntimeException('The submitted proposal file could not be copied into the editing workspace.');
+                            }
+                            $copiedPaths[] = $path;
+                            $fileAttributes = [...$versionFile->only(['original_filename', 'mime_type', 'file_size', 'checksum']), 'file_path' => $path];
+                        }
+
+                        $draft->documents()->create([
+                            'document_type' => $documentType,
+                            'position' => $position,
+                            'source_data' => $documentSource,
+                            'completed_at' => $documentSource !== [] ? now() : null,
+                            'lock_version' => max(1, (int) ($documentVersion?->version_number ?? 1)),
+                            ...$fileAttributes,
+                        ]);
+                    }
                 }
 
-                foreach ($positions as $position) {
-                    $key = $documentType.':'.$position;
-                    $documentVersion = $historyByType->get($key);
-                    $versionFile = $versionFiles->get($key);
-                    $documentSource = is_array($versionFile?->source_data) && $versionFile->source_data !== []
-                        ? $versionFile->source_data
-                        : (is_array($documentVersion?->source_data) && $documentVersion->source_data !== []
-                            ? $documentVersion->source_data
-                            : $source);
+                return $draft->fresh(['documents', 'members', 'researchCall']);
+            }, 3);
+        } catch (\Throwable $exception) {
+            Storage::disk('local')->delete($copiedPaths);
 
-                    $draft->documents()->create([
-                        'document_type' => $documentType,
-                        'position' => $position,
-                        'source_data' => $documentSource,
-                        'completed_at' => $documentSource !== [] ? now() : null,
-                        'lock_version' => max(1, (int) ($documentVersion?->version_number ?? 1)),
-                    ]);
-                }
-            }
-
-            return $draft->fresh(['documents', 'members', 'researchCall']);
-        }, 3);
+            throw $exception;
+        }
     }
 
     /** @return array<string, mixed> */

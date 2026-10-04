@@ -292,6 +292,18 @@ class TopicController extends Controller
         $latestRevisionReview = $topic->reviews->where('decision', 'revision_requested')->sortByDesc('id')->first();
         $commentResponseRows = app(CommentResponseFeedback::class)->rows($latestRevisionReview);
         $projectDocumentLibrary = $this->projectDocumentLibrary->build($topic, $request->user());
+        $sampleProposalDraft = null;
+        $sampleReportProject = null;
+        if (! app()->environment('production') && Str::startsWith($topic->description ?? '', '[lifecycle-demo:')) {
+            if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY)) {
+                $sampleProposalDraft = ProposalDraft::query()->accessibleTo($request->user())
+                    ->whereNull('topic_id')->where('project_title', Str::limit('[Sample draft] '.$topic->title, 255, ''))->first();
+            }
+            if ($request->user()->isUsingWorkspace(User::WORKSPACE_FACULTY_RESEARCHER)) {
+                $sampleReportProject = TopicProposal::query()->accessibleTo($request->user())
+                    ->where('description', 'like', '[report-draft-demo:'.$topic->id.']%')->first();
+            }
+        }
 
         $nextClearanceDecision = match (true) {
             $topic->review_stage === 'lrec' => [TopicProposal::STATUS_READY_FOR_SIGNATURE, 'Clear for signing'],
@@ -348,6 +360,8 @@ class TopicController extends Controller
             'monitoringQuarterRows',
             'progressQuarterRows',
             'projectDocumentLibrary',
+            'sampleProposalDraft',
+            'sampleReportProject',
         ));
     }
 
@@ -680,6 +694,10 @@ class TopicController extends Controller
                 ));
                 $version->files()->createMany($snapshotFiles);
 
+                if ($revisedTopic->review_stage === 'lrec' && $previousVersion) {
+                    $packageService->carryForwardLrecAssessments($previousVersion, $version);
+                }
+
                 $newVersionFiles = $version->files()->get();
                 $pendingRevisions = TopicReviewFileRevision::query()
                     ->with(['file', 'annotations'])
@@ -776,6 +794,10 @@ class TopicController extends Controller
 
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
+        if (request()->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $topic->markLatestVersionViewedByResearchHead();
+        }
+
         return Storage::disk('local')->download($path, $version?->original_filename ?: basename($path));
     }
 
@@ -784,6 +806,10 @@ class TopicController extends Controller
         $this->ensureCanViewTopic($request, $topic);
         abort_unless($version->topic_id === $topic->id, 404);
         abort_unless(Storage::disk('local')->exists($version->file_path), 404);
+
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $topic->markLatestVersionViewedByResearchHead();
+        }
 
         return Storage::disk('local')->download($version->file_path, $version->original_filename);
     }
@@ -799,6 +825,10 @@ class TopicController extends Controller
         abort_unless($file->proposal_version_id === $version->id, 404);
         $this->ensureCanAccessVersionFile($request, $topic, $file);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
+
+        if ($request->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)) {
+            $topic->markLatestVersionViewedByResearchHead();
+        }
 
         return Storage::disk('local')->download($file->file_path, $file->original_filename);
     }
@@ -905,6 +935,7 @@ class TopicController extends Controller
         $topic->load([
             'user',
             'researchCall',
+            'reviews',
             'versions.submitter',
             'versions.files.uploadedBy',
             'versions.files.annotations',

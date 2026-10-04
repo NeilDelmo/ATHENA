@@ -582,15 +582,11 @@ class DetailedProposalDocumentService
         }
 
         $this->removeParagraphs($cell, array_slice($paragraphs, 1));
-        $this->replaceParagraphText($heading, 'XI. Introduction:', true);
+        $this->replaceParagraphText($heading, config('detailed_proposal.section_headings.literature'), true);
+        $this->appendRun($heading, ' (minimum of ten literature/studies reviewed)', italic: true);
 
         $this->appendSectionImages($cell, $images, 'introduction', $nextImageDocumentPropertyId);
         $this->appendRichTextBlocks($cell, $introduction);
-
-        $literatureHeading = $this->simpleParagraph($cell->ownerDocument, '');
-        $this->appendRun($literatureHeading, 'Related Studies and Literature:', true);
-        $this->appendRun($literatureHeading, ' (minimum of ten literature/studies reviewed)', italic: true);
-        $cell->appendChild($literatureHeading);
 
         $this->appendSectionImages($cell, $images, 'related_literature', $nextImageDocumentPropertyId);
         $this->appendRichTextBlocks($cell, $relatedLiterature);
@@ -916,6 +912,7 @@ class DetailedProposalDocumentService
             $recommendingParagraphs[5],
             $finalApprovalParagraphs[4],
             $finalApprovalParagraphs[5],
+            $finalApprovalParagraphs[6],
         )) {
             throw new RuntimeException('A Detailed Research Proposal signatory slot is missing.');
         }
@@ -939,12 +936,13 @@ class DetailedProposalDocumentService
         $this->replaceParagraphText($recommendingParagraphs[4], $recommendingName, true, 'center', underline: true);
         $this->replaceParagraphText(
             $recommendingParagraphs[5],
-            'Vice Chancellor for Research Development and Extension Services',
+            (string) config('notice_to_proceed.issuing_officer.title'),
             alignment: 'center',
         );
         $approvalCells[1]->removeChild($recommendingParagraphs[2]);
         $this->replaceParagraphText($finalApprovalParagraphs[4], '');
         $this->replaceParagraphText($finalApprovalParagraphs[5], $approvedName, true, 'center', underline: true);
+        $this->replaceParagraphText($finalApprovalParagraphs[6], (string) config('notice_to_proceed.verifying_officer.title'), alignment: 'center');
     }
 
     private function preventRowSplit(DOMXPath $xpath, DOMElement $row): void

@@ -124,7 +124,10 @@ class JournalRecommendationService
     /** @param list<string> $keywords @return list<array<string, mixed>> */
     private function searches(string $query, string $context, array $keywords, int $recentYears): array
     {
-        $base = ['filter' => $this->workFilters($recentYears), 'per-page' => 50];
+        $base = [
+            'filter' => $this->workFilters($recentYears), 'per-page' => 50,
+            'select' => 'id,display_name,publication_year,doi,primary_location,topics,abstract_inverted_index',
+        ];
         $titleTerms = $this->words($query);
         $searches = [$base + ['search' => implode(' ', array_slice($titleTerms ?: $keywords, 0, 6))]];
         $pairs = array_chunk(array_slice($keywords, 0, 8), 2);

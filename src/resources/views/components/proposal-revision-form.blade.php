@@ -124,7 +124,7 @@
 
     <section id="revision-responses" data-revision-step="3" data-revision-step-label="Action and Response" hidden class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
         <h3 class="text-base font-black text-slate-950 dark:text-white">3. Action and Response</h3>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Reply to each reviewer comment below. Enter the page and paragraph numbers from your revised paper for Remarks, or select No change made and explain why in your response.</p>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Reply to each comment. ATHENA finds the changed passage in your revised PDF and fills its page and paragraph. For broader comments, choose the passage below. Select No change made when appropriate.</p>
         <div class="mt-5 space-y-4">
             @foreach ($revisionErrors->get('feedback_responses*') as $feedbackErrors)
                 @foreach ((array) $feedbackErrors as $feedbackError)
@@ -144,13 +144,28 @@
                                 Action and Response <span class="font-normal text-slate-500 dark:text-slate-400">(faculty reply · required)</span>
                                 <textarea data-revision-response-document="{{ $responseDocumentTypes[$item['key']] ?? '' }}" name="feedback_responses[{{ $item['key'] }}][response]" rows="3" maxlength="5000" required placeholder="Explain the change you made, or why no change is needed." class="mt-2 block w-full rounded-lg border-slate-300 text-sm leading-6 focus:border-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950 dark:text-white">{{ old('feedback_responses.'.$item['key'].'.response', $item['response']) }}</textarea>
                             </label>
-                            <fieldset data-comment-response-location x-data="{ noChange: @js((bool) old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) }" class="space-y-3">
+                            <fieldset data-comment-response-location data-response-key="{{ $item['key'] }}" data-response-document="{{ $responseDocumentTypes[$item['key']] ?? '' }}" x-data="{ noChange: @js((bool) old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) }" class="space-y-3">
                                 <legend class="text-sm font-semibold text-slate-700 dark:text-slate-200">Remarks <span class="font-normal text-slate-500 dark:text-slate-400">(location in the revised paper)</span></legend>
                                 <input type="hidden" name="feedback_responses[{{ $item['key'] }}][no_change]" value="0">
                                 <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                                     <input type="checkbox" data-comment-response-no-change name="feedback_responses[{{ $item['key'] }}][no_change]" value="1" x-model="noChange" @checked(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) class="rounded border-slate-300 text-[#7A0019] focus:ring-[#7A0019] dark:border-slate-600 dark:bg-slate-950">
                                     No change made
                                 </label>
+                                <div data-location-automation x-show="!noChange" class="space-y-3 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Revised paper
+                                        <select data-location-document class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">
+                                            <option value="">Choose a revised paper</option>
+                                            @foreach ($revisionGroups as $locationType => $locationRevisions)
+                                                <option value="{{ $locationType }}" @selected(($responseDocumentTypes[$item['key']] ?? '') === $locationType)>{{ app(\App\Support\ProposalPaperCatalog::class)->label($locationType) }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
+                                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-200">Changed passage
+                                        <select data-location-passage class="mt-2 block w-full rounded-lg border-slate-300 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white"><option value="">Read the revised paper to choose a passage</option></select>
+                                    </label>
+                                    <button type="button" data-location-refresh class="min-h-9 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Find page and paragraph</button>
+                                    <p data-location-status role="status" aria-live="polite" class="text-xs leading-5 text-slate-600 dark:text-slate-300">Numbers will fill automatically for a single changed passage linked to this comment.</p>
+                                </div>
                                 <div class="grid gap-3 sm:grid-cols-2">
                                     <label class="block text-sm font-semibold text-slate-700 dark:text-slate-200">Page
                                         <input type="number" data-comment-response-page name="feedback_responses[{{ $item['key'] }}][page]" value="{{ old('feedback_responses.'.$item['key'].'.page', $item['page'] ?? '') }}" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange" @disabled(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) placeholder="e.g. 4" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
@@ -159,7 +174,7 @@
                                         <input type="number" data-comment-response-paragraph name="feedback_responses[{{ $item['key'] }}][paragraph]" value="{{ old('feedback_responses.'.$item['key'].'.paragraph', $item['paragraph'] ?? '') }}" min="1" max="100000" step="1" required :required="!noChange" :disabled="noChange" @disabled(old('feedback_responses.'.$item['key'].'.no_change', $item['no_change'] ?? false)) placeholder="e.g. 2" class="mt-2 block w-full rounded-lg border-slate-300 text-sm focus:border-[#7A0019] focus:ring-[#7A0019] disabled:opacity-50 dark:border-slate-600 dark:bg-slate-950 dark:text-white">
                                     </label>
                                 </div>
-                                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="noChange ? 'Explain why no change was needed in Action and Response. Remarks will be blank.' : 'Check the final revised PDF. Remarks will show: Page [number], paragraph [number].'">Check the final revised PDF before entering its page and paragraph numbers.</p>
+                                <p class="text-xs leading-5 text-slate-500 dark:text-slate-400" x-text="noChange ? 'Explain why no change was needed in Action and Response. Remarks will be blank.' : 'Paragraphs are detected from PDF text layout, numbered from the top of each page. Check the result; you can adjust it or enter numbers for scanned files.'">Check the detected location against the final revised PDF.</p>
                                 @if (filled($item['remarks']) && empty($item['page']) && empty($item['paragraph']))
                                     <p class="text-xs leading-5 text-slate-500 dark:text-slate-400">Previous remarks: {{ $item['remarks'] }}. Enter the page and paragraph above, or select No change made.</p>
                                 @endif

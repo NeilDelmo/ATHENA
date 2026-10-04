@@ -142,16 +142,68 @@ test('a review without file revisions uses the version that existed when it was 
 test('the form indicator visibly identifies included stages without relying only on color', function (array $stages) {
     $html = Blade::render('<x-comment-response-stages :stages="$stages" />', ['stages' => $stages]);
     $document = new DOMDocument;
-    @$document->loadHTML($html);
+    @$document->loadHTML('<?xml encoding="UTF-8">'.$html);
     $xpath = new DOMXPath($document);
-    expect($xpath->query('//*[@data-feedback-stage]')->length)->toBe(4)
-        ->and($xpath->query('//*[@data-stage-active="true"]')->length)->toBe(count($stages));
-    foreach ($stages as $stage) {
-        $item = $xpath->query('//*[@data-feedback-stage="'.$stage.'"]')->item(0);
-        expect($item->getAttribute('data-stage-active'))->toBe('true')
-            ->and($item->getAttribute('class'))->toContain('bg-red-100', 'border-red-700')
-            ->and($item->textContent)->toContain('Feedback included');
+    $expected = [count(array_diff($stages, ['lrec'])) > 0, in_array('lrec', $stages, true)];
+    expect($xpath->query('//*[@data-evaluation-level]')->length)->toBe(2)
+        ->and($xpath->query('//*[@data-stage-active="true"]')->length)->toBe(count(array_filter($expected)));
+    foreach ($expected as $index => $active) {
+        $item = $xpath->query('//*[@data-evaluation-level="'.$index.'"]')->item(0);
+        expect($item->getAttribute('data-stage-active'))->toBe($active ? 'true' : 'false')
+            ->and($xpath->query('./span[@aria-hidden="true"]', $item)->item(0)->getAttribute('class'))->toContain($active ? 'bg-black' : 'bg-white')
+            ->and($item->textContent)->toContain($active ? ' — Selected' : ' — Not selected');
     }
 })->with([
     'Research Head' => [['research_head']], 'GAD' => [['gad']], 'Co-Evaluator' => [['co_evaluator']], 'LREC' => [['lrec']], 'Mixed origins' => [['research_head', 'lrec']],
 ]);
+
+test('current co evaluator comments appear in form previews before a revision decision', function (string $source) {
+    $this->topic->update(['status' => TopicProposal::STATUS_GAD_REVIEW, 'review_stage' => 'gad']);
+    $gad = ($this->makeFile)(ProposalVersionFile::TYPE_GAD_CHECKLIST);
+    ($this->makeFile)(ProposalVersionFile::TYPE_HEAD_UPLOAD, [
+        'source_version_file_id' => $gad->id,
+        'source_data' => ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT, 'target_document_type' => ProposalVersionFile::TYPE_GAD_CHECKLIST, 'gad_signature_confirmed' => true, 'gad_outcome' => 'passed'],
+    ]);
+    $screening = ($this->makeFile)(ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM);
+    $evaluationData = ['purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION, 'target_document_type' => ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM];
+    ($this->makeFile)(ProposalVersionFile::TYPE_HEAD_UPLOAD, [
+        'source_version_file_id' => $screening->id, 'superseded_at' => now(),
+        'source_data' => [...$evaluationData, 'narrative_evaluation' => 'Superseded narrative'],
+    ]);
+    $evaluation = ($this->makeFile)(ProposalVersionFile::TYPE_HEAD_UPLOAD, [
+        'source_version_file_id' => $screening->id,
+        'source_data' => [...$evaluationData, 'co_evaluator_name' => 'Dr. Santos', 'narrative_evaluation' => "Clarify recruitment.\nExplain the sample size."],
+    ]);
+    ($this->makeAnnotation)('Research Head scope comment');
+    $rows = $source === CommentResponseFeedback::FORM_CO_EVALUATOR
+        ? $this->feedback->draftCoEvaluatorRows($this->version->fresh())
+        : $this->feedback->draftRows($this->version->fresh());
+    expect(array_column($rows, 'comment'))->toBe($source === CommentResponseFeedback::FORM_CO_EVALUATOR
+        ? ["Clarify recruitment.\nExplain the sample size."]
+        : ['Research Head scope comment', "Clarify recruitment.\nExplain the sample size."]);
+    $last = $rows[array_key_last($rows)];
+    expect($last['key'])->toBe('co_evaluator_narrative_'.$evaluation->id)
+        ->and($last['reviewer'])->toBe('Co-evaluator')
+        ->and($last['response'])->toBe('')->and($last['remarks'])->toBe('');
+    $this->mock(CommentResponseFormDocumentService::class)->shouldReceive('generate')->once()
+        ->withArgs(fn (array $data): bool => $data['feedback'] === $rows && in_array('co_evaluator', $data['evaluation_stages'], true))
+        ->andReturn('docx');
+    $this->mock(DocumentPdfConverter::class)->shouldReceive('convertDocx')->with('docx')->andReturn('%PDF-1.7 co evaluator preview');
+    $query = ['topic' => $this->topic, 'draft_version' => $this->version->id, 'source' => $source];
+    $this->actingAs($this->head)->get(route('research_head.topics.comment-response-form.pdf', $query))
+        ->assertSuccessful()->assertHeader('Cache-Control', 'no-store, private')->assertContent('%PDF-1.7 co evaluator preview');
+    $this->actingAs($this->faculty)->get(route('faculty.topics.comment-response-form.pdf', $query))->assertForbidden();
+    $this->actingAs($this->head)->get(route('research_head.topics.comment-response-form.pdf', [...$query, 'draft_version' => $this->version->id + 1000]))->assertNotFound();
+    expect($this->topic->reviews()->count())->toBe(0);
+})->with([CommentResponseFeedback::FORM_RESEARCH_HEAD, CommentResponseFeedback::FORM_CO_EVALUATOR]);
+
+test('existing no change replies have a completed Remarks column', function () {
+    $review = $this->topic->reviews()->create([
+        'reviewer_id' => $this->head->id, 'decision' => 'revision_requested', 'review_stage' => 'research_head',
+        'comment' => 'Explain recruitment.',
+        'feedback_responses' => ['overall' => ['response' => 'The existing recruitment section covers this.', 'no_change' => true, 'remarks' => '']],
+    ]);
+
+    $row = $this->feedback->rowsForSource($review, CommentResponseFeedback::FORM_RESEARCH_HEAD)[0];
+    expect($row['remarks'])->toBe('No change made')->and($row['response'])->toBe('The existing recruitment section covers this.');
+});

@@ -26,7 +26,7 @@ class ProposalDraftPolicy
     public function update(User $user, ProposalDraft $proposalDraft): bool
     {
         return $this->view($user, $proposalDraft)
-            && $proposalDraft->status === ProposalDraft::STATUS_DRAFT;
+            && $proposalDraft->isEditable();
     }
 
     public function delete(User $user, ProposalDraft $proposalDraft): bool
@@ -42,12 +42,14 @@ class ProposalDraftPolicy
 
     public function submit(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->delete($user, $proposalDraft);
+        return $this->owns($user, $proposalDraft)
+            && $proposalDraft->isEditable()
+            && ($proposalDraft->topic_id === null || ($proposalDraft->topic?->canUpdateBeforeReview() ?? false));
     }
 
     public function manageMembers(User $user, ProposalDraft $proposalDraft): bool
     {
-        return $this->delete($user, $proposalDraft);
+        return $this->owns($user, $proposalDraft) && $proposalDraft->isEditable();
     }
 
     private function owns(User $user, ProposalDraft $proposalDraft): bool

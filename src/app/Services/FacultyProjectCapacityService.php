@@ -89,6 +89,7 @@ class FacultyProjectCapacityService
         foreach ($participants as $participant) {
             $occupiedSlots = $this->participatingTopicsQuery($participant)
                 ->occupiesSubmissionCapacity()
+                ->when($draft->topic_id !== null, fn (Builder $query): Builder => $query->whereKeyNot($draft->topic_id))
                 ->count();
 
             if ($occupiedSlots >= $limit) {

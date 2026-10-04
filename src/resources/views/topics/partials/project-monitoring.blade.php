@@ -128,7 +128,7 @@
                 </form>
             </section>
 
-            <div class="flex h-14 items-center justify-between gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-lg shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex min-h-14 items-center justify-between gap-2 rounded-full border border-gray-200 bg-white p-1 shadow-lg shadow-gray-900/15 dark:border-slate-700 dark:bg-slate-900">
                 <span class="hidden min-w-0 items-center gap-2 text-sm font-black {{ $floatingStatusClasses }} rounded-full px-3 py-2 sm:inline-flex">
                     <span class="h-2 w-2 shrink-0 rounded-full bg-current"></span>
                     <span class="truncate">{{ $projectStatusLabel }}</span>
@@ -139,10 +139,10 @@
                     x-on:click="statusManagerOpen = ! statusManagerOpen"
                     x-bind:aria-expanded="statusManagerOpen"
                     aria-controls="project-status-manager-{{ $topic->id }}"
-                    class="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:bg-white dark:text-slate-950 dark:focus-visible:ring-offset-slate-900"
+                    class="inline-flex min-h-12 shrink-0 min-w-0 max-w-full items-center gap-2 rounded-full bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:bg-white dark:text-slate-950 dark:focus-visible:ring-offset-slate-900"
                 >
-                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 7h16M4 17h16" stroke-linecap="round"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>
-                    <span>Manage status</span>
+                    <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><path d="M4 7h16M4 17h16" stroke-linecap="round"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="15" cy="17" r="3" fill="currentColor"/></svg>
+                    <span class="min-w-0 break-words">Manage status</span>
                 </button>
             </div>
         </div>

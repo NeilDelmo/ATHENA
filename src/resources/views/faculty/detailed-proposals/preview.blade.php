@@ -2,6 +2,7 @@
     $richText = app(\App\Support\ProposalRichText::class);
     $signatoryName = fn (string $key): string => \App\Support\DetailedProposalData::signatoryName($detailedProposal[$key] ?: 'NAME');
     $sdgs = config('detailed_proposal.sdgs');
+    $sectionHeadings = config('detailed_proposal.section_headings');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
@@ -25,18 +26,18 @@
                     <tr><th colspan="4" class="detailed-proposal-table-title">DETAILED RESEARCH PROPOSAL</th></tr>
                     <tr>
                         <td colspan="4">
-                            <p class="detailed-proposal-section-heading">I. Research Project Title:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['project-information'] }}</p>
                             <p class="detailed-proposal-section-value">{{ $detailedProposal['project_title'] }}</p>
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">II. BatStateU Research Agenda:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['research_agenda'] }}</span></p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['research-agenda'] }}</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['research_agenda'] }}</span></p>
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">III. Sustainable Development Goal:</span> <span class="detailed-proposal-section-note is-plain">(Check all applicable SDG)</span></p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['sdgs'] }}</span> <span class="detailed-proposal-section-note is-plain">(Check all applicable SDG)</span></p>
                             <table class="detailed-proposal-sdg-table">
                                 <tbody>
                                     @foreach ([[1, 10], [2, 11], [3, 12], [4, 13], [5, 14], [6, 15], [7, 16], [8, 17], [9, null]] as [$leftSdg, $rightSdg])
@@ -52,7 +53,7 @@
                     <tr>
                         <td colspan="4">
                             <div class="detailed-proposal-member-block">
-                                <p><span class="detailed-proposal-section-heading">IV. Project Leader:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['project_leader_display'] }}</span></p>
+                                <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['project-team'] }}</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['project_leader_display'] }}</span></p>
                                 <p class="detailed-proposal-indent">Email Address: {{ $detailedProposal['leader_email'] }}</p>
                                 <p class="detailed-proposal-indent">Contact Number: {{ $detailedProposal['leader_contact'] }}</p>
                             </div>
@@ -67,7 +68,7 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">V. Proponent Agency:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['proponent_agency'] }}</span></p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['proponent'] }}</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['proponent_agency'] }}</span></p>
                             <p class="detailed-proposal-indent"><span class="detailed-proposal-section-heading">Department:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['proponent_department'] }}</span></p>
                             <p class="detailed-proposal-indent"><span class="detailed-proposal-section-heading">College:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['proponent_college'] }}</span></p>
                             <p class="detailed-proposal-indent"><span class="detailed-proposal-section-heading">Campus:</span> <span class="detailed-proposal-section-value">{{ $detailedProposal['proponent_campus'] }}</span></p>
@@ -75,26 +76,26 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">VI. Cooperating Agency:</span> <span class="detailed-proposal-section-note">(if any)</span> {{ $detailedProposal['cooperating_agency'] ?: 'None' }}</p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['cooperating-agency'] }}</span> <span class="detailed-proposal-section-note">(if any)</span> {{ $detailedProposal['cooperating_agency'] ?: 'None' }}</p>
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">VII. Executive Brief:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['executive-brief'] }}</p>
                             <x-proposal-figures :proposal="$detailedProposal" section="executive_brief" />
                             {!! $richText->sanitize($detailedProposal['executive_brief']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p><span class="detailed-proposal-section-heading">VIII. Rationale:</span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['rationale'] }}</span> <span class="detailed-proposal-section-note">(include available statistics related to the problem)</span></p>
                             <x-proposal-figures :proposal="$detailedProposal" section="rationale" />
                             {!! $richText->sanitize($detailedProposal['rationale']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">IX. Objectives of the Project:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['objectives'] }}</p>
                             @if (filled($detailedProposal['general_objective']))
                                 <p><strong>General Objective:</strong></p>
                                 {!! $richText->sanitize($detailedProposal['general_objective']) !!}
@@ -109,7 +110,7 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">X. Expected Output of the Project:</span> <span class="detailed-proposal-section-note is-plain">(based on expanded 6Ps &amp; 2Is of research)</span></p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['expected-outputs'] }}</span> <span class="detailed-proposal-section-note is-plain">(based on expanded 6Ps &amp; 2Is of research)</span></p>
                             <ol class="detailed-proposal-output-list">
                                 @foreach (config('detailed_proposal.expected_outputs') as $key => $label)
                                     @foreach ($detailedProposal['expected_outputs'][$key] as $output)
@@ -121,17 +122,16 @@
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">XI. Introduction:</p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['literature'] }}</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
                             <x-proposal-figures :proposal="$detailedProposal" section="introduction" />
                             {!! $richText->sanitize($detailedProposal['introduction']) !!}
-                            <p><span class="detailed-proposal-section-heading">Related Studies and Literature:</span> <span class="detailed-proposal-section-note">(minimum of ten literature/studies reviewed)</span></p>
                             <x-proposal-figures :proposal="$detailedProposal" section="related_literature" />
                             {!! $richText->sanitize($detailedProposal['related_literature']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">XII. Methodology:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['methodology'] }}</p>
                             <ul class="detailed-proposal-methodology-list">
                                 @foreach (config('detailed_proposal.methodology') as $key => $label)
                                     @continue(blank($detailedProposal['methodology'][$key]) && ! collect($detailedProposal['methodology_images'])->contains('section', $key))
@@ -146,7 +146,7 @@
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">XIII. Duties and Responsibilities of each member:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['responsibilities'] }}</p>
                             @foreach ($detailedProposal['responsibilities'] as $responsibility)
                                 <p class="detailed-proposal-responsibility-name">{{ $loop->first ? 'Project Leader' : 'Project Staff (s)' }}: <span>{{ \Illuminate\Support\Str::upper($responsibility['name']) }} ({{ $responsibility['percentage'] }}%)</span></p>
                                 {!! $richText->sanitize($responsibility['duties']) !!}
@@ -155,12 +155,12 @@
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">XIV. Major Activities/Workplan (Gantt Chart):</span> See attached Form A</p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['work-plan'] }}</span> See attached Form A</p>
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">XV. Line-Item Budget:</span> See attached Form B</p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['budget'] }}</span> See attached Form B</p>
                             <table class="detailed-proposal-budget-table">
                                 <tbody>
                                     <tr><td class="detailed-proposal-budget-number">1.</td><td><strong>Maintenance and Operating Expenses</strong></td><td class="detailed-proposal-budget-amount">Php {{ number_format($detailedProposal['mooe_total'], 2) }}</td></tr>
@@ -171,13 +171,13 @@
                     </tr>
                     <tr>
                         <td colspan="4" class="detailed-proposal-narrative">
-                            <p class="detailed-proposal-section-heading">XVI. References:</p>
+                            <p class="detailed-proposal-section-heading">{{ $sectionHeadings['references'] }}</p>
                             {!! $richText->sanitize($detailedProposal['references']) !!}
                         </td>
                     </tr>
                     <tr>
                         <td colspan="4">
-                            <p><span class="detailed-proposal-section-heading">XVII. Curriculum Vitae:</span> See attached Form C</p>
+                            <p><span class="detailed-proposal-section-heading">{{ $sectionHeadings['curriculum-vitae'] }}</span> See attached Form C</p>
                         </td>
                     </tr>
                     <tr>
@@ -232,7 +232,7 @@
                             <p class="detailed-proposal-signature-heading">Recommending Approval:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
                             <p class="detailed-proposal-signature-name">{{ $signatoryName('recommending_approval_name') }}</p>
-                            <p>Vice Chancellor for Research Development and Extension Services</p>
+                            <p>{{ config('notice_to_proceed.issuing_officer.title') }}</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
                     </tr>
@@ -241,7 +241,7 @@
                             <p class="detailed-proposal-signature-heading">Approved by the Research Council/Local Research Evaluation Committee-Chair (LREC-Chair) Represented by:</p>
                             <p class="detailed-proposal-signature-space">&nbsp;</p>
                             <p class="detailed-proposal-signature-name">{{ $signatoryName('approved_by_name') }}</p>
-                            <p>University President/Vice President for RDES</p>
+                            <p>{{ config('notice_to_proceed.verifying_officer.title') }}</p>
                             <p class="detailed-proposal-signature-date">Date Signed:</p>
                         </td>
                     </tr>

@@ -72,7 +72,7 @@ class StoreResearchHeadFileRequest extends FormRequest
                     ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT,
                 ]),
             ],
-            'co_evaluator_name' => [Rule::requiredIf($isEvaluation), 'nullable', 'string', 'max:160'],
+            'co_evaluator_name' => ['nullable', 'string', 'max:160'],
             'recommended_action' => [
                 Rule::requiredIf($isEvaluation),
                 'nullable',
@@ -126,7 +126,6 @@ class StoreResearchHeadFileRequest extends FormRequest
             },
             'review_file.max' => 'The upload may not be larger than 25 MB.',
             'purpose.in' => 'Only the completed GAD Checklist, co-evaluator Initial Screening Form, or required signed copy can be uploaded through this review workflow.',
-            'co_evaluator_name.required' => 'Enter the co-evaluator’s name for the completed Initial Screening Form.',
             'recommended_action.required' => 'Record the Recommended Action selected on the completed Initial Screening Form.',
             'recommended_action.in' => 'Choose a valid Recommended Action from the completed Initial Screening Form.',
             'narrative_evaluation.string' => 'Enter the Narrative Evaluation as text copied from the completed form.',

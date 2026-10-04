@@ -155,6 +155,8 @@
 
         <x-proposal-autosave-status />
 
+        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">You can fill, save, and preview this draft now. Official PDF preparation and submission open <span class="font-semibold" x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>, after the reporting period ends.</p>
+
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-950">
             <div class="grid gap-px bg-slate-200 dark:bg-slate-700 sm:grid-cols-3">
                 <div class="bg-white p-4 dark:bg-slate-900 sm:col-span-2">
@@ -197,7 +199,7 @@
                 </div>
                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs leading-5 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100" x-show="hasApprovedEntries()">
                     <p class="font-bold">From your approved work plan</p>
-                    <p>Objectives, activities, targets, weights, and dates are locked to the approved plan. Record progress in the fields below.</p>
+                    <p>Objectives, activities, targets, weights, and dates are locked to the approved plan. Fill in Actual Accomplishment, Activity Completion (%), Findings, and budget utilization below.</p>
                 </div>
             </div>
         </section>
@@ -395,18 +397,18 @@
         </details>
 
         <p class="border-t border-gray-100 pt-5 text-sm text-gray-500">Your draft stays private until you prepare the PDF and submit it.</p>
-        <p data-report-submission-lock x-show="!submissionOpen" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">Fill and save this draft now. PDF preparation and submission open <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>.</p>
+        <p x-show="!submissionOpen" class="text-sm font-semibold text-amber-900 dark:text-amber-200">Official PDF preparation opens <span x-text="submissionOpensAt">{{ $submissionOpensAt }}</span>. Save or preview your draft now.</p>
 
         <x-monitoring-action-dock :fixed="$standalone">
             @if ($standalone)
                 <x-back-link data-paper-cancel-exit href="{{ route('research.show', $topic) }}#project-monitoring">Exit monitoring</x-back-link>
             @endif
             <button type="button" @click="saveMonitoringDraft" :disabled="autoSaveInFlight || autoSaveBlocked" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white">Save draft</button>
-            <button type="button" @click="generatePreview" :disabled="!submissionOpen || previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
+            <button type="button" @click="generatePreview" :disabled="previewLoading || submitting" class="min-h-12 rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-bold text-gray-900 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">
                 <span x-show="!previewLoading">Preview monitoring tool</span>
                 <span x-show="previewLoading" x-cloak>Generating preview…</span>
             </button>
-            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60">
+            <button type="submit" :disabled="!submissionOpen || submitting || previewLoading" :title="!submissionOpen ? 'Official PDF preparation opens ' + submissionOpensAt : ''" class="min-h-12 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
                 <span x-show="!submitting">Prepare official PDF</span>
                 <span x-show="submitting" x-cloak>Preparing PDF…</span>
             </button>

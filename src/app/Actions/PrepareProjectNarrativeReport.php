@@ -54,6 +54,9 @@ class PrepareProjectNarrativeReport
                 throw ValidationException::withMessages(['preparation' => 'A prepared report of this type already exists.']);
             }
             if ($type === 'terminal') {
+                if (app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic) !== []) {
+                    throw ValidationException::withMessages(['preparation' => 'Complete all quarterly Monitoring Tools and Progress Reports before preparing the Terminal Report.']);
+                }
                 $validated['terminal_data']['version_number'] = ProjectNarrativeReport::where('topic_id', $topic->id)->where('report_type', 'terminal')->get()->max(fn ($report) => (int) ($report->terminal_data['version_number'] ?? 1)) + 1;
             }
 

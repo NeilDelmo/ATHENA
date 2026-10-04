@@ -40,6 +40,7 @@ test('abstract-only searches use short keyword and semantic queries and deduplic
         ->assertJsonPath('results.0.scopus.status', 'unverified')->assertJsonPath('search_count', 3);
     Http::assertSent(fn ($request): bool => isset($request['search.semantic']) && $request['search.semantic'] === $abstract);
     Http::assertSent(fn ($request): bool => isset($request['search']) && strlen($request['search']) < strlen($abstract) && str_contains($request['search'], 'diabetes'));
+    Http::assertSent(fn ($request): bool => $request['select'] === 'id,display_name,publication_year,doi,primary_location,topics,abstract_inverted_index');
     Http::assertSentCount(3);
     $this->postJson(route('research-support.journal-search'), ['context' => $abstract])->assertOk();
     Http::assertSentCount(3);

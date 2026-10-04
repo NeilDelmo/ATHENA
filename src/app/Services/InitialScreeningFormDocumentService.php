@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProposalSignatory;
 use App\Support\InitialScreeningSubmissionOrder;
 use App\Support\ResearchHeadScreeningData;
 use App\Support\WordCheckbox;
@@ -89,6 +90,12 @@ class InitialScreeningFormDocumentService
         $xpath = new DOMXPath($document);
         $xpath->registerNamespace('w', self::W);
         $signatureKeys = ['screening_head', 'screening_center', 'screening_verifier'];
+        $defaults = ProposalSignatory::defaultSelections();
+        $defaultNames = [
+            'screening_head' => $defaults['screening_head']['name'],
+            'screening_center' => (string) config('research_signatories.center_head'),
+            'screening_verifier' => $defaults['screening_verifier']['name'],
+        ];
         $signatureIndex = 0;
         foreach ($xpath->query('//w:p') as $paragraph) {
             if (trim($paragraph->textContent) !== 'NAME') {
@@ -97,9 +104,9 @@ class InitialScreeningFormDocumentService
             $key = $signatureKeys[$signatureIndex++] ?? null;
 
             if ($key !== null) {
-                $name = filled($screeningForm[$key] ?? null)
-                    ? mb_strtoupper((string) $screeningForm[$key])
-                    : 'NAME';
+                $name = mb_strtoupper((string) (filled($screeningForm[$key] ?? null)
+                    ? $screeningForm[$key]
+                    : $defaultNames[$key]));
                 $this->replaceSignatureName($xpath, $paragraph, $name);
             }
         }

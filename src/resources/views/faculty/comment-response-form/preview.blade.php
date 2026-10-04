@@ -56,8 +56,8 @@
                 <p class="signature-name"><strong>{{ $commentResponseForm['project_leader'] }}</strong><br>Project Leader</p>
                 <p>Checked and Reviewed by:</p>
                 <div class="review-signatures">
-                    <p><strong>{{ $commentResponseForm['comment_response_head'] ?? '' }}</strong><br>Research Head / RDES Head<br>Member, LREC</p>
-                    <p><strong>{{ $commentResponseForm['comment_response_vice_chancellor'] ?? '' }}</strong><br>Vice Chancellor for Research,<br>Development and Extension Services<br>Member, LREC</p>
+                    <p><strong>{{ ($commentResponseForm['comment_response_head'] ?? '') ?: config('work_plan.verifier.name') }}</strong><br>Research Head / RDES Head<br>Member, LREC</p>
+                    <p><strong>{{ ($commentResponseForm['comment_response_vice_chancellor'] ?? '') ?: config('notice_to_proceed.issuing_officer.name') }}</strong><br>Vice Chancellor for Research,<br>Development and Extension Services<br>Member, LREC</p>
                 </div>
             </section>
         </main>

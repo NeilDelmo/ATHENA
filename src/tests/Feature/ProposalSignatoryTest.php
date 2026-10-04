@@ -9,6 +9,8 @@ use App\Services\DetailedProposalDocumentService;
 use App\Services\GADChecklistDocumentService;
 use App\Services\InitialScreeningFormDocumentService;
 use App\Services\LineItemBudgetDocumentService;
+use App\Services\NoticeToProceedDataService;
+use App\Services\NoticeToProceedDocumentService;
 use App\Services\WorkPlanDocumentService;
 use App\Support\DetailedProposalData;
 use App\Support\GADChecklistData;
@@ -30,10 +32,146 @@ test('every Research Head and VCRDES signature uses the default without a direct
     }
     expect(TerminalReportData::defaultSignatoryNames())->toBe([
         'reviewed_head' => 'Asst. Prof. DJOANNA MARIE V. SALAC',
+        'reviewed_center' => 'Dr. CRISTINA AMOR ROSALES',
         'verified_chancellor' => 'Dr. FROILAN G. DESTREZA',
+        'verified_director' => 'Dr. ROSENDA A. BRONCE',
+        'approved_by' => 'Assoc. Prof. ALBERTSON D. AMANTE',
     ])
         ->and($draft->signatoryFields('detailed_proposal')['approved_by_name'])->toBe('Assoc. Prof. ALBERTSON D. AMANTE')
-        ->and($draft->resolvedSignatorySelections()['approved_by_name']['position'])->toBe('Vice President for Research, Development and Extension Services');
+        ->and($draft->resolvedSignatorySelections()['approved_by_name']['position'])->toBe('Vice President for Research Development, and Extension Services')
+        ->and($draft->resolvedSignatorySelections()['checked_verified_by_name']['position'])->toBe('Head, Research Office')
+        ->and($draft->signatoryFields('line_item_budget'))->toBe([
+            'certified_by' => 'Dr. ENRICO M. DALANGIN',
+            'certified_role' => "Chancellor\nVice Chairperson, LREC",
+        ])
+        ->and($draft->signatoryFields('gad_checklist'))->toBe([
+            'verifier_name' => 'Ms. ELLAINE G. LID-AYAN',
+            'verifier_role' => 'GAD, Head Secretariat',
+        ]);
+});
+
+test('proposal previews and generated documents use the institutional default signatories and roles', function () {
+    $this->withoutVite();
+    $draft = new ProposalDraft;
+    $base = ['project_title' => 'Default signatories', 'project_leader' => 'Project Leader'];
+    $papers = [
+        [
+            DetailedProposalData::fromValidated([...$base, ...$draft->signatoryFields('detailed_proposal')]),
+            DetailedProposalDocumentService::class,
+            'faculty.detailed-proposals.preview', 'detailedProposal',
+            ['Asst. Prof. DJOANNA MARIE V. SALAC', 'Head, Research Office', 'Dr. FROILAN G. DESTREZA', 'Vice Chancellor for Research Development and Extension Services', 'Assoc. Prof. ALBERTSON D. AMANTE', 'Vice President for Research Development, and Extension Services'],
+        ],
+        [
+            WorkPlanData::fromValidated([...$base, 'total_duration_months' => 12, 'prepared_by' => 'Project Leader', 'entries' => [['objective' => 'Objective', 'expected_output' => 'Output', 'activity' => 'Activity', 'months' => [1]]], ...$draft->signatoryFields('work_plan')]),
+            WorkPlanDocumentService::class,
+            'faculty.work-plans.preview', 'workPlan',
+            ['Asst. Prof. DJOANNA MARIE V. SALAC', 'Head, Research'],
+        ],
+        [
+            LineItemBudgetData::fromValidated([...$base, 'certified_by' => '', 'certified_role' => '']),
+            LineItemBudgetDocumentService::class,
+            'faculty.line-item-budgets.preview', 'lineItemBudget',
+            ['Dr. ENRICO M. DALANGIN', 'Chancellor', 'Vice Chairperson, LREC'],
+        ],
+        [
+            GADChecklistData::fromValidated([...$base, ...$draft->signatoryFields('gad_checklist')]),
+            GADChecklistDocumentService::class,
+            'faculty.gad-checklist.preview', 'gadChecklist',
+            ['Ms. ELLAINE G. LID-AYAN', 'GAD, Head Secretariat'],
+        ],
+    ];
+
+    foreach ($papers as [$data, $service, $view, $variable, $expected]) {
+        $preview = $this->view($view, [$variable => $data]);
+        $contents = app($service)->generate($data);
+        $path = tempnam(sys_get_temp_dir(), 'default-signatories-');
+        try {
+            file_put_contents($path, $contents);
+            $zip = new ZipArchive;
+            expect($zip->open($path))->toBeTrue();
+            $document = new DOMDocument;
+            $document->loadXML($zip->getFromName('word/document.xml'));
+            $zip->close();
+            foreach ($expected as $text) {
+                $preview->assertSee($text);
+                expect($document->textContent)->toContain($text);
+            }
+            if ($variable === 'lineItemBudget') {
+                $preview->assertSee('<p>Chancellor</p><p>Vice Chairperson, LREC</p>', false);
+            }
+        } finally {
+            unlink($path);
+        }
+    }
+});
+
+test('comment and screening documents fill missing names and keep the roles printed on their forms', function () {
+    $draft = new ProposalDraft;
+    expect($draft->resolvedSignatorySelections()['comment_response_head']['position'])->toBe("Research Head/ RDES Head\nMember, LREC")
+        ->and($draft->resolvedSignatorySelections()['comment_response_vice_chancellor']['position'])->toBe("Vice Chancellor for Research, Development and Extension Services\nMember, LREC")
+        ->and($draft->resolvedSignatorySelections()['screening_head']['position'])->toBe('Head, Research/ Head, Research and Extension')
+        ->and($draft->resolvedSignatorySelections()['screening_center'])->toMatchArray([
+            'name' => 'Dr. CRISTINA AMOR ROSALES', 'position' => 'Center Head/ Assistant Director for Research',
+        ])
+        ->and($draft->resolvedSignatorySelections()['screening_verifier']['position'])->toBe('Director, Research/ Vice Chancellor for RDES');
+    $base = ['project_title' => 'Default review signatories', 'project_leader' => 'Project Leader', 'staff' => [], 'leader_campus' => '', 'leader_college' => '', 'leader_department' => ''];
+    foreach ([
+        [CommentResponseFormDocumentService::class, ['Asst. Prof. DJOANNA MARIE V. SALAC', 'Dr. FROILAN G. DESTREZA', 'Research Head/ RDES Head', 'Member, LREC']],
+        [InitialScreeningFormDocumentService::class, ['ASST. PROF. DJOANNA MARIE V. SALAC', 'DR. CRISTINA AMOR ROSALES', 'DR. FROILAN G. DESTREZA', 'Head, Research/ Head, Research and Extension', 'Center Head/ Assistant Director for Research', 'Director, Research/ Vice Chancellor for RDES']],
+    ] as [$service, $expected]) {
+        $path = tempnam(sys_get_temp_dir(), 'review-signatories-');
+        try {
+            file_put_contents($path, app($service)->generate($base));
+            $zip = new ZipArchive;
+            expect($zip->open($path))->toBeTrue();
+            $document = new DOMDocument;
+            $document->loadXML($zip->getFromName('word/document.xml'));
+            $zip->close();
+            foreach ($expected as $text) {
+                expect($document->textContent)->toContain($text);
+            }
+        } finally {
+            unlink($path);
+        }
+    }
+});
+
+test('notice to proceed defaults include both institutional officers and their committee roles', function () {
+    $this->withoutVite();
+    $topic = TopicProposal::create([
+        'user_id' => User::factory()->create()->id,
+        'title' => 'Default notice signatories',
+        'estimated_duration_months' => 12,
+        'estimated_budget' => 50000,
+    ]);
+    $dataService = app(NoticeToProceedDataService::class);
+    $data = $dataService->defaults($topic);
+    $signatories = [
+        'issuing_officer_name' => 'Dr. FROILAN G. DESTREZA',
+        'issuing_officer_title' => 'Vice Chancellor for Research Development and Extension Services',
+        'issuing_officer_committee_role' => 'Member, Local Research Evaluation Committee',
+        'verifying_officer_name' => 'Assoc. Prof. ALBERTSON D. AMANTE',
+        'verifying_officer_title' => 'Vice President for Research Development, and Extension Services',
+        'verifying_officer_committee_role' => 'Chairperson, Local Research Evaluation Committee',
+    ];
+    expect($data)->toMatchArray($signatories);
+    $contents = app(NoticeToProceedDocumentService::class)->generate($dataService->documentValues([
+        ...$data, 'approved_start_date' => '2026-01-01', 'approved_end_date' => '2026-12-31',
+    ]));
+    $path = tempnam(sys_get_temp_dir(), 'notice-default-signatories-');
+    try {
+        file_put_contents($path, $contents);
+        $zip = new ZipArchive;
+        expect($zip->open($path))->toBeTrue();
+        $document = new DOMDocument;
+        $document->loadXML($zip->getFromName('word/document.xml'));
+        $zip->close();
+        foreach ($signatories as $text) {
+            expect($document->textContent)->toContain($text);
+        }
+    } finally {
+        unlink($path);
+    }
 });
 
 test('detailed proposal titles keep their capitalization in previews and Word even for legacy uppercase names', function () {

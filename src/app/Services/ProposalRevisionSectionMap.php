@@ -41,7 +41,12 @@ class ProposalRevisionSectionMap
         $checksum = hash('sha256', $contents);
         $saved = $source['_revision_sections'] ?? null;
         if (is_array($saved) && ($saved['checksum'] ?? null) === $checksum && ($saved['version'] ?? null) === 1) {
-            return $saved['regions'] ?? [];
+            $labels = array_column($this->catalog->forType($file->document_type, $source), 'label', 'value');
+
+            return array_map(fn (array $region): array => [
+                ...$region,
+                'label' => $labels[$region['id'] ?? ''] ?? $region['label'] ?? '',
+            ], $saved['regions'] ?? []);
         }
         $key = hash('sha256', $file->document_type.$checksum.json_encode($this->catalog->forType($file->document_type, $source)));
         $path = 'revision-section-maps/v1-'.$key.'.json';

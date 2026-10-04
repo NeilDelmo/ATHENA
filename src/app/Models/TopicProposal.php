@@ -504,6 +504,15 @@ class TopicProposal extends Model
             && (int) $this->research_head_viewed_version_id === (int) $latestVersionId;
     }
 
+    public function canUpdateBeforeReview(): bool
+    {
+        return $this->status === 'pending'
+            && $this->research_head_viewed_version_id === null
+            && ! $this->reviews()->exists()
+            && ! $this->versions()->whereNotNull('research_head_screening')->exists()
+            && ! $this->versions()->whereHas('files.reviewChecks')->exists();
+    }
+
     public function markLatestVersionViewedByResearchHead(): void
     {
         $latestVersionId = $this->relationLoaded('latestVersion')

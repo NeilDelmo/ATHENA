@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProjectProgressReport;
+use App\Models\ProposalSignatory;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -200,6 +201,15 @@ class MonitoringToolDocumentService
         $this->replaceParagraphText($xpath, $paragraphs[4], Str::upper($leader));
         $this->replaceParagraphText($xpath, $paragraphs[5], 'Project Leader');
         $this->replaceParagraphText($xpath, $paragraphs[7], 'Date Signed: '.$dateSigned);
+
+        $defaults = ProposalSignatory::defaultSelections();
+        foreach ([1 => 'verified_by', 2 => 'recommending_approval_name'] as $index => $key) {
+            $reviewParagraphs = $this->elements($xpath, './w:p', $cells[$index]);
+            if (! isset($reviewParagraphs[4])) {
+                throw new RuntimeException('A Monitoring Tool review signatory slot is missing.');
+            }
+            $this->replaceParagraphText($xpath, $reviewParagraphs[4], $defaults[$key]['name']);
+        }
     }
 
     private function renderFooterXml(string $xml, string $documentXml): string

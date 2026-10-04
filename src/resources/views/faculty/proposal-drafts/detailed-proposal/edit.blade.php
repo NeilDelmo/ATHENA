@@ -2,7 +2,7 @@
     <x-slot name="header">
         <x-page-header :title="$paper['label']" subtitle="Complete the official BatStateU-FO-RES-02 Rev. 04 form through structured inputs.">
             <x-slot name="actions">
-                <span data-detailed-proposal-completion-status class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : ($detailedProposalDocument ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600') }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
+                <span data-detailed-proposal-completion-status class="rounded-full px-3 py-1 text-xs font-semibold {{ $detailedProposalComplete ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' }}">{{ $detailedProposalComplete ? 'Complete' : ($detailedProposalDocument ? 'In progress' : 'Not started') }}</span>
                 <x-back-link fixed data-paper-cancel-exit href="{{ route('faculty.proposal-drafts.show', $proposalDraft) }}#required-pdf-attachments">Exit editor</x-back-link>
             </x-slot>
         </x-page-header>
@@ -15,6 +15,7 @@
         $expectedOutputs = config('detailed_proposal.expected_outputs');
         $methodologyFields = config('detailed_proposal.methodology');
         $professionalTitles = config('detailed_proposal.professional_titles');
+        $sectionHeadings = config('detailed_proposal.section_headings');
     @endphp
 
     <div
@@ -33,6 +34,7 @@
             detailedProposalStarted: @js($detailedProposalDocument !== null),
             detailedProposalComplete: @js($detailedProposalComplete),
             completionErrors: @js($completionErrors),
+            requirementsReviewed: @js($errors->any()),
             literatureSources: @js($literatureSources),
             initialLiteratureSourceId: @js($initialLiteratureSourceId),
             initialLiteratureAction: @js($initialLiteratureAction),
@@ -75,13 +77,18 @@
         <div x-show="validationMessage" x-cloak role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" x-text="validationMessage"></div>
         <x-paper-editor-submit-status />
         <x-proposal-revision-context :proposal-draft="$proposalDraft" :document-type="$paper['document_type']" />
-        <x-proposal-autosave-status />
-        <section x-show="Object.keys(completionErrors).length" data-proposal-completion-checklist class="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30" aria-labelledby="proposal-completion-heading">
-            <h3 id="proposal-completion-heading" class="text-sm font-black text-amber-900 dark:text-amber-200">What’s missing from this proposal</h3>
-            <p class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-300">Select an item to jump to the field that needs attention. This list updates after autosave.</p>
-            <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 dark:border-slate-700" data-proposal-writing-status>
+        <div x-show="showDetailedProposalSaveStatus" x-cloak>
+            <x-proposal-autosave-status />
+        </div>
+            <button type="button" @click="checkDetailedProposalRequirements()" data-proposal-check-requirements class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200">Check requirements</button>
+        </div>
+        <section x-show="showCompletionChecklist" x-cloak data-proposal-completion-checklist class="rounded-xl border border-slate-200 border-l-4 border-l-[#7A0019] bg-white p-5 dark:border-slate-700 dark:border-l-red-400 dark:bg-slate-900" aria-labelledby="proposal-completion-heading" aria-live="polite">
+            <h3 id="proposal-completion-heading" class="text-sm font-semibold text-slate-900 dark:text-white">Before generating your proposal</h3>
+            <p class="mt-1 max-w-prose text-xs leading-5 text-slate-500 dark:text-slate-400">Your draft is saved as you write. Select a requirement to finish that part of the form.</p>
+            <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2">
                 <template x-for="(messages, field) in completionErrors" :key="field">
-                    <li><button type="button" x-on:click="focusProposalRequirement(field)" class="w-full rounded-lg bg-white px-3 py-2 text-left text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-700 dark:bg-slate-900 dark:text-amber-200" x-text="messages.join(' ')"></button></li>
+                    <li><button type="button" x-on:click="focusProposalRequirement(field)" class="min-h-10 w-full rounded-md py-2 text-left text-xs leading-5 text-slate-700 underline decoration-slate-300 underline-offset-4 hover:text-[#7A0019] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-slate-300 dark:decoration-slate-600 dark:hover:text-red-300" x-text="messages.join(' ')"></button></li>
                 </template>
             </ul>
         </section>
@@ -94,10 +101,9 @@
         />
 
         @unless ($projectDetailsComplete)
-            <div role="alert" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-                <p class="font-black">Complete Project Details first</p>
-                <p class="mt-1 leading-6">Project title, dates, duration, and project leader are required before this paper can be previewed or generated. You can still save your progress as a draft.</p>
-                <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="mt-3 inline-flex rounded-xl bg-amber-900 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:ring-2 focus:ring-amber-900 focus:ring-offset-2">Complete Project Details</a>
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                <p class="max-w-prose text-xs leading-5">You can start writing now. Add the project title, dates and leader in Project Details before generating the document.</p>
+                <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex min-h-10 items-center rounded-lg px-2 text-xs font-semibold text-[#7A0019] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7A0019] dark:text-red-300">Complete Project Details</a>
             </div>
         @endunless
 
@@ -116,7 +122,7 @@
                 <a href="{{ route('faculty.proposal-drafts.details.edit', $proposalDraft) }}" class="inline-flex shrink-0 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2">Edit shared details</a>
             </div>
             <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">I. Research Project Title</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
+                <div class="sm:col-span-2 lg:col-span-4"><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">{{ $sectionHeadings['project-information'] }}</dt><dd class="mt-1 text-sm font-semibold text-gray-900">{{ $proposalDraft->project_title }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Project Leader</dt><dd class="mt-1 text-sm font-semibold uppercase text-gray-900">{{ $proposalDraft->project_leader }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">MOOE from Attachment B</dt><dd class="mt-1 text-sm font-semibold text-gray-900">Php {{ number_format($budgetTotals['mooe_total'], 2) }}</dd></div>
                 <div><dt class="text-[10px] font-black uppercase tracking-wider text-gray-500">Capital Outlay from Attachment B</dt><dd class="mt-1 text-sm font-semibold text-gray-900">Php {{ number_format($budgetTotals['co_total'], 2) }}</dd></div>
@@ -137,13 +143,13 @@
             <input id="literature-citations" type="hidden" name="literature_citations" x-bind:value="JSON.stringify(literatureCitations)">
 
             <section data-revision-section="section-research-agenda" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <h3 class="text-base font-black text-gray-900">II–III. Research alignment</h3>
+                <h3 class="text-base font-black text-gray-900">Research alignment</h3>
                 <div class="mt-5">
-                    <label for="research-agenda" class="block text-xs font-black uppercase tracking-wider text-gray-600">II. BatStateU Research Agenda</label>
+                    <label for="research-agenda" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['research-agenda'] }}</label>
                     <input id="research-agenda" name="research_agenda" type="text" required maxlength="500" x-model="researchAgenda" placeholder="Type the applicable BatStateU research agenda" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600">
                 </div>
                 <fieldset data-revision-section="section-sdgs" data-detailed-proposal-validation-group="sdgs" tabindex="-1" class="mt-6">
-                    <legend class="text-xs font-black uppercase tracking-wider text-gray-600">III. Sustainable Development Goal <span class="font-normal normal-case text-gray-500">(check all applicable SDGs)</span></legend>
+                    <legend class="text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['sdgs'] }} <span class="font-normal normal-case text-gray-500">(Check all applicable SDG)</span></legend>
                     <div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         @foreach ($sdgs as $number => $label)
                             <label class="flex items-start gap-3 rounded-xl border border-gray-200 p-3 text-sm text-gray-800 hover:bg-gray-50">
@@ -157,7 +163,7 @@
 
             <section data-revision-section="section-project-team" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
                 <div>
-                    <h3 class="text-base font-black text-gray-900 dark:text-white">IV. Project leader and staff</h3>
+                    <h3 class="text-base font-black text-gray-900 dark:text-white">{{ $sectionHeadings['project-team'] }}</h3>
                     <p class="mt-1 text-xs leading-5 text-gray-500 dark:text-slate-400">Names follow the official uppercase format. Add a professional title such as Asst Prof. or Dr. when applicable.</p>
                 </div>
 
@@ -222,7 +228,7 @@
                         <p id="leader-title-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Leave blank when no professional title applies.</p>
                     </div>
                     <div class="flex min-w-0 flex-col">
-                        <label for="leader-name" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>Project Leader</span><span class="text-[9px] text-red-600">Required</span></label>
+                        <label for="leader-name" class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-slate-300"><span>IV. Project Leader:</span><span class="text-[9px] text-red-600">Required</span></label>
                         <input id="leader-name" name="project_leader" type="text" required maxlength="120" list="detailed-proposal-member-names" x-model="projectLeader" x-on:change="syncProjectLeader()" placeholder="Type or choose a workspace member" aria-describedby="leader-name-help" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
                         <p id="leader-name-help" class="mt-1.5 text-[10px] leading-4 text-gray-500 dark:text-slate-400">Changes also update Project Details and the prepared-by name.</p>
                     </div>
@@ -232,13 +238,13 @@
                 </div>
 
                 <div class="mt-5 border-t border-gray-100 pt-5 dark:border-slate-800">
-                    <div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project staff</p><p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Each staff member can have an optional professional title.</p></div><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600 dark:bg-slate-800 dark:text-slate-300" x-text="`${staff.length} ${staff.length === 1 ? 'member' : 'members'}`"></span></div>
+                    <div class="flex items-center justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-slate-300">Project Staff (s):</p><p class="mt-1 text-xs text-gray-500 dark:text-slate-400">Each staff member can have an optional professional title.</p></div><span class="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600 dark:bg-slate-800 dark:text-slate-300" x-text="`${staff.length} ${staff.length === 1 ? 'member' : 'members'}`"></span></div>
                     <div class="mt-4 space-y-3">
                     <p x-show="staff.length === 0" class="rounded-xl bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-500 dark:bg-slate-800/60 dark:text-slate-400">No project staff added yet. Choose a workspace member or add an external person above.</p>
                     <template x-for="(member, index) in staff" :key="member.id">
                         <div class="grid gap-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:grid-cols-2 lg:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_12rem_auto] lg:items-end">
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center justify-between gap-2 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-title-${member.id}`"><span>Professional title</span><span class="rounded-full border border-gray-300 px-2 py-0.5 text-[9px] normal-case tracking-normal text-gray-500 dark:border-slate-600 dark:text-slate-400">Optional</span></label><input :id="`staff-title-${member.id}`" :name="`staff[${index}][title]`" type="text" maxlength="50" list="detailed-proposal-professional-titles" x-model="member.title" placeholder="e.g. Dr." class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
-                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-name-${member.id}`">Project Staff</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
+                            <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-name-${member.id}`">Project Staff (s):</label><input :id="`staff-name-${member.id}`" :name="`staff[${index}][name]`" type="text" required maxlength="255" list="detailed-proposal-member-names" x-model="member.name" x-on:change="syncStaff(member)" placeholder="Full name" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm uppercase shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-email-${member.id}`">Email Address</label><input :id="`staff-email-${member.id}`" :name="`staff[${index}][email]`" type="email" required maxlength="255" x-model="member.email" placeholder="name@example.com" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <div class="flex min-w-0 flex-col"><label class="flex h-5 items-center text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-slate-300" :for="`staff-contact-${member.id}`">Contact Number</label><input :id="`staff-contact-${member.id}`" :name="`staff[${index}][contact]`" type="tel" required maxlength="11" inputmode="numeric" pattern="[0-9]{11}" autocomplete="tel" x-model="member.contact" x-on:input="member.contact = normalizeContactNumber($event.target.value); $event.target.value = member.contact" placeholder="09XXXXXXXXX" class="mt-1.5 block h-11 w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600 dark:border-slate-600 dark:bg-slate-800 dark:text-white"></div>
                             <button type="button" x-on:click="removeStaff(index)" class="h-11 rounded-xl px-3 text-xs font-bold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-600 dark:text-red-300 dark:hover:bg-red-950/40">Remove</button>
@@ -251,19 +257,19 @@
             </section>
 
             <section data-revision-section="section-proponent" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <h3 class="text-base font-black text-gray-900">V–VI. Proponent and cooperating agencies</h3>
+                <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['proponent'] }}</h3>
                 <p class="mt-1 text-xs text-gray-500">The Proponent Agency line is intentionally left blank on the official form.</p>
                 <div class="mt-5 grid gap-4 sm:grid-cols-2">
                     <div><label for="proponent-department" class="block text-xs font-black uppercase tracking-wider text-gray-600">Department <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="proponent-department" name="proponent_department" type="text" maxlength="255" x-model="proponentDepartment" placeholder="Leave blank if not applicable" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="proponent-college" class="block text-xs font-black uppercase tracking-wider text-gray-600">College <span class="font-normal normal-case text-gray-400">From your profile</span></label><input id="proponent-college" name="proponent_college" type="text" required maxlength="255" x-model="proponentCollege" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                     <div><label for="proponent-campus" class="block text-xs font-black uppercase tracking-wider text-gray-600">Campus</label><input id="proponent-campus" name="proponent_campus" type="text" required maxlength="255" x-model="proponentCampus" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
-                    <div data-revision-section="section-cooperating-agency"><label for="cooperating-agency" class="block text-xs font-black uppercase tracking-wider text-gray-600">VI. Cooperating Agency <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="cooperating-agency" name="cooperating_agency" type="text" maxlength="500" x-model="cooperatingAgency" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
+                    <div data-revision-section="section-cooperating-agency"><label for="cooperating-agency" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['cooperating-agency'] }} <span class="font-normal normal-case text-gray-400">Optional</span></label><input id="cooperating-agency" name="cooperating_agency" type="text" maxlength="500" x-model="cooperatingAgency" class="mt-2 block w-full rounded-xl border-gray-300 text-sm shadow-sm focus:border-red-600 focus:ring-red-600"></div>
                 </div>
             </section>
 
             @foreach ([
-                'executive_brief' => ['VII. Executive Brief', 'Summarize the proposed project and its intended contribution.'],
-                'rationale' => ['VIII. Rationale', 'Include available statistics related to the problem.'],
+                'executive_brief' => [$sectionHeadings['executive-brief'], 'Summarize the proposed project and its intended contribution.'],
+                'rationale' => [$sectionHeadings['rationale'], 'Include available statistics related to the problem.'],
             ] as $field => [$label, $help])
                 <section data-revision-section="section-{{ str_replace('_', '-', $field) }}" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                     <label for="{{ str_replace('_', '-', $field) }}" class="block text-base font-black text-gray-900">{{ $label }}</label>
@@ -277,7 +283,7 @@
                 <input type="hidden" name="specific_objectives_present" value="1">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 class="text-base font-black text-gray-900">IX. Objectives of the Project</h3>
+                        <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['objectives'] }}</h3>
                         <p class="mt-1 text-xs text-gray-500">Enter at least one specific objective in the required fields below. The general objective is optional. Numbering is generated automatically.</p>
                     </div>
                     <button type="button" x-on:click="addSpecificObjective" class="inline-flex shrink-0 rounded-xl border border-red-200 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-50">Add specific objective</button>
@@ -287,7 +293,7 @@
                 <div class="mt-5 space-y-3" data-specific-objectives-fields>
                     <h4 class="text-xs font-black uppercase tracking-wider text-gray-600">Specific objectives <span class="font-normal normal-case text-red-700">Required — at least one</span></h4>
                     <p class="text-xs leading-5 text-gray-500">Describe the concrete results or tasks your project will achieve. Text in General objective does not fill these fields.</p>
-                    <p x-show="completionErrors.specific_objectives" x-cloak class="text-xs font-semibold text-red-700" x-text="(completionErrors.specific_objectives || []).join(' ')"></p>
+                    <p x-show="requirementsReviewed && completionErrors.specific_objectives" x-cloak class="text-xs font-semibold text-red-700 dark:text-red-300" x-text="(completionErrors.specific_objectives || []).join(' ')"></p>
                     <template x-for="(objective, index) in specificObjectives" :key="objective.id">
                         <article class="rounded-xl border border-gray-200 p-4">
                             <div class="flex items-center justify-between gap-3">
@@ -298,8 +304,7 @@
                                     <button type="button" x-on:click="removeSpecificObjective(index)" class="rounded-lg px-2 py-1 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>
                                 </div>
                             </div>
-                            <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" :aria-describedby="`specific-objective-error-${objective.id}`" placeholder="e.g. Identify the needs of the target community." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
-                            <p :id="`specific-objective-error-${objective.id}`" x-show="completionErrors[`specific_objectives.${index}.description`]" x-cloak class="mt-2 text-xs font-semibold text-red-700" x-text="(completionErrors[`specific_objectives.${index}.description`] || []).join(' ')"></p>
+                            <textarea :id="`specific-objective-${objective.id}`" :name="`specific_objectives[${index}][description]`" rows="3" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="objective.description" placeholder="e.g. Identify the needs of the target community." class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                         </article>
                     </template>
                 </div>
@@ -308,7 +313,7 @@
             <section data-revision-section="section-expected-outputs" id="expected-outputs" data-detailed-proposal-validation-group="expected-outputs" tabindex="-1" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <h3 class="text-base font-black text-gray-900">X. Expected Output of the Project</h3>
+                        <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['expected-outputs'] }}</h3>
                         <p class="mt-1 text-xs text-gray-500">Add only the 6Ps and 2Is that apply. At least one output is required.</p>
                     </div>
                 </div>
@@ -610,12 +615,13 @@
             </div>
 
             <section data-revision-section="section-literature" x-ref="introductionSection" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <h3 class="text-base font-black text-gray-900">XI. Introduction and Related Studies and Literature</h3>
+                <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['literature'] }}</h3>
                 <div class="mt-5 grid gap-5">
                     <div>
-                        <label for="introduction" class="block text-xs font-black uppercase tracking-wider text-gray-600">Introduction</label>
+                        <label for="introduction" class="block text-xs font-black uppercase tracking-wider text-gray-600">Review of Related Literature — opening paragraphs <span class="font-normal normal-case text-gray-500">Optional</span></label>
+                        <p class="mt-1 text-xs text-gray-500">Previously saved introduction text is retained here and included at the start of Section XI.</p>
                         <x-proposal-figure-input section="introduction" />
-                        <textarea id="introduction" name="introduction" rows="10" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
+                        <textarea id="introduction" name="introduction" rows="10" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="introduction" data-semantic-editor class="mt-2 block w-full rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
                     </div>
                     <aside class="rounded-2xl border border-red-100 bg-red-50/60 p-4 dark:border-red-900/60 dark:bg-red-950/20" aria-labelledby="proposal-sources-heading">
                         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -631,7 +637,7 @@
                         </div>
                     </aside>
                     <div>
-                        <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">Related Studies and Literature</label>
+                        <label for="related-literature" class="block text-xs font-black uppercase tracking-wider text-gray-600">{{ $sectionHeadings['literature'] }}</label>
                         <p class="mt-1 text-xs text-gray-500">Include at least ten relevant studies or literature sources. Highlight a supported claim, then choose <span class="font-black text-red-800">Support with source</span>.</p>
                         <x-proposal-figure-input section="related_literature" />
                         <textarea id="related-literature" name="related_literature" rows="14" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="relatedLiterature" data-semantic-editor class="mt-2 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
@@ -642,7 +648,7 @@
             <section data-revision-section="section-methodology" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 class="text-base font-black text-gray-900">XII. Methodology</h3>
+                        <h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['methodology'] }}</h3>
                         <p class="mt-1 text-xs leading-5 text-gray-500">Add figures to any methodology part. Data Analysis is optional and is omitted from the output when blank.</p>
                     </div>
                 </div>
@@ -709,7 +715,7 @@
             </section>
 
             <section data-revision-section="section-responsibilities" id="responsibilities" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 class="text-base font-black text-gray-900">XIII. Duties and Responsibilities of Each Member</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="self-start shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h3 class="text-base font-black text-gray-900">{{ $sectionHeadings['responsibilities'] }}</h3><p class="mt-1 text-xs text-gray-500">Include the project leader and every participating member.</p></div><button type="button" x-on:click="addResponsibility" class="self-start shrink-0 rounded-xl border border-gray-300 px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50">Add member</button></div>
                 <div class="mt-5 space-y-4">
                     <template x-for="(responsibility, index) in responsibilities" :key="responsibility.id">
                         <div class="rounded-xl border border-gray-200 p-4">
@@ -724,18 +730,28 @@
                 </div>
             </section>
 
-            <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="detailed_proposal" />
+            <section data-revision-section="section-work-plan" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+                <h3 class="font-black">{{ $sectionHeadings['work-plan'] }}</h3>
+                <p class="mt-1 leading-6">See attached Form A. Complete this section in the Work Plan paper.</p>
+            </section>
+
+            <section data-revision-section="section-budget" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+                <h3 class="font-black">{{ $sectionHeadings['budget'] }}</h3>
+                <p class="mt-1 leading-6">See attached Form B. Maintenance and Operating Expenses and Capital Outlay and Equipment totals come from the Line-Item Budget paper.</p>
+            </section>
 
             <section data-revision-section="section-references" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                <label for="references" class="block text-base font-black text-gray-900">XVI. References</label>
+                <label for="references" class="block text-base font-black text-gray-900">{{ $sectionHeadings['references'] }}</label>
                 <p class="mt-1 text-xs text-gray-500">Enter one reference per line or separate entries with blank lines.</p>
                 <textarea id="references" name="references" rows="12" required maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" x-model="references" data-semantic-editor class="mt-4 block w-full scroll-mt-36 rounded-xl border-gray-300 text-sm leading-6 shadow-sm focus:border-red-600 focus:ring-red-600"></textarea>
             </section>
 
-            <section data-revision-section="section-work-plan section-budget section-curriculum-vitae" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
-                <h3 class="font-black">Sections generated automatically</h3>
-                <p class="mt-1 leading-6">XIV links Attachment A, XV pulls MOOE and Capital Outlay totals from Attachment B, XVII links Attachment C, and the prepared-by name and agency details repeat on the signature page. Approval titles are fixed; the three names come from the fields above.</p>
+            <section data-revision-section="section-curriculum-vitae" class="rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm text-blue-900">
+                <h3 class="font-black">{{ $sectionHeadings['curriculum-vitae'] }}</h3>
+                <p class="mt-1 leading-6">See attached Form C. Complete this section in the Curriculum Vitae paper.</p>
             </section>
+
+            <x-proposal-signatory-summary :proposal-draft="$proposalDraft" paper="detailed_proposal" />
 
             <noscript>
                 <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white hover:bg-red-700 sm:w-auto">Save Detailed Proposal</button>

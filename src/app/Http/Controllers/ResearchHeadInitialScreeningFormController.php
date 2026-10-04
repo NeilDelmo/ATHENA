@@ -72,5 +72,6 @@ class ResearchHeadInitialScreeningFormController extends Controller
         Gate::authorize('view', $topic);
         abort_unless(auth()->user()->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD), 403);
         abort_unless($version->topic_id === $topic->id, 404);
+        $topic->markLatestVersionViewedByResearchHead();
     }
 }

@@ -123,6 +123,7 @@ class ProposalSignatoryController extends Controller
         $data = $request->validated();
         DB::transaction(function () use ($proposalDraft, $data): void {
             $draft = ProposalDraft::whereKey($proposalDraft->id)->lockForUpdate()->firstOrFail();
+            $draft->ensureEditable();
             abort_unless($draft->status === 'draft' && $draft->lock_version === (int) $data['lock_version'], 409, 'The proposal changed. Reload before choosing signatories.');
             $selected = $draft->resolvedSignatorySelections();
             foreach ($data['signatories'] as $key => $id) {

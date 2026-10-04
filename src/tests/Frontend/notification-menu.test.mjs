@@ -36,40 +36,35 @@ function createMenu({ area = 'proposal_submissions', actionUrl = null, ok = true
         workspace: 'research_head',
         readUrl: '/notifications/__ID__/read',
         readAllUrl: '/notifications/read-all',
+        openUrl: '/notifications/__ID__/open',
     });
 
-    return { menu, item, calls };
+    const event = { preventDefault: () => calls.push(['prevent-default']) };
+    return { menu, item, calls, event };
 }
 
 for (const area of ['proposal_submissions', 'project_monitoring', null]) {
-    test(`opening ${area ?? 'general'} notifications persists read status before navigation`, async () => {
-        const { menu, item, calls } = createMenu({ area });
+    test(`opening ${area ?? 'general'} notifications submits the server read and redirect form`, async () => {
+        const { menu, item, calls, event } = createMenu({ area });
 
-        await menu.openNotification(item);
+        await menu.openNotification(event, item);
 
-        assert.ok(item.read_at);
-        assert.equal(menu.unreadCount, 0);
-        assert.deepEqual(calls, [
-            ['request', '/notifications/notification-1/read', 'PATCH'],
-            ['navigate', '/review'],
-        ]);
-
-        await menu.openNotification(item);
-        assert.equal(calls.filter(([kind]) => kind === 'request').length, 1);
-        assert.equal(menu.unreadCount, 0);
+        assert.equal(menu.notificationOpenUrl(item), '/notifications/notification-1/open');
+        assert.deepEqual(calls, [], 'The native form must submit without interception');
     });
 }
 
 test('viewing an invitation marks it read even when acceptance is declined', async () => {
-    const { menu, item, calls } = createMenu({ actionUrl: '/invitation/accept' });
+    const { menu, item, calls, event } = createMenu({ actionUrl: '/invitation/accept' });
 
-    await menu.openNotification(item);
+    await menu.openNotification(event, item);
 
     assert.ok(item.read_at);
     assert.equal(menu.unreadCount, 0);
     assert.equal(item.data.action_completed, undefined);
     assert.equal(item.data.action_url, '/invitation/accept');
     assert.deepEqual(calls, [
+        ['prevent-default'],
         ['request', '/notifications/notification-1/read', 'PATCH'],
         ['invitation', item.read_at],
     ]);
@@ -78,7 +73,7 @@ test('viewing an invitation marks it read even when acceptance is declined', asy
 test('an unsuccessful read request does not clear the unread indicator', async () => {
     const { menu, item } = createMenu({ ok: false });
 
-    await menu.openNotification(item);
+    assert.equal(await menu.markNotificationRead(item), false);
 
     assert.equal(item.read_at, null);
     assert.equal(menu.unreadCount, 1);

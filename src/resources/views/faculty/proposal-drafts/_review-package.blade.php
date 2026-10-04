@@ -204,7 +204,11 @@
                 </form>
             @endif
         @else
-            <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only {{ $proposalDraft->owner->name }} can submit this shared workspace.</p>
+            @if ($proposalDraft->topic_id && $proposalDraft->user_id === auth()->id())
+                <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">{{ $proposalDraft->topic?->status === 'revision_requested' ? 'Submit requested revisions from the proposal revision page.' : 'The Research Head has opened this proposal. Further submission requires a revision request.' }}</p>
+            @else
+                <p class="rounded-xl bg-blue-100 px-4 py-3 text-sm font-bold text-blue-900">Only {{ $proposalDraft->owner->name }} can submit this shared workspace.</p>
+            @endif
         @endcan
     </div>
 </section>

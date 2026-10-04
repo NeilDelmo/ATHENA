@@ -119,6 +119,20 @@
                 <p>Date Signed: {{ $report->prepared_by_date_signed?->format('F j, Y') ?: '____________________' }}</p>
                 <p>Tracking No. {{ $report->tracking_number ?: '__________________________' }}</p>
             </footer>
+            <section class="progress-report-review-signatures">
+                <div class="progress-report-signature">
+                    <p>Monitored by:</p>
+                    <div class="progress-report-signature-line">{{ config('work_plan.verifier.name') }}</div>
+                    <p>Head, Research and Extension/ Head, Research/ Center Head/ Assistant Director, Research</p>
+                    <p>Date Signed: ____________________</p>
+                </div>
+                <div class="progress-report-signature">
+                    <p>Reviewed and Verified by:</p>
+                    <div class="progress-report-signature-line">{{ config('notice_to_proceed.issuing_officer.name') }}</div>
+                    <p>Vice Chancellor for Research, Development and Extension Services/ Director, Research</p>
+                    <p>Date Signed: ____________________</p>
+                </div>
+            </section>
         </main>
     </body>
 </html>

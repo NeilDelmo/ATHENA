@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ProjectNarrativeReport;
+use App\Models\ProposalSignatory;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -163,9 +164,23 @@ class ProgressReportDocumentService
         $this->appendFigures($xpath, $rows[20], $figures, 'methodology', $figureNumber, $report->methodology);
         $this->appendFigures($xpath, $rows[22], $figures, 'results_discussion', $figureNumber, $report->results_discussion);
         $this->fillPreparedBy($xpath, $rows[24], $report);
+        $this->fillReviewSignatories($xpath, $rows[25]);
         $this->splitSignOffPage($xpath, $table, $rows);
 
         return $this->serialized($document, 'document');
+    }
+
+    protected function fillReviewSignatories(DOMXPath $xpath, DOMElement $row): void
+    {
+        $cells = $this->cells($xpath, $row, 2);
+        $defaults = ProposalSignatory::defaultSelections();
+        foreach (['verified_by', 'recommending_approval_name'] as $index => $key) {
+            $paragraphs = $this->elements($xpath, './w:p', $cells[$index]);
+            if (! isset($paragraphs[5])) {
+                throw new RuntimeException('A Progress Report review signatory slot is missing.');
+            }
+            $this->replaceParagraphText($xpath, $paragraphs[5], $defaults[$key]['name'], true);
+        }
     }
 
     /** @param list<DOMElement> $rows */

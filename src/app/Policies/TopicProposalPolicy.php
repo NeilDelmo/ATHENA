@@ -8,6 +8,13 @@ use App\Models\User;
 
 class TopicProposalPolicy
 {
+    public function updatePackage(User $user, TopicProposal $topicProposal): bool
+    {
+        return $user->isUsingWorkspace(User::WORKSPACE_FACULTY)
+            && $topicProposal->user_id === $user->id
+            && $topicProposal->canUpdateBeforeReview();
+    }
+
     public function fillInitialScreeningForm(User $user, TopicProposal $topicProposal, ProposalVersion $version): bool
     {
         return $user->isUsingWorkspace(User::WORKSPACE_RESEARCH_HEAD)

@@ -84,8 +84,10 @@ class ProposalRevisionTargetCatalog
     /** @return list<array{value: string, label: string}> */
     private function detailedProposalTargets(): array
     {
+        $headings = config('detailed_proposal.section_headings');
+
         return [
-            $this->target('research-agenda', 'Research agenda'),
+            $this->target('research-agenda', $headings['research-agenda']),
             $this->target('leader-title', 'Project leader — professional title'),
             $this->target('leader-name', 'Project leader — name'),
             $this->target('leader-email', 'Project leader — email'),
@@ -93,22 +95,22 @@ class ProposalRevisionTargetCatalog
             $this->target('proponent-department', 'Proponent — department'),
             $this->target('proponent-college', 'Proponent — college'),
             $this->target('proponent-campus', 'Proponent — campus'),
-            $this->target('cooperating-agency', 'Cooperating agency'),
-            $this->target('executive-brief', 'Executive brief'),
-            $this->target('rationale', 'Rationale'),
-            $this->target('general-objective', 'General objective'),
-            $this->target('specific-objectives', 'Specific objectives'),
-            $this->target('expected-outputs', 'Expected outputs'),
-            $this->target('introduction', 'Introduction'),
-            $this->target('related-literature', 'Related studies and literature'),
-            $this->target('methodology-research_design', 'Methodology — research design'),
-            $this->target('methodology-specific-methods', 'Methodology — specific methods'),
-            $this->target('methodology-data_analysis', 'Methodology — data analysis'),
-            $this->target('responsibilities', 'Duties and responsibilities'),
+            $this->target('cooperating-agency', $headings['cooperating-agency']),
+            $this->target('executive-brief', $headings['executive-brief']),
+            $this->target('rationale', $headings['rationale']),
+            $this->target('general-objective', $headings['objectives'].' General Objective'),
+            $this->target('specific-objectives', $headings['objectives'].' Specific Objectives'),
+            $this->target('expected-outputs', $headings['expected-outputs']),
+            $this->target('introduction', $headings['literature'].' Opening paragraphs'),
+            $this->target('related-literature', $headings['literature']),
+            $this->target('methodology-research_design', $headings['methodology'].' '.config('detailed_proposal.methodology.research_design')),
+            $this->target('methodology-specific-methods', $headings['methodology'].' '.config('detailed_proposal.methodology.specific_methods')),
+            $this->target('methodology-data_analysis', $headings['methodology'].' '.config('detailed_proposal.methodology.data_analysis')),
+            $this->target('responsibilities', $headings['responsibilities']),
             $this->target('checked-verified-by-name', 'Checked and verified by'),
             $this->target('recommending-approval-name', 'Recommending approval'),
             $this->target('approved-by-name', 'Approved by'),
-            $this->target('references', 'References'),
+            $this->target('references', $headings['references']),
         ];
     }
 

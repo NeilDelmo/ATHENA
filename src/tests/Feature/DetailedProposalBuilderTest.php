@@ -7,6 +7,7 @@ use App\Models\ProposalVersionFile;
 use App\Models\ResearchCall;
 use App\Models\User;
 use App\Support\DetailedProposalData;
+use App\Support\ProposalRevisionSectionCatalog;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Permission\Models\Role;
@@ -150,7 +151,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Leave blank if not applicable')
         ->assertSee('III. Sustainable Development Goal')
         ->assertSee('SDG17:')
-        ->assertSee('XIII. Duties and Responsibilities of Each Member')
+        ->assertSee('XIII. Duties and Responsibilities of each member:')
         ->assertSee('Choose images')
         ->assertSee('Add figures to any methodology part')
         ->assertSee('data-proposal-figure-section="rationale"', false)
@@ -159,7 +160,7 @@ test('the detailed proposal editor uses the official sections and account defaul
         ->assertSee('Write this method heading')
         ->assertSee('Add method group')
         ->assertSee('Add method')
-        ->assertSee('Related Studies and Literature')
+        ->assertSee('XI. Review of Related Literature:')
         ->assertSee('Responsibility %')
         ->assertSee('Search workspace members')
         ->assertSee('No available workspace member matches your search.')
@@ -729,6 +730,47 @@ test('the detailed proposal editor previews the saved profile contact number for
         ->assertSee('\u0022leader_contact\u0022:\u002209170000002\u0022', false);
 });
 
+test('detailed proposal headings and revision sections match the official template', function () {
+    $archive = new ZipArchive;
+    expect($archive->open(config('detailed_proposal.template_path')))->toBeTrue();
+    try {
+        $document = new DOMDocument;
+        $document->loadXML($archive->getFromName('word/document.xml'));
+        $xpath = new DOMXPath($document);
+        $xpath->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $templateHeadings = [];
+        foreach ($xpath->query('//w:body//w:p') as $paragraph) {
+            $text = implode('', array_map(fn (DOMNode $node): string => $node->textContent, iterator_to_array($xpath->query('.//w:t', $paragraph))));
+            if (preg_match('/^([IVX]+)\.\s*([^:]+):/u', trim($text), $matches)) {
+                $templateHeadings[] = $matches[1].'. '.trim($matches[2]).':';
+            }
+        }
+    } finally {
+        $archive->close();
+    }
+    expect($templateHeadings)->toHaveCount(17)->toBe(array_values(config('detailed_proposal.section_headings')));
+    $sections = app(ProposalRevisionSectionCatalog::class)->forType(ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    expect(array_column(array_slice($sections, 0, 17), 'label'))->toBe($templateHeadings);
+    $this->actingAs($this->faculty)
+        ->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
+        ->assertOk()->assertSeeInOrder($templateHeadings)
+        ->assertDontSee('XI. Introduction')->assertDontSee('V–VI.');
+    $this->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
+        ->assertOk()->assertSeeInOrder($templateHeadings)
+        ->assertSee('Community coastal monitoring benefits from an integrated local research approach.')
+        ->assertSee('Recent coastal monitoring studies demonstrate the value of participatory data collection.')
+        ->assertDontSee('XI. Introduction:')->assertDontSee('Related Studies and Literature:');
+});
+
+test('review of related literature can be completed without separate introduction text', function (string $openingText) {
+    $this->actingAs($this->faculty)
+        ->put(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)(['introduction' => $openingText]))
+        ->assertRedirect()->assertSessionHasNoErrors();
+    $document = $this->draft->documents()->where('document_type', ProposalVersionFile::TYPE_DETAILED_PROPOSAL)->sole();
+    expect($document->source_data['related_literature'])->toContain('Recent coastal monitoring studies')
+        ->and($document->completed_at)->not->toBeNull();
+})->with(['', '<p><br></p>']);
+
 test('the preview mirrors the official bordered form layout', function () {
     $response = $this->actingAs($this->faculty)
         ->post(route('faculty.proposal-drafts.detailed-proposal.preview', $this->draft), ($this->payload)())
@@ -757,8 +799,8 @@ test('the preview mirrors the official bordered form layout', function () {
         ->assertSee('IX. Objectives of the Project:')
         ->assertSee('X. Expected Output of the Project:')
         ->assertSee('One peer-reviewed journal article')
-        ->assertSee('XI. Introduction:')
-        ->assertSee('Related Studies and Literature:')
+        ->assertSee('XI. Review of Related Literature:')
+        ->assertDontSee('Related Studies and Literature:')
         ->assertSee('XII. Methodology:')
         ->assertSee('XIII. Duties and Responsibilities of each member:')
         ->assertSee('FACULTY PROJECT LEADER (60%)')
@@ -1333,8 +1375,8 @@ test('the generated Word file preserves every unrelated official package part an
             ->and($rowText(15))->not->toContain('Batangas State University')
             ->and($rowText(17))->toContain('community-led coastal monitoring system')
             ->and($rowText(20))->toContain('One peer-reviewed journal article')
-            ->and($rowText(21))->toContain('XI. Introduction:')
-            ->and($rowText(21))->toContain('Related Studies and Literature:')
+            ->and($rowText(21))->toContain('XI. Review of Related Literature:')
+            ->and($rowText(21))->not->toContain('XI. Introduction:', 'Related Studies and Literature:')
             ->and($rowText(22))->toContain('sequential mixed-method research design')
             ->and($rowText(23))->toContain('Coordinates field data collection')
             ->and($rowText(23))->toContain('FACULTY PROJECT LEADER (60%)')
@@ -1504,10 +1546,11 @@ test('data analysis is optional and omitted from both previews when blank', func
     }
 });
 
-test('detailed proposal validation requires an SDG, introduction, essential methodology, and at least one expected output', function () {
+test('detailed proposal validation requires an SDG, review of related literature, essential methodology, and at least one expected output', function () {
     $payload = ($this->payload)([
         'sdgs' => [],
         'introduction' => '',
+        'related_literature' => '',
         'expected_outputs' => array_fill_keys(array_keys(config('detailed_proposal.expected_outputs')), ''),
         'methodology' => [
             'research_design' => '',
@@ -1535,7 +1578,7 @@ test('detailed proposal validation requires an SDG, introduction, essential meth
     $response
         ->assertSessionHasErrors([
             'sdgs',
-            'introduction',
+            'related_literature',
             'expected_outputs',
             'methodology.research_design',
             'methodology.specific_methods',
@@ -1549,7 +1592,7 @@ test('detailed proposal validation requires an SDG, introduction, essential meth
     expect(array_keys($errors))->not->toContain('methodology.data_analysis');
 });
 
-test('draft saves explain missing requirements and show them when the editor is reopened', function () {
+test('draft saves keep missing requirements available without showing an initial warning when reopened', function () {
     $this->actingAs($this->faculty)
         ->putJson(route('faculty.proposal-drafts.detailed-proposal.update', $this->draft), ($this->payload)([
             'save_as_draft' => true,
@@ -1563,6 +1606,10 @@ test('draft saves explain missing requirements and show them when the editor is 
     $this->get(route('faculty.proposal-drafts.detailed-proposal.edit', $this->draft))
         ->assertOk()
         ->assertSee('data-proposal-completion-checklist', false)
+        ->assertSee('x-show="showCompletionChecklist"', false)
+        ->assertSee('data-proposal-check-requirements', false)
+        ->assertSee('border-l-[#7A0019] bg-white p-5', false)
+        ->assertSee('x-show="showDetailedProposalSaveStatus"', false)
         ->assertSee('focusProposalRequirement(field)', false)
         ->assertViewHas('completionErrors', fn (array $errors): bool => isset($errors['specific_objectives'], $errors['methodology.research_design']));
 });

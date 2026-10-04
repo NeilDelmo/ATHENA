@@ -23,6 +23,7 @@
         $isResearchOffice = Auth::user()->isUsingWorkspace(\App\Models\User::WORKSPACE_RESEARCH_OFFICE);
         $canDecide = Auth::user()->isUsingWorkspace('research_head') && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision', \App\Models\TopicProposal::STATUS_GAD_REVIEW, 'lrec_review'], true);
         $isResearchHead = Auth::user()->isUsingWorkspace('research_head');
+        $isAssessmentStage = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_GAD_REVIEW;
         $canManageNoticeToProceed = Auth::user()->can('manageNoticeToProceed', $topic);
         $canViewSigningDocuments = Auth::user()->can('viewSigningDocuments', $topic);
         $canReturnToRevision = $isResearchHead && $topic->status === \App\Models\TopicProposal::STATUS_READY_FOR_SIGNATURE;
@@ -35,6 +36,14 @@
               && $hasProjectAccess;
           $canViewMonitoring = ($topic->hasIssuedNoticeToProceed() || $topic->isCompletedProject())
               && $hasProjectAccess;
+        [$workspaceBackRoute, $workspaceBackLabel] = match (true) {
+            $isResearchHead && $topic->isCompletedProject() => ['research_head.completed-projects.index', 'Back to projects'],
+            $isResearchHead && $canViewMonitoring => ['research_head.projects.index', 'Back to projects'],
+            $isResearchHead => ['research_head.proposal-submissions.index', 'Back to proposal reviews'],
+            Auth::user()->isUsingWorkspace('faculty_researcher') => ['research.index', 'Back to projects'],
+            $isFacultyWorkspace => ['faculty.submissions', 'Back to submitted proposals'],
+            default => ['dashboard', 'Back to dashboard'],
+        };
         $canAskAthenaAboutProposal = $topic->user_id === Auth::id() && Auth::user()->isUsingWorkspace(['faculty', 'faculty_researcher']);
         $resubmissionErrors = $errors->getBag('resubmission');
         $noticeToProceedErrors = $errors->hasAny([
@@ -72,6 +81,12 @@
     <x-slot name="header">
         <x-page-header :title="$topic->title" :subtitle="'Proposal #'.$topic->id.' · '.$topic->user->name.' · '.($topic->researchCall?->title ?? 'Research proposal')">
             <x-slot name="actions">
+                    @if ($sampleProposalDraft)
+                        <a href="{{ route('faculty.proposal-drafts.show', $sampleProposalDraft) }}" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-5 py-3 text-base font-bold text-gray-900 transition hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800">Open sample proposal draft</a>
+                    @endif
+                    @if ($sampleReportProject)
+                        <a href="{{ route('research.show', $sampleReportProject) }}#project-monitoring" class="inline-flex min-h-12 items-center justify-center rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white transition hover:bg-red-800">Open editable report sample</a>
+                    @endif
                     @if ($topic->isDisseminationAvailable() && Auth::user()->isUsingWorkspace('faculty_researcher') && $topic->isAccessibleTo(Auth::user()))
                         <a data-find-journals href="{{ route('research.dissemination.show', $topic) }}" class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-red-700 px-5 py-3 text-base font-bold text-white shadow-sm transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900">
                             <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path stroke-linecap="round" d="m16 16 4 4"/></svg>
@@ -100,7 +115,9 @@
 
     <div
         class="mx-auto max-w-7xl space-y-6"
+        data-topic-workspace
         x-data="{
+            floatingBackLinkObserver: null,
             activeTopicTab: @js($initialTopicTab) || (
                 ['#proposal-review', '#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')
                     ? 'review'
@@ -112,7 +129,6 @@
                         ? 'history'
                         : @js($isResearchOffice || $canDecide || ($isResearchHead && $topic->status === 'revision_requested') ? 'review' : 'details')
             ),
-            routingDocketOpen: false,
             decisionHistoryOpen: false,
             setTopicTab(tab, hash) {
                 this.activeTopicTab = tab;
@@ -133,8 +149,22 @@
                 this.scrollToTopicHash();
             },
             init() {
-                try { this.routingDocketOpen = sessionStorage.getItem('review-workflow-{{ $topic->id }}') === 'shown'; } catch (error) {}
+                this.$nextTick(() => {
+                    this.floatingBackLinkObserver = new ResizeObserver(() => {
+                        this.$el.style.setProperty('--athena-topic-back-link-height', `${this.$refs.workspaceBackLink.getBoundingClientRect().height}px`);
+                        const statusManager = this.$el.querySelector('[data-project-status-manager]');
+                        this.$el.style.setProperty('--athena-topic-status-height', `${statusManager?.getBoundingClientRect().height ?? 0}px`);
+                    });
+                    this.floatingBackLinkObserver.observe(this.$refs.workspaceBackLink);
+                    const statusManager = this.$el.querySelector('[data-project-status-manager]');
+                    if (statusManager) {
+                        this.floatingBackLinkObserver.observe(statusManager);
+                    }
+                });
                 this.scrollToTopicHash();
+            },
+            destroy() {
+                this.floatingBackLinkObserver?.disconnect();
             },
             scrollToTopicHash() {
                 if (['#submit-revision', '#review-and-submit', '#initial-review-workflow'].includes(window.location.hash) || window.location.hash.startsWith('#file-review-card-')) {
@@ -221,7 +251,7 @@
                     Versions
                 </button>
                 </div>
-                <div x-show="activeTopicTab === 'history' || @js(! $canViewMonitoring)" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
+                <div x-show="activeTopicTab === 'history'" x-cloak class="flex shrink-0 items-center justify-end gap-2 border-l border-slate-200 pl-3 dark:border-slate-700">
                     <button
                         type="button"
                         x-show="activeTopicTab === 'history'"
@@ -235,40 +265,21 @@
                     >
                         View Decision History ({{ $decisionReviews->count() }})
                     </button>
-                    @unless ($canViewMonitoring)
-                    <button
-                    type="button"
-                    @click="routingDocketOpen = ! routingDocketOpen; try { sessionStorage.setItem('review-workflow-{{ $topic->id }}', routingDocketOpen ? 'shown' : 'hidden') } catch (error) {}"
-                    data-review-workflow-toggle
-                    :aria-expanded="routingDocketOpen.toString()"
-                    aria-controls="proposal-routing-docket"
-                    class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand dark:text-slate-300 dark:hover:bg-slate-800"
-                    aria-label="Show proposal routing information"
-                    title="Proposal routing information"
-                >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25" /><path stroke-linecap="round" d="M12 10.5v5m0-8.25h.01" /></svg>
-                    <span x-text="routingDocketOpen ? 'Hide workflow' : 'Show workflow'">Show workflow</span>
-                    </button>
-                    @endunless
                 </div>
             </nav>
         </div>
 
-        @unless ($canViewMonitoring)
-            <div
-                class="mb-5"
-                x-cloak
-                x-show="routingDocketOpen"
-                x-transition:enter="transition ease-out duration-200"
-                x-transition:enter-start="-translate-y-2 opacity-0"
-                x-transition:enter-end="translate-y-0 opacity-100"
-                x-transition:leave="transition ease-in duration-150"
-                x-transition:leave-start="translate-y-0 opacity-100"
-                x-transition:leave-end="-translate-y-2 opacity-0"
-            >
-                <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
-            </div>
-        @endunless
+        <div class="mb-5" data-visible-proposal-workflow>
+            <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews" />
+        </div>
+
+        @can('updatePackage', $topic)
+            <section data-proposal-package-update class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
+                <h3 class="font-bold text-gray-950 dark:text-white">You can still update this proposal</h3>
+                <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">The Research Head has not opened your package yet. Edit the papers, add team members, or replace PDFs, then turn in a new version. Your submitted versions remain available in Versions.</p>
+                <a href="{{ route('faculty.topics.edit-package', $topic) }}" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-red-700 px-4 py-2 font-semibold text-white hover:bg-red-800">{{ $topic->revisionDraft ? 'Continue package update' : 'Update submitted package' }}</a>
+            </section>
+        @endcan
 
         <section id="proposal-details-tab" x-show="activeTopicTab === 'details'" x-cloak role="tabpanel" aria-labelledby="proposal-details-tab-button">
             <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -372,21 +383,21 @@
             }
         @endphp
         <section id="proposal-review-tab" x-data="{ decision: @js($initialResearchHeadDecision) }" x-show="activeTopicTab === 'review'" x-cloak role="tabpanel" aria-labelledby="proposal-review-tab-button" class="space-y-4">
-            @if ($isResearchHead && $latestVersion)
+            @if ($isResearchHead && $latestVersion && $topic->review_stage !== 'lrec' && in_array($topic->status, ['pending', 'resubmitted', 'expert_review', 'for_final_decision'], true))
                 <div class="flex flex-wrap justify-end gap-2">
                     <a data-research-head-screening-form href="{{ route('research_head.topics.initial-screening-form.edit', [$topic, $latestVersion]) }}" class="inline-flex min-h-11 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">{{ Auth::user()->can('fillInitialScreeningForm', [$topic, $latestVersion]) ? 'Fill Initial Screening Form' : 'View Initial Screening Form' }}</a>
                 </div>
             @endif
             @if ($canDecide || ($isResearchHead && $topic->status === 'revision_requested'))
-                <section class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
-                    <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">Proposal papers for review <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
+                <section @if ($isAssessmentStage) data-assessment-revision-papers x-show="decision === 'revision_requested'" x-cloak @else data-active-paper-review @endif class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 sm:p-6" aria-labelledby="file-review-checklist-heading">
+                    <h3 id="file-review-checklist-heading" class="text-base font-semibold text-gray-900 dark:text-gray-100">{{ $isAssessmentStage ? 'Select papers for revision' : 'Proposal papers for review' }} <span class="ml-2 text-sm font-normal text-gray-500">Version {{ $latestVersion?->version_number ?? 1 }}</span></h3>
                     <div data-review-feedback-preview class="my-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $canDecide ? ($topic->review_stage === 'lrec' ? 'Committee comments and saved highlights are included in the Comment Response paper.' : 'Highlight sections that require revision and add a comment. Saved comments are included in the Comment Response paper.') : 'Revision request sent. Open a paper to view its saved comments while the faculty member prepares the next version.' }} The generated GAD and screening forms are in the project folder; their completed copies are handled in the separate assessment steps.</p>
+                        <p class="max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $isAssessmentStage ? 'Select the papers affected by this assessment and add any instructions for the faculty revision. Recorded co-evaluator comments are included in the Comment Response paper.' : ($canDecide ? ($topic->review_stage === 'lrec' ? 'Committee comments and saved highlights are included in the Comment Response paper.' : 'Highlight sections that require revision and add a comment. Saved comments are included in the Comment Response paper.') : 'Revision request sent. Open a paper to view its saved comments while the faculty member prepares the next version.') }} @unless ($isAssessmentStage) The generated GAD and screening forms are in the project folder; their completed copies are handled in the separate assessment steps. @endunless</p>
                         @if ($canDecide && $latestVersion)
                             <button type="button" data-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'review-comment-response-{{ $topic->id }}')" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-offset-gray-950"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></svg>Preview Comment Response Paper</button>
                         @endif
                     </div>
-                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => $canDecide, 'decisionFormId' => $canDecide ? 'research-head-decision-form' : null, 'prioritizeRevisedFiles' => true, 'showGuidance' => false, 'showReviewChecks' => true, 'readOnlyReview' => ! $canDecide])
+                    @include('topics.partials.revision-file-selector', ['files' => $submittedFiles, 'disableUnlessRevision' => $canDecide, 'decisionFormId' => $canDecide ? 'research-head-decision-form' : null, 'prioritizeRevisedFiles' => true, 'showGuidance' => false, 'showReviewChecks' => ! $isAssessmentStage, 'readOnlyReview' => ! $canDecide])
                     @error('revision_file_ids')<p class="mt-4 text-sm font-semibold text-red-600">{{ $message }}</p>@enderror
                 </section>
             @endif
@@ -917,5 +928,14 @@
         @if ($topic->signed_approval_path)
             <a href="{{ route('topics.approval', $topic) }}" class="flex justify-center rounded-xl bg-gray-950 px-4 py-3 text-sm font-bold text-white hover:bg-black dark:bg-white dark:text-gray-950 dark:hover:bg-gray-200">Download previous signed approval</a>
         @endif
+
+        <x-back-link
+            fixed
+            x-ref="workspaceBackLink"
+            x-show="!$store.researchAssistant.drawerOpen && !$store.researchAssistant.workspaceOpen"
+            x-cloak
+            data-topic-workspace-back-link
+            href="{{ route($workspaceBackRoute) }}"
+        >{{ $workspaceBackLabel }}</x-back-link>
     </div>
 </x-app-layout>

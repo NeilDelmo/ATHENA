@@ -83,7 +83,7 @@ class DetailedProposalRules
                     'expected_outputs.'.$key.'.*.description' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
                 ])
                 ->all(),
-            'introduction' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
+            'introduction' => ['nullable', 'string', 'max:'.$maximumNarrativeLength],
             'related_literature' => [$presenceRule, 'string', 'max:'.$maximumNarrativeLength],
             'literature_research_history' => ['nullable', 'json', 'max:12000'],
             'literature_citations' => ['nullable', 'json', 'max:30000'],
@@ -127,7 +127,7 @@ class DetailedProposalRules
 
         return [
             function (Validator $validator): void {
-                foreach (['executive_brief', 'rationale', 'introduction', 'related_literature', 'methodology.research_design', 'methodology.specific_methods', 'references'] as $field) {
+                foreach (['executive_brief', 'rationale', 'related_literature', 'methodology.research_design', 'methodology.specific_methods', 'references'] as $field) {
                     $value = data_get($validator->getData(), $field);
 
                     if (! $validator->errors()->has($field) && is_string($value) && preg_match('/^\s*$/u', html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'))) {
@@ -224,8 +224,8 @@ class DetailedProposalRules
             'general_objective' => 'general objective',
             'specific_objectives' => 'specific objectives',
             'specific_objectives.*.description' => 'specific objective',
-            'introduction' => 'introduction',
-            'related_literature' => 'related studies and literature',
+            'introduction' => 'Review of Related Literature opening paragraphs',
+            'related_literature' => config('detailed_proposal.section_headings.literature'),
             'methodology.research_design' => 'research design',
             'methodology.specific_methods' => 'specific methods',
             'specific_method_objectives.*.methods.*.description' => 'specific method',

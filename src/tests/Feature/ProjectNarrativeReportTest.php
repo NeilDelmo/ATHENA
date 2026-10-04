@@ -3,6 +3,7 @@
 use App\Contracts\DocumentPdfConverter;
 use App\Models\ProjectNarrativeReport;
 use App\Models\ProjectNarrativeReportDraft;
+use App\Models\ProposalSignatory;
 use App\Models\ResearchCall;
 use App\Models\TopicProposal;
 use App\Models\User;
@@ -122,7 +123,7 @@ test('Progress Reports use the Monitoring Tool periods including a shorter final
         unlink($path);
     }
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertSessionHasNoErrors();
-    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee($report->reporting_period_label);
+    $this->get(route('topics.show', $this->topic))->assertOk()->assertSee('data-progress-quarter="3"', false)->assertSee($final['period']);
     $this->get(route('project-narrative-reports.show', $report))->assertOk()->assertSee($report->reporting_period_label);
 });
 
@@ -255,7 +256,8 @@ test('the faculty monitoring page opens the progress report in a focused form pa
         ->get(route('research.show', $this->topic))
         ->assertOk()
         ->assertSee('Monitoring Tool')
-        ->assertSee('Open progress report')
+        ->assertSee('Progress Report')
+        ->assertSee('Start report')
         ->assertSee(route('project-narrative-reports.create', $this->topic), false)
         ->assertDontSee('data-narrative-progress-autosave-form', false);
 
@@ -415,7 +417,8 @@ test('the owner and Research Head can download the official report as a PDF and 
             ->and($documentXml)->toContain('Baseline coastal data')
             ->and($documentXml)->toContain('Figure 1. The research team conducting the first coastal survey.')
             ->and($documentXml)->toContain('P 150,000.00')
-            ->and($documentXml)->not->toContain('DJOANNA MARIE V. SALAC')
+            ->and($documentXml)->toContain(ProposalSignatory::defaultSelections()['verified_by']['name'])
+            ->and($documentXml)->toContain(ProposalSignatory::defaultSelections()['recommending_approval_name']['name'])
             ->and($relationshipsXml)->toContain('media/progress-figure-1.jpg')
             ->and($generated->getFromName('word/media/progress-figure-1.jpg'))
             ->toBe(Storage::disk('local')->get($report->photos[0]['path']))
@@ -585,9 +588,18 @@ test('progress defaults reuse approved proposal narratives and work plan outputs
             'accomplishments' => [['objective' => 'Approved objective 1', 'target' => 'Edited expected output', 'actual' => 'Period progress.']],
         ],
     ]);
-    $this->get(route('project-narrative-reports.create', $this->topic))
+    $form = $this->get(route('project-narrative-reports.create', $this->topic))
         ->assertSuccessful()->assertSee('My revised period introduction.')->assertSee('Period-specific results.')
-        ->assertDontSee('Approved research design.')->assertSee('Planned activity 1')->assertSee('Edited expected output');
+        ->assertDontSee('Approved research design.')->assertSee('Planned activity 1')->assertSee('Expected output 1')->assertDontSee('Edited expected output');
+    $document = new DOMDocument;
+    @$document->loadHTML($form->getContent());
+    $xpath = new DOMXPath($document);
+    foreach (['row.objective', 'row.target'] as $model) {
+        expect($xpath->query('//textarea[@x-model="'.$model.'"]')->item(0)->hasAttribute('readonly'))->toBeTrue();
+    }
+    expect($xpath->query('//textarea[@x-model="row.actual"]')->item(0)->hasAttribute('readonly'))->toBeFalse()
+        ->and($xpath->query('//textarea[@name="results_discussion"]')->item(0)->hasAttribute('readonly'))->toBeFalse()
+        ->and($xpath->query('//textarea[@name="objectives"]')->item(0)->hasAttribute('readonly'))->toBeTrue();
 });
 
 test('progress reports allow no figures but validate each supplied figure and its caption', function () {

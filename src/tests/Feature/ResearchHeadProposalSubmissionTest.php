@@ -98,9 +98,9 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertDontSee('value="rejected"', false)
         ->assertSee('data-proposal-status-label="New revision"', false)
         ->assertSee('data-proposal-history-status-label="New revision"', false)
-        ->assertSee('New packages are marked in red.')
+        ->assertSee('New submissions are marked in red.')
         ->assertSee('data-proposal-state="new"', false)
-        ->assertSee('Revised package · Version 2')
+        ->assertSee('Revised submission · Version 2')
         ->assertSee('Review: Community Flood Resilience')
         ->assertDontSee('Open for review')
         ->assertSee('inline-flex min-h-11 w-48 whitespace-nowrap', false)
@@ -112,8 +112,8 @@ test('research heads can view every initial proposal submission and revision', f
         ->assertSee('Expanded the implementation schedule and revised the budget.')
         ->assertSee('Dr. Elena Santos')
         ->assertSee('Sustainable Communities Research Call')
-        ->assertSee('1 package file')
-        ->assertSee('2 package files')
+        ->assertSee('1 document')
+        ->assertSee('2 documents')
         ->assertSee(route('topics.show', $topic).'#version-history', false)
         ->assertSeeInOrder([
             'aria-label="Overview"',
@@ -636,7 +636,8 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ])
         ->assertSee('data-horizontal-stepper', false)
         ->assertSee('data-route-step', false)
-        ->assertSee('data-review-workflow-toggle', false)
+        ->assertSee('data-visible-proposal-workflow', false)
+        ->assertDontSee('data-review-workflow-toggle', false)
         ->assertDontSee("routingDocketOpen = ! routingDocketOpen; setTopicTab('details', 'proposal-details')", false)
         ->assertSee('data-route-state="in-progress"', false)
         ->assertDontSee('Researcher. Corrected proposal package and response.')
@@ -669,7 +670,7 @@ test('Research Head clearance opens GAD assessment before co-evaluator review an
         ->assertOk()
         ->assertSee('data-route-state="revision-requested"', false)
         ->assertSee('data-current-route-stage="research-head-review"', false)
-        ->assertSee('resubmit the corrected package to the review stage that requested it.');
+        ->assertSee('resubmit the corrected proposal to the review stage that requested it.');
 
     expect($topic->canRecordDecision(TopicProposal::STATUS_LREC_QUEUED))->toBeFalse();
     $revisionVersion = createProposalSubmission($topic, $this->faculty, [
@@ -863,14 +864,14 @@ test('revision requests remain attached to the review stage that issued them', f
         ->assertSee('data-proposal-status-label="LREC revision requested"', false);
 });
 
-test('received submissions shows incoming packages without duplicating the active review queue', function () {
+test('received submissions shows incoming submissions without duplicating the active review queue', function () {
     $topic = TopicProposal::create([
         'user_id' => $this->faculty->id, 'research_call_id' => $this->researchCall->id,
         'title' => 'Incoming Coastal Research', 'estimated_budget' => 35000, 'estimated_duration_months' => 12, 'status' => 'pending',
     ]);
     createProposalSubmission($topic, $this->faculty, ['version_number' => 1, 'submission_type' => 'initial', 'title' => 'Incoming Coastal Research']);
     $response = $this->actingAs($this->researchHead)->get(route('research_head.received-submissions.index'))
-        ->assertOk()->assertSee('Received submissions')->assertSee('Received packages')->assertSee('Incoming Coastal Research')
+        ->assertOk()->assertSee('Received submissions')->assertDontSee('Received packages')->assertSee('Incoming Coastal Research')
         ->assertDontSee('data-proposal-queue-layout', false)->assertDontSee('data-submission-workflow-reference', false)
         ->assertSee('action="'.route('research_head.received-submissions.index').'"', false);
     $document = new DOMDocument;
@@ -879,6 +880,49 @@ test('received submissions shows incoming packages without duplicating the activ
     expect($xpath->query('//section[@data-submission-history]')->length)->toBe(1)
         ->and($xpath->query('//*[@data-submission-history-layout="rows"]//article')->length)->toBe(1);
 });
+
+test('submission lists use clear labels and retain the expandable submission information', function (string $destination, string $submissionType, string $submissionLabel) {
+    $topic = TopicProposal::create([
+        'user_id' => $this->faculty->id,
+        'research_call_id' => $this->researchCall->id,
+        'title' => 'Coastal Research Navigation',
+        'estimated_budget' => 35000,
+        'estimated_duration_months' => 12,
+        'status' => 'pending',
+    ]);
+    createProposalSubmission($topic, $this->faculty, [
+        'submission_type' => $submissionType,
+        'title' => $topic->title,
+        'change_summary' => 'Clarified the study timeline.',
+    ]);
+
+    $response = $this->actingAs($this->researchHead)
+        ->get(route('research_head.'.$destination.'.index', ['type' => $submissionType]))
+        ->assertSuccessful()
+        ->assertSee('Initial submissions')
+        ->assertSee('Submission updates')
+        ->assertSee('Submission details')
+        ->assertSee($submissionLabel.' · Version 1')
+        ->assertSee('1 document')
+        ->assertSee(route('topics.show', $topic).'#version-history', false);
+
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $details = $xpath->query('//*[@data-submission-history-layout="rows"]//article//details')->item(0);
+
+    expect(strtolower($xpath->query('//*[@data-proposal-submissions]')->item(0)->textContent))->not->toContain('package')
+        ->and($details->textContent)->toContain($this->faculty->email, $this->researchCall->title, 'Submitted by '.$this->faculty->name, 'Clarified the study timeline.')
+        ->and($details->hasAttribute('open'))->toBeFalse()
+        ->and($xpath->query('//*[@data-submission-history-layout="rows"]//article')->length)->toBe(1);
+})->with([
+    'received initial submission' => ['received-submissions', 'initial', 'Initial submission'],
+    'received revision' => ['received-submissions', 'revision', 'Revision'],
+    'received submission update' => ['received-submissions', 'update', 'Submission update'],
+    'review initial submission' => ['proposal-submissions', 'initial', 'Initial submission'],
+    'review revision' => ['proposal-submissions', 'revision', 'Revision'],
+    'review submission update' => ['proposal-submissions', 'update', 'Submission update'],
+]);
 
 test('new lifecycle pages reject faculty workspace access', function (string $destination) {
     $this->get(route('research_head.'.$destination.'.index'))->assertRedirect(route('login'));

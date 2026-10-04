@@ -31,6 +31,8 @@ class ProposalDraftMemberController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $lockedDraft->ensureEditable();
+
             if ($lockedDraft->members()->count() >= 50) {
                 throw ValidationException::withMessages([
                     'email' => 'This proposal workspace already has the maximum of 50 team members.',
@@ -108,6 +110,8 @@ class ProposalDraftMemberController extends Controller
                 ->whereKey($proposalDraft->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            $lockedDraft->ensureEditable();
 
             $lockedDraft->members()
                 ->where('project_role', $validated['project_role'])

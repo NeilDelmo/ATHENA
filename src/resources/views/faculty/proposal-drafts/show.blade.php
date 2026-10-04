@@ -15,6 +15,7 @@
     </x-slot>
 
     @php
+        $submittedTopic = $proposalDraft->topic;
         $editableChecklist = $checklist->reject(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $automaticChecklist = $checklist->filter(fn (array $item): bool => $item['paper']['mode'] === 'automatic');
         $completedPaperCount = $editableChecklist
@@ -27,6 +28,14 @@
         $memberInvitationHasErrors = $errors->hasAny(['email', 'name']);
         $teamRoleHasErrors = $errors->hasAny(['member_id', 'project_role']);
     @endphp
+
+    @if ($submittedTopic && $submittedTopic->status !== 'revision_requested')
+        <section data-submitted-package-workspace class="rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900 dark:bg-blue-950/30">
+            <h2 class="font-bold text-gray-950 dark:text-white">Update submitted package</h2>
+            <p class="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">{{ $submittedTopic->canUpdateBeforeReview() ? 'These changes are private until you turn in the next version. The Research Head continues to see your last submitted package. Editing closes when the Research Head opens the proposal.' : 'The Research Head has opened your proposal. This working copy is kept, but further edits and submission require a revision request.' }}</p>
+            <a href="{{ route('topics.show', $submittedTopic) }}" class="mt-3 inline-flex min-h-11 items-center font-semibold text-red-700 hover:underline dark:text-red-300">View submitted versions</a>
+        </section>
+    @endif
 
     <div
         data-workspace-palette="red-black-white"

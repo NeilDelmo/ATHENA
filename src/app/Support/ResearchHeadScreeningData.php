@@ -47,11 +47,17 @@ class ResearchHeadScreeningData
             'scores' => [], 'recommended_action' => null, 'narrative_evaluation' => '',
         ];
 
-        return [
+        $data = [
             ...$defaults,
             ...($version->research_head_screening ?? []),
             'screening_head' => ProposalSignatory::defaultSelections()['screening_head']['name'],
             'screening_verifier' => ProposalSignatory::defaultSelections()['screening_verifier']['name'],
         ];
+
+        if (blank($data['screening_center'] ?? null)) {
+            $data['screening_center'] = (string) config('research_signatories.center_head');
+        }
+
+        return $data;
     }
 }

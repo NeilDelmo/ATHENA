@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateProposalRevisionDraft;
 use App\Actions\SaveProposalDraftDocument;
+use App\Contracts\DocumentPdfConverter;
 use App\Http\Requests\StoreProposalDraftRequest;
 use App\Models\ProposalDraft;
+use App\Models\ProposalDraftDocument;
 use App\Models\ProposalDraftMember;
 use App\Models\ProposalFileAnnotation;
 use App\Models\ProposalTemplate;
@@ -21,6 +23,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
@@ -31,6 +34,32 @@ use Illuminate\View\View;
 
 class ProposalDraftController extends Controller
 {
+    public function revisionFile(ProposalDraft $proposalDraft, ProposalDraftDocument $document, DocumentPdfConverter $converter): Response|JsonResponse
+    {
+        Gate::authorize('update', $proposalDraft);
+        abort_unless($proposalDraft->topic?->status === 'revision_requested', 403);
+        abort_unless($document->proposal_draft_id === $proposalDraft->id && $document->hasStagedFile(), 404);
+        abort_unless(Storage::disk('local')->exists($document->file_path), 404);
+
+        $contents = Storage::disk('local')->get($document->file_path);
+        if ($document->mime_type !== 'application/pdf' && ! str_ends_with(strtolower($document->file_path), '.pdf')) {
+            try {
+                $contents = $converter->convertDocx($contents);
+            } catch (\RuntimeException $exception) {
+                report($exception);
+
+                return response()->json(['message' => 'The revised Word file could not be read. Try a PDF replacement.'], 503);
+            }
+        }
+
+        return response($contents, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="revised-paper.pdf"',
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     private const DUPLICATE_CREATION_WINDOW_SECONDS = 30;
 
     public function index(Request $request): View
@@ -227,6 +256,18 @@ class ProposalDraftController extends Controller
         }
 
         return redirect()->to($url);
+    }
+
+    public function editSubmitted(
+        Request $request,
+        TopicProposal $topic,
+        CreateProposalRevisionDraft $createProposalRevisionDraft,
+    ): RedirectResponse {
+        Gate::authorize('updatePackage', $topic);
+
+        $proposalDraft = $createProposalRevisionDraft->handle($topic, $request->user());
+
+        return redirect()->route('faculty.proposal-drafts.show', $proposalDraft);
     }
 
     public function storeRevisionFile(

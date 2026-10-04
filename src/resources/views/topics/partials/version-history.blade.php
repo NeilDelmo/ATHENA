@@ -23,6 +23,10 @@
                     ]);
                     $proposalPapers = $versionFiles->reject(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm());
                     $assessmentForms = $versionFiles->filter(fn (\App\Models\ProposalVersionFile $file): bool => $file->isGeneratedAssessmentForm());
+                    $assessmentUploads = $version->files->filter(fn (\App\Models\ProposalVersionFile $file): bool => $file->document_type === \App\Models\ProposalVersionFile::TYPE_HEAD_UPLOAD
+                        && ! $file->isSuperseded()
+                        && in_array($file->source_data['purpose'] ?? null, [\App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT, \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION], true))
+                        ->sortByDesc('id')->unique(fn ($file) => $file->source_version_file_id.':'.$file->source_data['purpose']);
                 @endphp
                 <article data-submitted-version="{{ $version->version_number }}">
                     <details class="group">
@@ -36,7 +40,7 @@
                                     @endif
                                 </span>
                                 <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                    {{ $version->submission_type === 'initial' ? 'Initial submission' : 'Revision submission' }} · {{ $version->created_at->format('M j, Y · g:i A') }} · {{ max(1, $versionFiles->count()) }} {{ Str::plural('file', max(1, $versionFiles->count())) }}
+                                    {{ match ($version->submission_type) { 'initial' => 'Initial submission', 'update' => 'Package update before review', default => 'Revision submission' } }} · {{ $version->created_at->format('M j, Y · g:i A') }} · {{ max(1, $versionFiles->count()) }} {{ Str::plural('file', max(1, $versionFiles->count())) }}
                                 </span>
                             </span>
                             <svg class="h-4 w-4 shrink-0 text-gray-500 transition-transform group-open:rotate-180 dark:text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
@@ -53,7 +57,7 @@
                                 <p class="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100"><span class="font-semibold">Revision summary:</span> {{ $version->change_summary }}</p>
                             @endif
 
-                            @if (Auth::user()->isUsingWorkspace('research_head') && $version->research_head_screening !== null)
+                            @if (Auth::user()?->isUsingWorkspace('research_head') && $version->research_head_screening !== null)
                                 <a data-version-screening-form href="{{ route('research_head.topics.initial-screening-form.edit', [$topic, $version]) }}" class="mt-3 inline-flex min-h-11 items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800">Saved Initial Screening Form · Version {{ $version->version_number }}</a>
                             @endif
 
@@ -87,6 +91,36 @@
                                     </div>
                                     <a href="{{ route('topics.versions.download', [$topic, $version]) }}" class="inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Download</a>
                                 </div>
+                            @endif
+                            @if ($assessmentUploads->isNotEmpty())
+                                <section data-version-assessment-records class="mt-5 border-t border-gray-200 pt-4 dark:border-gray-700" aria-label="Assessment records for version {{ $version->version_number }}">
+                                    <h4 class="text-sm font-bold text-gray-950 dark:text-white">Assessment records</h4>
+                                    <ul class="mt-3 space-y-3">
+                                        @foreach ($assessmentUploads as $assessmentUpload)
+                                            @php
+                                                $isGadRecord = $assessmentUpload->source_data['purpose'] === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
+                                                $recordScore = $assessmentUpload->source_data['gad_score'] ?? null;
+                                                $recordRecommendation = \App\Support\InitialScreeningSubmissionOrder::recommendationLabel($assessmentUpload->source_data['recommended_action'] ?? null);
+                                            @endphp
+                                            <li data-assessment-record="{{ $assessmentUpload->id }}" class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-950">
+                                                <div class="flex flex-wrap items-start justify-between gap-3">
+                                                    <div class="min-w-0">
+                                                        <p class="text-sm font-bold text-gray-950 dark:text-white">{{ $isGadRecord ? 'GAD Office assessment' : 'Co-evaluator review' }}</p>
+                                                        <p class="mt-1 break-words text-sm text-gray-600 dark:text-gray-300">{{ $isGadRecord ? ($recordScore !== null ? number_format((float) $recordScore, 2).'/20' : 'Score not recorded') : $recordRecommendation }}</p>
+                                                        <p class="mt-1 break-all text-xs text-gray-500 dark:text-gray-400">{{ $assessmentUpload->original_filename }}</p>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-2">
+                                                        <a href="{{ route('topics.versions.files.view', [$topic, $version, $assessmentUpload]) }}" target="_blank" rel="noopener" class="inline-flex min-h-9 items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">View</a>
+                                                        <a href="{{ route('topics.versions.files.download', [$topic, $version, $assessmentUpload]) }}" class="inline-flex min-h-9 items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Download</a>
+                                                    </div>
+                                                </div>
+                                                @if (! $isGadRecord && filled($assessmentUpload->source_data['narrative_evaluation'] ?? null))
+                                                    <p class="mt-3 whitespace-pre-line break-words border-t border-gray-100 pt-3 text-sm leading-6 text-gray-800 dark:border-gray-800 dark:text-gray-200">{{ $assessmentUpload->source_data['narrative_evaluation'] }}</p>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </section>
                             @endif
                         </div>
                     </details>

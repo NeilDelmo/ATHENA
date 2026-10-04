@@ -6,6 +6,10 @@ return [
     'college_options' => ['CICS', 'CTE', 'CABEIHM', 'CCJE', 'CAS', 'CHS'],
     'max_custom_items' => 50,
     'maximum_amount' => 999999999.99,
+    'certifier' => [
+        'name' => 'Dr. ENRICO M. DALANGIN',
+        'role' => "Chancellor\nVice Chairperson, LREC",
+    ],
     'sections' => [
         'mooe' => [
             'label' => 'Maintenance and Other Operating Expenses (MOOE)',

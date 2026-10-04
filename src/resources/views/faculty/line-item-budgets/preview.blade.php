@@ -51,7 +51,7 @@
                             Approved by the Research Council/Local Research Evaluation Committee as per Research Council Resolution No. _____, S. _____/LREC Resolution No. _____, S. _____
                         @endif
                     </td></tr>
-                    <tr><td colspan="6" class="signature-cell certified"><p class="signature-heading">Certified correct:</p><p class="signature-name">{{ $lineItemBudget['certified_by'] }}</p><p>{{ $lineItemBudget['certified_role'] }}</p><p class="date-signed">Date Signed:</p></td></tr>
+                    <tr><td colspan="6" class="signature-cell certified"><p class="signature-heading">Certified correct:</p><p class="signature-name">{{ $lineItemBudget['certified_by'] }}</p>@foreach (explode("\n", $lineItemBudget['certified_role']) as $role)<p>{{ $role }}</p>@endforeach<p class="date-signed">Date Signed:</p></td></tr>
                 </tbody>
             </table>
 

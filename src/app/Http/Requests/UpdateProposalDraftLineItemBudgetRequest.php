@@ -66,7 +66,17 @@ class UpdateProposalDraftLineItemBudgetRequest extends FormRequest
         $merged['leader_campus'] = LineItemBudgetData::campusLabel($merged['leader_campus'] ?? null);
         $merged['leader_college'] = LineItemBudgetData::collegeAbbreviation($merged['leader_college'] ?? null);
 
-        $this->merge([...$merged, ...$draft->signatoryFields('line_item_budget')]);
+        $signatoryFields = $draft->signatoryFields('line_item_budget');
+
+        if (! isset($draft->signatory_selections['certified_by'])) {
+            foreach ($signatoryFields as $key => $default) {
+                if (filled($merged[$key] ?? null)) {
+                    $signatoryFields[$key] = $merged[$key];
+                }
+            }
+        }
+
+        $this->merge([...$merged, ...$signatoryFields]);
     }
 
     /** @return array<string, ValidationRule|array<mixed>|string> */

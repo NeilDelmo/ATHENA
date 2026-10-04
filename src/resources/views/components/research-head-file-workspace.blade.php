@@ -29,9 +29,11 @@
         \App\Support\InitialScreeningSubmissionOrder::MINOR_REVISION,
         \App\Support\InitialScreeningSubmissionOrder::MAJOR_REVISION,
     ], true);
-    $expandGadReview = ! $gadPassed || ($errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT);
+    $gadUploadHasErrors = $errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_GAD_ASSESSMENT;
+    $expandGadReview = ! $gadPassed || $gadUploadHasErrors;
     $coEvaluatorUploadHasErrors = $errors->headUpload->any() && old('purpose') === \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION;
     $expandCoEvaluatorReview = ! $coEvaluatorReviewComplete || $coEvaluatorUploadHasErrors;
+    $coEvaluatorComments = trim((string) ($coEvaluatorEvaluation?->source_data['narrative_evaluation'] ?? ''));
     $gadScore = $gadAssessment?->source_data['gad_score'] ?? null;
     $gadScoreEntryMethod = $gadAssessment?->source_data['gad_score_entry_method'] ?? null;
     $gadRating = $gadAssessment?->source_data['gad_rating'] ?? null;
@@ -74,8 +76,12 @@
 
     @if ($latestVersion && $canUploadEvaluation)
         <div id="initial-review-workflow" data-current-review-controls="{{ $gadPassed ? 'co-evaluator' : 'gad' }}" class="space-y-5 scroll-mt-6">
+            <p data-completed-review-stages class="text-sm text-gray-600 dark:text-gray-300">
+                {{ $gadPassed ? 'Research Head review and GAD assessment cleared.' : 'Research Head review cleared. GAD assessment is next.' }}
+            </p>
+            @if (! $gadPassed || $gadUploadHasErrors)
             <section id="gad-office-review" data-gad-review-card data-initially-expanded="{{ $expandGadReview ? 'true' : 'false' }}" x-data="{ expanded: @js($expandGadReview) }" aria-labelledby="gad-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
-                <button type="button" @click="expanded = ! expanded" :aria-expanded="expanded" aria-controls="gad-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandGadReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="gad-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
                     <span class="flex flex-wrap items-center gap-3">
                         <span id="gad-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">GAD Office review</span>
                         @if ($gadPassed)
@@ -205,9 +211,10 @@
             @endif
                 </div>
             </section>
+            @endif
             @if ($gadPassed)
                 <section id="co-evaluator-review" data-co-evaluator-review-card data-initially-expanded="{{ $expandCoEvaluatorReview ? 'true' : 'false' }}" x-data="{ expanded: @js($expandCoEvaluatorReview) }" aria-labelledby="co-evaluator-review-heading" class="rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-950 sm:p-6">
-                <button type="button" @click="expanded = ! expanded" :aria-expanded="expanded" aria-controls="co-evaluator-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
+                <button type="button" @click="expanded = ! expanded" aria-expanded="{{ $expandCoEvaluatorReview ? 'true' : 'false' }}" :aria-expanded="expanded" aria-controls="co-evaluator-review-content" class="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700">
                     <span class="flex flex-wrap items-center gap-3">
                         <span id="co-evaluator-review-heading" class="text-lg font-bold text-gray-950 dark:text-white">Co-evaluator review</span>
                         @if ($coEvaluatorReviewComplete)
@@ -216,6 +223,12 @@
                     </span>
                     <svg class="h-5 w-5 shrink-0 text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
                 </button>
+                @if ($coEvaluatorComments !== '')
+                    <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                        <p class="text-sm text-gray-600 dark:text-gray-300">Comments from the completed screening form are ready to review.</p>
+                        <button type="button" data-co-evaluator-comment-response-preview-button aria-haspopup="dialog" @click="$dispatch('open-modal', 'co-evaluator-comment-response-{{ $topic->id }}')" class="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900">Preview Comment Response Form</button>
+                    </div>
+                @endif
                 <div id="co-evaluator-review-content" x-show="expanded" @if (! $expandCoEvaluatorReview) x-cloak @endif>
                 <p class="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{{ $coEvaluatorReviewComplete ? 'The completed Initial Screening Form and recommendation are recorded.' : 'Record the evaluator’s recommendation and upload their completed form.' }}</p>
                 @if ($initialScreeningFile)
@@ -229,7 +242,6 @@
                                 <div class="min-w-0">
                                     <div class="flex flex-wrap items-center gap-2">
                                         <p class="text-base font-black text-gray-950 dark:text-white">Narrative Evaluation recorded</p>
-                                        <span class="rounded-full bg-white px-2.5 py-1 text-sm font-bold text-gray-700 shadow-sm dark:bg-gray-950 dark:text-gray-200">{{ $coEvaluatorEvaluation->source_data['co_evaluator_name'] ?? 'Co-evaluator' }}</span>
                                         @if ($coEvaluatorRecommendedActionLabel)
                                             <span class="rounded-full border border-red-200 bg-white px-2.5 py-1 text-sm font-bold text-red-800 dark:border-red-900 dark:bg-gray-950 dark:text-red-300">{{ $coEvaluatorRecommendedActionLabel }}</span>
                                         @endif
@@ -239,9 +251,14 @@
                                     @if ($verificationStatus = $coEvaluatorEvaluation->source_data['assessment_form_verification']['status'] ?? null)
                                         <p data-assessment-verification-status class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">{{ match ($verificationStatus) { 'matched' => 'Form and project title matched', 'form_matched' => 'Initial Screening Form identified', default => 'Form manually checked by uploader' } }}</p>
                                     @endif
-                                    @if ($coEvaluatorEvaluation->source_data['narrative_evaluation'] ?? null)
-                                        <p class="mt-2 max-h-24 overflow-y-auto whitespace-pre-line text-sm leading-6 text-gray-800 dark:text-gray-200">{{ $coEvaluatorEvaluation->source_data['narrative_evaluation'] }}</p>
-                                    @endif
+                                    <section data-co-evaluator-comments aria-label="Co-evaluator comments" class="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+                                        <h4 class="text-sm font-bold text-gray-950 dark:text-white">Co-evaluator comments</h4>
+                                        @if ($coEvaluatorComments !== '')
+                                            <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-gray-800 dark:text-gray-200">{{ $coEvaluatorComments }}</p>
+                                        @else
+                                            <p class="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">No readable comments were recorded. Open the completed form to review its comments.</p>
+                                        @endif
+                                    </section>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     @if ($coEvaluatorEvaluationViewable)
@@ -263,11 +280,7 @@
                                 @if ($returnToReview)<input type="hidden" name="return_to_review" value="1">@endif
                                 <input type="hidden" name="source_file_id" value="{{ $initialScreeningFile->id }}">
                                 <input type="hidden" name="purpose" value="{{ \App\Models\ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION }}">
-                                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start" data-co-evaluator-details>
-                                    <label for="co_evaluator_name_{{ $topic->id }}" class="block text-sm font-bold text-gray-800 dark:text-gray-100">
-                                        Co-evaluator name
-                                        <input id="co_evaluator_name_{{ $topic->id }}" name="co_evaluator_name" type="text" maxlength="160" autocomplete="off" required value="{{ old('co_evaluator_name') }}" placeholder="Full name" class="mt-2 block min-h-12 w-full rounded-xl border-gray-300 text-base focus:border-red-700 focus:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                                    </label>
+                                <div data-co-evaluator-details>
                                     <fieldset class="min-w-0">
                                         <legend class="text-sm font-bold text-gray-800 dark:text-gray-100">Recommendation</legend>
                                         <div class="mt-2 grid gap-2 sm:grid-cols-3">
@@ -315,6 +328,20 @@
                     <p role="alert" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">The submitted package does not include an Initial Screening Form.</p>
                 @endif
                 </div>
+                @if ($coEvaluatorComments !== '')
+                    <x-modal name="co-evaluator-comment-response-{{ $topic->id }}" maxWidth="6xl" focusable class="!z-[140]" data-co-evaluator-comment-response-preview-modal>
+                        <template x-if="show">
+                            <section role="dialog" aria-modal="true" aria-labelledby="co-evaluator-comment-response-heading-{{ $topic->id }}">
+                                <header class="flex items-center justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+                                    <h3 id="co-evaluator-comment-response-heading-{{ $topic->id }}" class="text-base font-bold text-gray-950 dark:text-white">Co-evaluator Comment Response Form</h3>
+                                    <button type="button" @click="$dispatch('close')" class="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:hover:bg-gray-800">Close preview</button>
+                                </header>
+                                <p class="border-b border-gray-200 px-4 py-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">These comments will be included when revisions are requested. Faculty responses and page references are filled during revision.</p>
+                                <x-proposal-revision-pdf :configuration="['pdfUrl' => route('research_head.topics.comment-response-form.pdf', ['topic' => $topic, 'draft_version' => $latestVersion->id, 'source' => \App\Services\CommentResponseFeedback::FORM_CO_EVALUATOR]), 'annotations' => [], 'canAnnotate' => false]" loading-label="Loading co-evaluator Comment Response Form…" viewer-label="Co-evaluator Comment Response Form" class="!h-[75dvh]" />
+                            </section>
+                        </template>
+                    </x-modal>
+                @endif
                 </section>
             @endif
         </div>

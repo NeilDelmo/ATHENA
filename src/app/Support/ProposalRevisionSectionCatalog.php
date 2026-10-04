@@ -21,7 +21,7 @@ class ProposalRevisionSectionCatalog
                 ['rationale', 'VIII. Rationale', 'VIII\.\s*Rationale'],
                 ['objectives', 'IX. Objectives of the Project', 'IX\.\s*Objectives of the Project'],
                 ['expected-outputs', 'X. Expected Output of the Project', 'X\.\s*Expected Output'],
-                ['literature', 'XI. Introduction and Related Literature', 'XI\.\s*(?:Review of Related|Introduction)'],
+                ['literature', 'XI. Review of Related Literature', 'XI\.\s*(?:Review of Related|Introduction)'],
                 ['methodology', 'XII. Methodology', 'XII\.\s*Methodology'],
                 ['responsibilities', 'XIII. Duties and Responsibilities', 'XIII\.\s*Duties and Responsibilities'],
                 ['work-plan', 'XIV. Major Activities / Work Plan', 'XIV\.\s*Major Activities'],
@@ -63,7 +63,9 @@ class ProposalRevisionSectionCatalog
 
         return array_map(fn (array $section): array => [
             'value' => 'section-'.$section[0],
-            'label' => $section[1],
+            'label' => $type === ProposalVersionFile::TYPE_DETAILED_PROPOSAL
+                ? config('detailed_proposal.section_headings.'.$section[0], $section[1])
+                : $section[1],
             'pattern' => '~^\s*'.$section[2].'~iu',
         ], $sections);
     }

@@ -14,13 +14,15 @@ use App\Models\TopicProposal;
 use App\Models\User;
 use App\Notifications\ProposalActivityNotification;
 use App\Services\CommentResponseFeedback;
+use App\Services\ProposalFormVerifier;
+use App\Services\ProposalSignatureWorkflow;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 
-function createTopicReviewSubmission(TopicProposal $topic, User $faculty): ProposalVersion
+function createTopicReviewSubmission(TopicProposal $topic, User $faculty, bool $complete = false): ProposalVersion
 {
     $path = 'proposals/topic-review-'.$topic->id.'.pdf';
     Storage::disk('local')->put($path, 'submitted proposal');
@@ -50,6 +52,15 @@ function createTopicReviewSubmission(TopicProposal $topic, User $faculty): Propo
         'is_carried_forward' => false,
     ]);
 
+    if ($complete) {
+        foreach (array_diff(ProposalSignatureWorkflow::REQUIRED_DOCUMENT_TYPES, [ProposalVersionFile::TYPE_DETAILED_PROPOSAL]) as $type) {
+            $version->files()->create([
+                'document_type' => $type, 'position' => 0, 'file_path' => $path,
+                'original_filename' => $type.'.pdf', 'mime_type' => 'application/pdf',
+            ]);
+        }
+    }
+
     return $version;
 }
 
@@ -75,6 +86,37 @@ beforeEach(function () {
         $topic->estimated_duration_months ??= 12;
     });
 });
+
+test('the review workspace keeps its floating back link outside the tab panels', function (string $role, string $backRoute) {
+    $this->withoutVite();
+    $faculty = User::factory()->create();
+    $faculty->assignRole('faculty');
+    $viewer = $role === 'faculty' ? $faculty : User::factory()->create();
+    if ($role !== 'faculty') {
+        $viewer->assignRole($role);
+    }
+    $topic = TopicProposal::create([
+        'user_id' => $faculty->id,
+        'title' => 'Proposal with review navigation',
+        'status' => 'pending',
+    ]);
+
+    $response = $this->actingAs($viewer)->get(route('topics.show', $topic))
+        ->assertSuccessful()
+        ->assertSee('id="proposal-review-tab"', false);
+    $document = new DOMDocument;
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    $links = $xpath->query('//*[@data-topic-workspace]//a[@data-fixed-back-link]');
+
+    expect($links->length)->toBe(1)
+        ->and($links->item(0)->getAttribute('href'))->toBe(route($backRoute))
+        ->and($links->item(0)->getAttribute('x-ref'))->toBe('workspaceBackLink')
+        ->and($xpath->query('ancestor::*[@role="tabpanel"]', $links->item(0))->length)->toBe(0);
+})->with([
+    'faculty review' => ['faculty', 'faculty.submissions'],
+    'research head review' => ['research_head', 'research_head.proposal-submissions.index'],
+]);
 
 test('a research head can request a revision with highlighted comments', function () {
     Storage::fake('local');
@@ -283,6 +325,16 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'estimated_budget' => 10000,
         'estimated_duration_months' => 12,
     ]);
+    $returnedFile = $originalVersion->files()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL, 'position' => 0,
+        'file_path' => 'proposals/original.pdf', 'original_filename' => 'original.pdf',
+        'mime_type' => 'application/pdf', 'checksum' => hash('sha256', 'original document'),
+    ]);
+    $review = $topic->reviews()->create(['reviewer_id' => $faculty->id, 'decision' => 'revision_requested']);
+    $review->fileRevisions()->create([
+        'proposal_version_file_id' => $returnedFile->id, 'document_type' => $returnedFile->document_type,
+        'original_filename' => $returnedFile->original_filename,
+    ]);
 
     $response = $this->actingAs($faculty)->patch("/faculty/topics/{$topic->id}/resubmit", [
         'title' => 'Revised proposal',
@@ -292,7 +344,7 @@ test('faculty can revise and resubmit a proposal after feedback', function () {
         'document' => UploadedFile::fake()->create('revised-proposal.pdf', 100, 'application/pdf'),
     ]);
 
-    $response->assertRedirect(route('faculty.dashboard'));
+    $response->assertSessionHasNoErrors()->assertRedirect(route('faculty.dashboard'));
 
     $topic->refresh();
 
@@ -374,9 +426,9 @@ test('faculty replies and structured locations are saved and exported in separat
     }
 })->with([
     'Research Head revision with a location' => [['response' => 'Added the recruitment schedule.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2, 'remarks' => 'sample sample'], 'Page 4, paragraph 2', 'research_head'],
-    'Research Head reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1, 'page' => 'invalid', 'paragraph' => -1], '', 'research_head'],
+    'Research Head reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1, 'page' => 'invalid', 'paragraph' => -1], 'No change made', 'research_head'],
     'LREC revision with a location' => [['response' => 'Added the recruitment schedule.', 'no_change' => 0, 'page' => 4, 'paragraph' => 2], 'Page 4, paragraph 2', 'lrec'],
-    'LREC reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1], '', 'lrec'],
+    'LREC reply without a change' => [['response' => 'The existing schedule already covers participant recruitment.', 'no_change' => 1], 'No change made', 'lrec'],
 ]);
 
 test('faculty revision rejects missing or invalid comment response locations', function (array $answer, string $field) {
@@ -602,13 +654,19 @@ test('a Research Head may request another revision only after receiving the facu
         ->and($faculty->notifications()->where('data->title', 'Revision requested')->count())->toBe(1);
 });
 
-test('a research head can finalize approval for a resubmitted proposal after signing', function () {
+test('a research head can confirm completed signing while Notice to Proceed release remains pending', function () {
     Storage::fake('local');
     $head = User::factory()->create();
     $head->assignRole('research_head');
 
-    $faculty = User::factory()->create();
+    $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $office->assignRole('research_coordinator');
+    $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
+        'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
+    ]);
 
     $topic = TopicProposal::create([
         'user_id' => $faculty->id,
@@ -616,10 +674,10 @@ test('a research head can finalize approval for a resubmitted proposal after sig
         'estimated_budget' => 8500,
         'initial_file_path' => 'proposals/original.pdf',
         'final_file_path' => 'proposals/revisions/revised.pdf',
-        'status' => 'resubmitted',
+        'status' => TopicProposal::STATUS_LREC_REVIEW,
+        'review_stage' => 'lrec',
     ]);
-    $version = createTopicReviewSubmission($topic, $faculty);
-    $signatureFile = $version->files()->sole();
+    $version = createTopicReviewSubmission($topic, $faculty, true);
 
     $topic->reviews()->create([
         'reviewer_id' => $head->id,
@@ -631,25 +689,26 @@ test('a research head can finalize approval for a resubmitted proposal after sig
         ->from(route('research_head.dashboard'))
         ->patch("/research-head/topics/{$topic->id}/status", [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$signatureFile->id],
+            'lrec_clearance_confirmed' => true,
         ]);
 
     $response->assertRedirect(route('research_head.dashboard'))->assertSessionHasNoErrors();
 
-    $this->actingAs($head)
-        ->post(route('topics.head-uploads.store', $topic), [
-            'source_file_id' => $signatureFile->id,
-            'review_file' => UploadedFile::fake()->create('signed-proposal.pdf', 100, 'application/pdf'),
-            'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
-        ])
-        ->assertSessionHasNoErrors();
+    foreach ($version->files()->get() as $signatureFile) {
+        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
+            ->post(route('topics.head-uploads.store', $topic), [
+                'source_file_id' => $signatureFile->id,
+                'review_file' => UploadedFile::fake()->create('signed-proposal.pdf', 100, 'application/pdf'),
+                'purpose' => ProposalVersionFile::HEAD_UPLOAD_PURPOSE_SIGNED,
+            ])->assertSessionHasNoErrors();
+    }
 
     $this->actingAs($head)
         ->patch(route('research_head.topics.finalizeApproval', $topic))
         ->assertSessionHasNoErrors();
 
-    expect($topic->fresh()->status)->toBe('approved')
-        ->and($topic->reviews()->count())->toBe(4)
+    expect($topic->fresh()->status)->toBe(TopicProposal::STATUS_READY_FOR_SIGNATURE)
+        ->and(app(ProposalSignatureWorkflow::class)->isComplete($version->fresh()))->toBeTrue()
         ->and($topic->fresh()->project_status)->toBeNull()
         ->and($faculty->fresh()->hasRole('faculty_researcher'))->toBeFalse();
 });
@@ -705,7 +764,8 @@ test('decision history is collapsed and organized newest first', function () {
 
     expect($xpath->query('//nav//button[@data-decision-history-toggle][@aria-controls="decision-history-list"][@aria-expanded="false"]')->length)->toBe(1)
         ->and($xpath->query('//button[@data-decision-history-toggle][@x-show="activeTopicTab === \'history\'"]')->length)->toBe(1)
-        ->and($xpath->query('//button[@data-decision-history-toggle]/following-sibling::button[1][@data-review-workflow-toggle]')->length)->toBe(1)
+        ->and($xpath->query('//button[@data-review-workflow-toggle]')->length)->toBe(0)
+        ->and($xpath->query('//*[@data-visible-proposal-workflow][not(@x-show)][not(@x-cloak)]')->length)->toBe(1)
         ->and($xpath->query('//section[@data-decision-history][@data-initially-open="false"][@x-show="decisionHistoryOpen"][@x-cloak]')->length)->toBe(1)
         ->and($xpath->query('//section[@data-decision-history]//button[@aria-controls="decision-history-list"]')->length)->toBe(0)
         ->and($xpath->query('//section[@data-decision-history]//*[@data-decision-history-list]//li')->length)->toBe(2)
@@ -726,10 +786,9 @@ test('legacy review records do not block the Research Head from starting final s
     $topic = TopicProposal::create([
         'user_id' => $faculty->id,
         'title' => 'Proposal with screening comments',
-        'status' => 'for_final_decision',
+        'status' => 'for_final_decision', 'review_stage' => 'lrec',
     ]);
-    $version = createTopicReviewSubmission($topic, $faculty);
-    $signatureFile = $version->files()->sole();
+    $version = createTopicReviewSubmission($topic, $faculty, true);
     $topic->expertAssignments()->create([
         'expert_id' => $legacyReviewer->id,
         'assigned_by' => $head->id,
@@ -742,7 +801,7 @@ test('legacy review records do not block the Research Head from starting final s
     $this->actingAs($head)
         ->patch(route('research_head.topics.updateStatus', $topic), [
             'status' => TopicProposal::STATUS_READY_FOR_SIGNATURE,
-            'signature_file_ids' => [$signatureFile->id],
+            'lrec_clearance_confirmed' => true,
         ])
         ->assertSessionHasNoErrors();
 
@@ -903,7 +962,7 @@ test('research details reads total project cost from the line-item budget attach
         ->get(route('topics.show', $topic))
         ->assertOk()
         ->assertSee('PHP 43,210.50')
-        ->assertSee('value="43210.5"', false);
+        ->assertViewHas('displayProjectCost', 43210.5);
 });
 
 test('faculty can preview and download an auto-filled official Comment-Response Form during revision', function () {
@@ -1346,13 +1405,13 @@ test('faculty researchers can browse and open only their own approved research r
         ->get('/research')
         ->assertOk()
         ->assertSee('My catalogued research')
-        ->assertSee('Awaiting Notice to Proceed')
+        ->assertSee('Awaiting NTP')
         ->assertDontSee('Another faculty research');
 
     $this->actingAs($faculty)
         ->get("/research/{$ownTopic->id}")
         ->assertOk()
-        ->assertSee('Approved - awaiting notice')
+        ->assertSee('Final signing')
         ->assertSee('PHP 14,500.00')
         ->assertSee('Project')
         ->assertSee('Decision history')
@@ -1616,8 +1675,14 @@ test('the proposal workspace is complete role-aware and private', function () {
     $this->withoutVite();
     Storage::fake('local');
 
-    $faculty = User::factory()->create();
+    $faculty = User::factory()->create(['college' => User::COLLEGES['CICS']]);
     $faculty->assignRole('faculty');
+    Role::firstOrCreate(['name' => 'research_coordinator']);
+    $office = User::factory()->create(['college' => User::COLLEGES['CICS']]);
+    $office->assignRole('research_coordinator');
+    $this->mock(ProposalFormVerifier::class)->shouldReceive('check')->andReturn([
+        'status' => 'matched', 'method' => 'test_fixture', 'message' => 'Form and project title matched', 'reason' => null,
+    ]);
     $head = User::factory()->create();
     $head->assignRole('research_head');
     $outsider = User::factory()->create();
@@ -1691,12 +1756,12 @@ test('the proposal workspace is complete role-aware and private', function () {
         ->assertSee('View')
         ->assertSee('Download')
         ->assertSee('Latest submitted package')
-        ->assertSee('Open the project folder to view these files together with signed papers')
+        ->assertSee('Open the project folder to view them in separate categories alongside signed papers')
         ->assertDontSee('Review latest package')
         ->assertSee('data-latest-review-version="1"', false)
         ->assertSee('Record the Research Head decision')
         ->assertSee('Record the Research Head decision')
-        ->assertSee('Submitted documents')
+        ->assertSee('data-latest-review-version', false)
         ->assertDontSee('Your paper review checklist')
         ->assertDontSee('One clear review process')
         ->assertDontSee('Review faculty files')
@@ -1821,7 +1886,7 @@ test('the proposal workspace is complete role-aware and private', function () {
     ] as $documentType) {
         $sourceFile = $latestVersion->files->firstWhere('document_type', $documentType);
 
-        $this->actingAs($head)
+        $this->actingAs($office)->withSession([User::ACTIVE_WORKSPACE_SESSION_KEY => User::WORKSPACE_RESEARCH_OFFICE])
             ->post(route('topics.head-uploads.store', $topic), [
                 'source_file_id' => $sourceFile->id,
                 'review_file' => UploadedFile::fake()->create("signed-{$documentType}.pdf", 100, 'application/pdf'),
@@ -2054,7 +2119,7 @@ test('paper review checklist component is limited to research heads and files in
         ->assertDontSee('Your paper review checklist')
         ->assertSee('Latest submitted package')
         ->assertDontSee('Review latest package')
-        ->assertSee('Submitted documents');
+        ->assertSee('data-latest-review-version', false);
 
     $this->actingAs($faculty)
         ->get(route('topics.show', $topic))
@@ -2118,7 +2183,7 @@ test('research heads review and request changes only against the latest resubmit
         ->assertOk()
         ->assertSee('data-latest-review-version="2"', false)
         ->assertSee('data-latest-review-version-id="'.$latestVersion->id.'"', false)
-        ->assertSee('Submitted documents')
+        ->assertSee('data-latest-review-version', false)
         ->assertSee('data-file-review-card="'.$latestFile->id.'"', false)
         ->assertDontSee('data-file-review-card="'.$originalFile->id.'"', false);
 
@@ -2154,7 +2219,7 @@ test('research heads review and request changes only against the latest resubmit
         ->assertSee('data-topic-success', false)
         ->assertSee('bg-emerald-50', false)
         ->assertSee('Revision request sent')
-        ->assertSee('Submitted documents')
+        ->assertSee('Latest submitted package')
         ->assertSee('data-read-only-review="true"', false)
         ->assertSee('data-file-review-card="'.$latestFile->id.'"', false)
         ->assertSee('data-review-and-highlight', false)
@@ -2168,7 +2233,7 @@ test('research heads review and request changes only against the latest resubmit
         ->assertDontSee('Review the submitted papers and save comments where changes are needed.');
 });
 
-test('comments form reviewer names come from frozen selections or unambiguous active directory roles', function (string $scenario, array $expectedNames) {
+test('comments form reviewer names use configured officers across legacy selections and directory roles', function (string $scenario, array $expectedNames) {
     foreach (['faculty', 'research_head'] as $role) {
         Role::firstOrCreate(['name' => $role]);
     }
@@ -2180,6 +2245,7 @@ test('comments form reviewer names come from frozen selections or unambiguous ac
     $version = createTopicReviewSubmission($topic, $faculty);
     $review = $topic->reviews()->create(['reviewer_id' => $head->id, 'decision' => 'revision_requested', 'comment' => 'Clarify the scope.']);
     $keys = ['comment_response_head', 'comment_response_vice_chancellor'];
+    $expectedNames = array_map(fn (string $key): string => ProposalSignatory::defaultSelections()[$key]['name'], $keys);
     $selections = [];
     foreach ($keys as $index => $key) {
         ProposalSignatory::create(['role_key' => $key, 'name' => 'Directory Signer '.($index + 1), 'position' => 'Role', 'active' => $scenario !== 'inactive']);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ProposalSignatory;
 use DOMDocument;
 use DOMElement;
 use DOMNode;
@@ -465,9 +466,10 @@ class CommentResponseFormDocumentService
         }
 
         $cells = $this->elements($xpath, './w:tr[1]/w:tc', $table);
+        $defaults = ProposalSignatory::defaultSelections();
         foreach (['comment_response_head', 'comment_response_vice_chancellor'] as $index => $key) {
             $paragraph = $xpath->query('./w:p[1]', $cells[$index])->item(0);
-            $this->replaceParagraphText($xpath, $paragraph, $form[$key] ?? '');
+            $this->replaceParagraphText($xpath, $paragraph, filled($form[$key] ?? null) ? $form[$key] : $defaults[$key]['name']);
         }
     }
 

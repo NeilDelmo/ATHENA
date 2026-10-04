@@ -18,7 +18,9 @@ class TerminalReportData
         $files = $topic->latestVersion?->files ?? collect();
         $proposal = $files->firstWhere('document_type', 'detailed_proposal')?->source_data ?? [];
         $workPlan = $files->firstWhere('document_type', 'work_plan')?->source_data ?? [];
-        $previous = $topic->narrativeReports()->where('report_type', 'progress')->where('review_status', '!=', 'revision_requested')->latest('id')->first();
+        $progressReports = $topic->narrativeReports()->where('report_type', 'progress')->submitted()->reorder()->latest('id')->get()
+            ->unique('reporting_quarter')->reject(fn ($report): bool => $report->review_status === 'revision_requested')->sortBy('reporting_quarter')->values();
+        $previous = $progressReports->sortByDesc('id')->first();
         $monitoring = $topic->progressReports()
             ->submitted()
             ->whereDoesntHave('nextVersion', fn ($query) => $query->submitted())
@@ -46,8 +48,10 @@ class TerminalReportData
                 ...$entry,
                 'source_work_plan_index' => $index,
             ]);
-        $accomplishments = $workPlanEntries->groupBy('objective')->map(function ($entries, string $objective) use ($previous, $monitoring): array {
-            $prior = collect($previous?->accomplishments ?? [])->firstWhere('objective', $objective);
+        $accomplishments = $workPlanEntries->groupBy('objective')->map(function ($entries, string $objective) use ($progressReports, $monitoring): array {
+            $progressActuals = $progressReports->flatMap(fn ($report) => collect($report->accomplishments ?? [])
+                ->where('objective', $objective)->pluck('actual')->filter(fn (mixed $actual): bool => filled($actual))
+                ->map(fn (mixed $actual): string => 'Q'.$report->reporting_quarter.' Progress Report: '.trim((string) $actual)));
             $sourceIndexes = $entries->pluck('source_work_plan_index');
             $activities = $entries->pluck('activity')->filter()->map(
                 fn (mixed $activity): string => trim((string) $activity),
@@ -72,9 +76,7 @@ class TerminalReportData
             return [
                 'objective' => $objective,
                 'target' => $entries->pluck('expected_output')->filter()->unique()->implode("\n"),
-                'actual' => $monitoringActuals->isNotEmpty()
-                    ? $monitoringActuals->implode("\n")
-                    : ($prior['actual'] ?? ''),
+                'actual' => $monitoringActuals->merge($progressActuals)->unique()->implode("\n"),
             ];
         })->values();
         if ($accomplishments->isEmpty()) {
@@ -99,12 +101,15 @@ class TerminalReportData
             'template_reference' => 'BatStateU-REC-RES-04', 'template_revision' => '02', 'template_effectivity' => 'May 18, 2022',
             'source_proposal_version_id' => $topic->latestVersion?->id,
             'source_narrative_report_id' => $previous?->id,
+            'source_narrative_report_ids' => $progressReports->pluck('id')->all(),
             'source_monitoring_report_ids' => $monitoring->pluck('id')->all(),
         ];
         $defaults = [
             'missing_monitoring_periods' => app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic),
+            'missing_report_periods' => app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic),
             'monitoring_reference' => $monitoring->map(fn ($report): array => ['id' => $report->id, 'period' => $report->reporting_period_label, 'accomplishments' => $report->accomplishments, 'issues' => $report->issues, 'work_plan' => $report->work_plan, 'budget_utilization' => $report->budget_utilization])->all(),
             'objectives_from_work_plan' => $workPlanEntries->isNotEmpty(),
+            'objectives_from_proposal' => filled($proposal['general_objective'] ?? null),
             'signatory_options' => ProposalSignatory::where('active', true)->orderBy('name')->pluck('name')->unique()->values()->all(),
             'report_type' => 'terminal', 'submission_date' => now()->toDateString(),
             'researchers' => collect($authors)->pluck('name')->implode("\n"),
@@ -117,7 +122,8 @@ class TerminalReportData
             'rationale' => $proposal['rationale'] ?? $previous?->rationale ?? '',
             'objectives' => $this->plain($proposal['general_objective'] ?? ''),
             'methodology' => $previous?->methodology ?? implode("\n\n", $proposal['methodology'] ?? []),
-            'results_discussion' => $previous?->results_discussion ?? '',
+            'results_discussion' => $progressReports->filter(fn ($report): bool => filled($report->results_discussion))
+                ->map(fn ($report): string => '<p><strong>Q'.$report->reporting_quarter.' Progress Report</strong></p>'.$report->results_discussion)->implode("\n\n"),
             'terminal_data' => [
                 ...$snapshot, 'authors' => $authors,
                 'collaborating_agency' => $proposal['cooperating_agency'] ?? '',
@@ -165,6 +171,9 @@ class TerminalReportData
         foreach (self::defaultSignatoryNames() as $key => $name) {
             $defaults['terminal_data']['signatories'][$key]['name'] = $name;
         }
+        if (filled($proposal['general_objective'] ?? null)) {
+            $defaults['objectives'] = $this->plain($proposal['general_objective']);
+        }
 
         return $defaults;
     }
@@ -176,14 +185,17 @@ class TerminalReportData
 
         return [
             'reviewed_head' => $defaults['comment_response_head']['name'],
+            'reviewed_center' => (string) config('research_signatories.center_head'),
             'verified_chancellor' => $defaults['comment_response_vice_chancellor']['name'],
+            'verified_director' => (string) config('research_signatories.research_director'),
+            'approved_by' => (string) config('notice_to_proceed.verifying_officer.name'),
         ];
     }
 
     public function normalize(TopicProposal $topic, array $data): array
     {
         if (($data['report_type'] ?? 'progress') !== 'terminal') {
-            return $data;
+            return app(ProgressReportData::class)->normalize($topic, $data);
         }
         $defaults = $this->defaults($topic);
         if ($defaults['objectives_from_work_plan']) {
@@ -216,7 +228,7 @@ class TerminalReportData
         $data['researchers'] = collect($data['terminal_data']['authors'])->map(fn (array $author): string => implode(', ', array_filter([
             $author['name'] ?? '', $author['rank'] ?? '', $author['campus'] ?? '', $author['college'] ?? '',
         ])))->implode("\n");
-        $data['objectives'] = $data['objectives'] ?? '';
+        $data['objectives'] = $defaults['objectives_from_proposal'] ? $defaults['objectives'] : ($data['objectives'] ?? '');
         $data['funding_agency'] = $data['funding_agency'] ?? '';
 
         return $data;

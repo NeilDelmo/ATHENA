@@ -1,0 +1,264 @@
+<section
+    id="athena-assistant-workspace"
+    class="athena-readable flex h-full min-h-0 w-full overflow-hidden border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    aria-labelledby="assistant-heading"
+    data-assistant-workspace
+>
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-gray-200 bg-gray-50/80 dark:border-slate-800 dark:bg-slate-950/60 lg:flex">
+        <div class="border-b border-gray-200 p-4 dark:border-slate-800">
+            <div class="flex items-center gap-3 px-1 py-2">
+                <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-black text-gray-900 dark:text-white">Athena AI</p>
+                    <p class="text-[11px] text-gray-500 dark:text-slate-400">Research copilot</p>
+                </div>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.newConversation()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-red-300 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                New chat
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4">
+            <div class="flex items-center justify-between gap-2 px-2">
+                <p class="text-[10px] font-black uppercase tracking-[0.18em] text-gray-400">Chat history</p>
+                <span class="text-[10px] font-semibold text-gray-400" x-text="$store.researchAssistant.history.length ? `${$store.researchAssistant.history.length} chats` : ''"></span>
+            </div>
+
+            <button type="button" @click="$store.researchAssistant.openHistorySearch()" class="mt-3 flex w-full items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left text-xs font-semibold text-gray-600 transition hover:border-gray-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:text-white">
+                <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                Search history
+                <kbd class="ml-auto rounded border border-gray-200 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 dark:border-slate-700">Ctrl K</kbd>
+            </button>
+
+            <div class="mt-3 space-y-1">
+                <template x-for="conversation in $store.researchAssistant.history" :key="conversation.id">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" :class="Number($store.researchAssistant.currentConversationId) === Number(conversation.id) ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 dark:bg-slate-900 dark:text-white dark:ring-slate-700' : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white'" class="w-full rounded-xl px-3 py-2.5 text-left transition">
+                        <span class="block truncate text-xs font-bold" x-text="conversation.title"></span>
+                        <span class="mt-1 block truncate text-[10px] leading-4 text-gray-400 dark:text-slate-500" x-text="conversation.preview"></span>
+                        <span class="mt-1 block text-[9px] font-semibold uppercase tracking-wide text-gray-400 dark:text-slate-500" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="!$store.researchAssistant.history.length" class="px-2 py-6 text-center text-[11px] leading-5 text-gray-400 dark:text-slate-500">Your saved chats will appear here.</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mt-6 rounded-xl bg-red-50 px-3 py-2.5 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <p class="font-black uppercase tracking-wider">Paper help</p>
+                <p class="mt-1 font-semibold leading-4" x-text="$store.researchAssistant.paperContextLabel()"></p>
+                <p x-show="$store.researchAssistant.hasLiveFormContext()" class="mt-1.5 font-bold text-red-700 dark:text-red-300">Focused field and current row context included</p>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mt-6 border-t border-gray-200 pt-5 dark:border-slate-800">
+                <label for="assistant-workspace-context" class="flex items-center gap-2 text-[11px] font-bold text-gray-700 dark:text-slate-300">
+                    <input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-slate-700">
+                    Use proposal context
+                </label>
+                <select id="assistant-workspace-context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="mt-2 block w-full rounded-xl border-gray-200 bg-white text-[11px] font-semibold text-gray-700 focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id">
+                        <option :value="context.id" x-text="context.label"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+
+        <div class="space-y-1 border-t border-gray-200 p-4 dark:border-slate-800">
+            <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white" x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></button>
+            <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="w-full rounded-lg px-3 py-2 text-left text-[11px] font-semibold text-gray-500 hover:bg-white hover:text-gray-900 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-white">Export .txt</button>
+            <p class="px-3 pt-3 text-[10px] leading-4 text-gray-400"><span class="font-bold">Privacy:</span> Chats are saved to your ATHENA account.</p>
+        </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col bg-white dark:bg-slate-900">
+        <header class="flex min-h-16 items-center justify-between border-b border-gray-100 px-4 sm:px-6 dark:border-slate-800">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h3 id="assistant-heading" class="truncate text-sm font-black text-gray-900 dark:text-white">Athena Research Assistant</h3>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite">
+                        <span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span>
+                        <span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Ready'"></span>
+                    </p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800 lg:hidden">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                    <span class="hidden sm:inline">New chat</span>
+                </button>
+                <button type="button" @click="$store.researchAssistant.collapseWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Collapse to side panel" title="Collapse to side panel">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Back to Research Support" title="Back to Research Support">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <div
+            data-assistant-messages
+            class="flex-1 overflow-y-auto scroll-smooth"
+            aria-live="polite"
+            :aria-busy="$store.researchAssistant.isLoading"
+        >
+            <div x-show="!$store.researchAssistant.hasConversation()" class="mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center px-5 py-12 text-center">
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-lg dark:bg-white dark:text-slate-900">
+                    <svg class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h4 class="mt-5 text-2xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h4>
+                <p class="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-8 grid w-full gap-3 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="group rounded-2xl border border-gray-200 p-4 text-left transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-sm font-semibold leading-6 text-gray-700 group-hover:text-gray-950 dark:text-slate-200 dark:group-hover:text-white" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-7 flex">
+                        <div x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-5 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100 sm:max-w-[75%]">
+                            <p class="whitespace-pre-wrap" x-text="message.content"></p>
+                        </div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3 sm:gap-4">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                            </div>
+                            <div class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-2 rounded-lg px-2 py-1 text-[11px] font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white" x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex gap-4" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg>
+                    </div>
+                    <div class="flex h-8 items-center gap-1.5">
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span>
+                        <span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="border-t border-gray-100 bg-white px-3 pb-3 pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-6 sm:pb-5">
+            <div class="mx-auto max-w-3xl">
+                <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                    <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                    <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200 lg:hidden">
+                    <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                    <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                    <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+                </div>
+
+                <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2 lg:hidden">
+                    <label class="inline-flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-500 dark:text-slate-400"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="rounded border-gray-300 text-red-600 focus:ring-red-500">Context</label>
+                    <select id="assistant-mobile-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                    </select>
+                </div>
+
+                <?php if (isset($component)) { $__componentOriginale6b838ae4341d613647a5aee06953b80 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginale6b838ae4341d613647a5aee06953b80 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.research-assistant-document-action','data' => ['id' => 'workspace']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('research-assistant-document-action'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['id' => 'workspace']); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginale6b838ae4341d613647a5aee06953b80)): ?>
+<?php $attributes = $__attributesOriginale6b838ae4341d613647a5aee06953b80; ?>
+<?php unset($__attributesOriginale6b838ae4341d613647a5aee06953b80); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginale6b838ae4341d613647a5aee06953b80)): ?>
+<?php $component = $__componentOriginale6b838ae4341d613647a5aee06953b80; ?>
+<?php unset($__componentOriginale6b838ae4341d613647a5aee06953b80); ?>
+<?php endif; ?>
+
+                <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm transition focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:focus-within:border-slate-600">
+                    <label for="research-assistant-message" class="sr-only">Message Athena Research Assistant</label>
+                    <textarea
+                        id="research-assistant-message"
+                        data-assistant-composer
+                        x-model="$store.researchAssistant.draft"
+                        @input="$store.researchAssistant.resizeComposer($event)"
+                        @keydown="$store.researchAssistant.handleComposerKeydown($event)"
+                        rows="1"
+                        maxlength="2000"
+                        placeholder="Message Athena…"
+                        class="max-h-44 min-h-11 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"
+                    ></textarea>
+                    <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg>
+                    </button>
+                    <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+                </form>
+                <p class="mt-2 text-center text-[10px] leading-4 text-gray-400">Athena can make mistakes. A limited focused-field snapshot is included on proposal forms; avoid confidential data. Verify guidance with official university policies. Press Shift+Enter for a new line.</p>
+            </div>
+        </footer>
+    </div>
+
+    <div x-cloak x-show="$store.researchAssistant.historySearchOpen" @click.self="$store.researchAssistant.closeHistorySearch()" @keydown.escape.window="$store.researchAssistant.closeHistorySearch()" class="fixed inset-0 z-[100] flex items-start justify-center bg-gray-950/45 px-4 py-[12vh] backdrop-blur-sm" role="presentation">
+        <div x-show="$store.researchAssistant.historySearchOpen" x-transition role="dialog" aria-modal="true" aria-labelledby="assistant-history-search-title" class="flex max-h-[min(70vh,38rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <div class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 dark:border-slate-800">
+                <svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.35-4.35m2.1-5.4a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z" /></svg>
+                <label id="assistant-history-search-title" for="assistant-history-search" class="sr-only">Search chat history</label>
+                <input id="assistant-history-search" type="search" x-model="$store.researchAssistant.historySearchQuery" @input="$store.researchAssistant.queueHistorySearch()" placeholder="Search your chats" autocomplete="off" class="min-w-0 flex-1 border-0 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:ring-0 dark:text-white">
+                <span x-show="$store.researchAssistant.historySearchLoading" class="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-t-red-600" aria-label="Searching"></span>
+                <button type="button" @click="$store.researchAssistant.closeHistorySearch()" class="rounded-lg px-2 py-1 text-xs font-bold text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-slate-800 dark:hover:text-white">Esc</button>
+            </div>
+            <div class="overflow-y-auto p-2">
+                <template x-for="conversation in $store.researchAssistant.historySearchResults" :key="`search-${conversation.id}`">
+                    <button type="button" @click="$store.researchAssistant.openConversation(conversation.id)" class="w-full rounded-xl px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-slate-800">
+                        <span class="block text-sm font-bold text-gray-800 dark:text-slate-100" x-html="$store.researchAssistant.highlightHistoryText(conversation.title)"></span>
+                        <span class="mt-1 block text-xs leading-5 text-gray-500 dark:text-slate-400" x-html="$store.researchAssistant.highlightHistoryText(conversation.preview)"></span>
+                        <span class="mt-1 block text-[10px] font-semibold uppercase tracking-wide text-gray-400" x-text="$store.researchAssistant.formatHistoryDate(conversation.updated_at)"></span>
+                    </button>
+                </template>
+                <p x-show="!$store.researchAssistant.historySearchLoading && !$store.researchAssistant.historySearchResults.length" class="px-4 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No chats found.</p>
+            </div>
+            <div class="border-t border-gray-100 px-4 py-2.5 text-[10px] text-gray-400 dark:border-slate-800">Search matches words in your chat titles and messages.</div>
+        </div>
+    </div>
+</section>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views/components/research-assistant-workspace.blade.php ENDPATH**/ ?>

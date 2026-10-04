@@ -37,6 +37,7 @@ class SaveProposalDraftDocument
                 ->whereKey($draft->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
+            $lockedDraft->ensureEditable();
             $document = ProposalDraftDocument::query()
                 ->where('proposal_draft_id', $lockedDraft->getKey())
                 ->where('document_type', $documentType)
@@ -56,11 +57,12 @@ class SaveProposalDraftDocument
             }
 
             if ($document && ! $document->versions()->exists()) {
-                $this->recordDocumentVersion->handle(
+                $capturedVersion = $this->recordDocumentVersion->handle(
                     $document,
                     null,
                     action: ProposalDraftDocumentVersion::ACTION_CAPTURED,
                 );
+                $currentVersion = max($currentVersion, $capturedVersion->version_number);
             }
 
             $safeAttributes = Arr::except($attributes, [

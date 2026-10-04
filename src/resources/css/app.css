@@ -626,14 +626,12 @@ html :is(button, a, input[type="submit"], input[type="button"], [role="button"])
 @layer components {
     [data-paper-editor][data-detailed-proposal-autosave] [data-detailed-proposal-invalid='true'] {
         border-color: rgb(220 38 38) !important;
-        background-color: rgb(254 242 242) !important;
-        box-shadow: 0 0 0 3px rgb(254 202 202 / 0.9);
+        box-shadow: 0 0 0 1px rgb(220 38 38 / 0.2);
     }
 
     html.dark [data-paper-editor][data-detailed-proposal-autosave] [data-detailed-proposal-invalid='true'] {
         border-color: rgb(248 113 113) !important;
-        background-color: rgb(69 10 10 / 0.55) !important;
-        box-shadow: 0 0 0 3px rgb(127 29 29 / 0.75);
+        box-shadow: 0 0 0 1px rgb(248 113 113 / 0.2);
     }
 
     [data-paper-editor][data-work-plan-autosave] [data-work-plan-invalid='true'] {
@@ -1132,6 +1130,95 @@ html.dark .revision-embedded [data-proposal-autosave-status] {
 
 body:has([data-fixed-back-link]) main {
     padding-bottom: 7rem;
+}
+
+@media screen {
+    body[data-app-shell]:has(#research-assistant-launcher) {
+        --athena-floating-control-edge: 1rem;
+        --athena-page-action-right: calc(var(--athena-floating-control-edge) + 3.5rem + .75rem + env(safe-area-inset-right));
+        --athena-page-action-left: calc(var(--athena-floating-sidebar-space, 0px) + var(--athena-floating-control-edge) + env(safe-area-inset-left));
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher):has(#app-sidebar) {
+        --athena-floating-sidebar-space: 76px;
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher) [data-app-content-shell] > main {
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher) :is([data-fixed-back-link], [data-monitoring-action-dock-fixed], [data-project-status-manager]) {
+        right: var(--athena-page-action-right);
+        bottom: calc(var(--athena-floating-control-edge) + env(safe-area-inset-bottom));
+        max-width: calc(100vw - var(--athena-page-action-right) - var(--athena-page-action-left));
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher) [data-fixed-back-link] > span:last-child {
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher) [data-monitoring-action-dock-fixed] {
+        left: var(--athena-page-action-left);
+    }
+
+    [data-topic-workspace] [data-project-status-manager],
+    body[data-app-shell]:has(#research-assistant-launcher) [data-topic-workspace] [data-project-status-manager] {
+        bottom: calc(var(--athena-floating-control-edge, 1rem) + env(safe-area-inset-bottom) + var(--athena-topic-back-link-height, 4.5rem) + .75rem);
+    }
+
+    [data-topic-workspace] [data-project-status-manager] > [role='dialog'] {
+        max-height: calc(100dvh - var(--athena-floating-control-edge, 1rem) - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--athena-topic-back-link-height, 4.5rem) - var(--athena-topic-status-height, 4.5rem) - 2.5rem);
+    }
+
+    [data-topic-workspace]:has([data-project-status-manager]) {
+        padding-bottom: calc(var(--athena-topic-back-link-height, 4.5rem) + var(--athena-topic-status-height, 4.5rem) + 1.5rem);
+    }
+
+    body:has([data-topic-workspace]) #research-assistant-launcher > span[aria-hidden='true'] {
+        right: 0;
+        bottom: calc(100% + .75rem);
+        width: 3.5rem;
+        margin-right: 0;
+        padding: .5rem .25rem;
+        white-space: normal;
+        text-align: center;
+    }
+}
+
+@media screen and (min-width: 640px) {
+    body[data-app-shell]:has(#research-assistant-launcher) {
+        --athena-floating-control-edge: 1.5rem;
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher):has(#app-sidebar) {
+        --athena-floating-sidebar-space: 280px;
+    }
+
+    html[data-sidebar-collapsed='true'] body[data-app-shell]:has(#research-assistant-launcher):has(#app-sidebar) {
+        --athena-floating-sidebar-space: 76px;
+    }
+
+    body[data-app-shell]:has(#research-assistant-launcher) [data-monitoring-action-dock-fixed] {
+        left: auto;
+    }
+}
+
+@media screen and (max-height: 480px) {
+    body:has([data-topic-workspace]) [data-project-documents-floating-trigger] {
+        top: auto;
+        right: calc(var(--athena-floating-control-edge, 1rem) + env(safe-area-inset-right));
+        bottom: calc(var(--athena-floating-control-edge, 1rem) + 7.75rem + env(safe-area-inset-bottom));
+        width: 3.5rem;
+        height: 3.5rem;
+        justify-content: center;
+        gap: 0;
+        padding: .5rem;
+    }
+
+    body:has([data-topic-workspace]) [data-project-documents-floating-trigger] > span {
+        display: none;
+    }
 }
 
 .revision-resolution-content { overflow-y: auto; min-height: 0; padding: 0 .75rem .75rem; }

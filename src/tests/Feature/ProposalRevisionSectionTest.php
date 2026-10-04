@@ -11,6 +11,30 @@ use App\Support\DetailedProposalData;
 use App\Support\ProposalRevisionSectionCatalog;
 use Illuminate\Support\Facades\Storage;
 
+test('literature revisions use the template label for both current and legacy PDFs', function (string $heading) {
+    $xml = '<document><page width="600" height="800"><box xMin="50" xMax="550" yMin="90" yMax="400"/><line xMin="55" xMax="500" yMin="100" yMax="114"><word>'.$heading.'</word></line></page></document>';
+    $regions = app(ProposalRevisionSectionMap::class)->fromBbox($xml, ProposalVersionFile::TYPE_DETAILED_PROPOSAL);
+    expect($regions)->toHaveCount(1)
+        ->and($regions[0]['id'])->toBe('section-literature')
+        ->and($regions[0]['label'])->toBe('XI. Review of Related Literature:');
+})->with(['XI. Review of Related Literature:', 'XI. Introduction:']);
+
+test('saved detailed proposal section maps show current labels without changing PDF coordinates', function () {
+    Storage::fake('local');
+    $pdf = "%PDF-1.7\nExisting submitted proposal";
+    Storage::disk('local')->put('existing-proposal.pdf', $pdf);
+    $region = ['id' => 'section-literature', 'label' => 'XI. Introduction and Related Literature', 'pageNumber' => 3, 'x' => .1, 'y' => .2, 'width' => .8, 'height' => .4];
+    $source = ['_revision_sections' => ['version' => 1, 'checksum' => hash('sha256', $pdf), 'regions' => [$region]]];
+    $file = new ProposalVersionFile([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'mime_type' => 'application/pdf', 'file_path' => 'existing-proposal.pdf', 'source_data' => $source,
+    ]);
+    expect(app(ProposalRevisionSectionMap::class)->forFile($file))->toBe([
+        [...$region, 'label' => 'XI. Review of Related Literature:'],
+    ])->and($file->source_data)->toBe($source)
+        ->and(Storage::disk('local')->get('existing-proposal.pdf'))->toBe($pdf);
+});
+
 test('section maps use box boundaries and continue across pages with greatest overlap winning', function () {
     $xml = '<document>
         <page width="600" height="800">

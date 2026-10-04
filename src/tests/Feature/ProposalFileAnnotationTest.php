@@ -1070,6 +1070,15 @@ test('revision editors open inside the feedback page with no application navigat
         ->assertDontSee('data-app-shell', false)
         ->assertDontSee('Exit editor');
 
+    if ($documentType === ProposalVersionFile::TYPE_DETAILED_PROPOSAL) {
+        $page->assertSeeInOrder(array_values(config('detailed_proposal.section_headings')))
+            ->assertSee('XI. Review of Related Literature:')
+            ->assertDontSee('XI. Introduction');
+        $file = new ProposalVersionFile(['document_type' => $documentType]);
+        expect(app(ProposalRevisionTargetCatalog::class)->labelFor($file, 'related-literature'))
+            ->toBe('XI. Review of Related Literature:');
+    }
+
     $dom = new DOMDocument;
     @$dom->loadHTML($page->getContent());
     $xpath = new DOMXPath($dom);

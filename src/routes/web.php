@@ -118,6 +118,7 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
         Route::post('/', [ProposalDraftController::class, 'store'])->name('store');
         Route::get('/revision/{topic}', [ProposalDraftController::class, 'revision'])->name('revision');
         Route::post('/{proposalDraft}/revision-files', [ProposalDraftController::class, 'storeRevisionFile'])->name('revision-files.store');
+        Route::get('/{proposalDraft}/revision-files/{document}', [ProposalDraftController::class, 'revisionFile'])->name('revision-files.show');
         Route::get('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'edit'])->name('details.edit');
         Route::put('/{proposalDraft}/details', [ProposalDraftDetailsController::class, 'update'])->name('details.update');
         Route::get('/{proposalDraft}/detailed-proposal', [ProposalDraftDetailedProposalController::class, 'edit'])->name('detailed-proposal.edit');
@@ -174,6 +175,7 @@ Route::middleware(['auth', 'workspace:faculty'])->group(function () {
     Route::post('/faculty/work-plans/download', [WorkPlanController::class, 'download'])->name('faculty.work-plans.download');
     Route::post('/faculty/topics', [TopicController::class, 'store'])->name('faculty.topics');
     Route::get('/faculty/topics/{topic}/revision', [TopicController::class, 'revision'])->name('faculty.topics.revision');
+    Route::get('/faculty/topics/{topic}/edit-package', [ProposalDraftController::class, 'editSubmitted'])->name('faculty.topics.edit-package');
     Route::post('/faculty/topics/{topic}/revision/preview', RevisionPaperPreviewController::class)->name('faculty.topics.revision.preview');
     Route::patch('/faculty/topics/{topic}/resubmit', [TopicController::class, 'resubmit'])->name('faculty.topics.resubmit');
 });

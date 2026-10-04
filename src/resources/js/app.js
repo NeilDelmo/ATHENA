@@ -751,7 +751,7 @@ async function offerRevisionUpload(blob, filename, config = {}) {
     const payload = await response.json();
     if (isEmbeddedRevisionEditor()) {
         embeddedRevisionFileSaved(payload);
-        return payload;
+        return { ...payload, blob };
     }
     const destination = payload.redirect_url || config.revisionReviewUrl;
 
@@ -8109,11 +8109,18 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     autoSaveBlocked: false,
     autoSaveRevision: 0,
     lastSavedDetailedProposal: '',
+    detailedProposalSaveState: 'idle',
     autoSaveInitialContent: false,
     recheckCompletion: Boolean(config.recheckCompletion),
     detailedProposalStarted: Boolean(config.detailedProposalStarted),
     detailedProposalComplete: Boolean(config.detailedProposalComplete),
     completionErrors: config.completionErrors || {},
+    requirementsReviewed: Boolean(config.requirementsReviewed),
+    proposalFeedbackId: 0,
+
+    get showCompletionChecklist() {
+        return this.requirementsReviewed && Object.keys(this.completionErrors).length > 0;
+    },
 
     init() {
         const data = config.initialData && typeof config.initialData === 'object' ? config.initialData : {};
@@ -8386,7 +8393,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         return {
             linked: sourceLinkId > 0,
             usedInProposal: fields.length > 0,
-            usedInRrl: fields.includes('XI. Related Studies and Literature'),
+            usedInRrl: fields.some((field) => field.startsWith('XI. Review of Related Literature')),
             sections: fields,
             sectionSummary: fields.join(', '),
             addedToReferences: this.citationReferenceNumber(source) !== null,
@@ -9480,6 +9487,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         form.addEventListener('change', () => this.triggerDetailedProposalAutoSave());
         form.addEventListener('input', (event) => this.clearDetailedProposalFieldHighlight(event.target));
         form.addEventListener('change', (event) => this.clearDetailedProposalFieldHighlight(event.target));
+        form.addEventListener('focusout', (event) => {
+            const field = typeof event.target.checkValidity === 'function' ? event.target
+                : [...form.querySelectorAll('textarea')].find((textarea) => textarea._semanticEditor?.contains(event.target));
+            if (!field || field.disabled || ['hidden', 'checkbox', 'radio', 'file'].includes(field.type)) return;
+            const target = this.detailedProposalHighlightTarget(field);
+            if (target?.contains(event.relatedTarget)) return;
+            if (this.detailedProposalFieldIsValid(field)) this.clearDetailedProposalFieldHighlight(field);
+            else this.highlightDetailedProposalField(field);
+        });
 
         if (shouldRecheckCompletion) this.triggerDetailedProposalAutoSave();
     },
@@ -9500,6 +9516,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     detailedProposalAutoSaveStatus(message, state = 'idle') {
+        this.detailedProposalSaveState = state;
         const status = this.$el.querySelector('[data-proposal-autosave-status]');
         const messageElement = status?.querySelector('[data-proposal-autosave-message]');
         const indicator = status?.querySelector('[data-proposal-autosave-indicator]');
@@ -9507,13 +9524,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         if (messageElement instanceof HTMLElement) messageElement.textContent = message;
 
         if (indicator instanceof HTMLElement) {
-            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-green-600', 'bg-red-600');
+            indicator.classList.remove('bg-gray-400', 'bg-amber-500', 'bg-slate-400', 'bg-green-600', 'bg-red-600');
             indicator.classList.add({
-                saving: 'bg-amber-500',
+                saving: 'bg-slate-400',
                 saved: 'bg-green-600',
                 error: 'bg-red-600',
             }[state] ?? 'bg-gray-400');
         }
+    },
+
+    get showDetailedProposalSaveStatus() {
+        return !this.showCompletionChecklist || this.detailedProposalSaveState !== 'idle';
     },
 
     detailedProposalCompletionLabel() {
@@ -9525,9 +9546,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     detailedProposalCompletionClasses() {
         if (this.detailedProposalComplete) return 'bg-green-100 text-green-800';
 
-        return this.detailedProposalStarted
-            ? 'bg-amber-100 text-amber-800'
-            : 'bg-gray-100 text-gray-600';
+        return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
     },
 
     updateDetailedProposalCompletionStatus() {
@@ -9543,6 +9562,10 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             'text-amber-800',
             'bg-gray-100',
             'text-gray-600',
+            'bg-slate-100',
+            'text-slate-600',
+            'dark:bg-slate-800',
+            'dark:text-slate-300',
         );
         status.classList.add(...this.detailedProposalCompletionClasses().split(' '));
     },
@@ -9618,6 +9641,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
             if (response.status === 422) {
                 this.completionErrors = payload.errors || {};
+                this.requirementsReviewed = true;
                 this.validationMessage = autoSaveValidationMessage(
                     payload,
                     'Please review the Detailed Research Proposal information.',
@@ -9660,13 +9684,9 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             this.lastSavedDetailedProposal = this.detailedProposalFingerprint(form);
             this.$el.dataset.paperDirty = 'false';
             this.completionErrors = payload.completion_errors || completionErrors || {};
-            this.validationMessage = completionErrors
-                ? `Draft saved. It remains in progress because: ${autoSaveValidationMessage({ errors: completionErrors }, 'required information is still missing.')}`
-                : '';
+            this.validationMessage = '';
             this.detailedProposalAutoSaveStatus(
-                payload.saved_as_draft && completionErrors
-                    ? 'Draft saved; required information is still missing.'
-                    : payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
+                payload.saved_as_draft ? 'Draft saved just now.' : 'Saved just now.',
                 'saved',
             );
         } catch (error) {
@@ -9742,7 +9762,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const normalizedRelatedLiterature = this.plainText(this.relatedLiterature).toLowerCase().replace(/\s+/g, ' ');
 
         if (normalizedNote && normalizedRelatedLiterature.includes(normalizedNote)) {
-            if (!quiet) this.literatureSourceNotice = 'That source already appears in the Related Studies and Literature field.';
+            if (!quiet) this.literatureSourceNotice = 'That source already appears in the Review of Related Literature field.';
             return false;
         }
 
@@ -9791,7 +9811,7 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
             return true;
         }
 
-        if (!quiet) this.literatureSourceNotice = 'That source already appears in the Related Studies and Literature field.';
+        if (!quiet) this.literatureSourceNotice = 'That source already appears in the Review of Related Literature field.';
         return false;
     },
 
@@ -10112,8 +10132,15 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
 
         return this.sdgs.length > 0
-            && Object.values(this.expectedOutputs).some((output) => String(output).trim() !== '')
-            && fields.every((field) => field.disabled || field.checkValidity());
+            && this.hasDetailedProposalExpectedOutput()
+            && fields.every((field) => field.disabled || this.detailedProposalFieldIsValid(field));
+    },
+
+    detailedProposalFieldIsValid(field) {
+        if (field.required && field.matches?.('textarea[data-semantic-editor]')) {
+            field.setCustomValidity(this.plainText(field.value) ? '' : 'Add text to this section.');
+        }
+        return field.checkValidity();
     },
 
     detailedProposalHighlightTarget(field) {
@@ -10127,13 +10154,17 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
     },
 
     clearDetailedProposalFieldHighlight(field) {
+        if (typeof field?.checkValidity !== 'function') {
+            field = [...(this.$refs.form?.querySelectorAll('textarea') || [])].find((textarea) => textarea._semanticEditor?.contains(field));
+        }
         const target = this.detailedProposalHighlightTarget(field);
 
         if (!(target instanceof HTMLElement)) return;
 
-        if ('checkValidity' in field && field.checkValidity()) {
+        if ('checkValidity' in field && this.detailedProposalFieldIsValid(field)) {
             target.removeAttribute('data-detailed-proposal-invalid');
             field.removeAttribute('aria-invalid');
+            if (field._proposalFeedbackElement) field._proposalFeedbackElement.hidden = true;
 
             if (field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement) {
                 field._semanticEditor.removeAttribute('aria-invalid');
@@ -10156,9 +10187,25 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
 
         target.setAttribute('data-detailed-proposal-invalid', 'true');
         field.setAttribute('aria-invalid', 'true');
+        if (typeof field.checkValidity === 'function' && !this.detailedProposalFieldIsValid(field)) {
+            let feedback = field._proposalFeedbackElement;
+            if (!feedback?.isConnected) {
+                feedback = document.createElement('p');
+                feedback.id = 'proposal-field-feedback-' + (++this.proposalFeedbackId);
+                feedback.dataset.proposalFieldFeedback = 'true';
+                feedback.className = 'mt-2 text-xs leading-5 text-red-700 dark:text-red-300';
+                feedback.setAttribute('role', 'status');
+                target.insertAdjacentElement('afterend', feedback);
+                field._proposalFeedbackElement = feedback;
+                field.setAttribute('aria-describedby', [field.getAttribute('aria-describedby'), feedback.id].filter(Boolean).join(' '));
+            }
+            feedback.textContent = field.validity.valueMissing ? 'This field is required before generating the proposal.' : field.validationMessage;
+            feedback.hidden = false;
+        }
 
         if (field instanceof HTMLTextAreaElement && field._semanticEditor instanceof HTMLElement) {
             field._semanticEditor.setAttribute('aria-invalid', 'true');
+            if (field._proposalFeedbackElement) field._semanticEditor.setAttribute('aria-describedby', field.getAttribute('aria-describedby'));
         }
     },
 
@@ -10216,13 +10263,37 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         }
     },
 
-    validateForm({ forExit = false } = {}) {
+    hasDetailedProposalExpectedOutput() {
+        return Object.values(this.expectedOutputs).some((outputs) => Array.isArray(outputs)
+            && outputs.some((output) => this.expectedOutputDescription(output).trim() !== ''));
+    },
+
+    checkDetailedProposalRequirements() {
+        return this.validateForm({ focus: false });
+    },
+
+    validateForm({ forExit = false, focus = true } = {}) {
         this.validationMessage = '';
+        this.requirementsReviewed = true;
 
         const fields = Array.from(this.$refs.form?.querySelectorAll('input, textarea, select') || []);
-        const invalidFields = fields.filter((field) => !field.disabled && !field.checkValidity());
+        const invalidFields = fields.filter((field) => !field.disabled && !this.detailedProposalFieldIsValid(field));
         const hasSdgs = this.sdgs.length > 0;
-        const hasExpectedOutput = Object.values(this.expectedOutputs).some((output) => String(output).trim() !== '');
+        const hasExpectedOutput = this.hasDetailedProposalExpectedOutput();
+        const completionErrors = { ...this.completionErrors };
+        fields.forEach((field) => {
+            if (!field.name || ['hidden', 'checkbox', 'radio', 'file'].includes(field.type)) return;
+            const key = field.name.replace(/\[([^\]]+)\]/g, '.$1');
+            if (invalidFields.includes(field)) {
+                const label = field.getAttribute('aria-label') || field.labels?.[0]?.textContent.trim() || field.name.replaceAll('_', ' ');
+                completionErrors[key] = [field.validity.valueMissing ? `Complete ${label}.` : field.validationMessage];
+            } else delete completionErrors[key];
+        });
+        if (hasSdgs) delete completionErrors.sdgs;
+        else completionErrors.sdgs = ['Select at least one Sustainable Development Goal.'];
+        if (hasExpectedOutput) delete completionErrors.expected_outputs;
+        else completionErrors.expected_outputs = ['Add at least one expected output.'];
+        this.completionErrors = completionErrors;
 
         fields.forEach((field) => this.clearDetailedProposalFieldHighlight(field));
         this.clearDetailedProposalValidationGroup('sdgs');
@@ -10233,7 +10304,12 @@ Alpine.data('proposalDraftDetailedProposal', (config = {}) => ({
         if (!hasSdgs) this.highlightDetailedProposalValidationGroup('sdgs');
         if (!hasExpectedOutput) this.highlightDetailedProposalValidationGroup('expected-outputs');
 
-        if (hasSdgs && hasExpectedOutput && invalidFields.length === 0) return true;
+        if (hasSdgs && hasExpectedOutput && invalidFields.length === 0) {
+            this.completionErrors = {};
+            return true;
+        }
+
+        if (!focus) return false;
 
         this.validationMessage = forExit
             ? 'Complete the highlighted required fields before exiting the editor.'

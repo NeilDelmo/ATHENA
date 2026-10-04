@@ -52,7 +52,7 @@ class ProjectNarrativeReportController extends Controller
         }
         if ($reportType === 'progress' && $data['selectedReportingDate'] && ! $schedule->canDraftForDate($topic, $data['selectedReportingDate'])) {
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
-                ->withErrors(['reporting_date' => 'This reporting quarter has not started yet.'], 'narrativeProgress');
+                ->withErrors(['reporting_date' => 'Choose a reporting quarter within the approved project schedule.'], 'narrativeProgress');
         }
         if ($reportType === 'progress' && $data['quarterOptions']->isEmpty() && $data['preparedReport'] === null) {
             return redirect()->to(route('topics.show', $topic).'#project-monitoring')
@@ -120,9 +120,9 @@ class ProjectNarrativeReportController extends Controller
             }
         }
         if ($request->input('report_type') === 'terminal') {
-            $missing = app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic);
+            $missing = app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic);
             if ($missing !== []) {
-                return back()->withInput()->withErrors(['preparation' => 'Complete the required monitoring reports before preparing the Terminal Report: '.implode(', ', $missing).'.'], 'narrativeProgress');
+                return back()->withInput()->withErrors(['preparation' => 'Complete the required Monitoring Tools and Progress Reports before preparing the Terminal Report: '.implode(', ', $missing).'.'], 'narrativeProgress');
             }
         }
         $existingPreparedReport = ProjectNarrativeReport::query()
@@ -198,6 +198,9 @@ class ProjectNarrativeReportController extends Controller
         DB::transaction(function () use ($request, $topic, $report): void {
             $lockedTopic = TopicProposal::query()->whereKey($topic->id)->lockForUpdate()->firstOrFail();
             $lockedReport = ProjectNarrativeReport::query()->whereKey($report->id)->lockForUpdate()->firstOrFail();
+            if ($lockedReport->report_type === 'terminal' && app(MonitoringQuarterService::class)->missingTerminalReportPeriods($lockedTopic) !== []) {
+                throw ValidationException::withMessages(['preparation' => 'Complete all quarterly Monitoring Tools and Progress Reports before submitting the Terminal Report.']);
+            }
             if (! $lockedTopic->isMonitoringAvailable() || ! $lockedReport->isPrepared() || $lockedTopic->user_id !== $request->user()->id) {
                 throw ValidationException::withMessages(['preparation' => 'This report is no longer available for submission. Reload the project.']);
             }

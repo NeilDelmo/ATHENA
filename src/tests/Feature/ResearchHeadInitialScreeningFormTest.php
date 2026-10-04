@@ -84,6 +84,20 @@ test('the Research Head fills saves and reopens screening for the submitted vers
         ->assertSee('Download DOCX')->assertSee('Open PDF for printing');
 });
 
+test('screening defaults use the supplied officers without substituting the logged-in Research Head', function () {
+    $data = app(ResearchHeadScreeningData::class)->forVersion($this->version);
+    expect($data)->toMatchArray([
+        'screening_head' => 'Asst. Prof. DJOANNA MARIE V. SALAC',
+        'screening_center' => 'Dr. CRISTINA AMOR ROSALES',
+        'screening_verifier' => 'Dr. FROILAN G. DESTREZA',
+    ]);
+    $this->actingAs($this->head)->get(($this->url)('edit'))
+        ->assertOk()->assertSee('Asst. Prof. DJOANNA MARIE V. SALAC')
+        ->assertSee('Dr. CRISTINA AMOR ROSALES')->assertSee('Dr. FROILAN G. DESTREZA');
+    $this->put(($this->url)('update'), [...$this->payload, 'screening_center' => ''])->assertSessionHasNoErrors();
+    expect($this->version->fresh()->research_head_screening['screening_center'])->toBe('Dr. CRISTINA AMOR ROSALES');
+});
+
 test('filled screening downloads put each result in its official template cell and preserve handwritten signature dates', function (string $recommendation, int $checkbox) {
     $this->actingAs($this->head)->put(($this->url)('update'), [...$this->payload, 'recommended_action' => $recommendation])->assertSessionHasNoErrors();
     $download = $this->get(($this->url)('download'))->assertOk()

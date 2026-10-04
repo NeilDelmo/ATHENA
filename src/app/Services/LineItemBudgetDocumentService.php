@@ -255,8 +255,9 @@ class LineItemBudgetDocumentService
         }
 
         $this->replaceSignatureName($xpath, $paragraphs, $budget['certified_by']);
-        $this->replaceParagraphText($paragraphs[$nameIndex + 1], $budget['certified_role']);
-        $this->replaceParagraphText($paragraphs[$nameIndex + 2], '');
+        $roles = explode("\n", $budget['certified_role'], 2);
+        $this->replaceParagraphText($paragraphs[$nameIndex + 1], $roles[0]);
+        $this->replaceParagraphText($paragraphs[$nameIndex + 2], $roles[1] ?? '');
         $this->replaceParagraphByPrefix($xpath, $paragraphs, 'Date Signed:', 'Date Signed:');
     }
 

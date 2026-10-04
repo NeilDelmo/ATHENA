@@ -31,6 +31,9 @@ class SaveResearchHeadInitialScreeningFormRequest extends FormRequest
         $this->merge([
             'screening_head' => $defaults['screening_head']['name'],
             'screening_verifier' => $defaults['screening_verifier']['name'],
+            'screening_center' => filled($this->input('screening_center'))
+                ? $this->input('screening_center')
+                : config('research_signatories.center_head'),
         ]);
     }
 

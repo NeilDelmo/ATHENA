@@ -667,6 +667,7 @@ function workflowFixture({ unresolved = false, responseComplete = true, confirme
                 '[data-revision-details-confirmed]': confirmation }[selector];
         },
         addEventListener(type, fn) { listeners[type] = fn; },
+        dispatchEvent(event) { listeners[event.type]?.(event); return true; },
     };
     return { form, panels, next, back, confirmation, status, listeners, error };
 }

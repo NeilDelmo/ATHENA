@@ -68,9 +68,7 @@ class MonitoringQuarterService
                 $open = CarbonImmutable::now()->greaterThanOrEqualTo($period['opens_at']);
                 [$state, $status] = $this->statusFor($report, $period);
 
-                $canDraft = CarbonImmutable::now()->greaterThanOrEqualTo($period['start']);
-
-                return [...$period, 'report' => $report, 'state' => $report || $open ? $state : 'not_yet_due', 'status' => $report || $open ? $status : 'Upcoming', 'reporting_date' => $open ? $period['end']->toDateString() : null, 'drafting_date' => $canDraft ? $period['end']->toDateString() : null, 'applicable' => true];
+                return [...$period, 'report' => $report, 'state' => $report || $open ? $state : 'not_yet_due', 'status' => $report || $open ? $status : 'Upcoming', 'reporting_date' => $open ? $period['end']->toDateString() : null, 'drafting_date' => $period['end']->toDateString(), 'applicable' => true];
             });
         }
 
@@ -163,7 +161,7 @@ class MonitoringQuarterService
     {
         $date = $date instanceof DateTimeInterface ? CarbonImmutable::instance($date) : CarbonImmutable::parse($date);
 
-        return $this->projectPeriods($topic)->contains(fn (array $period): bool => $date->betweenIncluded($period['start'], $period['end']) && CarbonImmutable::now()->greaterThanOrEqualTo($period['start']));
+        return $this->projectPeriods($topic)->contains(fn (array $period): bool => $date->betweenIncluded($period['start'], $period['end']));
     }
 
     public function terminalOpensAt(TopicProposal $topic): CarbonImmutable
@@ -190,7 +188,7 @@ class MonitoringQuarterService
                 default => 'Upcoming',
             };
 
-            return [...$period, 'report' => $report, 'status' => $status, 'submission_open' => $open, 'reporting_date' => $open && $editable ? $period['end']->toDateString() : null, 'drafting_date' => $editable && CarbonImmutable::now()->greaterThanOrEqualTo($period['start']) ? $period['end']->toDateString() : null];
+            return [...$period, 'report' => $report, 'status' => $status, 'submission_open' => $open, 'reporting_date' => $open && $editable ? $period['end']->toDateString() : null, 'drafting_date' => $editable ? $period['end']->toDateString() : null];
         });
     }
 
@@ -199,6 +197,15 @@ class MonitoringQuarterService
         return $this->summaryRows($topic->progressReports()->get(), $topic)
             ->filter(fn (array $row): bool => $row['report'] === null || ! $row['report']->isSubmitted() || $row['report']->review_status === 'revision_requested')
             ->pluck('label')->all();
+    }
+
+    /** @return list<string> */
+    public function missingTerminalReportPeriods(TopicProposal $topic): array
+    {
+        return collect($this->missingTerminalMonitoringPeriods($topic))->map(fn (string $label): string => 'Monitoring Tool '.$label)
+            ->merge($this->narrativeProgressPeriods($topic)
+                ->filter(fn (array $row): bool => $row['report'] === null || ! $row['report']->isSubmitted() || $row['report']->review_status === ProjectNarrativeReport::STATUS_REVISION_REQUESTED)
+                ->map(fn (array $row): string => 'Progress Report '.$row['label']))->values()->all();
     }
 
     public function canSubmitTerminal(TopicProposal $topic): bool

@@ -42,6 +42,9 @@ class StoreProjectNarrativeReportRequest extends FormRequest
             ->all();
 
         $this->merge(['accomplishments' => $accomplishments]);
+        if ($this->input('report_type') === 'progress' && $this->route('topic') instanceof TopicProposal) {
+            $this->merge(app(ProgressReportData::class)->normalize($this->route('topic'), $this->only(['accomplishments', 'objectives'])));
+        }
     }
 
     /**

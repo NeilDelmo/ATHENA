@@ -306,6 +306,7 @@ test('generated paper saves are included in the same collaborator history', func
     $this->actingAs($this->collaborator)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
             'document_version' => 0,
+            'save_as_draft' => true,
             'entries' => [[
                 'objective' => 'Create the baseline',
                 'expected_output' => 'Baseline report',
@@ -313,7 +314,8 @@ test('generated paper saves are included in the same collaborator history', func
                 'months' => [1, 2],
             ]],
         ])
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $version = ProposalDraftDocumentVersion::query()->sole();
 
@@ -331,6 +333,65 @@ test('generated paper saves are included in the same collaborator history', func
         ->assertSee('Structured form data saved')
         ->assertSee('History Collaborator');
 });
+
+test('legacy papers keep their save version synchronized when recovery history begins', function (bool $changeContent) {
+    $originalEntries = [[
+        'objective' => 'Legacy baseline',
+        'expected_output' => 'Baseline report',
+        'activity' => 'Conduct field assessment',
+        'months' => [1, 2],
+    ]];
+    $document = $this->draft->documents()->create([
+        'document_type' => 'work_plan',
+        'position' => 0,
+        'lock_version' => 0,
+        'source_data' => ['entries' => $originalEntries],
+    ]);
+    $entries = $originalEntries;
+
+    if ($changeContent) {
+        $entries[0]['objective'] = 'Updated baseline';
+    }
+
+    $response = $this->actingAs($this->owner)
+        ->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
+            'document_version' => 0,
+            'save_as_draft' => true,
+            'entries' => $entries,
+        ])
+        ->assertOk();
+
+    $expectedVersion = $changeContent ? 2 : 1;
+    $response->assertJsonPath('document_version', $expectedVersion);
+    $versions = ProposalDraftDocumentVersion::query()->orderBy('version_number')->get();
+
+    expect($document->fresh()->lock_version)->toBe($expectedVersion)
+        ->and($this->draft->currentDocumentVersion('work_plan', 0, $document->fresh()))->toBe($expectedVersion)
+        ->and($versions)->toHaveCount($expectedVersion)
+        ->and($versions->first()->action)->toBe(ProposalDraftDocumentVersion::ACTION_CAPTURED)
+        ->and($versions->first()->source_data['entries'])->toEqual($originalEntries);
+
+    $this->actingAs($this->collaborator)
+        ->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
+            'document_version' => 0,
+            'save_as_draft' => true,
+            'entries' => $originalEntries,
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('document_version');
+
+    $this->actingAs($this->owner)
+        ->putJson(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
+            'document_version' => $response->json('document_version'),
+            'save_as_draft' => true,
+            'entries' => $entries,
+        ])
+        ->assertOk()
+        ->assertJsonPath('document_version', $expectedVersion);
+
+    expect($document->fresh()->source_data['entries'])->toEqual($entries)
+        ->and(ProposalDraftDocumentVersion::query()->count())->toBe($expectedVersion);
+})->with([false, true]);
 
 test('the proposal package keeps recovery history behind an unobtrusive control', function () {
     $this->actingAs($this->owner)
@@ -425,6 +486,7 @@ test('manual file changes retain useful recovery details', function () {
 test('autosaves update the working draft without flooding recovery history', function () {
     $payload = [
         'document_version' => 0,
+        'save_as_draft' => true,
         'entries' => [[
             'objective' => 'Create the baseline',
             'expected_output' => 'Baseline report',
@@ -435,14 +497,16 @@ test('autosaves update the working draft without flooding recovery history', fun
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $payload)
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), [
             ...$payload,
             'document_version' => 1,
         ])
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     expect(ProposalDraftDocumentVersion::query()->count())->toBe(1)
         ->and($this->draft->documents()->sole()->lock_version)->toBe(1);
@@ -453,7 +517,8 @@ test('autosaves update the working draft without flooding recovery history', fun
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $changedPayload)
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $document = $this->draft->documents()->sole();
 
@@ -467,13 +532,14 @@ test('autosaves update the working draft without flooding recovery history', fun
 
     $this->actingAs($this->owner)
         ->put(route('faculty.proposal-drafts.work-plan.update', $this->draft), $changedPayload)
-        ->assertRedirect();
+        ->assertRedirect()
+        ->assertSessionHasNoErrors();
 
     $latest = ProposalDraftDocumentVersion::query()->latest('version_number')->firstOrFail();
 
     expect(ProposalDraftDocumentVersion::query()->count())->toBe(2)
         ->and($latest->action)->toBe(ProposalDraftDocumentVersion::ACTION_CHECKPOINT)
-        ->and($latest->change_summary)->toBe('Updated Attachment A: Work Plan (1 field changed).')
+        ->and($latest->change_summary)->toBe('Saved Attachment A: Work Plan as a draft.')
         ->and($latest->changes)->toHaveCount(1)
         ->and($latest->changes[0]['label'])->toBe('Work-plan entries');
 });

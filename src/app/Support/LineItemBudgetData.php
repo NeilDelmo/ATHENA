@@ -144,8 +144,14 @@ class LineItemBudgetData
             'approval_body' => $validated['approval_body'] ?? null,
             'resolution_number' => trim((string) ($validated['resolution_number'] ?? '')),
             'resolution_year' => trim((string) ($validated['resolution_year'] ?? '')),
-            'certified_by' => Str::upper(Str::squish((string) ($validated['certified_by'] ?? ''))),
-            'certified_role' => Str::squish((string) ($validated['certified_role'] ?? '')),
+            'certified_by' => DetailedProposalData::signatoryName(Str::squish((string) (filled($validated['certified_by'] ?? null)
+                ? $validated['certified_by']
+                : config('line_item_budget.certifier.name')))),
+            'certified_role' => collect(preg_split('/\R/u', (string) (filled($validated['certified_role'] ?? null)
+                ? $validated['certified_role']
+                : config('line_item_budget.certifier.role'))))
+                ->map(fn (string $role): string => Str::squish($role))
+                ->implode("\n"),
         ];
     }
 

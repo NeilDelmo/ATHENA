@@ -7,13 +7,13 @@ return [
 
     'issuing_officer' => [
         'name' => 'Dr. FROILAN G. DESTREZA',
-        'title' => 'Vice Chancellor for Research, Development and Extension Services',
+        'title' => 'Vice Chancellor for Research Development and Extension Services',
         'committee_role' => 'Member, Local Research Evaluation Committee',
     ],
 
     'verifying_officer' => [
         'name' => 'Assoc. Prof. ALBERTSON D. AMANTE',
-        'title' => 'Vice President for Research, Development and Extension Services',
+        'title' => 'Vice President for Research Development, and Extension Services',
         'committee_role' => 'Chairperson, Local Research Evaluation Committee',
     ],
 ];

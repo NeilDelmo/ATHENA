@@ -150,6 +150,8 @@ test('citation marker synchronization reports and applies only real label change
 
 test('proposal citation fields resolve editor ids and persisted keys', () => {
     assert.equal(proposalCitationField('introduction')?.key, 'introduction');
+    assert.equal(proposalCitationField('introduction')?.label, 'XI. Review of Related Literature — opening paragraphs');
+    assert.equal(proposalCitationField('related-literature')?.label, 'XI. Review of Related Literature');
     assert.equal(proposalCitationField('methodology.research_design')?.id, 'methodology-research_design');
     assert.equal(proposalCitationField('references'), null);
     assert.ok(proposalCitationFieldIds().includes('related-literature'));

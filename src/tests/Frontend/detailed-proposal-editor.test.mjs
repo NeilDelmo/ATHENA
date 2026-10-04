@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { chromium } from '@playwright/test';
 import { proposalPreviewWorkspace } from '../../resources/js/proposal-preview-workspace.js';
+import { proposalCitationField } from '../../resources/js/proposal-semantic-editor.js';
 
 function editor(overrides = {}, { keepAutoSave = false } = {}) {
     const source = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
@@ -33,6 +34,18 @@ test('new and reopened figures keep the selected narrative section', () => {
     state.handleMethodologyDrop({ dataTransfer: { files: [{ type: 'image/png', name: 'chart.png', size: 100 }] } }, 'data_analysis');
     assert.equal(state.methodologyImages[0].section, 'data_analysis');
     assert.equal(state.methodologyImages[0].currentFile.name, 'chart.png');
+});
+
+test('source usage recognizes the official literature heading and its saved opening paragraphs', () => {
+    const state = editor({ proposalCitationField });
+    state.activeProposalCitations = () => [
+        { source_link_id: 42, field: 'related_literature' },
+        { source_link_id: 43, field: 'introduction' },
+    ];
+    state.citationReferenceNumber = () => null;
+    assert.equal(state.literatureSourceUsage({ id: 42 }).usedInRrl, true);
+    assert.equal(state.literatureSourceUsage({ id: 43 }).usedInRrl, true);
+    assert.equal(state.literatureSourceUsage({ id: 44 }).usedInRrl, false);
 });
 
 test('removing the last saved figure refreshes the cached preview before autosave finishes', () => {
@@ -357,4 +370,168 @@ test('detailed proposal signature titles retain their case on screen and in prin
     } finally {
         await browser.close();
     }
+});
+
+test('incomplete drafts stay quiet until requirements are checked, with contextual field feedback', async () => {
+    const app = readFileSync(new URL('../../resources/js/app.js', import.meta.url), 'utf8');
+    const start = app.indexOf("Alpine.data('proposalDraftDetailedProposal'");
+    const end = app.indexOf('\n}));', start) + '\n}));'.length;
+    const view = readFileSync(new URL('../../resources/views/faculty/proposal-drafts/detailed-proposal/edit.blade.php', import.meta.url), 'utf8');
+    const panelStart = view.indexOf('<section x-show="showCompletionChecklist"');
+    const panel = view.slice(panelStart, view.indexOf('</section>', panelStart) + '</section>'.length);
+    const status = readFileSync(new URL('../../resources/views/components/proposal-autosave-status.blade.php', import.meta.url), 'utf8');
+    const statusWrapper = view.match(/<div x-show="showDetailedProposalSaveStatus"[^>]*>[\s\S]*?<\/div>/)[0].replace('<x-proposal-autosave-status />', status);
+    const validation = view.match(/<div x-show="validationMessage"[^>]*><\/div>/)[0];
+    const checkButton = view.match(/<button type="button" @click="checkDetailedProposalRequirements\(\)"[^>]*>[\s\S]*?<\/button>/)[0];
+    const helpers = readFileSync(new URL('../../resources/js/proposal-paper-autosave.js', import.meta.url), 'utf8').replaceAll('export ', '');
+    const alpine = readFileSync(new URL('../../node_modules/alpinejs/dist/cdn.min.js', import.meta.url), 'utf8');
+    const manifest = JSON.parse(readFileSync(new URL('../../public/build/manifest.json', import.meta.url), 'utf8'));
+    const cssFiles = [manifest['resources/css/app.css'].file, ...(manifest['resources/js/app.js'].css ?? [])];
+    const css = [...new Set(cssFiles)].map(file => readFileSync(new URL(`../../public/build/${file}`, import.meta.url), 'utf8')).join('\n');
+    const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE });
+    try {
+        for (const width of [1440, 390]) {
+            for (const dark of [false, true]) {
+                const page = await browser.newPage({ viewport: { width, height: 900 } });
+                const errors = [];
+                page.on('pageerror', error => errors.push(error.message));
+                await page.setContent(`<html class="${dark ? 'dark' : ''}"><style>${css}[x-cloak]{display:none!important}</style><body>
+                    <div x-data="completionPanelTest" data-paper-editor data-detailed-proposal-autosave="true" data-paper-project-details-complete="true" class="mx-auto max-w-4xl space-y-6 p-4">
+                        ${validation}${statusWrapper}${checkButton}${panel}
+                        <form x-ref="form"><input type="hidden" name="save_as_draft" data-paper-save-mode value="0">
+                            <label for="responsibility-percentage">Responsibility percentage</label>
+                            <input id="responsibility-percentage" name="responsibilities[0][percentage]" type="number" required min="1" max="100" aria-label="Responsibility percentage" class="block w-full rounded-lg border-slate-300 bg-white dark:bg-slate-900 dark:text-white">
+                            <label for="leader-contact">Leader contact</label><input id="leader-contact" name="leader_contact" required class="block w-full rounded-lg border-slate-300 bg-white dark:bg-slate-900 dark:text-white">
+                        </form>
+                    </div></body></html>`);
+                await page.addScriptTag({ content: `
+                    ${helpers}
+                    const proposalPreviewWorkspace = () => ({});
+                    const Alpine = { data: (_, factory) => { window.proposalFactory = factory; } };
+                    ${app.slice(start, end)}
+                    const missing = { 'responsibilities.0.percentage': ['The member responsibility percentage field is required.'] };
+                    window.savedRequests = [];
+                    window.fetch = async (_, options) => {
+                        const draft = options.body.get('save_as_draft') === '1';
+                        window.savedRequests.push(draft);
+                        return { status: draft ? 200 : 422, ok: draft, json: async () => draft
+                            ? { saved_as_draft: true, document_version: 1, draft_version: 1, completion_errors: missing }
+                            : { errors: missing } };
+                    };
+                    document.addEventListener('alpine:init', () => window.Alpine.data('completionPanelTest', () => {
+                        const state = window.proposalFactory({ updateUrl: '/save', completionErrors: missing });
+                        state.init = function () {
+                            window.completionPanelState = this;
+                            this.sdgs = [1];
+                            this.expectedOutputs = { products: [{ description: 'A report.' }] };
+                            this.startDetailedProposalAutoSave();
+                            this.lastSavedDetailedProposal = '';
+                        };
+                        state.detailedProposalFingerprint = () => 'changed';
+                        state.detailedProposalFormData = form => new FormData(form);
+                        state.closeProposalPreview = () => {};
+                        state.triggerDetailedProposalAutoSave = () => {};
+                        return state;
+                    }));` });
+                await page.addScriptTag({ content: alpine });
+                await page.waitForFunction(() => window.completionPanelState);
+                const checklist = page.locator('[data-proposal-completion-checklist]');
+                assert.equal(await checklist.isVisible(), false);
+                assert.equal(await page.locator('[aria-invalid="true"]').count(), 0);
+                if (process.env.ATHENA_DESIGN_SNAPSHOTS === '1' && width === 1440 && !dark) {
+                    await page.screenshot({ path: '../tmp/detailed-proposal-writing.png' });
+                }
+                await page.evaluate(() => window.completionPanelState.saveDetailedProposal());
+                assert.equal(await checklist.isVisible(), false);
+                assert.equal(await page.locator('[data-proposal-autosave-status]').isVisible(), true);
+                assert.match(await page.locator('[data-proposal-autosave-status]').innerText(), /Draft saved just now/);
+                await page.getByRole('spinbutton', { name: 'Responsibility percentage' }).focus();
+                await page.keyboard.press('Tab');
+                await page.locator('[data-proposal-field-feedback]').waitFor({ state: 'visible' });
+                assert.equal(await checklist.isVisible(), false);
+                assert.equal(await page.locator('#leader-contact').getAttribute('aria-invalid'), null);
+                assert.equal(await page.locator('#responsibility-percentage').getAttribute('aria-invalid'), 'true');
+                const feedbackId = await page.locator('#responsibility-percentage').getAttribute('aria-describedby');
+                assert.equal(await page.locator('#'+feedbackId).isVisible(), true);
+                await page.getByRole('button', { name: 'Check requirements' }).click();
+                await checklist.waitFor({ state: 'visible' });
+                if (process.env.ATHENA_DESIGN_SNAPSHOTS === '1' && width === 1440 && !dark) {
+                    await page.screenshot({ path: '../tmp/detailed-proposal-requirements.png' });
+                }
+                assert.equal(await page.getByRole('button', { name: 'Check requirements' }).evaluate(button => button === document.activeElement), true);
+                assert.deepEqual(await page.evaluate(() => window.savedRequests), [false, true]);
+                const color = await checklist.evaluate(element => {
+                    const context = document.createElement('canvas').getContext('2d');
+                    context.fillStyle = getComputedStyle(element).backgroundColor;
+                    context.fillRect(0, 0, 1, 1);
+                    return Array.from(context.getImageData(0, 0, 1, 1).data);
+                });
+                assert.ok(Math.abs(color[0] - color[1]) < 10, `Expected a neutral panel: ${color}`);
+                await checklist.getByRole('button', { name: 'Complete Responsibility percentage.' }).click();
+                assert.equal(await page.getByRole('spinbutton', { name: 'Responsibility percentage' }).evaluate(field => field === document.activeElement), true);
+                await page.getByRole('spinbutton', { name: 'Responsibility percentage' }).fill('100');
+                assert.equal(await page.locator('#responsibility-percentage').getAttribute('aria-invalid'), null);
+                assert.equal(await page.locator('#'+feedbackId).isVisible(), false);
+                await page.locator('#leader-contact').fill('09123456789');
+                await page.getByRole('button', { name: 'Check requirements' }).click();
+                await checklist.waitFor({ state: 'hidden' });
+                assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+                await page.evaluate(() => {
+                    const wrapper = document.createElement('div');
+                    const textarea = document.createElement('textarea');
+                    textarea.name = 'rationale';
+                    textarea.required = true;
+                    textarea.dataset.semanticEditor = '';
+                    textarea.className = 'sr-only';
+                    textarea.value = '<p><br></p>';
+                    const semantic = document.createElement('div');
+                    semantic.contentEditable = 'true';
+                    semantic.setAttribute('role', 'textbox');
+                    semantic.setAttribute('aria-label', 'Rationale narrative');
+                    semantic.innerHTML = '<p><br></p>';
+                    textarea._semanticEditor = semantic;
+                    semantic.addEventListener('input', () => {
+                        textarea.value = semantic.innerHTML;
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                    });
+                    wrapper.append(textarea, semantic);
+                    window.completionPanelState.$refs.form.append(wrapper);
+                });
+                const narrative = page.getByRole('textbox', { name: 'Rationale narrative' });
+                assert.equal(await narrative.getAttribute('aria-invalid'), null);
+                await narrative.focus();
+                await page.keyboard.press('Tab');
+                assert.equal(await narrative.getAttribute('aria-invalid'), 'true');
+                assert.equal(await page.evaluate(() => window.completionPanelState.validateForm()), false);
+                assert.equal(await narrative.evaluate(field => field === document.activeElement), true);
+                await narrative.fill('A revised rationale with meaningful content.');
+                assert.equal(await narrative.getAttribute('aria-invalid'), null);
+                assert.equal(await page.evaluate(() => window.completionPanelState.validateForm()), true);
+                await page.evaluate(() => window.completionPanelState.detailedProposalAutoSaveStatus('Could not save.', 'error'));
+                await page.locator('[data-proposal-autosave-status]').waitFor({ state: 'visible' });
+                assert.equal(await page.locator('[data-proposal-autosave-status]').isVisible(), true);
+                assert.deepEqual(errors, []);
+                await page.close();
+            }
+        }
+    } finally {
+        await browser.close();
+    }
+});
+
+test('draft and saving indicators use neutral colors and empty output rows do not pass requirements', () => {
+    const state = editor();
+    state.plainText = (value) => String(value ?? '').trim();
+    state.completionErrors = { research_agenda: ['Required.'] };
+    assert.equal(state.showCompletionChecklist, false);
+    assert.equal(state.showDetailedProposalSaveStatus, true);
+    assert.doesNotMatch(state.detailedProposalCompletionClasses(), /amber|yellow/);
+    state.requirementsReviewed = true;
+    assert.equal(state.showCompletionChecklist, true);
+    state.expectedOutputs = { products: [{ description: '' }] };
+    assert.equal(state.hasDetailedProposalExpectedOutput(), false);
+    state.expectedOutputs.products[0].description = 'A community report.';
+    assert.equal(state.hasDetailedProposalExpectedOutput(), true);
+    state.detailedProposalSaveState = 'saved';
+    assert.equal(state.showDetailedProposalSaveStatus, true);
 });

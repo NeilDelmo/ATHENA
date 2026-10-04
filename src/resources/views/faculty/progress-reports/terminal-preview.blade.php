@@ -58,6 +58,6 @@ body{margin:0;background:#e5e7eb;color:#111;font:11pt/1.45 'Times New Roman',ser
     @php($lastGroup = '')
     @foreach (\App\Support\TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role])
         @if ($lastGroup !== $group)<h2>{{ $group }}:</h2>@php($lastGroup = $group)@endif
-        <div class="signature"><p>______________________________</p><p>{{ $data['signatories'][$key]['name'] ?? '' }}</p><p>{{ $role }}</p><p>Date signed: {{ $date($data['signatories'][$key]['date_signed'] ?? null) }}</p></div>
+        <div class="signature"><p>______________________________</p><p>{{ \App\Support\TerminalReportData::defaultSignatoryNames()[$key] ?? $data['signatories'][$key]['name'] ?? '' }}</p><p>{{ $role }}</p><p>Date signed: {{ $date($data['signatories'][$key]['date_signed'] ?? null) }}</p></div>
     @endforeach
 </section></main></body></html>

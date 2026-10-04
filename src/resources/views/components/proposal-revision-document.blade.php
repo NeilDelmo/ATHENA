@@ -44,10 +44,15 @@
 <article
     data-revision-document="{{ $documentType }}"
     data-revision-label="{{ $label }}"
+    @if ($stagedFile)
+        data-revision-staged-pdf-url="{{ route('faculty.proposal-drafts.revision-files.show', [$stagedFile->proposal_draft_id, $stagedFile]) }}"
+    @endif
     data-revision-preview-upload-url="{{ route('faculty.topics.revision.preview', $topic) }}"
     data-topic-file-dropzone="{{ $inputName }}"
-    x-data="fileDropzone({ accept: @js($accept), maxBytes: 26214400, multiple: @js($multiple) })"
-    @paste="paste($event)"
+    @if (! $canEmbed)
+        x-data="fileDropzone({ accept: @js($accept), maxBytes: 26214400, multiple: @js($multiple) })"
+        @paste="paste($event)"
+    @endif
     class="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
 >
     <div class="flex flex-wrap items-center justify-between gap-4 p-4">

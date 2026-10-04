@@ -37,11 +37,11 @@ test('history labels distinguish submitted snapshots from working edits', functi
     expect($html)
         ->toContain(
             'Submitted proposal versions',
-            'Only packages sent for review appear here.',
-            'Working edits are excluded until submission.',
-            '1 submitted version',
+            'Packages sent for review. Working edits appear after submission.',
+            '1 version',
             'Initial submission',
-            'Latest submitted',
+            '>Latest</span>',
+            'data-submitted-version="1"',
         )
-        ->not->toContain('Proposal version history', '>Latest</span>');
+        ->not->toContain('Proposal version history', 'data-version-screening-form');
 });

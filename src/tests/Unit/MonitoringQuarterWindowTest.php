@@ -34,6 +34,31 @@ test('a future project start does not open the current calendar quarter early', 
         ->and($rows->pluck('state')->unique()->all())->toBe(['not_yet_due']);
 });
 
+test('all approved project periods allow drafting before the project starts while submission stays closed', function () {
+    $this->travelTo(now()->setDate(2026, 9, 7)->startOfDay());
+    $topic = new TopicProposal([
+        'status' => 'approved', 'estimated_duration_months' => 9,
+        'notice_to_proceed_issued_at' => '2026-09-01',
+        'notice_to_proceed_data' => ['approved_start_date' => '2026-10-01', 'approved_end_date' => '2027-06-30'],
+    ]);
+    $schedule = app(MonitoringQuarterService::class);
+    $monitoring = $schedule->summaryRows(collect(), $topic);
+    $progress = $schedule->narrativeProgressPeriods($topic, collect());
+
+    expect($monitoring)->toHaveCount(3)
+        ->and($monitoring->pluck('drafting_date')->filter())->toHaveCount(3)
+        ->and($monitoring->pluck('reporting_date')->filter())->toBeEmpty()
+        ->and($progress->pluck('drafting_date')->filter())->toHaveCount(3)
+        ->and($progress->pluck('submission_open')->unique()->all())->toBe([false]);
+    foreach ($monitoring as $row) {
+        expect($schedule->canDraftForDate($topic, $row['drafting_date']))->toBeTrue()
+            ->and($schedule->canSubmitForDate($topic, $row['drafting_date']))->toBeFalse();
+    }
+    expect($schedule->canDraftForDate($topic, '2026-09-30'))->toBeFalse()
+        ->and($schedule->canDraftForDate($topic, '2027-07-01'))->toBeFalse()
+        ->and($schedule->canSubmitTerminal($topic))->toBeFalse();
+});
+
 test('revised reports stay in their original quarter and the latest version is shown', function () {
     $this->travelTo(now()->setDate(2026, 9, 7)->startOfDay());
     $original = new ProjectProgressReport(['reporting_date' => '2026-03-31', 'reporting_year' => 2026, 'reporting_quarter' => 1, 'version_number' => 1, 'submission_status' => 'submitted', 'review_status' => 'revision_requested']);

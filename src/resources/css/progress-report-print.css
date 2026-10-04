@@ -157,6 +157,18 @@ body {
     page-break-inside: avoid;
 }
 
+.progress-report-review-signatures {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.progress-report-review-signatures .progress-report-signature {
+    width: auto;
+}
+
 .progress-report-signature p {
     margin: 3pt 0;
     font-size: 8pt;

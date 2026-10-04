@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ProjectNarrativeReport;
 use App\Support\ProposalRichText;
+use App\Support\TerminalReportData;
 use App\Support\TerminalReportRules;
 use Carbon\Carbon;
 use DOMDocument;
@@ -76,12 +77,13 @@ class TerminalReportDocumentService extends ProgressReportDocumentService
             $this->signatory($body, $author['name'] ?? '', $author['role'] ?? '', $author['date_signed'] ?? null);
         }
         $lastGroup = '';
+        $defaultNames = TerminalReportData::defaultSignatoryNames();
         foreach (TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role]) {
             if ($lastGroup !== $group) {
                 $body->appendChild($this->paragraph($doc, $group.':', true));
                 $lastGroup = $group;
             }
-            $this->signatory($body, $data['signatories'][$key]['name'] ?? '', $role, $data['signatories'][$key]['date_signed'] ?? null);
+            $this->signatory($body, $defaultNames[$key] ?? $data['signatories'][$key]['name'] ?? '', $role, $data['signatories'][$key]['date_signed'] ?? null);
         }
         if ($section) {
             $body->appendChild($section);

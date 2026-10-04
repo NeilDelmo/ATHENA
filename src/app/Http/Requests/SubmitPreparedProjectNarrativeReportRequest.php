@@ -24,7 +24,7 @@ class SubmitPreparedProjectNarrativeReportRequest extends FormRequest
             && $topic->isMonitoringAvailable()
             && ($report->report_type === 'terminal'
                 ? app(MonitoringQuarterService::class)->canSubmitTerminal($topic)
-                    && ($this->isMethod('DELETE') || app(MonitoringQuarterService::class)->missingTerminalMonitoringPeriods($topic) === [])
+                    && ($this->isMethod('DELETE') || app(MonitoringQuarterService::class)->missingTerminalReportPeriods($topic) === [])
                 : ($this->isMethod('DELETE') || $report->reporting_date !== null && app(MonitoringQuarterService::class)->canSubmitForDate($topic, $report->reporting_date)))
             && $topic->isAccessibleTo($this->user());
     }

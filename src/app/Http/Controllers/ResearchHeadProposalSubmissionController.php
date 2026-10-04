@@ -23,7 +23,7 @@ class ResearchHeadProposalSubmissionController extends Controller
         TopicProposal::STATUS_READY_FOR_SIGNATURE,
     ];
 
-    private const SUBMISSION_TYPES = ['initial', 'revision'];
+    private const SUBMISSION_TYPES = ['initial', 'revision', 'update'];
 
     private const ACTIVE_STATUSES = [
         'pending',

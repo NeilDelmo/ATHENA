@@ -1,0 +1,194 @@
+<button
+    id="research-assistant-launcher"
+    x-cloak
+    x-show="!$store.researchAssistant.workspaceOpen"
+    type="button"
+    @click="$store.researchAssistant.toggleDrawer($event.currentTarget)"
+    :aria-expanded="$store.researchAssistant.drawerOpen"
+    :aria-label="$store.researchAssistant.drawerOpen ? 'Close Athena AI research assistant' : 'Open Athena AI research assistant'"
+    aria-controls="research-assistant-panel"
+    aria-label="Open Athena AI research assistant"
+    class="group fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-[71] inline-flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-600 to-rose-700 text-white shadow-lg shadow-red-950/20 transition hover:from-red-700 hover:to-rose-800 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-4 dark:focus-visible:ring-offset-slate-950 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-[calc(1.5rem+env(safe-area-inset-right))] print:hidden"
+>
+    <span x-show="!$store.researchAssistant.drawerOpen" class="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 dark:bg-slate-700" aria-hidden="true">Ask ATHENA</span>
+    <svg x-show="!$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1ZM5.2 13.2 6 11l.8 2.2L9 14l-2.2.8L6 17l-.8-2.2L3 14l2.2-.8Z" />
+    </svg>
+    <svg x-show="$store.researchAssistant.drawerOpen" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6 6 18" />
+    </svg>
+</button>
+
+<div
+    x-cloak
+    x-show="$store.researchAssistant.drawerOpen"
+    @keydown.escape.window="$store.researchAssistant.closeDrawer()"
+    class="athena-readable pointer-events-none fixed inset-0 z-[70] print:hidden"
+>
+    <aside
+        id="research-assistant-panel"
+        x-show="$store.researchAssistant.drawerOpen"
+        x-transition:enter="transition ease-out duration-200 motion-reduce:transition-none"
+        x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+        x-transition:leave="transition ease-in duration-150 motion-reduce:transition-none"
+        x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+        role="dialog"
+        aria-labelledby="research-assistant-drawer-title"
+        class="athena-chat-panel pointer-events-auto absolute bottom-[calc(5.25rem+env(safe-area-inset-bottom))] left-[calc(1rem+env(safe-area-inset-left))] right-[calc(1rem+env(safe-area-inset-right))] flex h-[42rem] max-h-[calc(100dvh-6.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 sm:bottom-[calc(5.75rem+env(safe-area-inset-bottom))] sm:left-auto sm:right-[calc(1.5rem+env(safe-area-inset-right))] sm:max-h-[calc(100dvh-7.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:w-[30rem]"
+    >
+        <header class="flex min-h-16 shrink-0 items-center justify-between border-b border-gray-100 px-4 dark:border-slate-800 sm:px-5">
+            <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white shadow-sm">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <div class="min-w-0">
+                    <h2 id="research-assistant-drawer-title" class="truncate text-lg font-bold text-gray-900 dark:text-white">Athena</h2>
+                    <p class="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-slate-400" aria-live="polite"><span :class="$store.researchAssistant.isLoading ? 'animate-pulse bg-amber-400' : 'bg-emerald-500'" class="h-1.5 w-1.5 rounded-full"></span><span x-text="$store.researchAssistant.isLoading ? 'Thinking…' : 'Research assistant'"></span></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1">
+                <button x-show="!$store.researchAssistant.workspaceOpen" type="button" @click="$store.researchAssistant.openWorkspace()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Expand to full workspace" title="Expand to full workspace">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.newConversation()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Start a new chat" title="New chat">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M12 5v14M5 12h14" /></svg>
+                </button>
+                <button type="button" @click="$store.researchAssistant.closeDrawer()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white" aria-label="Close research assistant">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+            </div>
+        </header>
+
+        <details class="group shrink-0 border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 sm:px-5">
+            <summary class="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+                <svg class="h-4 w-4 shrink-0 text-red-700 dark:text-red-300" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m8 12 3 3 5-6"/></svg>
+                <span class="flex-1">Chats are saved to your account.</span>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white font-semibold dark:border-slate-600 dark:bg-slate-900" aria-label="Privacy details">i</span>
+            </summary>
+            <p class="mt-3 leading-6">With context enabled, Athena uses the selected project’s saved records. On proposal forms, it can also use the focused field’s unsaved values. Contact details are redacted. Avoid sharing confidential participant data.</p>
+        </details>
+
+        <div data-assistant-messages class="min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-smooth" aria-live="polite" :aria-busy="$store.researchAssistant.isLoading">
+            <div x-show="!$store.researchAssistant.hasConversation()" class="flex min-h-full flex-col items-center justify-center px-5 py-10 text-center">
+                <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-900 text-white dark:bg-white dark:text-slate-900">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2ZM16.9 13.9 18 11l1.1 2.9L22 15l-2.9 1.1L18 19l-1.1-2.9L14 15l2.9-1.1Z" /></svg>
+                </div>
+                <h3 class="mt-4 text-xl font-black tracking-tight text-gray-900 dark:text-white" x-text="$store.researchAssistant.starterPromptHeading()"></h3>
+                <p class="mt-2 max-w-md text-sm leading-6 text-gray-500 dark:text-slate-400" x-text="$store.researchAssistant.starterPromptDescription()"></p>
+                <div x-show="$store.researchAssistant.hasStarterPrompts()" x-cloak class="mt-7 grid w-full max-w-lg gap-2 sm:grid-cols-2">
+                    <template x-for="item in $store.researchAssistant.starterPrompts()" :key="item.prompt">
+                        <button type="button" @click="$store.researchAssistant.sendPrompt(item.prompt)" class="rounded-2xl border border-gray-200 p-3 text-left transition hover:border-gray-300 hover:bg-gray-50 dark:border-slate-700 dark:hover:bg-slate-800">
+                            <span class="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400" x-text="item.label"></span>
+                            <span class="mt-1 block text-xs font-semibold leading-5 text-gray-700 dark:text-slate-200" x-text="item.description"></span>
+                            <span class="mt-2 block text-[10px] font-bold leading-4 text-gray-400 dark:text-slate-500" x-text="item.evidence"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasConversation()" x-cloak class="px-4 py-6 sm:px-6">
+                <template x-for="message in $store.researchAssistant.messages" :key="message.id">
+                    <article :class="message.role === 'user' ? 'justify-end' : 'justify-start'" class="mb-6 flex">
+                        <div data-assistant-user-message x-show="message.role === 'user'" class="max-w-[85%] rounded-3xl bg-gray-100 px-4 py-3 text-sm leading-6 text-gray-800 dark:bg-slate-800 dark:text-slate-100"><p class="whitespace-pre-wrap" x-text="message.content"></p></div>
+                        <div x-show="message.role === 'assistant'" class="flex w-full gap-3">
+                            <div class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                            <div data-assistant-response class="min-w-0 flex-1 text-sm leading-7 text-gray-700 dark:text-slate-200">
+                                <p class="mb-1 text-xs font-black text-gray-900 dark:text-white">Athena</p>
+                                <div x-html="$store.researchAssistant.renderMessage(message)"></div>
+                                <details x-show="Array.isArray(message.sources) && message.sources.length" x-cloak class="group mt-4 border-t border-gray-100 pt-3 dark:border-slate-800">
+                                    <summary class="flex cursor-pointer list-none items-center gap-2 text-[11px] font-semibold text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75c-4.5 0-8.25 5.25-8.25 5.25S7.5 17.25 12 17.25 20.25 12 20.25 12 16.5 6.75 12 6.75Z" /><circle cx="12" cy="12" r="2.25" /></svg>
+                                        <span>Sources</span>
+                                        <span class="text-gray-400" x-text="message.sources.length"></span>
+                                        <svg class="ml-auto h-3.5 w-3.5 transition group-open:rotate-180" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
+                                    </summary>
+                                    <div class="mt-2 grid gap-1.5">
+                                        <template x-for="source in message.sources" :key="source.reference">
+                                            <span class="flex items-start gap-2 rounded-lg bg-gray-50 px-2.5 py-2 text-[10px] font-semibold leading-4 text-gray-600 dark:bg-slate-800/70 dark:text-slate-300">
+                                                <span class="min-w-0 flex-1" x-text="`${source.reference} · ${source.title}`"></span>
+                                                <a x-show="source.url" :href="source.url" target="_blank" rel="noopener noreferrer" class="shrink-0 text-red-600 hover:text-red-800 dark:text-red-300 dark:hover:text-red-200" aria-label="Open source">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19 5 11 13M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+                                                </a>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </details>
+                                <button type="button" @click="$store.researchAssistant.copyMessage(message)" class="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                                    <span x-text="$store.researchAssistant.copiedMessageId === message.id ? 'Copied' : 'Copy response'"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </article>
+                </template>
+                <div x-show="$store.researchAssistant.isLoading" x-cloak class="flex items-center gap-3" role="status" aria-label="Athena is preparing a response">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-red-600 text-white"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" d="M9.8 4.8 11 2l1.2 2.8L15 6l-2.8 1.2L11 10 9.8 7.2 7 6l2.8-1.2Z" /></svg></div>
+                    <div class="flex gap-1.5"><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]"></span><span class="h-2 w-2 animate-bounce rounded-full bg-gray-400"></span></div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="max-h-[50dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-gray-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5 sm:pb-4">
+            <div x-show="$store.researchAssistant.error" x-cloak role="alert" class="mb-3 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+                <div><p class="font-black" x-text="$store.researchAssistant.errorTitle || 'Athena needs attention'"></p><p class="mt-1 leading-5" x-text="$store.researchAssistant.error"></p></div>
+                <button type="button" @click="$store.researchAssistant.retry()" :disabled="$store.researchAssistant.isLoading || $store.researchAssistant.retryAfter > 0" class="shrink-0 font-black disabled:opacity-50" x-text="$store.researchAssistant.retryAfter > 0 ? `Retry in ${$store.researchAssistant.retryAfter}s` : 'Retry'"></button>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasPaperContext()" x-cloak class="mb-2 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-[10px] text-red-800 dark:bg-red-950/40 dark:text-red-200">
+                <span class="shrink-0 font-black uppercase tracking-wider">Paper help</span>
+                <span class="min-w-0 truncate font-semibold" x-text="$store.researchAssistant.paperContextLabel()"></span>
+                <span x-show="$store.researchAssistant.hasLiveFormContext()" class="ml-auto shrink-0 rounded-full bg-white/80 px-2 py-0.5 font-black dark:bg-red-950">Live context</span>
+            </div>
+
+            <div x-show="$store.researchAssistant.hasContextOptions()" x-cloak class="mb-2 flex items-center gap-2">
+                <label class="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-gray-600 dark:text-slate-300"><input type="checkbox" x-model="$store.researchAssistant.contextEnabled" @change="$store.researchAssistant.closeDocumentPicker()" class="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500">Project</label>
+                <select id="assistant-drawer-context" aria-label="Proposal context" x-model.number="$store.researchAssistant.selectedContextId" @change="$store.researchAssistant.closeDocumentPicker()" :disabled="!$store.researchAssistant.contextEnabled" class="min-w-0 flex-1 rounded-xl border-gray-200 py-1.5 text-[11px] font-semibold focus:border-red-500 focus:ring-red-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <template x-for="context in $store.researchAssistant.contextOptions" :key="context.id"><option :value="context.id" x-text="context.label"></option></template>
+                </select>
+            </div>
+
+            <?php if (isset($component)) { $__componentOriginale6b838ae4341d613647a5aee06953b80 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginale6b838ae4341d613647a5aee06953b80 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.research-assistant-document-action','data' => ['id' => 'drawer']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('research-assistant-document-action'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['id' => 'drawer']); ?>
+<?php \Livewire\Features\SupportCompiledWireKeys\SupportCompiledWireKeys::processComponentKey($component); ?>
+
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginale6b838ae4341d613647a5aee06953b80)): ?>
+<?php $attributes = $__attributesOriginale6b838ae4341d613647a5aee06953b80; ?>
+<?php unset($__attributesOriginale6b838ae4341d613647a5aee06953b80); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginale6b838ae4341d613647a5aee06953b80)): ?>
+<?php $component = $__componentOriginale6b838ae4341d613647a5aee06953b80; ?>
+<?php unset($__componentOriginale6b838ae4341d613647a5aee06953b80); ?>
+<?php endif; ?>
+
+            <form @submit.prevent="$store.researchAssistant.send()" class="flex items-end gap-2 rounded-3xl border border-gray-300 bg-white p-2 shadow-sm focus-within:border-gray-400 focus-within:shadow-md dark:border-slate-700 dark:bg-slate-800">
+                <label for="research-assistant-drawer-message" class="sr-only">Message Athena Research Assistant</label>
+                <textarea id="research-assistant-drawer-message" data-assistant-composer x-model="$store.researchAssistant.draft" @input="$store.researchAssistant.resizeComposer($event)" @keydown="$store.researchAssistant.handleComposerKeydown($event)" rows="1" maxlength="8000" placeholder="Message Athena…" class="max-h-44 min-h-11 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 text-sm leading-5 text-gray-900 shadow-none placeholder:text-gray-400 focus:border-0 focus:ring-0 dark:text-white"></textarea>
+                <button x-show="!$store.researchAssistant.isLoading" type="submit" :disabled="!$store.researchAssistant.draft.trim() || $store.researchAssistant.retryAfter > 0" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white dark:text-slate-900 dark:disabled:bg-slate-700 dark:disabled:text-slate-500" aria-label="Send message"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m5 12 7-7 7 7M12 19V5" /></svg></button>
+                <button x-show="$store.researchAssistant.isLoading" x-cloak type="button" @click="$store.researchAssistant.stop()" class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-slate-900" aria-label="Stop response"><span class="h-3 w-3 rounded-sm bg-current"></span></button>
+            </form>
+            <div class="mt-3 flex flex-wrap items-center justify-between gap-2 px-1">
+                <p class="text-sm text-gray-500 dark:text-slate-400">Check important answers.</p>
+                <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" @click="$store.researchAssistant.copyConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path stroke-linecap="round" d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+                        <span x-text="$store.researchAssistant.copiedConversation ? 'Copied' : 'Copy chat'"></span>
+                    </button>
+                    <button type="button" @click="$store.researchAssistant.exportConversation()" :disabled="!$store.researchAssistant.messages.length" class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 dark:text-slate-300 dark:hover:bg-slate-800"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></svg>Export</button>
+                </div>
+            </div>
+        </footer>
+    </aside>
+</div>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views/components/research-assistant-drawer.blade.php ENDPATH**/ ?>

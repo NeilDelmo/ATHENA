@@ -148,11 +148,25 @@
                 </table>
             </section>
 
-            <footer class="monitoring-signature">
+            <footer class="monitoring-signatures">
+                <section class="monitoring-signature">
                 <p>Prepared by:</p>
                 <div class="monitoring-signature-line">{{ strtoupper($report->submitter->name) }}</div>
                 <p>Project Leader</p>
                 <p>Date Signed: {{ $report->prepared_by_date_signed?->format('F j, Y') ?: '____________________' }}</p>
+                </section>
+                <section class="monitoring-signature">
+                    <p>Monitored by:</p>
+                    <div class="monitoring-signature-line">{{ config('work_plan.verifier.name') }}</div>
+                    <p>Head, Research</p>
+                    <p>Date Signed: ____________________</p>
+                </section>
+                <section class="monitoring-signature">
+                    <p>Reviewed &amp; Evaluated by:</p>
+                    <div class="monitoring-signature-line">{{ config('notice_to_proceed.issuing_officer.name') }}</div>
+                    <p>Vice Chancellor for Research, Development and Extension Services</p>
+                    <p>Date Signed: ____________________</p>
+                </section>
             </footer>
         </main>
     </body>

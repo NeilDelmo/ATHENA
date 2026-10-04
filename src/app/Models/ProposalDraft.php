@@ -75,6 +75,21 @@ class ProposalDraft extends Model
                 'name' => (string) config('notice_to_proceed.verifying_officer.name'),
                 'position' => (string) config('notice_to_proceed.verifying_officer.title'),
             ],
+            'certified_by' => [
+                'id' => null,
+                'name' => (string) config('line_item_budget.certifier.name'),
+                'position' => (string) config('line_item_budget.certifier.role'),
+            ],
+            'verifier_name' => [
+                'id' => null,
+                'name' => (string) config('gad_checklist.verifier.name'),
+                'position' => (string) config('gad_checklist.verifier.role'),
+            ],
+            'screening_center' => [
+                'id' => null,
+                'name' => (string) config('research_signatories.center_head'),
+                'position' => 'Center Head/ Assistant Director for Research',
+            ],
             ...($this->signatory_selections ?? []),
             ...ProposalSignatory::defaultSelections(),
         ];
@@ -88,6 +103,31 @@ class ProposalDraft extends Model
     public function topic(): BelongsTo
     {
         return $this->belongsTo(TopicProposal::class, 'topic_id');
+    }
+
+    public function isEditable(): bool
+    {
+        if ($this->status !== self::STATUS_DRAFT) {
+            return false;
+        }
+
+        if ($this->topic_id === null) {
+            return true;
+        }
+
+        $topic = $this->topic()->first();
+
+        return $topic !== null && ($topic->status === 'revision_requested' || $topic->canUpdateBeforeReview());
+    }
+
+    public function ensureEditable(): void
+    {
+        if ($this->topic_id !== null) {
+            $topic = $this->topic()->lockForUpdate()->first();
+            abort_unless($topic !== null && ($topic->status === 'revision_requested' || $topic->canUpdateBeforeReview()), 403);
+        }
+
+        abort_unless($this->status === self::STATUS_DRAFT, 403);
     }
 
     public function documents(): HasMany

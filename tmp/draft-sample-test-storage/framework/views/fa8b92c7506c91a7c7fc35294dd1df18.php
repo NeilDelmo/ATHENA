@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="<?php echo e(str_replace('_', '-', app()->getLocale())); ?>">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
+
+        <title><?php echo $__env->yieldContent('page_title'); ?> | <?php echo e(config('app.name', 'ATHENA')); ?></title>
+
+        <?php echo $__env->make('partials.theme-script', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
+        <link rel="preconnect" href="https://fonts.bunny.net">
+        <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:400,500,600,700,800&display=swap" rel="stylesheet" />
+        <?php echo app('Illuminate\Foundation\Vite')(['resources/css/app.css', 'resources/js/app.js']); ?>
+    </head>
+    <body class="font-sans antialiased">
+        <main class="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-6 py-12 text-slate-900 dark:bg-slate-950 dark:text-white">
+            <div class="absolute inset-x-0 top-0 h-1 bg-red-600"></div>
+            <div class="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-red-100/70 blur-3xl dark:bg-red-950/30"></div>
+            <div class="absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-slate-200/80 blur-3xl dark:bg-slate-800/50"></div>
+
+            <section class="relative w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-10">
+                <a href="<?php echo e(url('/')); ?>" class="inline-flex items-center gap-2 text-sm font-black tracking-[0.2em] text-red-600 dark:text-red-400">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-base tracking-normal text-white shadow-lg shadow-red-600/20">A</span>
+                    ATHENA
+                </a>
+
+                <div class="mx-auto mt-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300">
+                    <svg class="h-8 w-8" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                </div>
+
+                <p class="mt-6 text-xs font-black uppercase tracking-[0.24em] text-red-600 dark:text-red-400">Error <?php echo $__env->yieldContent('code'); ?></p>
+                <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900 dark:text-white"><?php echo $__env->yieldContent('heading'); ?></h1>
+                <p class="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-500 dark:text-slate-400">
+                    <?php echo $__env->yieldContent('message'); ?>
+                </p>
+
+                <div class="mt-8 flex flex-col-reverse justify-center gap-3 sm:flex-row">
+                    <button type="button" onclick="history.back()" class="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-black text-slate-700 shadow-sm transition duration-150 hover:-translate-y-px hover:border-red-300 hover:bg-red-50 hover:text-red-700 hover:shadow focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-red-800 dark:hover:bg-red-950/40 dark:hover:text-red-300 dark:focus:ring-offset-slate-950">
+                        <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition group-hover:bg-red-100 group-hover:text-red-700 dark:bg-red-950/60 dark:text-red-300 dark:group-hover:bg-red-950" aria-hidden="true">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                            </svg>
+                        </span>
+                        <span>Back to previous page</span>
+                    </button>
+
+                    <?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if BLOCK]><![endif]--><?php endif; ?><?php if(auth()->guard()->check()): ?>
+                        <a href="<?php echo e(route('dashboard')); ?>" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                            Go to my dashboard
+                        </a>
+                    <?php else: ?>
+                        <a href="<?php echo e(url('/')); ?>" class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900">
+                            Return home
+                        </a>
+                    <?php endif; ?><?php if(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::isRenderingLivewireComponent()): ?><!--[if ENDBLOCK]><![endif]--><?php endif; ?>
+                </div>
+
+                <p class="mt-8 text-xs text-slate-400 dark:text-slate-500">If this keeps happening, contact the ATHENA system administrator.</p>
+            </section>
+        </main>
+    </body>
+</html>
+<?php /**PATH C:\laragon\www\athena-app\src\resources\views/errors/layout.blade.php ENDPATH**/ ?>

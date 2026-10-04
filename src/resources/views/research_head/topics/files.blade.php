@@ -9,14 +9,8 @@
             </x-slot>
         </x-page-header>
 
-        <div class="mt-4" x-data="{ workflowOpen: true }" x-init="(() => { try { workflowOpen = sessionStorage.getItem('review-workflow-{{ $topic->id }}') !== 'hidden' } catch (error) {} })()">
-            <button type="button" data-review-workflow-toggle @click="workflowOpen = !workflowOpen; try { sessionStorage.setItem('review-workflow-{{ $topic->id }}', workflowOpen ? 'shown' : 'hidden') } catch (error) {}" :aria-expanded="workflowOpen" aria-controls="review-workflow" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900">
-                <svg class="h-4 w-4" :class="workflowOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m6 9 6 6 6-6" /></svg>
-                <span x-text="workflowOpen ? 'Hide workflow' : 'Show workflow'">Hide workflow</span>
-            </button>
-            <div id="review-workflow" x-show="workflowOpen" x-cloak>
-                <x-proposal-workflow :topic="$topic" :version="$latestVersion" />
-            </div>
+        <div class="mt-4" data-visible-proposal-workflow>
+            <x-proposal-workflow :topic="$topic" :version="$latestVersion" :reviews="$topic->reviews" />
         </div>
     </x-slot>
 

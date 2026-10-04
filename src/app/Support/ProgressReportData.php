@@ -72,6 +72,25 @@ class ProgressReportData
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function normalize(TopicProposal $topic, array $data): array
+    {
+        $defaults = $this->defaults($topic);
+        if ($defaults['objectives_from_work_plan']) {
+            $submitted = collect($data['accomplishments'] ?? [])->filter(fn (mixed $row): bool => is_array($row));
+            $data['accomplishments'] = collect($defaults['accomplishments'])->map(function (array $approved, int $index) use ($submitted): array {
+                $row = $submitted->firstWhere('objective', $approved['objective']) ?? $submitted->get($index, []);
+
+                return [...$approved, 'actual' => (string) ($row['actual'] ?? '')];
+            })->all();
+        }
+        if (filled($defaults['objectives'])) {
+            $data['objectives'] = $defaults['objectives'];
+        }
+
+        return $data;
+    }
+
     public function plain(string $value): string
     {
         return collect($this->richText->blocks($value))->map(fn (array $block): string => collect($block['runs'])

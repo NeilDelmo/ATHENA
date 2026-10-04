@@ -101,6 +101,25 @@ beforeEach(function () {
             'issues' => '', 'work_plan' => [], 'budget_utilization' => [], 'review_status' => 'reviewed',
         ]);
     }
+    $this->completeQuarterlyProgress = function (): void {
+        foreach (app(MonitoringQuarterService::class)->projectPeriods($this->topic) as $period) {
+            $existing = $this->topic->narrativeReports()->where('report_type', 'progress')->where('reporting_quarter', $period['quarter'])->latest('id')->first();
+            if ($existing !== null) {
+                $existing->update(['submission_status' => 'submitted', 'review_status' => 'reviewed']);
+
+                continue;
+            }
+            $payload = ($this->progressReportPayload)();
+            unset($payload['photo_1'], $payload['photo_caption_1'], $payload['photo_section_1']);
+            $this->topic->narrativeReports()->create([
+                ...$payload, 'submitted_by' => $this->researcher->id, 'report_type' => 'progress',
+                'reporting_date' => $period['end'], 'reporting_quarter' => $period['quarter'],
+                'period_start' => $period['start'], 'period_end' => $period['end'], 'budget' => 50000,
+                'accomplishment_summary' => 'Quarterly coastal fieldwork completed.', 'photos' => [],
+                'submission_status' => 'submitted', 'review_status' => 'reviewed',
+            ]);
+        }
+    };
     $this->terminalPayload = function (array $overrides = []): array {
         $payload = ($this->progressReportPayload)([
             'report_type' => 'terminal',
@@ -138,7 +157,36 @@ function terminalDocumentXml(string $contents): string
     return $xml;
 }
 
+test('terminal signatories default to the supplied institutional officers and preserve the official roles', function () {
+    ($this->completeQuarterlyProgress)();
+    $names = TerminalReportData::defaultSignatoryNames();
+    $form = $this->actingAs($this->researcher)
+        ->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
+        ->assertOk();
+    foreach ($names as $name) {
+        $form->assertSee($name);
+    }
+    $payload = ($this->terminalPayload)([
+        'terminal_data' => ['signatories' => ['reviewed_head' => ['name' => 'Dr. CARMINA L. CAUREZ']]],
+    ]);
+    $preview = $this->post(route('project-narrative-reports.preview', $this->topic), $payload)->assertOk();
+    foreach ($names as $name) {
+        $preview->assertSee($name);
+    }
+    $preview->assertDontSee('Dr. CARMINA L. CAUREZ');
+    $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
+    $report = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
+    $document = new DOMDocument;
+    $document->loadXML(terminalDocumentXml($this->pdfConverter->sourceDocument));
+    foreach (TerminalReportRules::SIGNATORY_ROLES as $key => [$group, $role]) {
+        expect($report->terminal_data['signatories'][$key]['name'])->toBe($names[$key])
+            ->and($document->textContent)->toContain($names[$key], $role);
+    }
+    expect($document->textContent)->not->toContain('Dr. CARMINA L. CAUREZ');
+});
+
 test('accepted collaborators can prepare a shared Terminal Report but only the project leader submits it', function () {
+    ($this->completeQuarterlyProgress)();
     $collaborator = User::factory()->create();
     $collaborator->assignRole('faculty_researcher');
     $this->topic->collaborators()->create([
@@ -147,7 +195,7 @@ test('accepted collaborators can prepare a shared Terminal Report but only the p
     ]);
     $this->actingAs($collaborator)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())
         ->assertSessionHasNoErrors();
-    $report = ProjectNarrativeReport::sole();
+    $report = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
     $this->get(route('project-narrative-reports.create', [$this->topic, 'report_type' => 'terminal']))
         ->assertOk()->assertSee('Only the project leader can submit this report.')->assertDontSee('Submit to Research Head');
     $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $report]))->assertForbidden();
@@ -186,6 +234,7 @@ test('terminal form and preview use final report sections without mandatory imag
 });
 
 test('terminal cover poster is previewed stored and embedded in the official document', function () {
+    ($this->completeQuarterlyProgress)();
     $caption = 'Community coastal mapping project poster';
     $previewPayload = ($this->terminalPayload)([
         'cover_image' => UploadedFile::fake()->image('project-poster.jpg', 1600, 900),
@@ -218,6 +267,7 @@ test('terminal cover poster is previewed stored and embedded in the official doc
 });
 
 test('terminal preparation snapshots all sections and downloads the exact stored PDF', function () {
+    ($this->completeQuarterlyProgress)();
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())
         ->assertSessionHasNoErrors()->assertRedirect();
     $report = ProjectNarrativeReport::where('report_type', 'terminal')->firstOrFail();
@@ -304,6 +354,7 @@ test('terminal reuses only same-project evidence and keeps source files when dis
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->progressReportPayload)())->assertSessionHasNoErrors();
     $source = ProjectNarrativeReport::firstOrFail();
     $source->update(['submission_status' => 'submitted', 'submitted_at' => now()]);
+    ($this->completeQuarterlyProgress)();
     $payload = ($this->terminalPayload)(['reuse_photo_1' => $source->id.':0', 'photo_caption_1' => 'Reused fieldwork', 'photo_section_1' => 'methodology', 'photo_after_paragraph_1' => 1]);
     $this->post(route('project-narrative-reports.preview', $this->topic), $payload)->assertOk()->assertSee('Reused fieldwork');
     $this->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
@@ -320,6 +371,7 @@ test('terminal reuses only same-project evidence and keeps source files when dis
 });
 
 test('terminal final preparation waits for all monitoring reports but allows drafting', function () {
+    ($this->completeQuarterlyProgress)();
     $this->topic->progressReports()->first()->delete();
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())->assertSessionHasErrors('preparation', null, 'narrativeProgress');
     $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 0, 'report_type' => 'terminal', 'terminal_data' => ['abstract' => 'An unfinished draft.']])->assertOk();
@@ -332,7 +384,28 @@ test('other faculty cannot read write or preview a project terminal report', fun
     $this->postJson(route('project-narrative-reports.draft', $this->topic), ['draft_version' => 0, 'report_type' => 'terminal'])->assertForbidden();
 });
 
+test('terminal preparation and submission require each submitted Progress Report without outstanding corrections', function (string $state) {
+    ($this->completeQuarterlyProgress)();
+    $progress = $this->topic->narrativeReports()->where('report_type', 'progress')->firstOrFail();
+    $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())->assertSessionHasNoErrors();
+    $terminal = ProjectNarrativeReport::where('report_type', 'terminal')->sole();
+    if ($state === 'missing') {
+        $progress->delete();
+    } elseif ($state === 'prepared') {
+        $progress->update(['submission_status' => 'prepared']);
+    } else {
+        $progress->update(['review_status' => 'revision_requested']);
+    }
+    $this->post(route('project-narrative-reports.submit-prepared', [$this->topic, $terminal]))->assertForbidden();
+    expect($terminal->fresh()->isPrepared())->toBeTrue();
+    $this->delete(route('project-narrative-reports.discard-prepared', [$this->topic, $terminal]))->assertSessionHasNoErrors();
+    $this->post(route('project-narrative-reports.prepare', $this->topic), ($this->terminalPayload)())->assertSessionHasErrorsIn('narrativeProgress', 'preparation');
+    $this->get(route('project-narrative-reports.create', ['topic' => $this->topic, 'report_type' => 'terminal']))
+        ->assertOk()->assertSee('Before preparing the official copy, complete Progress Report');
+})->with(['missing', 'prepared', 'revision_requested']);
+
 test('terminal revisions reuse final content while preserving old versions and removing deleted tables', function () {
+    ($this->completeQuarterlyProgress)();
     $payload = ($this->terminalPayload)();
     $this->actingAs($this->researcher)->post(route('project-narrative-reports.prepare', $this->topic), $payload)->assertSessionHasNoErrors();
     $first = ProjectNarrativeReport::where('report_type', 'terminal')->firstOrFail();

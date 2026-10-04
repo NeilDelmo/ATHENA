@@ -481,6 +481,12 @@ test('workspace account details autofill member fields in project papers', funct
 });
 
 test('a stale collaborator save cannot overwrite a newer teammate paper or project details', function () {
+    $this->draft->documents()->create([
+        'document_type' => ProposalVersionFile::TYPE_DETAILED_PROPOSAL,
+        'position' => 0,
+        'source_data' => ['specific_objectives' => [['description' => 'Document the shared research baseline']]],
+    ]);
+
     $this->draft->members()->create([
         'user_id' => $this->collaborator->id,
         'name' => $this->collaborator->name,

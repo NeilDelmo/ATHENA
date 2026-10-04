@@ -53,13 +53,13 @@ class ProposalSignatory extends Model
         ];
 
         return [
-            'checked_verified_by_name' => $head,
+            'checked_verified_by_name' => [...$head, 'position' => 'Head, Research Office'],
             'verified_by' => $head,
-            'screening_head' => $head,
-            'comment_response_head' => $head,
+            'screening_head' => [...$head, 'position' => 'Head, Research/ Head, Research and Extension'],
+            'comment_response_head' => [...$head, 'position' => "Research Head/ RDES Head\nMember, LREC"],
             'recommending_approval_name' => $viceChancellor,
-            'screening_verifier' => $viceChancellor,
-            'comment_response_vice_chancellor' => $viceChancellor,
+            'screening_verifier' => [...$viceChancellor, 'position' => 'Director, Research/ Vice Chancellor for RDES'],
+            'comment_response_vice_chancellor' => [...$viceChancellor, 'position' => "Vice Chancellor for Research, Development and Extension Services\nMember, LREC"],
         ];
     }
 }

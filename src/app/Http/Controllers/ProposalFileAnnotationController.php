@@ -218,6 +218,9 @@ class ProposalFileAnnotationController extends Controller
         Gate::forUser($request->user())->authorize('view', $topic);
         abort_unless($file->canPreviewAsPdf(), 415);
         abort_unless(Storage::disk('local')->exists($file->file_path), 404);
+        if ($request->user()->isUsingWorkspace('research_head')) {
+            $topic->markLatestVersionViewedByResearchHead();
+        }
     }
 
     private function ensureFileScope(

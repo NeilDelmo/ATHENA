@@ -93,7 +93,7 @@ class GADChecklistDocumentService
             $text = trim($paragraph->textContent);
             if ($text === config('gad_checklist.verifier.name')) {
                 $this->replaceParagraphText($paragraph, $checklist['verifier_name'], true, true);
-            } elseif ($text === config('gad_checklist.verifier.role')) {
+            } elseif ($text === 'Head Secretariat, GAD') {
                 $this->replaceParagraphText($paragraph, $checklist['verifier_role']);
             }
         }

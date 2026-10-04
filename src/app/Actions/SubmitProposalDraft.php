@@ -73,6 +73,8 @@ class SubmitProposalDraft
             abort(403);
         }
 
+        abort_unless($draft->topic_id === null || ($draft->topic?->canUpdateBeforeReview() ?? false), 403);
+
         $errors = $this->readiness->errors($draft);
 
         if ($errors !== []) {
@@ -113,6 +115,9 @@ class SubmitProposalDraft
                     ->whereKey($draft->getKey())
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                $lockedDraft->ensureEditable();
+                abort_unless($lockedDraft->topic_id === null || ($lockedDraft->topic()->first()?->canUpdateBeforeReview() ?? false), 403);
 
                 if ($lockedDraft->status !== ProposalDraft::STATUS_DRAFT
                     || $lockedDraft->lock_version !== $draftVersion) {
@@ -195,6 +200,11 @@ class SubmitProposalDraft
                     ]);
                 }
 
+                $existingTopic = $lockedDraft->topic_id !== null
+                    ? TopicProposal::query()->whereKey($lockedDraft->topic_id)->lockForUpdate()->firstOrFail()
+                    : null;
+                abort_unless($existingTopic === null || $existingTopic->canUpdateBeforeReview(), 403);
+
                 $lockedDraft->load(['researchCall', 'members']);
                 $this->facultyProjectCapacityService->ensureSubmissionAvailableFor($lockedDraft);
                 $collaboratorIds = $lockedDraft->members
@@ -241,17 +251,24 @@ class SubmitProposalDraft
                 }
 
                 $primaryFile = $this->packageService->primaryFile($permanentFiles);
-                $topic = $user->proposals()->create([
+                $topicAttributes = [
                     'research_call_id' => $lockedDraft->research_call_id,
                     'title' => $lockedDraft->project_title,
                     'estimated_duration_months' => $lockedDraft->duration_months,
                     'status' => 'pending',
-                ]);
+                ];
+                if ($existingTopic) {
+                    $existingTopic->update($topicAttributes);
+                    $topic = $existingTopic;
+                } else {
+                    $topic = $user->proposals()->create($topicAttributes);
+                }
                 $this->syncTopicCollaborators->handle($lockedDraft, $topic);
                 $version = $topic->versions()->create([
                     'submitted_by' => $user->id,
-                    'version_number' => 1,
-                    'submission_type' => 'initial',
+                    'version_number' => $existingTopic ? ((int) $topic->versions()->max('version_number') + 1) : 1,
+                    'submission_type' => $existingTopic ? 'update' : 'initial',
+                    'change_summary' => $existingTopic ? 'Faculty updated the proposal package before Research Head review.' : null,
                     'file_path' => $primaryFile['file_path'],
                     'original_filename' => $primaryFile['original_filename'],
                     'mime_type' => $primaryFile['mime_type'],
@@ -287,7 +304,7 @@ class SubmitProposalDraft
             Notification::send(
                 User::role('research_head')->get(),
                 new ProposalActivityNotification(
-                    title: 'New proposal submitted',
+                    title: $draft->topic_id !== null ? 'Proposal package updated' : 'New proposal submitted',
                     message: $user->name.' submitted “'.$topic->title.'” for review.',
                     url: route('topics.show', $topic),
                     topicId: $topic->id,

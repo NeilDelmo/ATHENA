@@ -121,7 +121,9 @@ class CommentResponseFeedback
             ...$row,
             ...$this->responseLocation($responses[$row['key']] ?? []),
             'response' => $responses[$row['key']]['response'] ?? '',
-            'remarks' => $responses[$row['key']]['remarks'] ?? '',
+            'remarks' => ($responses[$row['key']]['no_change'] ?? false)
+                ? 'No change made'
+                : ($responses[$row['key']]['remarks'] ?? ''),
             'form_source' => $source,
         ], $rows);
     }
@@ -162,7 +164,7 @@ class CommentResponseFeedback
             'page' => $page,
             'paragraph' => $paragraph,
             'no_change' => $noChange,
-            'remarks' => $noChange ? '' : 'Page '.$page.', paragraph '.$paragraph,
+            'remarks' => $noChange ? 'No change made' : 'Page '.$page.', paragraph '.$paragraph,
         ];
     }
 
@@ -180,7 +182,7 @@ class CommentResponseFeedback
         $version->loadMissing(['files', 'topic.stageTransitions']);
         $fallbackStage = $this->currentStage($version->topic, $version);
 
-        return ProposalFileAnnotation::query()
+        $rows = ProposalFileAnnotation::query()
             ->whereNull('topic_review_file_revision_id')
             ->where('feedback_source', ProposalFileAnnotation::SOURCE_HEAD)
             ->whereHas('file', fn ($query) => $query->where('proposal_version_id', $version->id)
@@ -206,6 +208,25 @@ class CommentResponseFeedback
                     'stage' => $this->annotationStage($annotation, $version, $fallbackStage),
                 ];
             })->all();
+
+        return [...$rows, ...$this->draftCoEvaluatorRows($version)];
+    }
+
+    /** @return list<array{key: string, reviewer: string, location: string, comment: string, response: string, remarks: string, form_source: string, stage: string}> */
+    public function draftCoEvaluatorRows(ProposalVersion $version): array
+    {
+        $version->loadMissing(['files', 'topic']);
+
+        if ($this->currentStage($version->topic, $version) !== 'co_evaluator') {
+            return [];
+        }
+
+        return array_map(fn (array $row): array => [
+            ...$row,
+            'response' => '',
+            'remarks' => '',
+            'form_source' => self::FORM_CO_EVALUATOR,
+        ], $this->coEvaluatorNarrativeRows($version));
     }
 
     /** @return list<array{key: string, reviewer: string, location: string, comment: string, stage: string}> */
@@ -269,26 +290,31 @@ class CommentResponseFeedback
         }
 
         $version = $this->reviewedVersion($review);
-        $initialScreeningId = $version?->files->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)?->id;
-        $evaluation = $version?->files
+
+        return $version ? $this->coEvaluatorNarrativeRows($version, $review->created_at) : [];
+    }
+
+    /** @return list<array{key: string, reviewer: string, location: string, comment: string, stage: string}> */
+    private function coEvaluatorNarrativeRows(ProposalVersion $version, ?DateTimeInterface $at = null): array
+    {
+        $version->loadMissing('files');
+        $initialScreeningId = $version->files->firstWhere('document_type', ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)?->id;
+        $evaluation = $version->files
             ->filter(fn (ProposalVersionFile $file): bool => $file->document_type === ProposalVersionFile::TYPE_HEAD_UPLOAD
                 && $initialScreeningId !== null && $file->source_version_file_id === $initialScreeningId
-                && ($file->created_at?->lte($review->created_at) ?? false)
+                && ($at !== null ? ($file->created_at?->lte($at) ?? false) : ! $file->isSuperseded())
                 && ($file->source_data['purpose'] ?? null) === ProposalVersionFile::HEAD_UPLOAD_PURPOSE_EVALUATION
-                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM
-                && filled($file->source_data['narrative_evaluation'] ?? null))
+                && ($file->source_data['target_document_type'] ?? null) === ProposalVersionFile::TYPE_INITIAL_SCREENING_FORM)
             ->sortByDesc('id')
             ->first();
 
-        if (! $evaluation instanceof ProposalVersionFile) {
+        if (! $evaluation instanceof ProposalVersionFile || blank($evaluation->source_data['narrative_evaluation'] ?? null)) {
             return [];
         }
 
-        $coEvaluatorName = trim((string) ($evaluation->source_data['co_evaluator_name'] ?? ''));
-
         return [[
             'key' => 'co_evaluator_narrative_'.$evaluation->id,
-            'reviewer' => 'Co-evaluator'.($coEvaluatorName !== '' ? ' · '.$coEvaluatorName : ''),
+            'reviewer' => 'Co-evaluator',
             'location' => 'Initial Screening Form · Narrative Evaluation',
             'comment' => trim((string) $evaluation->source_data['narrative_evaluation']),
             'stage' => 'co_evaluator',

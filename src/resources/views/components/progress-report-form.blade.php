@@ -57,9 +57,11 @@
     $approvedStart = $proposalDraft?->planned_start ?? $topic->notice_to_proceed_issued_at?->copy()->startOfDay();
     $approvedEnd = $proposalDraft?->planned_end ?? $approvedStart?->copy()->addMonths((int) $topic->estimated_duration_months);
     $draftData = array_replace($progressDefaults, $draftData);
+    $approvedObjectives = (bool) ($progressDefaults['objectives_from_work_plan'] ?? false);
+    $draftData = app(\App\Support\ProgressReportData::class)->normalize($topic, [...$draftData, 'accomplishments' => old('accomplishments', $draftData['accomplishments'] ?? [])]);
     $blankAccomplishment = ['objective' => '', 'target' => '', 'actual' => '', 'activities' => ''];
     $approvedActivities = collect($progressDefaults['accomplishments'] ?? [])->pluck('activities', 'objective');
-    $accomplishmentRows = collect(old('accomplishments', $draftData['accomplishments'] ?? []))
+    $accomplishmentRows = collect($draftData['accomplishments'] ?? [])
         ->map(function ($row) use ($blankAccomplishment, $approvedActivities) {
             $row = array_merge($blankAccomplishment, is_array($row) ? $row : []);
             $row['activities'] = $row['activities'] ?: $approvedActivities->get($row['objective'], '');
@@ -200,15 +202,17 @@
                     <div class="space-y-3 rounded-xl border border-red-200 p-4 dark:border-red-900">
                         <div class="flex items-center justify-between gap-3">
                             <h4 class="text-base font-semibold text-brand dark:text-red-200" x-text="'Objective ' + (index + 1)"></h4>
-                            <button type="button" @click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300">Remove row</button>
+                            @unless ($approvedObjectives)
+                                <button type="button" @click="removeAccomplishment(index)" :disabled="accomplishmentRows.length === 1" class="rounded-lg px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40 dark:text-red-300">Remove row</button>
+                            @endunless
                         </div>
                         <p x-show="row.activities" x-text="'Planned activities: ' + row.activities" class="whitespace-pre-line text-sm leading-6 text-gray-600 dark:text-slate-300"></p>
                         <div class="grid gap-4 lg:grid-cols-3">
                             <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Approved objective
-                                <textarea :name="'accomplishments[' + index + '][objective]'" x-model="row.objective" rows="4" maxlength="1000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
+                                <textarea :name="'accomplishments[' + index + '][objective]'" x-model="row.objective" @readonly($approvedObjectives) rows="4" maxlength="1000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white"></textarea>
                             </label>
                             <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Target accomplishment
-                                <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
+                                <textarea :name="'accomplishments[' + index + '][target]'" x-model="row.target" @readonly($approvedObjectives) rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="Expected outputs from the approved work plan"></textarea>
                             </label>
                             <label class="text-sm font-semibold text-gray-700 dark:text-slate-200">Actual accomplishment
                                 <textarea :name="'accomplishments[' + index + '][actual]'" x-model="row.actual" rows="4" maxlength="2000" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white" placeholder="What was completed during this period? Include partial progress or work not yet started."></textarea>
@@ -217,7 +221,9 @@
                     </div>
                 </template>
             </div>
-            <button type="button" @click="addAccomplishment" class="inline-flex min-h-11 items-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-brand hover:bg-red-50 dark:border-red-900 dark:text-red-200">Add accomplishment row</button>
+            @unless ($approvedObjectives)
+                <button type="button" @click="addAccomplishment" class="inline-flex min-h-11 items-center rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-brand hover:bg-red-50 dark:border-red-900 dark:text-red-200">Add accomplishment row</button>
+            @endunless
         </section>
 
         <section class="space-y-4">
@@ -233,7 +239,7 @@
                 'results_discussion' => 'X. Results and Discussion',
             ] as $field => $label)
                 <label class="block text-sm font-semibold text-gray-600">{{ $label }}
-                    <textarea name="{{ $field }}" rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ old($field, $draftData[$field] ?? '') }}</textarea>
+                    <textarea name="{{ $field }}" @readonly($field === 'objectives' && filled($progressDefaults['objectives'])) rows="4" maxlength="{{ config('detailed_proposal.maximum_narrative_length') }}" required class="mt-2 block w-full rounded-xl border-gray-200 text-base leading-7 dark:border-slate-700 dark:bg-slate-950 dark:text-white">{{ $field === 'objectives' && filled($progressDefaults['objectives']) ? $progressDefaults['objectives'] : old($field, $draftData[$field] ?? '') }}</textarea>
                 </label>
             @endforeach
         </section>
